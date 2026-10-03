@@ -310,7 +310,7 @@ stream and cached until the stream's properties change. It checks, in order:
 
 | Step | Evidence | Result |
 | --- | --- | --- |
-| 1 | The stream carries its own `target.object` / `node.target` that is not a Rostrum bus, or sets `node.dont-move` | Excluded: the user picked this app's output in its own settings |
+| 1 | The stream carries its own `target.object` / `node.target` that is not a Rostrum node, the headphone device or the default sink, or sets `node.dont-move` | Excluded: the user picked this app's output in its own settings. Naming the headphones or the default is no choice: Java's OpenAL (Minecraft) and some SDL builds name the default device by itself |
 | 2 | `media.role` is `Accessibility`, `Production` or `Test` | Excluded |
 | 3 | The binary, `application.name` or Flatpak/Snap id is in the built-in catalog | Its kind; OBS, audio tools (pavucontrol, Helvum, qpwgraph, EasyEffects, Carla, DAWs) and screen readers are excluded |
 | 4 | The app's menu entry lists it as a Mixer, Recorder, Sequencer or MIDI tool | Excluded |

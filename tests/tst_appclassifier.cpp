@@ -66,6 +66,14 @@ private Q_SLOTS:
         QCOMPARE(classify(f).category, AppCategory::Music);
     }
 
+    void minecraftByItsLauncher()
+    {
+        AppFacts f = facts(QStringLiteral("java"), QStringLiteral("java"));
+        QCOMPARE(classify(f).category, AppCategory::None);
+        f.appId = QStringLiteral("org.prismlauncher.PrismLauncher");
+        QCOMPARE(classify(f).category, AppCategory::Game);
+    }
+
     void obsAndToolsAreNeverPlaced()
     {
         // OBS monitoring routed into the stream bus would loop back into OBS.

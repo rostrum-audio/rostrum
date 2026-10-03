@@ -22,7 +22,7 @@ struct AppFacts
     QString desktopIcon;   // its Icon=
     QStringList desktopCategories;
     bool dontMove = false;       // node.dont-move: the app asked to stay where it is
-    bool ownOutputChoice = false; // the app picked a device itself (target.object outside Rostrum)
+    bool ownOutputChoice = false; // the app picked a device itself (target.object elsewhere than Rostrum, the headphones or the default)
 };
 
 // Why classify() decided, strongest first. The app layer turns this into a sentence.

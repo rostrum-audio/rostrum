@@ -243,6 +243,7 @@ protected:
     const Recognised &recognise(const pw::Node &n, const StreamProps &props, const AppIdentity &id) const;
     Placement place(const pw::Node &n, const StreamProps &props, const AppIdentity &id) const;
     bool isRostrumTarget(const QString &target) const;
+    bool isPlainTarget(const QString &target) const;
     void skipAuto(const AppKey &key, bool skip);
 
     struct Routed

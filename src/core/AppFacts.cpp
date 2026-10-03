@@ -102,7 +102,7 @@ QString steamGameName(const QString &appId, const QStringList &steamRoots)
 }
 
 AppFacts collectFacts(const StreamProps &props, const QMap<QString, QString> &nodeProps, qint64 pid,
-                      DesktopIndex &desktop, const std::function<bool(const QString &)> &isRostrumTarget,
+                      DesktopIndex &desktop, const std::function<bool(const QString &)> &isPlainTarget,
                       const QString &procRoot)
 {
     AppFacts f;
@@ -112,7 +112,7 @@ AppFacts collectFacts(const StreamProps &props, const QMap<QString, QString> &no
     f.dontMove = nodeProps.value(QStringLiteral("node.dont-move")) == QLatin1String("true");
     for (const char *key : {"target.object", "node.target"}) {
         const QString target = nodeProps.value(QString::fromLatin1(key));
-        if (!target.isEmpty() && target != QLatin1String("-1") && !isRostrumTarget(target)) {
+        if (!target.isEmpty() && target != QLatin1String("-1") && !isPlainTarget(target)) {
             f.ownOutputChoice = true;
         }
     }

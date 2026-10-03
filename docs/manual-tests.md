@@ -269,8 +269,10 @@ Start from a scene with no rules and "Assign automatically" on.
    `~/.config/pipewire/*/50-rostrum.conf`.
 2. With OBS running, OBS is listed but stays unassigned, with the reason shown. Start
    pavucontrol's test sound or Helvum: they are not moved either.
-3. In an app's own audio settings, pick a specific output (Discord → Voice & Video → Output
-   Device): Rostrum leaves it on that device and says why.
+3. In an app's own audio settings, pick a specific output other than your headphones (Discord →
+   Voice & Video → Output Device, e.g. HDMI): Rostrum leaves it on that device and says why. Pick
+   your headphones there instead: Rostrum places the app as usual. Minecraft from Prism Launcher
+   (which names the default device) lands on Game.
 4. Drag Spotify's chip to Desktop: it stays there, the Auto tag goes away, and Always saves a rule.
    Choose Unassign in Discord's chip menu: Discord goes to the default sink, the row says "You took it off
    its bus.", and restarting Discord keeps it off. Settings → Apps → Forget skipped apps: Discord

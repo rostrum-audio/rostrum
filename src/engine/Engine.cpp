@@ -345,19 +345,31 @@ bool Engine::isRostrumTarget(const QString &target) const
     });
 }
 
+// Naming the headphones or the default output is no choice: Java's OpenAL and some SDL builds
+// pass the default device's name, and Rostrum's buses end up there anyway.
+bool Engine::isPlainTarget(const QString &target) const
+{
+    const auto names = [&target](const pw::Node *n) {
+        return n && (n->name == target || n->serial == target || QString::number(n->id) == target);
+    };
+    return isRostrumTarget(target) || names(resolveSink()) ||
+           names(m_pw->graph().nodeByName(m_pw->defaultSinkName()));
+}
+
 const Engine::Recognised &Engine::recognise(const pw::Node &n, const StreamProps &props, const AppIdentity &id) const
 {
     const QString signature =
         QStringList{props.appName, props.binary, QString::number(n.pid), n.prop("media.role"),
                     n.prop("application.icon-name"), n.prop("application.id"), n.prop("pipewire.access.portal.app_id"),
-                    n.prop("target.object"), n.prop("node.target"), n.prop("node.dont-move")}
+                    n.prop("target.object"), n.prop("node.target"), n.prop("node.dont-move"),
+                    m_headphones, m_pw->defaultSinkName()}
             .join(QChar(u'\x1f'));
     if (auto it = m_recognised.constFind(n.id); it != m_recognised.cend() && it->signature == signature) {
         return *it;
     }
     Recognised r;
     r.signature = signature;
-    r.facts = collectFacts(props, n.props, n.pid, m_desktop, [this](const QString &t) { return isRostrumTarget(t); });
+    r.facts = collectFacts(props, n.props, n.pid, m_desktop, [this](const QString &t) { return isPlainTarget(t); });
     r.detected = classify(r.facts);
     r.skipKey = (r.facts.steamAppId.isEmpty() ? id.key.toString() : QStringLiteral("steam:") + r.facts.steamAppId).toLower();
     qCInfo(lcEngine) << "recognised" << id.displayName << n.id << "as"

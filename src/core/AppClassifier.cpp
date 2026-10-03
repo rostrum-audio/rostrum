@@ -65,7 +65,11 @@ const QHash<QString, Known> &catalog()
              "org.ppsspp.ppsspp", "duckstation", "duckstation-qt", "org.duckstation.duckstation", "cemu",
              "info.cemu.cemu", "ryujinx", "org.ryujinx.ryujinx", "citra", "citra-qt", "melonds",
              "net.kuribo64.melonds", "mgba", "mgba-qt", "io.mgba.mgba", "xemu", "app.xemu.xemu", "flycast",
-             "minecraft", "minecraft launcher", "com.mojang.minecraft"});
+             "minecraft", "minecraft launcher", "minecraft-launcher", "com.mojang.minecraft",
+             // Minecraft runs as "java" inside its launcher's sandbox, so the launcher's id names it.
+             "prismlauncher", "prism launcher", "org.prismlauncher.prismlauncher", "polymc", "org.polymc.polymc",
+             "multimc", "atlauncher", "com.atlauncher.atlauncher", "gdlauncher", "io.gdevs.gdlauncher",
+             "modrinth app", "com.modrinth.modrinthapp"});
         add(AppCategory::Desktop,
             {"firefox", "firefox-bin", "firefox-esr", "org.mozilla.firefox", "librewolf", "io.gitlab.librewolf-community",
              "floorp", "one.ablaze.floorp", "zen", "zen-bin", "app.zen_browser.zen", "waterfox", "chrome",

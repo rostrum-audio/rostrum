@@ -26,10 +26,11 @@ ProcessFacts readProcessFacts(qint64 pid, const QString &binary, const QString &
 // Empty roots = the native and Flatpak Steam installs in the home folder.
 QString steamGameName(const QString &appId, const QStringList &steamRoots = {});
 
-// Gathers AppFacts for one playback stream. `isRostrumTarget` says whether a target.object
-// value names one of Rostrum's own nodes (exported rules point streams there).
+// Gathers AppFacts for one playback stream. `isPlainTarget` says whether a target.object value is
+// no real choice of output: one of Rostrum's own nodes (exported rules point streams there), or
+// the device a stream would reach anyway (audio libraries such as OpenAL name the default).
 AppFacts collectFacts(const StreamProps &props, const QMap<QString, QString> &nodeProps, qint64 pid,
-                      DesktopIndex &desktop, const std::function<bool(const QString &)> &isRostrumTarget,
+                      DesktopIndex &desktop, const std::function<bool(const QString &)> &isPlainTarget,
                       const QString &procRoot = QStringLiteral("/proc"));
 
 // Icons that may show the app, best first: theme icon names or absolute paths. The Steam game's
