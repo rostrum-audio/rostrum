@@ -1,0 +1,43 @@
+name: Accessibility barrier
+description: Something in Rostrum is hard or impossible to use with a screen reader, keyboard, zoom or other assistive technology.
+labels: ["accessibility"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for telling us. Accessibility barriers are treated as bugs.
+        [ACCESSIBILITY.md](https://github.com/rostrum-audio/rostrum/blob/main/ACCESSIBILITY.md)
+        lists what Rostrum supports today and the known limitations.
+
+        You don't need to fill in every field, and you don't need to know which part of the code is
+        at fault. If a form is hard to use, email **hello@getrostrum.dev** instead.
+
+        **Privacy:** this issue is public. Please leave out personal data.
+  - type: textarea
+    id: barrier
+    attributes:
+      label: What you were trying to do, and what got in the way
+      placeholder: With Orca running, I tab to the Game fader, but its level is not announced.
+    validations:
+      required: true
+  - type: input
+    id: assistive-tech
+    attributes:
+      label: Assistive technology
+      description: Screen reader, magnifier, switch access, keyboard only, high contrast, large text, and versions if you know them.
+      placeholder: Orca 48, keyboard only
+  - type: input
+    id: version
+    attributes:
+      label: Rostrum version
+      description: Settings → About shows it.
+      placeholder: "0.1.0"
+  - type: input
+    id: environment
+    attributes:
+      label: Distribution, desktop and session
+      placeholder: Kubuntu 26.04, Plasma 6 on Wayland
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: What would work better for you

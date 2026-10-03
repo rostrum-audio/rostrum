@@ -194,9 +194,10 @@ Qt 6.10, KDE Frameworks 6.24.
 - ✉️ Questions and feedback: hello@getrostrum.dev
 - 🔒 Security problems: security@getrostrum.dev. See [SECURITY.md](SECURITY.md).
 
-Contributions are welcome. Run `ctest --test-dir build` before sending a change. Headset, OBS and
-reboot checks stay manual: walk through [docs/manual-tests.md](docs/manual-tests.md) for anything
-that touches audio routing.
+Contributions are welcome: start with [CONTRIBUTING.md](CONTRIBUTING.md), and please follow the
+[Code of Conduct](CODE_OF_CONDUCT.md). Run `ctest --test-dir build` before sending a change.
+Headset, OBS and reboot checks stay manual: walk through [docs/manual-tests.md](docs/manual-tests.md)
+for anything that touches audio routing.
 
 ### 🛠️ Development
 
@@ -221,6 +222,8 @@ for both, and for testing against a local server.
 - [Crash reports and updates: what is sent, and when](docs/privacy.md)
 - [Manual test plan](docs/manual-tests.md)
 - [Security policy](SECURITY.md)
+- [Contributing](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Accessibility](ACCESSIBILITY.md)
 - [getrostrum.dev](https://getrostrum.dev)
 
 

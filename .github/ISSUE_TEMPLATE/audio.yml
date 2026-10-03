@@ -1,12 +1,24 @@
 name: Audio routing
 description: A bus, app rule, headset, or OBS capture did the wrong thing.
-title: ""
 labels: ["audio"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        **Privacy:** this issue is public. `wpctl status` and `pw-link` output lists your devices
+        and running apps, so remove anything you don't want to share.
   - type: textarea
     id: what
     attributes:
       label: What you expected, and what you heard
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Rostrum version
+      description: Settings → About shows it.
+      placeholder: "0.1.0"
     validations:
       required: true
   - type: input
@@ -15,6 +27,13 @@ body:
       label: Distro and version
     validations:
       required: true
+  - type: input
+    id: audio-stack
+    attributes:
+      label: PipeWire and WirePlumber versions
+      description: |
+        Settings → About lists both. In a terminal: `pipewire --version` and `wireplumber --version`.
+      placeholder: PipeWire 1.6.2, WirePlumber 0.5.13
   - type: input
     id: device
     attributes:

@@ -1,0 +1,102 @@
+name: Bug report
+description: Something in Rostrum failed, crashed or behaved wrongly.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. Please search the
+        [existing issues](https://github.com/rostrum-audio/rostrum/issues) first.
+
+        If audio went to the wrong place (a bus, an app rule, the headset or OBS capture), the
+        **Audio routing** form asks for the details that help most. Security problems go to
+        [private reporting](https://github.com/rostrum-audio/rostrum/security/advisories/new), not here.
+
+        **Privacy:** this issue is public. Don't paste personal data such as your name, email
+        address, passwords, tokens or your OBS websocket password. Logs can contain your user
+        name in file paths and the names of your apps and devices, so look them over first.
+  - type: input
+    id: version
+    attributes:
+      label: Rostrum version
+      description: Settings → About shows it.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you installed Rostrum
+      options:
+        - Built from source
+        - AppImage
+        - Distribution package
+        - Flatpak
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: distro
+    attributes:
+      label: Distribution and version
+      placeholder: Kubuntu 26.04, Fedora 43, Arch, openSUSE Tumbleweed
+    validations:
+      required: true
+  - type: input
+    id: desktop
+    attributes:
+      label: Desktop and session
+      placeholder: Plasma 6 on Wayland, GNOME on Wayland, Plasma on X11
+    validations:
+      required: true
+  - type: input
+    id: audio-stack
+    attributes:
+      label: PipeWire and WirePlumber versions
+      description: |
+        Settings → About lists both. In a terminal: `pipewire --version` and `wireplumber --version`.
+      placeholder: PipeWire 1.6.2, WirePlumber 0.5.13
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the Mixer
+        2. Drag Firefox onto Music
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead
+      description: Include any error message or banner text. Screenshots help for UI problems.
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: |
+        Rostrum logs to `$XDG_STATE_HOME/rostrum/rostrum.log`, normally
+        `~/.local/state/rostrum/rostrum.log`. After a crash it ends with a backtrace.
+        The last lines are usually enough: `tail -n 100 ~/.local/state/rostrum/rostrum.log`.
+        Remove anything personal before pasting.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you submit
+      options:
+        - label: I searched the existing issues and this is not a duplicate.
+          required: true
+        - label: I removed personal data (names, email addresses, passwords, tokens) from everything above.
+          required: true
