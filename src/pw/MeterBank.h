@@ -10,8 +10,8 @@ namespace rostrum::pw {
 
 class PwContext;
 
-// Peak meters: one passive capture stream per target node. Sinks are read from their monitor,
-// sources directly. Meter streams set node.dont-fallback and node.dont-reconnect so they never
+// Peak meters: one capture stream per target node. Sinks are read from their monitor, sources
+// directly. Sink and stream meters are passive; source meters are not, so they wake the mic. Meter streams set node.dont-fallback and node.dont-reconnect so they never
 // wander onto another device; that is allowed for meters only, never for app rules.
 class MeterBank : public QObject
 {

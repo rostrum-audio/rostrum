@@ -6,6 +6,8 @@
 #include "engine/Engine.h"
 #include "engine/SceneManager.h"
 #include "pw/PwContext.h"
+#include "core/Volume.h"
+#include "pw/MeterBank.h"
 #include "pw/TestTone.h"
 
 #include <QCommandLineParser>
@@ -67,8 +69,11 @@ int main(int argc, char **argv)
     QCommandLineOption tone(QStringLiteral("tone"),
                             QStringLiteral("Play the test chime on a sink (node.name) and exit."),
                             QStringLiteral("sink"));
+    QCommandLineOption meter(QStringLiteral("meter"),
+                             QStringLiteral("Print the peak level of a node (node.name) four times a second."),
+                             QStringLiteral("node"));
     parser.addOptions({seconds, teardown, rule, session, unassignAfter, listApps, dest, headphones, mic, micMuted,
-                       sidetone, solo, config, tone});
+                       sidetone, solo, config, tone, meter});
     parser.process(app);
 
     pw::PwContext pw;
@@ -116,6 +121,25 @@ int main(int argc, char **argv)
                     QCoreApplication::quit();
                 }
             });
+            return;
+        }
+        if (parser.isSet(meter)) {
+            auto *bank = new pw::MeterBank(&pw, &app);
+            const QString target = parser.value(meter);
+            bank->setTargets({target});
+            bank->setActive(true);
+            auto *poll = new QTimer(&app);
+            QObject::connect(poll, &QTimer::timeout, &app, [bank, target] {
+                const float peak = bank->takePeak(target);
+                const double db = volume::linearToDb(peak);
+                QTextStream(stdout) << QStringLiteral("%1 dB %2\n")
+                                           .arg(db < -99.0 ? QStringLiteral("  -inf") : QString::number(db, 'f', 1).rightJustified(6))
+                                           .arg(QString(int(volume::meterFraction(peak) * 40), QLatin1Char('#')));
+            });
+            poll->start(250);
+            if (const int s = parser.value(seconds).toInt(); s > 0) {
+                QTimer::singleShot(s * 1000, &app, &QCoreApplication::quit);
+            }
             return;
         }
         if (parser.isSet(teardown)) {

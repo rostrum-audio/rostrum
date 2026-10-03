@@ -138,13 +138,19 @@ void MeterBank::sync()
         pw_properties *props = pw_properties_new(
             PW_KEY_MEDIA_TYPE, "Audio", PW_KEY_MEDIA_CATEGORY, "Capture", PW_KEY_MEDIA_ROLE, "DSP",
             PW_KEY_NODE_NAME, streamName.constData(), PW_KEY_NODE_DESCRIPTION, "Rostrum meter",
-            PW_KEY_TARGET_OBJECT, target.constData(), PW_KEY_NODE_PASSIVE, "true",
+            PW_KEY_TARGET_OBJECT, target.constData(),
             PW_KEY_STREAM_DONT_REMIX, "true", PW_KEY_NODE_LATENCY, "1024/48000",
             "node.dont-fallback", "true", "node.dont-reconnect", "true", "node.dont-move", "true",
             "state.restore-props", "false", "state.restore-target", "false", "rostrum.internal", "true",
             nullptr);
         if (n->isSink()) {
             pw_properties_set(props, PW_KEY_STREAM_CAPTURE_SINK, "true");
+        }
+        // A passive link never wakes a suspended source, and nothing else may be recording the
+        // mic yet, so source meters must be active. Sink and stream meters stay passive: the
+        // audio playing through them already keeps them running.
+        if (!n->isSource()) {
+            pw_properties_set(props, PW_KEY_NODE_PASSIVE, "true");
         }
         m->stream = pw_stream_new(m_pw->core(), streamName.constData(), props);
         if (m->stream) {
