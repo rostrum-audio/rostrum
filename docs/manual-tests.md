@@ -142,7 +142,7 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
 ## 9. First-time setup
 
 1. Move `~/.config/rostrum` aside and tear the buses down (`$B --teardown`). Start Rostrum.
-2. Setup opens on Welcome, with the seven steps listed on the left and the diagram. `wpctl status`
+2. Setup opens on Welcome, with the eight steps listed on the left and the diagram. `wpctl status`
    shows no Rostrum nodes yet.
 3. Get Started. On Headphones, press Test on your headset: you hear a short chime there and
    nowhere else, the first note on the left, the second on the right. Pick it. The star moves to it.
@@ -156,17 +156,27 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
 7. Next. On Privacy and Updates, "Ask me after a crash" is selected. Press See an Example Report:
    it shows your distribution, desktop and versions, and no user name, path or device name.
    Pick Never send. The update switches match how this copy was installed (test 14).
-8. Next. Ready lists each choice. Click Crash reports: setup goes back to Privacy and Updates. The
-   finished steps on the left show check marks and can be clicked; later steps cannot.
-9. Go to Ready and press Create Mix: a spinner shows, then the Mixer opens.
-   `~/.config/rostrum/scenes/live.toml` exists, and `settings.toml` has `wizard_done = true`,
-   `setup_version = 2` and `crash_reports = 'never'`.
-10. Repeat from step 1, but press Skip Setup on Welcome: the Mixer opens and the nodes exist
+8. Next. On OBS, with OBS installed and running: the step says whether OBS records Rostrum, and
+   the footer button reads Skip. Press Set Up OBS…: a spinner shows while Rostrum creates its
+   devices, then the same preview as the OBS page opens. Cancel it. "Follow OBS while it runs" and
+   "Warn me when a stream starts with a problem" are on. With OBS not installed, the step says
+   so, and Skip moves on.
+9. Next. Ready lists each choice, OBS included. Click Crash reports: setup goes back to Privacy
+   and Updates. The finished steps on the left show check marks and can be clicked; later steps
+   cannot.
+10. Go to Ready and press Create Mix: a spinner shows, then the Mixer opens.
+    `~/.config/rostrum/scenes/live.toml` exists, and `settings.toml` has `wizard_done = true`,
+    `setup_version = 3` and `crash_reports = 'never'`.
+11. Repeat from step 1, but press Skip Setup on Welcome: the Mixer opens and the nodes exist
     anyway. Crash reports stay on Ask.
-11. People who set Rostrum up before 0.1.0 got these choices: in `settings.toml`, delete the
-    `setup_version` line and the `[privacy]` and `[updates]` tables, and start Rostrum. The Mixer
-    opens with a one-time "Crash Reports and Updates" dialog. Done closes it and writes
-    `setup_version = 2`, and it does not come back.
+12. People who set Rostrum up before 0.1.0 got these choices: in `settings.toml`, delete the
+    `setup_version` line and the `[privacy]`, `[updates]` and `[obs]` tables, and start Rostrum.
+    The Mixer opens with a one-time "Crash Reports, Updates and OBS" dialog (or "Updates and
+    OBS" without crash reports) with both groups of switches and Open the OBS Page. Done closes
+    it and writes `setup_version = 3`, and it does not come back.
+13. People who set Rostrum up before the OBS step: set `setup_version = 2` and delete `[obs]`. The
+    dialog is called "Rostrum and OBS" and shows only the OBS switches. Open the OBS Page closes it,
+    shows the OBS page and writes `setup_version = 3`.
 
 ## 10. Apps, Scenes, Devices, OBS and Settings pages
 
@@ -313,6 +323,49 @@ at once instead of after 20 seconds.
 8. Run with `FLATPAK_ID=dev.getrostrum.Rostrum`: Settings → Updates says Flatpak keeps Rostrum up
    to date, and there are no switches.
 
+## 15. OBS while live
+
+Use a test OBS profile and scene collection with a "Starting Soon", a "Game" and a "BRB" scene,
+and a stream target you can stream to safely (an `rtmp://127.0.0.1/` server that accepts
+anything, or OBS's "Record" only for the REC steps). obs-websocket on, Rostrum set up for OBS.
+
+1. With "Follow OBS while it runs" on and the OBS page closed, start OBS: within about 5 seconds
+   `ss -tnp | rg rostrum` shows one connection to `127.0.0.1:4455` and nothing else. Quit OBS:
+   the connection is gone, and nothing new appears in `rostrum.log`.
+2. Start streaming in OBS: the header shows a red LIVE badge with a clock counting up. Start
+   recording: a REC badge appears next to it; pause, and it reads REC paused with the clock held.
+   The tray tooltip starts with "LIVE since <time> · REC paused · ". With a screen reader, the
+   badges read "Live on stream for …" and "Recording for …". Click one: the OBS page opens.
+3. Quit Rostrum while streaming and start it again: the LIVE clock carries on from OBS's time,
+   not from zero. Quit OBS while live: both badges disappear at once.
+4. Mute your mic in Rostrum and start streaming: a red banner "You're live, but: Your mic is
+   muted…" appears with Unmute Mic, and one critical notification "Check your stream audio".
+   Press Unmute Mic: the banner goes away. Stop and start the stream with Master Stream muted:
+   the banner says no bus reaches the stream; Open Mixer goes to the Mixer. Start again with Music
+   soloed and set to Headphones only: the same warning. In OBS, point the Rostrum Stream Mix
+   source at Default and start streaming: the banner says OBS isn't recording Rostrum Stream Mix;
+   Open OBS Page opens it.
+   Stopping the stream clears the banner. Muting the mic mid-stream does not raise a new one.
+5. Turn off "Warn me when a stream starts with a problem" and repeat a muted-mic start: no
+   banner, no notification.
+6. OBS page → When OBS switches scenes: the three OBS scenes are listed, and the one on program
+   says On program. Map Game → Live and BRB → a "Be Right Back" scene. Switch OBS to BRB:
+   Rostrum loads Be Right Back at once, with no confirm dialog, even with "Confirm before
+   switching scenes" on, and a toast names both scenes. With auto-save on, a fader moved just
+   before is saved in Live. `settings.toml` has an `[obs.scene_map]` table with both lines.
+   Starting Soon (No change) leaves the Rostrum scene alone.
+7. Rename BRB in OBS: the old name shows "(not in OBS)" with a Forget button, and the new one is
+   unmapped. Forget removes the line from `[obs.scene_map]`.
+8. Turn "Follow OBS while it runs" off: the connection closes once the OBS page is closed, the
+   badges go away, and the scene map section offers Follow OBS While It Runs. Turn it back on.
+9. Turn off OBS's WebSocket server (Tools → WebSocket Server Settings) and quit OBS: once OBS is
+   started again, Rostrum makes no connection attempt. Turn the server back on and quit OBS.
+10. Backoff: with OBS closed and its server on in the config, run a stand-in process named `obs`
+    (`cp /bin/sleep /tmp/obs && /tmp/obs 600`). Rostrum's refused attempts
+    (`strace -f -e trace=connect -p <pid>`) come 5, 10, 20, 40 and then 60 seconds apart, with no
+    toast and nothing in `rostrum.log`. Opening the OBS page tries at once and shows the error.
+    Kill the stand-in.
+
 ## Smoke test log
 
 Kubuntu 26.04, Plasma 6.6 Wayland, PipeWire 1.6.2, WirePlumber 0.5.13, build 0.1.0. The checks
@@ -333,13 +386,15 @@ nested KWin with a fake tray host, or offscreen rendering. Fake devices were nul
 | Global shortcuts through KGlobalAccel | All eight registered as `dev.getrostrum.Rostrum`; invoking Mute mic toggles the mic; a shortcut KWin owns (Meta+D) is reported in Settings and stays in-window |
 | Automatic assignment with stand-in streams (Discord, Spotify, Streamer.bot, Firefox, an unknown game with `media.role = "Game"`) and the real OBS | Each lands on Voice, Music, Alerts, Desktop and Game with the reason shown; OBS is recognised and left alone; no fragment file changes |
 | First-time setup, each step rendered in a headless nested KWin and offscreen at 1280×720 | Step list marks finished steps; no layout overlap; no QML warnings |
-| Existing settings with `wizard_done = true` and no `setup_version` | The one-time Crash Reports and Updates dialog opens over the Mixer, with no binding loops |
+| Existing settings with `wizard_done = true` and no `setup_version` (0.1.0) | The one-time Crash Reports and Updates dialog opens over the Mixer, with no binding loops |
 | Sentry build, `kill -SEGV` on a test instance (no PipeWire, private D-Bus, temp config), local server as the DSN | Send: one 3.5 KB envelope posted at the next start, file deleted; no user name, path, installation ID, registers, timestamp or device name; only the 4 libraries in the stack listed. Ask: report kept (0600), nothing posted. Never: nothing captured, no sentry folder |
 | `official` preset build, same crash, sent to the real Sentry project | Sentry accepted the report (2xx) at the next start; the local file deleted; the stored event has no IP address and no location |
 | Update feed 0.2.0 from a local server, as an AppImage | Download checked against SHA-256, AppImage replaced with mode 755, Restart Now offered; no cookies sent; `User-Agent: Rostrum/0.1.0` |
 | Same, with a wrong checksum | Refused; the old AppImage kept; no `.part` file left |
+| Fake obs-websocket server (`tst_obs`): stream, record and pause events, program scene changes, scene list changes, OBS going away | Live status follows each event and starts the LIVE clock from OBS's duration; nothing is left when OBS goes away; scene mapping ignores unknown targets; go-live problems found for a muted mic, a silent stream mix (solo included) and missing captures |
+| LIVE and REC badges, go-live banner, OBS scene map, setup's OBS step and the setup version 1 → 3 and 2 → 3 dialogs, rendered offscreen with stand-in data | No QML warnings, no overlap |
 | Unit tests | 11 of 11 pass |
 
 Still manual (needs hardware or a real session): tests 4 (mic path), 6 and 7 (quit and reboot
-routing with Discord), OBS capture, the real headset unplug, the GlobalShortcuts portal on a
+routing with Discord), OBS capture, OBS while live (test 15) against a real OBS, the real headset unplug, the GlobalShortcuts portal on a
 non-Plasma desktop, and updates against the real getrostrum.dev feed.

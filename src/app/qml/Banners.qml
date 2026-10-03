@@ -10,6 +10,40 @@ ColumnLayout {
     Kirigami.InlineMessage {
         Layout.fillWidth: true
         position: Kirigami.InlineMessage.Position.Header
+        type: Kirigami.MessageType.Error
+        icon.name: "media-record"
+        visible: Obs.warnings.length > 0
+        text: Obs.warningText
+        actions: [
+            Kirigami.Action {
+                visible: Obs.warnings.includes("micMuted") && App.micMuted
+                text: i18nc("@action:button", "Unmute Mic")
+                icon.name: "audio-input-microphone"
+                onTriggered: App.micMuted = false
+            },
+            Kirigami.Action {
+                visible: Obs.warnings.includes("streamSilent") || (Obs.warnings.includes("micMuted") && !App.micMuted)
+                text: i18nc("@action:button", "Open Mixer")
+                icon.name: "view-media-equalizer"
+                onTriggered: applicationWindow().showPage("mixer")
+            },
+            Kirigami.Action {
+                visible: Obs.warnings.includes("noStreamCapture") || Obs.warnings.includes("noMicCapture")
+                text: i18nc("@action:button", "Open OBS Page")
+                icon.name: "media-record"
+                onTriggered: applicationWindow().showPage("obs")
+            },
+            Kirigami.Action {
+                text: i18nc("@action:button", "Dismiss")
+                icon.name: "dialog-close"
+                onTriggered: Obs.dismissWarnings()
+            }
+        ]
+    }
+
+    Kirigami.InlineMessage {
+        Layout.fillWidth: true
+        position: Kirigami.InlineMessage.Position.Header
         type: Kirigami.MessageType.Warning
         visible: App.headphonesMissing
         text: i18n("Headphones disconnected, scene held. Playing through %1 until they come back.", App.headphonesText)

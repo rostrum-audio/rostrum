@@ -23,8 +23,8 @@ QString defaultShortcut(const QString &id);
 } // namespace actions
 
 // Bumped when first-run setup gains a step that existing users should see once. 1 = devices and
-// buses, 2 = startup, crash reports and updates.
-inline constexpr int kSetupVersion = 2;
+// buses, 2 = startup, crash reports and updates, 3 = OBS.
+inline constexpr int kSetupVersion = 3;
 
 namespace crashmode {
 inline constexpr const char *kSend = "send";
@@ -55,6 +55,10 @@ struct Settings
     bool installUpdates = true; // only where Rostrum can replace itself (AppImage)
     QString skippedVersion;
     qint64 lastUpdateCheck = 0; // seconds since the epoch
+    // OBS
+    bool obsBackground = true; // follow OBS over obs-websocket on localhost while OBS runs
+    bool obsGoLiveWarnings = true;
+    QMap<QString, QString> obsSceneMap; // OBS scene name -> Rostrum scene name
     // Advanced
     bool showNodeIds = false;
     // Scenes

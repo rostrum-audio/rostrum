@@ -1,11 +1,14 @@
 #include "app/Tray.h"
 
 #include "app/AppController.h"
+#include "app/Obs.h"
 
 #include <KLocalizedString>
 #include <KStatusNotifierItem>
 #include <QActionGroup>
+#include <QDateTime>
 #include <QIcon>
+#include <QLocale>
 #include <QMenu>
 #include <QWindow>
 
@@ -59,6 +62,9 @@ Tray::Tray(AppController *app, QObject *parent) : QObject(parent), m_app(app)
     connect(m_app, &AppController::scenesChanged, this, &Tray::updateState);
     connect(m_app, &AppController::scenesChanged, this, &Tray::rebuildScenes);
     connect(m_menu, &QMenu::aboutToShow, this, &Tray::updateState);
+    if (Obs::instance()) {
+        connect(Obs::instance(), &Obs::liveChanged, this, &Tray::updateState);
+    }
     updateState();
     rebuildScenes();
 }
@@ -90,8 +96,23 @@ void Tray::updateState()
                         : muted          ? i18nc("@info:tooltip", "Mic muted")
                                          : i18nc("@info:tooltip", "Mic live");
     // Levels change many times a second while a fader moves; only talk to the tray host on news.
-    const QString tip =
-        i18nc("@info:tooltip mic state, scene name", "%1 · Scene: %2", mic, m_app->currentScene());
+    QString tip = i18nc("@info:tooltip mic state, scene name", "%1 · Scene: %2", mic, m_app->currentScene());
+    // A start time, not a running clock: the tray host is only told about changes.
+    if (const Obs *obs = Obs::instance()) {
+        const auto since = [](double ms) {
+            return QLocale().toString(QDateTime::fromMSecsSinceEpoch(qint64(ms)).time(),
+                                      QLocale::ShortFormat);
+        };
+        if (obs->recording()) {
+            tip = obs->recordPaused() ? i18nc("@info:tooltip recording paused, rest", "REC paused · %1", tip)
+                                      : i18nc("@info:tooltip recording since time, rest", "REC since %1 · %2",
+                                              since(obs->recordStartMs()), tip);
+        }
+        if (obs->streaming()) {
+            tip = i18nc("@info:tooltip streaming since time, rest", "LIVE since %1 · %2",
+                        since(obs->streamStartMs()), tip);
+        }
+    }
     if (tip != m_item->toolTipSubTitle()) {
         m_item->setToolTipSubTitle(tip);
     }

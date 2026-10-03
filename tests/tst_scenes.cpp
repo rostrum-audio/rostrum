@@ -379,6 +379,27 @@ bus = "game"
         QCOMPARE(parseSettings(QStringLiteral("[general]\nwizard_done = true\n")).setupVersion, 1);
         QCOMPARE(parseSettings(QStringLiteral("[general]\nwizard_done = false\n")).setupVersion, 0);
     }
+
+    void settingsObs()
+    {
+        const Settings d = defaultSettings();
+        QVERIFY(d.obsBackground);
+        QVERIFY(d.obsGoLiveWarnings);
+        QVERIFY(d.obsSceneMap.isEmpty());
+
+        Settings s = d;
+        s.obsBackground = false;
+        s.obsGoLiveWarnings = false;
+        s.obsSceneMap.insert(QStringLiteral("BRB"), QStringLiteral("Be Right Back"));
+        s.obsSceneMap.insert(QStringLiteral("Scene \"2\" = [x]"), QStringLiteral("Live"));
+        const QString text = serializeSettings(s);
+        QVERIFY(text.contains(QLatin1String("[obs.scene_map]")));
+        QCOMPARE(parseSettings(text), s);
+
+        // A mapping to nothing is the same as no mapping.
+        const Settings empty = parseSettings(QStringLiteral("[obs.scene_map]\nBRB = ''\nGame = 3\n"));
+        QVERIFY(empty.obsSceneMap.isEmpty());
+    }
 };
 
 QTEST_GUILESS_MAIN(TestScenes)

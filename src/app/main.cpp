@@ -65,9 +65,10 @@ int main(int argc, char *argv[])
     rostrum::app::Apps apps(&controller, nullptr);
     rostrum::app::Scenes scenes(&controller, nullptr);
     rostrum::app::Devices devices(&controller, nullptr);
+    // Before Desktop: the tray shows OBS's live state.
+    rostrum::app::Obs obs(&controller, nullptr);
     rostrum::app::Desktop desktop(&controller, nullptr);
     rostrum::app::Preferences preferences(&controller, nullptr);
-    rostrum::app::Obs obs(&controller, nullptr);
     rostrum::app::CrashReports crashReports(&controller, nullptr);
     crashReports.start();
     rostrum::app::Updater updater(&controller, nullptr);

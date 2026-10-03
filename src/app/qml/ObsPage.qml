@@ -237,6 +237,99 @@ QQC2.ScrollView {
             }
         }
 
+        // OBS scene -> Rostrum scene
+        ColumnLayout {
+            Layout.fillWidth: true
+            visible: Obs.state !== "notInstalled" && Obs.state !== "neverRun"
+            spacing: Kirigami.Units.smallSpacing
+
+            Kirigami.Heading {
+                level: 3
+                text: i18nc("@title", "When OBS switches scenes")
+            }
+            QQC2.Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                opacity: 0.8
+                text: i18n("Pick a Rostrum scene for an OBS scene, and Rostrum loads it as soon as OBS puts that scene on program, without asking.")
+            }
+            QQC2.Label {
+                Layout.fillWidth: true
+                visible: !Preferences.autoSaveScenes
+                wrapMode: Text.WordWrap
+                opacity: 0.8
+                text: i18n("Scene changes don't save automatically, so fader moves you haven't saved are discarded when OBS switches.")
+            }
+            Kirigami.InlineMessage {
+                Layout.fillWidth: true
+                visible: !Obs.background
+                type: Kirigami.MessageType.Information
+                text: i18n("Rostrum only follows OBS while this page is open.")
+                actions: Kirigami.Action {
+                    text: i18nc("@action:button", "Follow OBS While It Runs")
+                    icon.name: "media-record"
+                    onTriggered: Obs.background = true
+                }
+            }
+            QQC2.Label {
+                Layout.fillWidth: true
+                visible: Obs.sceneMap.length === 0
+                wrapMode: Text.WordWrap
+                opacity: 0.7
+                text: i18n("Start OBS to see its scenes.")
+            }
+            Repeater {
+                model: Obs.sceneMap
+                RowLayout {
+                    id: mapRow
+                    required property var modelData
+                    Layout.fillWidth: true
+                    spacing: Kirigami.Units.largeSpacing
+
+                    RowLayout {
+                        Layout.preferredWidth: Kirigami.Units.gridUnit * 14
+                        Layout.maximumWidth: Kirigami.Units.gridUnit * 14
+                        spacing: Kirigami.Units.smallSpacing
+                        opacity: mapRow.modelData.present ? 1 : 0.6
+                        QQC2.Label {
+                            Layout.fillWidth: true
+                            text: mapRow.modelData.present ? mapRow.modelData.obsScene
+                                                           : i18nc("@info OBS scene that no longer exists", "%1 (not in OBS)", mapRow.modelData.obsScene)
+                            elide: Text.ElideRight
+                            font.weight: Font.DemiBold
+                        }
+                        QQC2.Label {
+                            visible: mapRow.modelData.onProgram
+                            text: i18nc("@info the OBS scene viewers see now", "On program")
+                            font: Kirigami.Theme.smallFont
+                            color: Kirigami.Theme.positiveTextColor
+                        }
+                    }
+                    QQC2.ComboBox {
+                        Layout.preferredWidth: Kirigami.Units.gridUnit * 14
+                        model: [i18nc("@item:inlistbox scene mapping", "No change")].concat(App.sceneNames)
+                        currentIndex: mapRow.modelData.rostrumScene === "" ? 0 : App.sceneNames.indexOf(mapRow.modelData.rostrumScene) + 1
+                        onActivated: index => Obs.setSceneMapping(mapRow.modelData.obsScene, index === 0 ? "" : App.sceneNames[index - 1])
+                        Accessible.name: i18nc("@label accessible", "Rostrum scene for the OBS scene %1", mapRow.modelData.obsScene)
+                    }
+                    QQC2.ToolButton {
+                        visible: !mapRow.modelData.present
+                        icon.name: "edit-delete"
+                        text: i18nc("@action:button", "Forget")
+                        display: QQC2.AbstractButton.IconOnly
+                        onClicked: Obs.setSceneMapping(mapRow.modelData.obsScene, "")
+                        Accessible.name: i18nc("@action:button accessible", "Forget the mapping for %1", mapRow.modelData.obsScene)
+                        QQC2.ToolTip.text: text
+                        QQC2.ToolTip.visible: hovered
+                        QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                    }
+                    Item {
+                        Layout.fillWidth: true
+                    }
+                }
+            }
+        }
+
         // The manual route
         ColumnLayout {
             Layout.fillWidth: true
@@ -309,84 +402,7 @@ QQC2.ScrollView {
         }
     }
 
-    Kirigami.Dialog {
+    ObsSetupDialog {
         id: previewDialog
-        title: Obs.onlyDoubling ? i18nc("@title:dialog", "Fix OBS") : i18nc("@title:dialog", "Set Up OBS")
-        padding: Kirigami.Units.largeSpacing
-        preferredWidth: Kirigami.Units.gridUnit * 30
-        standardButtons: Kirigami.Dialog.NoButton
-        customFooterActions: [
-            Kirigami.Action {
-                text: i18nc("@action:button", "Apply")
-                icon.name: "dialog-ok"
-                enabled: Obs.canApply
-                onTriggered: {
-                    Obs.apply()
-                    previewDialog.close()
-                }
-            },
-            Kirigami.Action {
-                text: i18nc("@action:button", "Cancel")
-                icon.name: "dialog-cancel"
-                onTriggered: previewDialog.close()
-            }
-        ]
-
-        ColumnLayout {
-            spacing: Kirigami.Units.largeSpacing
-
-            QQC2.Label {
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                text: Obs.state === "closed"
-                      ? i18n("OBS is closed. Rostrum will back up its scene collection, then change:")
-                      : i18n("Rostrum will change these in OBS now:")
-            }
-
-            Repeater {
-                model: Obs.planItems
-                RowLayout {
-                    required property var modelData
-                    Layout.fillWidth: true
-                    spacing: Kirigami.Units.smallSpacing
-                    QQC2.CheckBox {
-                        id: box
-                        Layout.alignment: Qt.AlignTop
-                        checked: modelData.enabled
-                        enabled: modelData.optional
-                        onToggled: Obs.setPlanItemEnabled(modelData.index, checked)
-                        Accessible.name: modelData.title
-                    }
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 0
-                        QQC2.Label {
-                            Layout.fillWidth: true
-                            wrapMode: Text.WordWrap
-                            text: modelData.title
-                            font.weight: Font.DemiBold
-                            opacity: box.checked ? 1 : 0.6
-                            TapHandler {
-                                enabled: modelData.optional
-                                onTapped: Obs.setPlanItemEnabled(modelData.index, !box.checked)
-                            }
-                        }
-                        QQC2.Label {
-                            Layout.fillWidth: true
-                            wrapMode: Text.WordWrap
-                            text: modelData.detail
-                            opacity: 0.7
-                        }
-                    }
-                }
-            }
-
-            QQC2.Label {
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                opacity: 0.7
-                text: i18n("Nothing is deleted. Muted sources stay in OBS, and Undo OBS Changes puts everything back.")
-            }
-        }
     }
 }

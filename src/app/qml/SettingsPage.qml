@@ -6,7 +6,7 @@ import org.kde.kirigamiaddons.formcard as FormCard
 import org.kde.kquickcontrols as KQuickControls
 import Rostrum
 
-// Plasma-style settings groups: General, Hotkeys, Mixer, Apps, Privacy, Updates, Advanced, About.
+// Plasma-style settings groups: General, Hotkeys, Mixer, Apps, OBS, Privacy, Updates, Advanced, About.
 QQC2.ScrollView {
     id: page
 
@@ -188,6 +188,13 @@ QQC2.ScrollView {
                 enabled: Preferences.skippedApps > 0
                 onClicked: Preferences.forgetSkippedApps()
             }
+        }
+
+        FormCard.FormHeader {
+            title: i18nc("@title:group", "OBS")
+        }
+        ObsChoices {
+            maximumWidth: Kirigami.Units.gridUnit * 30
         }
 
         FormCard.FormHeader {

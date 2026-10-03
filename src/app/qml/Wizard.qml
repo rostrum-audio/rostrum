@@ -5,14 +5,16 @@ import org.kde.kirigami as Kirigami
 import org.kde.kirigamiaddons.formcard as FormCard
 import Rostrum
 
-// First run: welcome, devices, apps, startup, privacy and updates, then a summary that creates the
-// mix. Every choice applies as soon as it is made, so Skip keeps them and uses defaults for the
+// First run: welcome, devices, apps, startup, privacy and updates, OBS, then a summary that creates
+// the mix. Every choice applies as soon as it is made, so Skip keeps them and uses defaults for the
 // rest. "Create Mix" stays on the last step and shows the PipeWire error if node creation fails.
 QQC2.Pane {
     id: wizard
 
     property int step: 0
     property bool creating: false
+    // Set Up OBS was pressed before the mix existed: create it, then show the preview.
+    property bool obsPreparing: false
     readonly property var steps: [
         { id: "welcome", title: i18nc("@title wizard step", "Welcome"),
           heading: i18nc("@title", "Welcome to Rostrum"),
@@ -36,6 +38,9 @@ QQC2.Pane {
             : { id: "privacy", title: i18nc("@title wizard step", "Updates"),
                 heading: i18nc("@title", "Updates"),
                 lead: i18n("Stay up to date. Nothing about you is sent.") },
+        { id: "obs", title: i18nc("@title wizard step", "OBS"),
+          heading: i18nc("@title", "Recording with OBS"),
+          lead: i18n("OBS should record two things from Rostrum: your mic and the stream mix. Rostrum can set that up in one click and undo it later. Skip this if you use another recorder.") },
         { id: "ready", title: i18nc("@title wizard step", "Ready"),
           heading: i18nc("@title", "You're all set"),
           lead: i18n("Here is your setup. Create the mix and the Mixer opens. Everything can be changed later in Settings.") }
@@ -45,6 +50,12 @@ QQC2.Pane {
 
     readonly property bool wantMeters: visible && stepId === "mic"
     onWantMetersChanged: Devices.metersActive = wantMeters
+
+    Binding {
+        target: Obs
+        property: "wizardActive"
+        value: wizard.visible && wizard.stepId === "obs"
+    }
 
     // The mix is ready once every node exists; then the wizard lands on the Mixer.
     Connections {
@@ -56,7 +67,34 @@ QQC2.Pane {
             } else if (wizard.creating && App.mixError !== "") {
                 wizard.creating = false
             }
+            if (wizard.obsPreparing && App.mixReady) {
+                wizard.obsPreparing = false
+                Obs.refresh()
+                obsDialog.open()
+            } else if (wizard.obsPreparing && App.mixError !== "") {
+                wizard.obsPreparing = false
+            }
         }
+    }
+
+    // OBS needs Rostrum's devices to exist before it can record them.
+    function setUpObs() {
+        if (App.mixReady) {
+            obsDialog.open()
+            return
+        }
+        obsPreparing = true
+        App.createMix()
+    }
+
+    function obsText() {
+        if (Obs.setUp) {
+            return i18nc("@info OBS", "Records Rostrum Mic and Rostrum Stream Mix")
+        }
+        if (Obs.state === "notInstalled") {
+            return i18nc("@info OBS", "Not installed")
+        }
+        return i18nc("@info OBS", "Not set up yet; the OBS page can do it later")
     }
 
     function createMix() {
@@ -478,7 +516,76 @@ QQC2.Pane {
                                 onExampleRequested: exampleDialog.openExample()
                             }
 
-                            // 7. Ready
+                            // 7. OBS
+                            ColumnLayout {
+                                spacing: Kirigami.Units.largeSpacing
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: Kirigami.Units.largeSpacing
+                                    Item {
+                                        Layout.alignment: Qt.AlignTop
+                                        implicitWidth: Kirigami.Units.iconSizes.medium
+                                        implicitHeight: implicitWidth
+                                        QQC2.BusyIndicator {
+                                            anchors.fill: parent
+                                            running: Obs.state === "connecting" || Obs.busy || wizard.obsPreparing
+                                            visible: running
+                                            Accessible.name: i18n("Checking OBS")
+                                        }
+                                        Kirigami.Icon {
+                                            anchors.fill: parent
+                                            visible: !(Obs.state === "connecting" || Obs.busy || wizard.obsPreparing)
+                                            source: Obs.setUp ? "checkmark" : Obs.state === "notInstalled" ? "help-about" : "media-record"
+                                            color: Obs.setUp ? Kirigami.Theme.positiveTextColor : Kirigami.Theme.textColor
+                                        }
+                                    }
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: Kirigami.Units.smallSpacing
+                                        Kirigami.Heading {
+                                            Layout.fillWidth: true
+                                            level: 3
+                                            wrapMode: Text.WordWrap
+                                            text: Obs.summary
+                                        }
+                                        QQC2.Label {
+                                            Layout.fillWidth: true
+                                            visible: text.length > 0
+                                            wrapMode: Text.WordWrap
+                                            opacity: 0.8
+                                            text: Obs.detail
+                                        }
+                                        RowLayout {
+                                            Layout.topMargin: Kirigami.Units.smallSpacing
+                                            spacing: Kirigami.Units.largeSpacing
+                                            visible: !Obs.setUp && Obs.state !== "notInstalled" && Obs.state !== "neverRun"
+                                            QQC2.Button {
+                                                highlighted: true
+                                                icon.name: "configure"
+                                                enabled: !wizard.obsPreparing && !App.mixBusy && (!App.mixReady || Obs.canApply)
+                                                text: Obs.onlyDoubling ? i18nc("@action:button", "Fix OBS…") : i18nc("@action:button", "Set Up OBS…")
+                                                onClicked: wizard.setUpObs()
+                                            }
+                                            QQC2.Label {
+                                                Layout.fillWidth: true
+                                                visible: !App.mixReady
+                                                wrapMode: Text.WordWrap
+                                                opacity: 0.7
+                                                text: i18n("Rostrum creates its devices first, so OBS can find them. You see every change before it is made.")
+                                            }
+                                        }
+                                    }
+                                }
+                                FormCard.FormHeader {
+                                    title: i18nc("@title:group", "While you stream")
+                                    maximumWidth: width - 2
+                                }
+                                ObsChoices {
+                                    Layout.fillWidth: true
+                                }
+                            }
+
+                            // 8. Ready
                             ColumnLayout {
                                 spacing: Kirigami.Units.largeSpacing
                                 FormCard.FormCard {
@@ -494,7 +601,8 @@ QQC2.Pane {
                                                      : Desktop.startInTray && Desktop.trayAvailable ? i18nc("@info", "At login, in the tray")
                                                      : i18nc("@info", "At login"), step: 4 },
                                             { icon: "security-high", label: i18nc("@label", "Crash reports"), value: wizard.crashModeText(CrashReports.mode), step: 5 },
-                                            { icon: "update-none", label: i18nc("@label", "Updates"), value: wizard.updatesText(), step: 5 }
+                                            { icon: "update-none", label: i18nc("@label", "Updates"), value: wizard.updatesText(), step: 5 },
+                                            { icon: "media-record", label: i18nc("@label", "OBS"), value: wizard.obsText(), step: 6 }
                                         ].filter(row => row.icon !== "security-high" || CrashReports.available)
                                         delegate: FormCard.FormButtonDelegate {
                                             required property var modelData
@@ -563,9 +671,12 @@ QQC2.Pane {
                 }
                 QQC2.Button {
                     id: nextButton
+                    readonly property bool skipsObs: wizard.stepId === "obs" && !Obs.setUp
                     visible: !wizard.lastStep
-                    highlighted: true
-                    text: wizard.step === 0 ? i18nc("@action:button", "Get Started") : i18nc("@action:button", "Next")
+                    highlighted: !skipsObs
+                    text: wizard.step === 0 ? i18nc("@action:button", "Get Started")
+                                            : skipsObs ? i18nc("@action:button skip the OBS setup step", "Skip")
+                                                       : i18nc("@action:button", "Next")
                     icon.name: "go-next"
                     onClicked: wizard.step += 1
                 }
@@ -584,6 +695,9 @@ QQC2.Pane {
 
     CrashReportDialog {
         id: exampleDialog
+    }
+    ObsSetupDialog {
+        id: obsDialog
     }
 
     onStepChanged: {

@@ -9,6 +9,7 @@ QQC2.ToolBar {
 
     required property var window
     readonly property bool activeFocusInside: sceneSwitcher.activeFocus || micButton.activeFocus || menuButton.activeFocus
+                                              || liveBadge.activeFocus
 
     function focusFirst() {
         sceneSwitcher.forceActiveFocus(Qt.TabFocusReason)
@@ -61,6 +62,11 @@ QQC2.ToolBar {
 
         Item {
             Layout.fillWidth: true
+        }
+
+        LiveBadge {
+            id: liveBadge
+            onClicked: bar.window.showPage("obs")
         }
 
         MicButton {
