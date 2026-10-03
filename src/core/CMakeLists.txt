@@ -2,6 +2,7 @@ add_library(rostrum_core STATIC
     Paths.cpp Paths.h
     Requirements.cpp Requirements.h
     Model.cpp Model.h
+    AppIdentity.cpp AppIdentity.h
     Volume.h
 )
 

@@ -45,6 +45,7 @@ public:
     void destroyObject(uint32_t id);
     void createLink(uint32_t outPort, uint32_t inPort);
     void setNodeVolume(uint32_t nodeId, float linear, bool mute);
+    void setNodeVolume(uint32_t nodeId, float linear); // leaves mute alone
     void setMetadata(uint32_t subject, const QString &key, const QString &type, const QString &value);
     void clearMetadata(uint32_t subject, const QString &key);
 
@@ -65,6 +66,7 @@ public:
     void scheduleChanged();
 
 private:
+    void sendProps(uint32_t nodeId, float linear, int mute); // mute: -1 untouched, 0/1
     std::unique_ptr<Impl> d;
 };
 

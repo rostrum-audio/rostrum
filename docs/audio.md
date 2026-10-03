@@ -45,6 +45,33 @@ crash would cut the stream. Null-sink adapters plus explicit links give the same
 processing inside the PipeWire daemon. Bus renames change the description only after
 "Rebuild virtual devices", because a live node's `node.description` is fixed at creation.
 
+## Moving app streams
+
+An app stream is moved by setting `target.object` in the `default` metadata object for the stream's
+node id, with type `Spa:Id` and the bus node's `object.serial` as the value. This is the same key
+WirePlumber 0.5 writes itself; `scripts/linking/find-defined-target.lua` reads it and relinks the
+stream. No `pactl`, no `module-move`.
+
+- The router sets `target.object` for every matching running stream on every reconcile pass. A
+  pass runs whenever a node, port, link or metadata value changes. So when a bus node is created or
+  re-created (new serial), every stream whose rule points at that bus is retargeted right away.
+  Rostrum never waits for a WirePlumber rescan to do this.
+- Before the first move, the router records the stream's previous metadata target (if it was not a
+  Rostrum node). Unassigning restores that value, or clears `target.object` / `target.node` so
+  WirePlumber relinks the stream to the default sink (or to the stream's own `target.object`
+  property).
+- Once Rostrum has asked for a target, it does not re-send it unless the bus serial changes. If the
+  user moves the stream in another mixer afterwards, Rostrum leaves it there.
+- Streams from Rostrum's own process (meters, test tones) and any `rostrum.*` node are ignored.
+
+### App identity
+
+Apps are shown by `application.name`. Generic names that do not identify the app (Chromium's
+`WEBRTC VoiceEngine` used by Discord, ALSA/SDL/OpenAL shims) fall back to
+`application.process.binary`, cleaned of a ` (deleted)` suffix (left when a binary updates while
+running). A new rule matches on whichever key the identity came from, and the app row shows that
+key. Name rules are checked before binary rules. Matching is case-insensitive.
+
 ## Solo is never persisted
 
 Solo is session-only state owned by the engine. It is never a field of `Bus` or `Scene` and never

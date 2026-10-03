@@ -1,7 +1,9 @@
 #include "engine/Engine.h"
 
+#include "core/Volume.h"
 #include "pw/PwContext.h"
 
+#include <QCoreApplication>
 #include <QLoggingCategory>
 #include <QTimer>
 
@@ -12,6 +14,7 @@ namespace rostrum::engine {
 namespace {
 constexpr int kCreateRetryMs = 3000;
 constexpr int kCreateTimeoutMs = 5000;
+constexpr qint64 kSessionGraceMs = 30000;
 } // namespace
 
 Engine::Engine(pw::PwContext *pw, QObject *parent)
@@ -128,6 +131,7 @@ void Engine::reconcile()
     }
     const bool wasReady = mixReady();
     reconcileNodes();
+    reconcileRoutes();
     if (wasReady != mixReady()) {
         if (mixReady()) {
             m_mixError.clear();
@@ -183,6 +187,266 @@ void Engine::reconcileNodes()
             destroyOnce(drop);
         }
     }
+}
+
+// ---- apps and routing -------------------------------------------------------------------
+
+bool Engine::isOwnStream(const pw::Node &n) const
+{
+    return n.isRostrum() || n.pid == QCoreApplication::applicationPid() ||
+           n.prop("rostrum.internal") == QLatin1String("true");
+}
+
+StreamProps Engine::propsOf(const pw::Node &n) const
+{
+    return {n.appName, n.binary, n.mediaName, n.name};
+}
+
+QString Engine::effectiveBus(const StreamProps &props, const AppIdentity &id, AppKey *ruleKey, bool *session) const
+{
+    *session = false;
+    *ruleKey = {};
+    if (auto it = m_sessionAssign.constFind(id.key.toString()); it != m_sessionAssign.cend()) {
+        *session = true;
+        return it.value();
+    }
+    const int idx = matchRule(m_scene.rules, props);
+    if (idx < 0) {
+        return {};
+    }
+    const AppRule &r = m_scene.rules.at(idx);
+    *ruleKey = {r.key, r.match};
+    return r.busId;
+}
+
+QList<AppStream> Engine::appStreams() const
+{
+    QList<AppStream> out;
+    for (const auto &n : m_pw->graph().nodes) {
+        if (!n.isPlaybackStream() || isOwnStream(n)) {
+            continue;
+        }
+        AppStream s;
+        s.nodeId = n.id;
+        s.props = propsOf(n);
+        s.identity = identify(s.props);
+        s.busId = effectiveBus(s.props, s.identity, &s.ruleKey, &s.sessionOnly);
+        if (!m_scene.bus(s.busId)) {
+            s.busId.clear();
+        }
+        s.volume = s.ruleKey.isValid() ? appVolume(s.ruleKey) : appVolume(s.identity.key);
+        out.append(s);
+    }
+    std::sort(out.begin(), out.end(), [](const AppStream &a, const AppStream &b) {
+        const int c = a.identity.displayName.compare(b.identity.displayName, Qt::CaseInsensitive);
+        return c != 0 ? c < 0 : a.nodeId < b.nodeId;
+    });
+    return out;
+}
+
+void Engine::assignApp(const AppKey &key, const QString &busId, bool always)
+{
+    const Bus *bus = m_scene.bus(busId);
+    if (!key.isValid() || !bus || bus->isInput()) {
+        return;
+    }
+    if (always) {
+        m_sessionAssign.remove(key.toString());
+        if (AppRule *r = m_scene.rule(key.key, key.match)) {
+            r->busId = busId;
+        } else {
+            AppRule rule;
+            rule.match = key.match;
+            rule.key = key.key;
+            rule.busId = busId;
+            rule.volume = m_sessionVolume.take(key.toString());
+            if (rule.volume <= 0.0) {
+                rule.volume = 1.0;
+            }
+            rule.lastSeen = QDateTime::currentDateTimeUtc();
+            m_scene.rules.append(rule);
+        }
+        Q_EMIT structureChanged();
+    } else {
+        m_sessionAssign.insert(key.toString(), busId);
+        QElapsedTimer t;
+        t.start();
+        m_sessionSeen.insert(key.toString(), t);
+    }
+    Q_EMIT sceneChanged();
+    Q_EMIT appsChanged();
+    scheduleReconcile();
+}
+
+void Engine::unassignApp(const AppKey &key)
+{
+    bool structural = false;
+    m_sessionAssign.remove(key.toString());
+    const auto before = m_scene.rules.size();
+    m_scene.rules.removeIf([&](const AppRule &r) { return AppKey{r.key, r.match} == key; });
+    structural = before != m_scene.rules.size();
+    if (structural) {
+        Q_EMIT structureChanged();
+        Q_EMIT sceneChanged();
+    }
+    Q_EMIT appsChanged();
+    scheduleReconcile();
+}
+
+void Engine::unassignStream(uint32_t nodeId)
+{
+    const pw::Node *n = m_pw->graph().node(nodeId);
+    if (!n) {
+        return;
+    }
+    const auto props = propsOf(*n);
+    const auto id = identify(props);
+    m_sessionAssign.remove(id.key.toString());
+    const int idx = matchRule(m_scene.rules, props);
+    if (idx >= 0) {
+        const AppRule r = m_scene.rules.at(idx);
+        unassignApp({r.key, r.match});
+        return;
+    }
+    Q_EMIT appsChanged();
+    scheduleReconcile();
+}
+
+void Engine::removeRule(const AppKey &key)
+{
+    unassignApp(key);
+}
+
+void Engine::editRule(const AppKey &oldKey, const AppKey &newKey)
+{
+    AppRule *r = m_scene.rule(oldKey.key, oldKey.match);
+    if (!r || !newKey.isValid()) {
+        return;
+    }
+    r->key = newKey.key;
+    r->match = newKey.match.trimmed();
+    Q_EMIT structureChanged();
+    Q_EMIT sceneChanged();
+    Q_EMIT appsChanged();
+    scheduleReconcile();
+}
+
+void Engine::setAppVolume(const AppKey &key, double volume)
+{
+    volume = std::clamp(volume, 0.0, 1.0);
+    if (AppRule *r = m_scene.rule(key.key, key.match)) {
+        r->volume = volume;
+        Q_EMIT sceneChanged();
+    } else {
+        m_sessionVolume.insert(key.toString(), volume);
+    }
+    Q_EMIT appsChanged();
+    scheduleReconcile();
+}
+
+double Engine::appVolume(const AppKey &key) const
+{
+    if (const AppRule *r = m_scene.rule(key.key, key.match)) {
+        return r->volume;
+    }
+    return m_sessionVolume.value(key.toString(), 1.0);
+}
+
+void Engine::reconcileRoutes()
+{
+    const auto &graph = m_pw->graph();
+    QSet<uint32_t> present;
+    QSet<QString> presentKeys;
+    bool seenChanged = false;
+
+    for (const auto &n : graph.nodes) {
+        if (!n.isPlaybackStream() || isOwnStream(n)) {
+            continue;
+        }
+        present.insert(n.id);
+        const auto props = propsOf(n);
+        const auto id = identify(props);
+        presentKeys.insert(id.key.toString());
+        AppKey ruleKey;
+        bool session = false;
+        const QString busId = effectiveBus(props, id, &ruleKey, &session);
+
+        if (ruleKey.isValid() && !m_seenThisSession.contains(ruleKey.toString())) {
+            m_seenThisSession.insert(ruleKey.toString());
+            if (AppRule *r = m_scene.rule(ruleKey.key, ruleKey.match)) {
+                r->lastSeen = QDateTime::currentDateTimeUtc();
+                seenChanged = true;
+            }
+        }
+
+        const Bus *bus = m_scene.bus(busId);
+        const pw::Node *busNode = bus && !bus->isInput() ? graph.nodeByName(bus->nodeName()) : nullptr;
+        const QString current = m_pw->metadataValue(n.id, QStringLiteral("target.object"));
+
+        if (busNode && !busNode->serial.isEmpty()) {
+            // Set the target explicitly for every matching stream whenever this runs, including
+            // right after a bus node appears. Never wait for a WirePlumber rescan.
+            // `requested` stops re-sending while the metadata event is in flight, and leaves a
+            // stream alone if the user later moves it by hand in another mixer.
+            const auto routed = m_routed.constFind(n.id);
+            if (current != busNode->serial &&
+                (routed == m_routed.cend() || routed->requested != busNode->serial)) {
+                if (routed == m_routed.cend()) {
+                    const bool currentIsOurs =
+                        std::any_of(graph.nodes.cbegin(), graph.nodes.cend(),
+                                    [&](const pw::Node &o) { return o.serial == current && isOwnedNode(o); });
+                    m_routed.insert(n.id, {busId, currentIsOurs ? QString() : current, QString()});
+                }
+                m_routed[n.id].busId = busId;
+                m_routed[n.id].requested = busNode->serial;
+                qCInfo(lcEngine) << "route" << id.displayName << n.id << "->" << bus->nodeName();
+                m_pw->setMetadata(n.id, QStringLiteral("target.object"), QStringLiteral("Spa:Id"), busNode->serial);
+            }
+        } else if (busId.isEmpty() && m_routed.contains(n.id)) {
+            const Routed r = m_routed.take(n.id);
+            qCInfo(lcEngine) << "unroute" << id.displayName << n.id;
+            if (r.previousTarget.isEmpty()) {
+                m_pw->clearMetadata(n.id, QStringLiteral("target.object"));
+                m_pw->clearMetadata(n.id, QStringLiteral("target.node"));
+            } else {
+                m_pw->setMetadata(n.id, QStringLiteral("target.object"), QStringLiteral("Spa:Id"), r.previousTarget);
+            }
+        }
+
+        // Per-app volume offset. Only touch the stream once the user has set something other
+        // than 100%, so Rostrum does not fight volumes set in other mixers.
+        const double vol = ruleKey.isValid() ? appVolume(ruleKey) : appVolume(id.key);
+        const auto applied = m_appliedStreamVolume.constFind(n.id);
+        if ((applied == m_appliedStreamVolume.cend() && vol != 1.0) ||
+            (applied != m_appliedStreamVolume.cend() && applied.value() != vol)) {
+            m_pw->setNodeVolume(n.id, float(volume::faderToLinear(vol)));
+            m_appliedStreamVolume.insert(n.id, vol);
+        }
+    }
+
+    for (auto it = m_routed.begin(); it != m_routed.end();) {
+        it = present.contains(it.key()) ? std::next(it) : m_routed.erase(it);
+    }
+    for (auto it = m_appliedStreamVolume.begin(); it != m_appliedStreamVolume.end();) {
+        it = present.contains(it.key()) ? std::next(it) : m_appliedStreamVolume.erase(it);
+    }
+    // "This launch only" assignments end once the app has been gone for a while.
+    for (auto it = m_sessionAssign.begin(); it != m_sessionAssign.end();) {
+        auto &seen = m_sessionSeen[it.key()];
+        if (presentKeys.contains(it.key()) || !seen.isValid()) {
+            seen.start();
+            ++it;
+        } else if (seen.elapsed() > kSessionGraceMs) {
+            m_sessionSeen.remove(it.key());
+            it = m_sessionAssign.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    if (seenChanged) {
+        Q_EMIT structureChanged();
+    }
+    Q_EMIT appsChanged();
 }
 
 } // namespace rostrum::engine

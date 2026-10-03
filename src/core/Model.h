@@ -46,9 +46,12 @@ struct AppRule
     MatchKey key = MatchKey::Name;
     QString busId;
     double volume = 1.0; // per-app offset on top of the bus fader
-    QDateTime lastSeen;
+    QDateTime lastSeen;  // bookkeeping only; ignored by operator== so it never marks a scene dirty
 
-    bool operator==(const AppRule &) const = default;
+    bool operator==(const AppRule &o) const
+    {
+        return match == o.match && key == o.key && busId == o.busId && volume == o.volume;
+    }
 };
 
 // A scene is everything a streamer recalls with one click.

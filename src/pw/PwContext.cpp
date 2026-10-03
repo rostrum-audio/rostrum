@@ -657,6 +657,16 @@ void PwContext::createLink(uint32_t outPort, uint32_t inPort)
 
 void PwContext::setNodeVolume(uint32_t nodeId, float linear, bool mute)
 {
+    sendProps(nodeId, linear, mute ? 1 : 0);
+}
+
+void PwContext::setNodeVolume(uint32_t nodeId, float linear)
+{
+    sendProps(nodeId, linear, -1);
+}
+
+void PwContext::sendProps(uint32_t nodeId, float linear, int mute)
+{
     const Node *n = d->graph.node(nodeId);
     if (!n || !d->loop) {
         return;
@@ -683,8 +693,10 @@ void PwContext::setNodeVolume(uint32_t nodeId, float linear, bool mute)
         spa_pod_builder_push_object(&b, &f, SPA_TYPE_OBJECT_Props, SPA_PARAM_Props);
         spa_pod_builder_prop(&b, SPA_PROP_channelVolumes, 0);
         spa_pod_builder_array(&b, sizeof(float), SPA_TYPE_Float, uint32_t(channels), vols);
-        spa_pod_builder_prop(&b, SPA_PROP_mute, 0);
-        spa_pod_builder_bool(&b, mute);
+        if (mute >= 0) {
+            spa_pod_builder_prop(&b, SPA_PROP_mute, 0);
+            spa_pod_builder_bool(&b, mute == 1);
+        }
         auto *pod = static_cast<spa_pod *>(spa_pod_builder_pop(&b, &f));
         pw_node_set_param(it->second->proxy, SPA_PARAM_Props, 0, pod);
     }
