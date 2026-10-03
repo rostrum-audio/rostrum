@@ -126,6 +126,34 @@ text shown when PipeWire is missing.
 - **Words:** UI text and docs use short, plain sentences and name things the way the app does
   (bus, scene, Headphones, Stream). Avoid PipeWire jargon in the UI.
 
+## Translating
+
+Rostrum uses KDE's ki18n with gettext. The template [`po/rostrum.pot`](po/rostrum.pot) holds every
+string from the C++ and QML sources; each language lives in `po/<lang>/rostrum.po` and is installed
+as `share/locale/<lang>/LC_MESSAGES/rostrum.mo`.
+
+To start or update a translation:
+
+1. Refresh the template: `cmake --build build --target rostrum-pot` (or run `po/Messages.sh`,
+   which needs `xgettext`).
+2. Start a new language with `msginit -i po/rostrum.pot -o po/de/rostrum.po -l de`, or bring an
+   existing one up to date with `msgmerge -U po/de/rostrum.po po/rostrum.pot`.
+3. Translate it in Lokalize, Poedit or a text editor. `msgfmt --check -o /dev/null
+   po/de/rostrum.po` catches broken placeholders and plural forms.
+4. Rebuild, install to a staging prefix and try it:
+
+   ```sh
+   cmake --build build && DESTDIR=/tmp/rostrum-stage cmake --install build --prefix /usr
+   LANGUAGE=de XDG_DATA_DIRS=/tmp/rostrum-stage/usr/share:/usr/share ./build/src/app/rostrum
+   ```
+
+The `msgctxt` of each string says where it appears (`@action:button`, `@title:window`,
+`@info:tooltip` and so on), and placeholders like `%1` must stay. Use the names the app uses for
+its own concepts (bus, scene, Headphones, Stream) consistently within a language.
+
+When you add UI strings, use `i18nc()` with one of those contexts, `i18ncp()` for anything that
+counts, and refresh `po/rostrum.pot` in the same pull request.
+
 ## Commits
 
 Look at `git log` for examples. A commit message has:

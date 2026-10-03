@@ -378,6 +378,14 @@ at once instead of after 20 seconds.
 4. Restore a scene export or a random TOML file: the toast says nothing was restored, and no
    safety copy is written.
 
+## 19. Translations
+
+1. `cmake --build build --target rostrum-pot` rewrites `po/rostrum.pot` with no diff other than
+   the creation date, unless strings changed.
+2. With a stub `po/de/rostrum.po` that translates one string, a build and install puts
+   `share/locale/de/LC_MESSAGES/rostrum.mo` in the prefix, and `LANGUAGE=de` shows that string in
+   German while the rest stays English.
+
 ## Smoke test log
 
 Kubuntu 26.04, Plasma 6.6 Wayland, PipeWire 1.6.2, WirePlumber 0.5.13, build 0.1.0. The checks

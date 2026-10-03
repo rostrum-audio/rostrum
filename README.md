@@ -209,7 +209,8 @@ Qt 6.10, KDE Frameworks 6.24.
 Contributions are welcome: start with [CONTRIBUTING.md](CONTRIBUTING.md), and please follow the
 [Code of Conduct](CODE_OF_CONDUCT.md). Run `ctest --test-dir build` before sending a change.
 Headset, OBS and reboot checks stay manual: walk through [docs/manual-tests.md](docs/manual-tests.md)
-for anything that touches audio routing.
+for anything that touches audio routing. Rostrum ships in English only so far; to add a language,
+see [Translating](CONTRIBUTING.md#translating).
 
 ### 🛠️ Development
 

@@ -1,0 +1,4313 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the rostrum package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: rostrum 0.1.0\n"
+"Report-Msgid-Bugs-To: https://github.com/rostrum-audio/rostrum/issues\n"
+"POT-Creation-Date: 2026-10-03 03:33-0400\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
+
+#: src/app/AppController.cpp:154
+#, kde-format
+msgid "PipeWire %1 is too old. Rostrum needs PipeWire 1.0 or newer."
+msgstr ""
+
+#: src/app/AppController.cpp:163
+#, kde-format
+msgid "The session manager is not WirePlumber."
+msgstr ""
+
+#: src/app/AppController.cpp:165
+#, kde-format
+msgid "WirePlumber %1 is older than 0.5."
+msgstr ""
+
+#: src/app/AppController.cpp:171
+#, kde-format
+msgid "The saved headphones are not connected."
+msgstr ""
+
+#: src/app/AppController.cpp:174
+#, kde-format
+msgid "The saved mic is not connected."
+msgstr ""
+
+#: src/app/AppController.cpp:195
+#, kde-format
+msgid "PipeWire OK"
+msgstr ""
+
+#: src/app/AppController.cpp:198
+#, kde-format
+msgid "PipeWire degraded"
+msgstr ""
+
+#: src/app/AppController.cpp:201
+#, kde-format
+msgid "Connecting to PipeWire…"
+msgstr ""
+
+#: src/app/AppController.cpp:203
+#, kde-format
+msgid "PipeWire missing"
+msgstr ""
+
+#: src/app/AppController.cpp:209
+#, kde-format
+msgid "PipeWire is not running."
+msgstr ""
+
+#: src/app/AppController.cpp:213
+#, kde-format
+msgid ""
+"PipeWire is not running in your session, so there is no audio server to "
+"connect to."
+msgstr ""
+
+#: src/app/AppController.cpp:215
+#, kde-format
+msgid "PipeWire is not answering. The service may have stopped or crashed."
+msgstr ""
+
+#: src/app/AppController.cpp:217
+#, kde-format
+msgid ""
+"Rostrum is not allowed to connect to PipeWire. Run it as your own user, not "
+"with sudo."
+msgstr ""
+
+#: src/app/AppController.cpp:221
+#, kde-format
+msgid "Could not connect to PipeWire: %1"
+msgstr ""
+
+#: src/app/AppController.cpp:255 src/app/AppController.cpp:264
+#, kde-format
+msgid "Unknown"
+msgstr ""
+
+#: src/app/AppController.cpp:258 src/app/AppController.cpp:267
+#, kde-format
+msgid "None"
+msgstr ""
+
+#: src/app/AppController.cpp:335
+#, kde-format
+msgid "There is no scene %1"
+msgstr ""
+
+#: src/app/AppController.cpp:348 src/app/Scenes.cpp:195
+#, kde-format
+msgid "Scene saved"
+msgstr ""
+
+#: src/app/AppController.cpp:393
+#, kde-format
+msgid "Copied"
+msgstr ""
+
+#: src/app/Apps.cpp:56
+#, kde-format
+msgctxt "@info kind of app"
+msgid "a game"
+msgstr ""
+
+#: src/app/Apps.cpp:58
+#, kde-format
+msgctxt "@info kind of app"
+msgid "a voice chat app"
+msgstr ""
+
+#: src/app/Apps.cpp:60
+#, kde-format
+msgctxt "@info kind of app"
+msgid "a music player"
+msgstr ""
+
+#: src/app/Apps.cpp:62
+#, kde-format
+msgctxt "@info kind of app"
+msgid "a stream alerts tool"
+msgstr ""
+
+#: src/app/Apps.cpp:64
+#, kde-format
+msgctxt "@info kind of app"
+msgid "a desktop app"
+msgstr ""
+
+#: src/app/Apps.cpp:75
+#, kde-format
+msgctxt "@info kind of app, plural"
+msgid "games"
+msgstr ""
+
+#: src/app/Apps.cpp:77
+#, kde-format
+msgctxt "@info kind of app, plural"
+msgid "voice chat"
+msgstr ""
+
+#: src/app/Apps.cpp:79
+#, kde-format
+msgctxt "@info kind of app, plural"
+msgid "music players"
+msgstr ""
+
+#: src/app/Apps.cpp:81
+#, kde-format
+msgctxt "@info kind of app, plural"
+msgid "stream alerts"
+msgstr ""
+
+#: src/app/Apps.cpp:83
+#, kde-format
+msgctxt "@info kind of app, plural"
+msgid "desktop apps"
+msgstr ""
+
+#: src/app/Apps.cpp:97
+#, kde-format
+msgctxt "@info"
+msgid "Chose its own output in its settings, so Rostrum leaves it there"
+msgstr ""
+
+#: src/app/Apps.cpp:98
+#, kde-format
+msgctxt "@info"
+msgid "Audio tools, OBS and screen readers are never assigned automatically"
+msgstr ""
+
+#: src/app/Apps.cpp:102
+#, kde-format
+msgctxt "@info %1 is a kind of app"
+msgid "Recognised as %1"
+msgstr ""
+
+#: src/app/Apps.cpp:104
+#, kde-format
+msgctxt "@info"
+msgid "Steam game"
+msgstr ""
+
+#: src/app/Apps.cpp:106
+#, kde-format
+msgctxt "@info"
+msgid "Windows game under Wine or Proton"
+msgstr ""
+
+#: src/app/Apps.cpp:108
+#, kde-format
+msgctxt "@info %1 is a kind of app"
+msgid "The app reports itself as %1"
+msgstr ""
+
+#: src/app/Apps.cpp:110
+#, kde-format
+msgctxt "@info %1 is a kind of app"
+msgid "Its app menu entry lists it as %1"
+msgstr ""
+
+#: src/app/Apps.cpp:112
+#, kde-format
+msgctxt "@info"
+msgid "Plays through a game audio engine"
+msgstr ""
+
+#: src/app/Apps.cpp:166
+#, kde-format
+msgctxt "@info %1 is why Rostrum recognised the app"
+msgid "%1. Automatic assignment is off."
+msgstr ""
+
+#: src/app/Apps.cpp:168
+#, kde-format
+msgctxt "@info %1 is why Rostrum recognised the app"
+msgid "%1. You took it off its bus."
+msgstr ""
+
+#: src/app/Apps.cpp:171
+#, kde-format
+msgctxt "@info %1 is why Rostrum recognised the app, %2 a kind of app"
+msgid "%1. No bus receives %2 yet."
+msgstr ""
+
+#: src/app/Apps.cpp:200
+#, kde-format
+msgctxt "@info rule last seen"
+msgid "Playing now"
+msgstr ""
+
+#: src/app/Apps.cpp:202
+#, kde-format
+msgctxt "@info rule last seen, %1 is a relative time"
+msgid "Last seen %1"
+msgstr ""
+
+#: src/app/Apps.cpp:205
+#, kde-format
+msgctxt "@info rule last seen"
+msgid "Not seen yet"
+msgstr ""
+
+#: src/app/Apps.cpp:322
+#, kde-format
+msgid "A rule for “%1” already exists."
+msgstr ""
+
+#: src/app/Desktop.cpp:174
+#, kde-format
+msgid "Could not write %1"
+msgstr ""
+
+#: src/app/Desktop.cpp:178 src/app/main.cpp:35
+#, kde-format
+msgid "A stream mix console for Linux"
+msgstr ""
+
+#: src/app/Desktop.cpp:180
+#, kde-format
+msgid "Could not remove %1"
+msgstr ""
+
+#: src/app/Desktop.cpp:239 src/app/Tray.cpp:27 src/app/Tray.cpp:28
+#: src/app/main.cpp:34
+#, kde-format
+msgid "Rostrum"
+msgstr ""
+
+#: src/app/Desktop.cpp:240
+#, kde-format
+msgid "Headphones disconnected, scene held."
+msgstr ""
+
+#: src/app/Desktop.cpp:241
+#, kde-format
+msgid "%1 went away. Plug it back in and routes come back on their own."
+msgstr ""
+
+#: src/app/Devices.cpp:31
+#, kde-format
+msgctxt "bluetooth profile"
+msgid "Headset (HSP/HFP)"
+msgstr ""
+
+#: src/app/Devices.cpp:34
+#, kde-format
+msgctxt "bluetooth profile"
+msgid "A2DP"
+msgstr ""
+
+#: src/app/Devices.cpp:37
+#, kde-format
+msgctxt "bluetooth profile"
+msgid "LE Audio"
+msgstr ""
+
+#: src/app/Devices.cpp:119
+#, kde-format
+msgctxt "device subtitle: Bluetooth, profile"
+msgid "Bluetooth, %1"
+msgstr ""
+
+#: src/app/Devices.cpp:235
+#, kde-format
+msgid "Could not play a test tone on that device."
+msgstr ""
+
+#: src/app/History.cpp:85 src/app/History.cpp:89
+#, kde-format
+msgctxt "@action:inmenu %1 is what gets undone"
+msgid "Undo %1"
+msgstr ""
+
+#: src/app/History.cpp:90
+#, kde-format
+msgctxt "@action:inmenu"
+msgid "Undo"
+msgstr ""
+
+#: src/app/History.cpp:96
+#, kde-format
+msgctxt "@action:inmenu %1 is what gets redone"
+msgid "Redo %1"
+msgstr ""
+
+#: src/app/History.cpp:97
+#, kde-format
+msgctxt "@action:inmenu"
+msgid "Redo"
+msgstr ""
+
+#: src/app/History.cpp:132
+#, kde-format
+msgctxt "@item undo step, %1 is a bus"
+msgid "%1 Volume"
+msgstr ""
+
+#: src/app/History.cpp:134
+#, kde-format
+msgctxt "@item undo step, %1 is a bus"
+msgid "%1 Mute"
+msgstr ""
+
+#: src/app/History.cpp:136
+#, kde-format
+msgctxt "@item undo step, %1 is a bus"
+msgid "%1 Destination"
+msgstr ""
+
+#: src/app/History.cpp:138
+#, kde-format
+msgctxt "@item undo step"
+msgid "Headphones Master"
+msgstr ""
+
+#: src/app/History.cpp:140
+#, kde-format
+msgctxt "@item undo step"
+msgid "Stream Master"
+msgstr ""
+
+#: src/app/History.cpp:142
+#, kde-format
+msgctxt "@item undo step"
+msgid "Sidetone"
+msgstr ""
+
+#: src/app/History.cpp:144
+#, kde-format
+msgctxt "@item undo step, %1 is a bus"
+msgid "Add Bus “%1”"
+msgstr ""
+
+#: src/app/History.cpp:146
+#, kde-format
+msgctxt "@item undo step, %1 is a bus"
+msgid "Remove Bus “%1”"
+msgstr ""
+
+#: src/app/History.cpp:148
+#, kde-format
+msgctxt "@item undo step, %1 is the new name"
+msgid "Rename Bus to “%1”"
+msgstr ""
+
+#: src/app/History.cpp:150
+#, kde-format
+msgctxt "@item undo step, %1 is a bus"
+msgid "%1 Color"
+msgstr ""
+
+#: src/app/History.cpp:152
+#, kde-format
+msgctxt "@item undo step"
+msgid "Bus Order"
+msgstr ""
+
+#: src/app/History.cpp:154
+#, kde-format
+msgctxt "@item undo step, %1 is a bus"
+msgid "%1 Automatic Apps"
+msgstr ""
+
+#: src/app/History.cpp:156
+#, kde-format
+msgctxt "@item undo step"
+msgid "App Assignment"
+msgstr ""
+
+#: src/app/History.cpp:161
+#, kde-format
+msgctxt "@item undo step"
+msgid "Changes"
+msgstr ""
+
+#: src/app/Hotkeys.cpp:156
+#, kde-format
+msgid ""
+"This desktop offers no global shortcuts. It works while Rostrum's window is "
+"focused."
+msgstr ""
+
+#: src/app/Hotkeys.cpp:197
+#, kde-format
+msgctxt "@info shortcut owner: component, action"
+msgid "%1, %2"
+msgstr ""
+
+#: src/app/Hotkeys.cpp:206
+#, kde-format
+msgid ""
+"The desktop already uses this shortcut (%1). It works only while Rostrum is "
+"focused."
+msgstr ""
+
+#: src/app/Hotkeys.cpp:216
+#, kde-format
+msgid ""
+"The desktop refused this shortcut. It works only while Rostrum is focused."
+msgstr ""
+
+#: src/app/Hotkeys.cpp:318
+#, kde-format
+msgid ""
+"The desktop did not allow global shortcuts. It works only while Rostrum is "
+"focused."
+msgstr ""
+
+#: src/app/Hotkeys.cpp:345
+#, kde-format
+msgid ""
+"The desktop did not bind this shortcut. It works only while Rostrum is "
+"focused."
+msgstr ""
+
+#: src/app/Mixer.cpp:344
+#, kde-format
+msgctxt "default name of a new bus"
+msgid "Bus %1"
+msgstr ""
+
+#: src/app/Mixer.cpp:373
+#, kde-format
+msgctxt "decibels, silent"
+msgid "−∞ dB"
+msgstr ""
+
+#: src/app/Mixer.cpp:378
+#, kde-format
+msgctxt "decibels"
+msgid "+%1 dB"
+msgstr ""
+
+#: src/app/Mixer.cpp:381
+#, kde-format
+msgctxt "decibels"
+msgid "−%1 dB"
+msgstr ""
+
+#: src/app/Mixer.cpp:383
+#, kde-format
+msgctxt "decibels"
+msgid "0.0 dB"
+msgstr ""
+
+#: src/app/Obs.cpp:68
+#, kde-format
+msgctxt "@info a name in quotes"
+msgid "“%1”"
+msgstr ""
+
+#: src/app/Obs.cpp:277
+#, kde-format
+msgid "OBS isn't installed."
+msgstr ""
+
+#: src/app/Obs.cpp:280
+#, kde-format
+msgid "Start OBS once, then come back here."
+msgstr ""
+
+#: src/app/Obs.cpp:283
+#, kde-format
+msgid "OBS is running, but its WebSocket server is off."
+msgstr ""
+
+#: src/app/Obs.cpp:286
+#, kde-format
+msgid "Connecting to OBS…"
+msgstr ""
+
+#: src/app/Obs.cpp:289
+#, kde-format
+msgid "OBS refused the WebSocket password saved in its settings."
+msgstr ""
+
+#: src/app/Obs.cpp:292
+#, kde-format
+msgid "Rostrum can't reach OBS."
+msgstr ""
+
+#: src/app/Obs.cpp:295
+#, kde-format
+msgid "OBS is closed, and Rostrum can't read its scene collection."
+msgstr ""
+
+#: src/app/Obs.cpp:296
+#, kde-format
+msgid "Reading OBS…"
+msgstr ""
+
+#: src/app/Obs.cpp:299
+#, kde-format
+msgid "OBS is set up: it records Rostrum Mic and Rostrum Stream Mix."
+msgstr ""
+
+#: src/app/Obs.cpp:302
+#, kde-format
+msgid "OBS records some audio twice."
+msgstr ""
+
+#: src/app/Obs.cpp:304
+#, kde-format
+msgid "OBS isn't recording through Rostrum yet."
+msgstr ""
+
+#: src/app/Obs.cpp:320
+#, kde-format
+msgid ""
+"Rostrum works without it. Any recorder that can capture an audio device can "
+"record Rostrum Mic and Rostrum Stream Mix."
+msgstr ""
+
+#: src/app/Obs.cpp:323
+#, kde-format
+msgid ""
+"In OBS, open Tools ▸ WebSocket Server Settings and tick “Enable WebSocket "
+"server”. Or close OBS, and Rostrum will set it up directly."
+msgstr ""
+
+#: src/app/Obs.cpp:326
+#, kde-format
+msgid ""
+"If you just changed the password in OBS, press Apply there. Or close OBS, "
+"and Rostrum will set it up directly."
+msgstr ""
+
+#: src/app/Obs.cpp:332
+#, kde-format
+msgid ""
+"Rostrum Mic and Rostrum Stream Mix are in place, but the sources marked "
+"below play on top of them. Fix OBS mutes them."
+msgstr ""
+
+#: src/app/Obs.cpp:335
+#, kde-format
+msgid ""
+"OBS is closed, so Rostrum will edit its scene collection. The changes show "
+"up the next time OBS starts."
+msgstr ""
+
+#: src/app/Obs.cpp:338
+#, kde-format
+msgid "Connected to OBS %1."
+msgstr ""
+
+#: src/app/Obs.cpp:372
+#, kde-format
+msgid "Switch %1 to Rostrum Mic"
+msgstr ""
+
+#: src/app/Obs.cpp:373
+#, kde-format
+msgid "Switch %1 to Rostrum Stream Mix"
+msgstr ""
+
+#: src/app/Obs.cpp:374
+#, kde-format
+msgid "The source keeps its filters, tracks and scenes."
+msgstr ""
+
+#: src/app/Obs.cpp:377
+#, kde-format
+msgid "Unmute %1"
+msgstr ""
+
+#: src/app/Obs.cpp:378
+#, kde-format
+msgid "It already records Rostrum Mic."
+msgstr ""
+
+#: src/app/Obs.cpp:378
+#, kde-format
+msgid "It already records Rostrum Stream Mix."
+msgstr ""
+
+#: src/app/Obs.cpp:381
+#, kde-format
+msgid "Add %2 to your scene"
+msgid_plural "Add %2 to all %1 scenes"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/app/Obs.cpp:382
+#, kde-format
+msgid "It records Rostrum Mic: your voice after Rostrum's gain and mute."
+msgstr ""
+
+#: src/app/Obs.cpp:383
+#, kde-format
+msgid ""
+"It records Rostrum Stream Mix: every bus sent to Stream or Both. OBS mixes "
+"it once, however many scenes it's in."
+msgstr ""
+
+#: src/app/Obs.cpp:386
+#, kde-format
+msgid "Set OBS's Mic/Aux device to Rostrum Mic"
+msgstr ""
+
+#: src/app/Obs.cpp:387
+#, kde-format
+msgid "Set OBS's Desktop Audio device to Rostrum Stream Mix"
+msgstr ""
+
+#: src/app/Obs.cpp:388
+#, kde-format
+msgid "Global audio devices play in every scene."
+msgstr ""
+
+#: src/app/Obs.cpp:391
+#, kde-format
+msgid "Mute %1"
+msgstr ""
+
+#: src/app/Obs.cpp:394
+#, kde-format
+msgid ""
+"It records your mic directly: your voice would be doubled and skip Rostrum's "
+"mute."
+msgstr ""
+
+#: src/app/Obs.cpp:397
+#, kde-format
+msgid "It records everything you hear, including buses you keep off stream."
+msgstr ""
+
+#: src/app/Obs.cpp:400
+#, kde-format
+msgid ""
+"It records one app directly: that app would be doubled and its bus ignored."
+msgstr ""
+
+#: src/app/Obs.cpp:403
+#, kde-format
+msgid ""
+"It records one Rostrum bus, which Rostrum Stream Mix already includes: "
+"viewers would hear it twice."
+msgstr ""
+
+#: src/app/Obs.cpp:407
+#, kde-format
+msgid ""
+"Another source already records the same Rostrum device, so this one would "
+"double it."
+msgstr ""
+
+#: src/app/Obs.cpp:421
+#, kde-format
+msgid "Track %2, like the source it replaces."
+msgid_plural "Tracks %2, like the source it replaces."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/app/Obs.cpp:457
+#, kde-format
+msgid ""
+"%1, a single bus that Rostrum Stream Mix already includes: viewers hear it "
+"twice"
+msgstr ""
+
+#: src/app/Obs.cpp:461
+#, kde-format
+msgid ""
+"%1. It's set to Rostrum Mic, but something moved it, often Easy Effects: add "
+"OBS to its excluded apps."
+msgstr ""
+
+#: src/app/Obs.cpp:463
+#, kde-format
+msgid "%1 directly: your voice skips Rostrum"
+msgstr ""
+
+#: src/app/Obs.cpp:467
+#, kde-format
+msgid "%1: everything you hear, off-stream buses included"
+msgstr ""
+
+#: src/app/Obs.cpp:470
+#, kde-format
+msgid "%1 directly, skipping its bus"
+msgstr ""
+
+#: src/app/Obs.cpp:477
+#, kde-format
+msgid "%1 (muted in OBS)"
+msgstr ""
+
+#: src/app/Obs.cpp:502
+#, kde-format
+msgid "OBS is set up."
+msgstr ""
+
+#: src/app/Obs.cpp:502
+#, kde-format
+msgid "OBS stopped the setup: %1"
+msgstr ""
+
+#: src/app/Obs.cpp:509
+#, kde-format
+msgid "OBS just started. Rostrum will use its WebSocket server instead."
+msgstr ""
+
+#: src/app/Obs.cpp:517
+#, kde-format
+msgid "Couldn't read OBS's scene collection: %1"
+msgstr ""
+
+#: src/app/Obs.cpp:523
+#, kde-format
+msgid "Couldn't back up OBS's scene collection, so nothing was changed."
+msgstr ""
+
+#: src/app/Obs.cpp:527
+#, kde-format
+msgid "Couldn't save OBS's scene collection: %1"
+msgstr ""
+
+#: src/app/Obs.cpp:536
+#, kde-format
+msgid "OBS is set up. Start OBS to use it."
+msgstr ""
+
+#: src/app/Obs.cpp:552 src/app/Obs.cpp:571
+#, kde-format
+msgid "OBS is back the way it was."
+msgstr ""
+
+#: src/app/Obs.cpp:553
+#, kde-format
+msgid "OBS is mostly back. One change couldn't be undone: %2"
+msgid_plural "OBS is mostly back. %1 changes couldn't be undone: %2"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/app/Obs.cpp:560
+#, kde-format
+msgid "To undo, turn on OBS's WebSocket server or close OBS."
+msgstr ""
+
+#: src/app/Obs.cpp:567
+#, kde-format
+msgid "Couldn't change OBS's scene collection: %1"
+msgstr ""
+
+#: src/app/Preferences.cpp:92
+#, kde-format
+msgctxt "@label shortcut action"
+msgid "Mute mic"
+msgstr ""
+
+#: src/app/Preferences.cpp:93
+#, kde-format
+msgctxt "@label shortcut action"
+msgid "Mute all playback to stream"
+msgstr ""
+
+#: src/app/Preferences.cpp:94
+#, kde-format
+msgctxt "@label shortcut action"
+msgid "Previous scene"
+msgstr ""
+
+#: src/app/Preferences.cpp:95
+#, kde-format
+msgctxt "@label shortcut action"
+msgid "Next scene"
+msgstr ""
+
+#: src/app/Preferences.cpp:96
+#, kde-format
+msgctxt "@label shortcut action"
+msgid "Load scene 1"
+msgstr ""
+
+#: src/app/Preferences.cpp:97
+#, kde-format
+msgctxt "@label shortcut action"
+msgid "Load scene 2"
+msgstr ""
+
+#: src/app/Preferences.cpp:98
+#, kde-format
+msgctxt "@label shortcut action"
+msgid "Load scene 3"
+msgstr ""
+
+#: src/app/Preferences.cpp:99
+#, kde-format
+msgctxt "@label shortcut action"
+msgid "Load scene 4"
+msgstr ""
+
+#: src/app/Preferences.cpp:191 src/app/Preferences.cpp:206
+#: src/app/Scenes.cpp:236 src/app/Scenes.cpp:260
+#, kde-format
+msgid "Choose a file on this computer."
+msgstr ""
+
+#: src/app/Preferences.cpp:196
+#, kde-format
+msgid "Could not back up settings. %1"
+msgstr ""
+
+#: src/app/Preferences.cpp:199
+#, kde-format
+msgid "Settings and scenes backed up"
+msgstr ""
+
+#: src/app/Preferences.cpp:213
+#, kde-format
+msgid "Nothing was restored. %1"
+msgstr ""
+
+#: src/app/Preferences.cpp:219
+#, kde-format
+msgid "Settings and scenes restored. The previous setup was saved as %1."
+msgstr ""
+
+#: src/app/Preferences.cpp:232
+#, kde-format
+msgid "Rebuilding the virtual devices…"
+msgstr ""
+
+#: src/app/Preferences.cpp:238
+#, kde-format
+msgid "App rules written for the next login"
+msgstr ""
+
+#: src/app/Scenes.cpp:50
+#, kde-format
+msgctxt "@info scene summary"
+msgid "%1 bus"
+msgid_plural "%1 buses"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/app/Scenes.cpp:55
+#, kde-format
+msgctxt "@info scene summary"
+msgid "%1 → Stream"
+msgstr ""
+
+#: src/app/Scenes.cpp:56
+#, kde-format
+msgctxt "@info scene summary"
+msgid "%1 → Headphones"
+msgstr ""
+
+#: src/app/Scenes.cpp:59
+#, kde-format
+msgctxt "@info scene summary"
+msgid "mic muted"
+msgstr ""
+
+#: src/app/Scenes.cpp:62
+#, kde-format
+msgctxt "@info scene summary"
+msgid "stream muted"
+msgstr ""
+
+#: src/app/Scenes.cpp:65
+#, kde-format
+msgctxt "@info scene summary"
+msgid "%1 app rule"
+msgid_plural "%1 app rules"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/app/Scenes.cpp:67
+#, kde-format
+msgctxt "@info scene summary separator"
+msgid ", "
+msgstr ""
+
+#: src/app/Scenes.cpp:100
+#, kde-format
+msgid "Give the scene a name."
+msgstr ""
+
+#: src/app/Scenes.cpp:103
+#, kde-format
+msgid "Use a shorter name."
+msgstr ""
+
+#: src/app/Scenes.cpp:106
+#, kde-format
+msgid "A scene called “%1” already exists."
+msgstr ""
+
+#: src/app/Scenes.cpp:115 src/app/qml/ScenesPage.qml:67
+#, kde-format
+msgctxt "default name for a new scene"
+msgid "New scene"
+msgstr ""
+
+#: src/app/Scenes.cpp:129
+#, kde-format
+msgctxt "@item scene preset"
+msgid "Gaming"
+msgstr ""
+
+#: src/app/Scenes.cpp:130
+#, kde-format
+msgid "Game and voice chat on stream, music low under your voice."
+msgstr ""
+
+#: src/app/Scenes.cpp:132
+#, kde-format
+msgctxt "@item scene preset"
+msgid "Just Chatting"
+msgstr ""
+
+#: src/app/Scenes.cpp:133
+#, kde-format
+msgid "Your voice up front with music as a bed. Game muted."
+msgstr ""
+
+#: src/app/Scenes.cpp:135
+#, kde-format
+msgctxt "@item scene preset"
+msgid "Music Stream"
+msgstr ""
+
+#: src/app/Scenes.cpp:136
+#, kde-format
+msgid "Music at full level on stream. Voice chat only in your headphones."
+msgstr ""
+
+#: src/app/Scenes.cpp:138
+#, kde-format
+msgctxt "@item scene preset"
+msgid "Podcast"
+msgstr ""
+
+#: src/app/Scenes.cpp:139
+#, kde-format
+msgid "Guests on Voice at full level. Game, music and alerts muted."
+msgstr ""
+
+#: src/app/Scenes.cpp:141
+#, kde-format
+msgctxt "@item scene preset"
+msgid "Be Right Back"
+msgstr ""
+
+#: src/app/Scenes.cpp:142
+#, kde-format
+msgid "Mic muted and music on stream. Voice chat stays in your headphones."
+msgstr ""
+
+#: src/app/Scenes.cpp:173
+#, kde-format
+msgctxt "name of a duplicated scene"
+msgid "%1 copy"
+msgstr ""
+
+#: src/app/Scenes.cpp:222
+#, kde-format
+msgid "Restored “%1”"
+msgstr ""
+
+#: src/app/Scenes.cpp:242
+#, kde-format
+msgid "Exported %1 scene"
+msgid_plural "Exported %1 scenes"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/app/Scenes.cpp:265
+#, kde-format
+msgid "Imported %1 scene"
+msgid_plural "Imported %1 scenes"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/app/Tray.cpp:45
+#, kde-format
+msgctxt "@action:inmenu"
+msgid "Next Scene"
+msgstr ""
+
+#: src/app/Tray.cpp:49
+#, kde-format
+msgctxt "@title:menu"
+msgid "Scenes"
+msgstr ""
+
+#: src/app/Tray.cpp:52 src/app/qml/HeaderBar.qml:123
+#, kde-format
+msgctxt "@action:inmenu"
+msgid "Quit"
+msgstr ""
+
+#: src/app/Tray.cpp:88
+#, kde-format
+msgctxt "@info:tooltip"
+msgid "PipeWire missing"
+msgstr ""
+
+#: src/app/Tray.cpp:89
+#, kde-format
+msgctxt "@info:tooltip"
+msgid "No mic"
+msgstr ""
+
+#: src/app/Tray.cpp:90
+#, kde-format
+msgctxt "@info:tooltip"
+msgid "Mic muted"
+msgstr ""
+
+#: src/app/Tray.cpp:91
+#, kde-format
+msgctxt "@info:tooltip"
+msgid "Mic live"
+msgstr ""
+
+#: src/app/Tray.cpp:94
+#, kde-format
+msgctxt "@info:tooltip mic state, scene name"
+msgid "%1 · Scene: %2"
+msgstr ""
+
+#: src/app/Tray.cpp:99
+#, kde-format
+msgctxt "@action:inmenu"
+msgid "Hide Rostrum"
+msgstr ""
+
+#: src/app/Tray.cpp:100
+#, kde-format
+msgctxt "@action:inmenu"
+msgid "Show Rostrum"
+msgstr ""
+
+#: src/app/Tray.cpp:101
+#, kde-format
+msgctxt "@action:inmenu"
+msgid "Unmute Mic"
+msgstr ""
+
+#: src/app/Tray.cpp:101
+#, kde-format
+msgctxt "@action:inmenu"
+msgid "Mute Mic"
+msgstr ""
+
+#: src/app/qml/AppChip.qml:30
+#, kde-format
+msgctxt "@info accessible"
+msgid "Placed automatically. %1"
+msgstr ""
+
+#: src/app/qml/AppChip.qml:32
+#, kde-format
+msgctxt "@info:tooltip %1 is why"
+msgid "Placed automatically: %1"
+msgstr ""
+
+#: src/app/qml/AppChip.qml:57
+#, kde-format
+msgctxt "@action:button accessible"
+msgid "%1 options"
+msgstr ""
+
+#: src/app/qml/AppChip.qml:64
+#, kde-format
+msgctxt "@action:inmenu"
+msgid "Move to"
+msgstr ""
+
+#: src/app/qml/AppChip.qml:81 src/app/qml/BusMenu.qml:37
+#, kde-format
+msgctxt "@action:inmenu"
+msgid "Unassign"
+msgstr ""
+
+#: src/app/qml/AppChip.qml:94
+#, kde-format
+msgctxt "@action:button accessible"
+msgid "Unassign %1"
+msgstr ""
+
+#: src/app/qml/AppChip.qml:96
+#, kde-format
+msgctxt "@info:tooltip"
+msgid "Unassign"
+msgstr ""
+
+#: src/app/qml/AppRow.qml:17
+#, kde-format
+msgctxt "@info accessible: app on bus"
+msgid "%1, on %2"
+msgstr ""
+
+#: src/app/qml/AppRow.qml:18
+#, kde-format
+msgctxt "@info accessible"
+msgid "%1, unassigned"
+msgstr ""
+
+#: src/app/qml/AppRow.qml:51
+#, kde-format
+msgctxt "@info"
+msgid "matched by binary"
+msgstr ""
+
+#: src/app/qml/AppRow.qml:52
+#, kde-format
+msgctxt "@info"
+msgid "matched by name"
+msgstr ""
+
+#: src/app/qml/AppRow.qml:68
+#, kde-format
+msgctxt "@info placed automatically"
+msgid "Auto"
+msgstr ""
+
+#: src/app/qml/AppRow.qml:71
+#, kde-format
+msgctxt "@info:tooltip"
+msgid "Rostrum put it here. Move it, or turn on Always, to decide yourself."
+msgstr ""
+
+#: src/app/qml/AppRow.qml:81
+#, kde-format
+msgctxt "@info"
+msgid "Unassigned"
+msgstr ""
+
+#: src/app/qml/AppRow.qml:99
+#, kde-format
+msgctxt "@action:button"
+msgid "Move"
+msgstr ""
+
+#: src/app/qml/AppRow.qml:99
+#, kde-format
+msgctxt "@action:button"
+msgid "Assign"
+msgstr ""
+
+#: src/app/qml/AppRow.qml:102
+#, kde-format
+msgctxt "@action:button accessible"
+msgid "Assign %1 to a bus"
+msgstr ""
+
+#: src/app/qml/AppRow.qml:120 src/app/qml/BusStrip.qml:164
+#: src/app/qml/DeviceList.qml:117 src/app/qml/MasterFader.qml:133
+#, kde-format
+msgctxt "@label accessible"
+msgid "%1 level"
+msgstr ""
+
+#: src/app/qml/AppRow.qml:123
+#, kde-format
+msgctxt "@label per-app volume"
+msgid "Volume"
+msgstr ""
+
+#: src/app/qml/AppRow.qml:135 src/app/qml/BusStrip.qml:177
+#: src/app/qml/CompactView.qml:67 src/app/qml/MasterFader.qml:107
+#, kde-format
+msgctxt "@label accessible"
+msgid "%1 volume"
+msgstr ""
+
+#: src/app/qml/AppRow.qml:137
+#, kde-format
+msgctxt "@info:tooltip percent"
+msgid "%1%"
+msgstr ""
+
+#: src/app/qml/AppRow.qml:140
+#, kde-format
+msgctxt "@option:check always send this app to its bus"
+msgid "Always"
+msgstr ""
+
+#: src/app/qml/AppRow.qml:144
+#, kde-format
+msgctxt "@option:check accessible"
+msgid "Always send %1 to %2"
+msgstr ""
+
+#: src/app/qml/AppRow.qml:147
+#, kde-format
+msgctxt "@info:tooltip"
+msgid "New launches go to this bus too"
+msgstr ""
+
+#: src/app/qml/AppRow.qml:148
+#, kde-format
+msgctxt "@info:tooltip"
+msgid "Make it a rule, so it lands here even before Rostrum starts"
+msgstr ""
+
+#: src/app/qml/AppRow.qml:149
+#, kde-format
+msgctxt "@info:tooltip"
+msgid "Only this launch goes to this bus"
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:71
+#, kde-format
+msgctxt "@info:placeholder"
+msgid "Search apps and rules…"
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:75
+#, kde-format
+msgctxt "@action:button %1 is a bus"
+msgid "Only %1"
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:78
+#, kde-format
+msgctxt "@action:button accessible"
+msgid "Showing only %1. Show all buses"
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:84
+#, kde-format
+msgctxt "@option:check"
+msgid "Assign automatically"
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:87
+#, kde-format
+msgctxt "@info:tooltip"
+msgid ""
+"Put games, voice chat, music players and stream alerts on their bus as soon "
+"as they play. Your own assignments always win."
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:99 src/app/qml/AppsPage.qml:239
+#, kde-format
+msgctxt "unknown program"
+msgid "unknown"
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:98
+#, kde-format
+msgid ""
+"An app is playing audio without a name. Its program is “%1”. Name it to give "
+"it a rule."
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:102
+#, kde-format
+msgctxt "@action:button"
+msgid "Name It…"
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:123
+#, kde-format
+msgctxt "@title"
+msgid "Playing now"
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:143
+#, kde-format
+msgid "No apps are playing"
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:144
+#, kde-format
+msgid "No playing apps match"
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:146
+#, kde-format
+msgid ""
+"Launch Discord or a game. It will show up here while it is making audio."
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:160
+#, kde-format
+msgctxt "@title"
+msgid "Saved rules"
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:167
+#, kde-format
+msgctxt "@info %1 is a scene"
+msgid "Rules in “%1”. New launches of these apps go straight to their bus."
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:188
+#, kde-format
+msgid "No rules yet"
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:188
+#, kde-format
+msgid "No rules match"
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:190
+#, kde-format
+msgid "Assign a playing app with Always on and it gets a rule."
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:213
+#, kde-format
+msgctxt "@title:dialog"
+msgid "Name This App"
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:218
+#, kde-format
+msgctxt "@action:button"
+msgid "Save Rule"
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:227 src/app/qml/Main.qml:246
+#: src/app/qml/MixerPage.qml:177 src/app/qml/ObsPage.qml:329
+#: src/app/qml/RuleRow.qml:114 src/app/qml/SceneNameDialog.qml:42
+#: src/app/qml/ScenesPage.qml:349 src/app/qml/SettingsPage.qml:430
+#: src/app/qml/SettingsPage.qml:452
+#, kde-format
+msgctxt "@action:button"
+msgid "Cancel"
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:239
+#, kde-format
+msgid "Program: %1"
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:245
+#, kde-format
+msgctxt "@info:placeholder"
+msgid "Name, for example “Game client”"
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:246
+#, kde-format
+msgctxt "@label accessible"
+msgid "App name"
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:252
+#, kde-format
+msgctxt "@label accessible"
+msgid "Send to bus"
+msgstr ""
+
+#: src/app/qml/Banners.qml:15
+#, kde-format
+msgid ""
+"Headphones disconnected, scene held. Playing through %1 until they come back."
+msgstr ""
+
+#: src/app/qml/Banners.qml:17
+#, kde-format
+msgctxt "@action:button"
+msgid "Choose Headphones"
+msgstr ""
+
+#: src/app/qml/Banners.qml:28
+#, kde-format
+msgid "Mic disconnected. Using %1 until it comes back."
+msgstr ""
+
+#: src/app/qml/Banners.qml:29
+#, kde-format
+msgid "Mic disconnected. Plug it back in or choose another one."
+msgstr ""
+
+#: src/app/qml/Banners.qml:31
+#, kde-format
+msgctxt "@action:button"
+msgid "Choose Mic"
+msgstr ""
+
+#: src/app/qml/Banners.qml:42
+#, kde-format
+msgid ""
+"The session manager is not WirePlumber. Rostrum still works while it is "
+"open, but app routes may not survive a reboot, so rule export is off."
+msgstr ""
+
+#: src/app/qml/Banners.qml:52
+#, kde-format
+msgctxt "@action:button"
+msgid "Try Again"
+msgstr ""
+
+#: src/app/qml/Banners.qml:64
+#, kde-format
+msgid ""
+"Rostrum %1 is installed. Restart Rostrum to start using it; your mix keeps "
+"playing meanwhile."
+msgstr ""
+
+#: src/app/qml/Banners.qml:66
+#, kde-format
+msgid "Downloading Rostrum %1… %2%"
+msgstr ""
+
+#: src/app/qml/Banners.qml:68
+#, kde-format
+msgid "Rostrum %1 is available."
+msgstr ""
+
+#: src/app/qml/Banners.qml:70
+#, kde-format
+msgid ""
+"Rostrum %1 is available. Update it from your software center or package "
+"manager."
+msgstr ""
+
+#: src/app/qml/Banners.qml:71
+#, kde-format
+msgid "Rostrum %1 is available. Pull and rebuild the source to update."
+msgstr ""
+
+#: src/app/qml/Banners.qml:75
+#, kde-format
+msgctxt "@action:button"
+msgid "Restart Now"
+msgstr ""
+
+#: src/app/qml/Banners.qml:81
+#, kde-format
+msgctxt "@action:button"
+msgid "Install"
+msgstr ""
+
+#: src/app/qml/Banners.qml:87
+#, kde-format
+msgctxt "@action:button"
+msgid "What's New"
+msgstr ""
+
+#: src/app/qml/Banners.qml:93
+#, kde-format
+msgctxt "@action:button"
+msgid "Skip This Version"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:32
+#, kde-format
+msgctxt "@info bus receives automatically"
+msgid "Auto: games"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:33
+#, kde-format
+msgctxt "@info bus receives automatically"
+msgid "Auto: voice chat"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:34
+#, kde-format
+msgctxt "@info bus receives automatically"
+msgid "Auto: music"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:35
+#, kde-format
+msgctxt "@info bus receives automatically"
+msgid "Auto: stream alerts"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:36
+#, kde-format
+msgctxt "@info bus receives automatically"
+msgid "Auto: everything else"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:96
+#, kde-format
+msgctxt "@info:tooltip"
+msgid "Click to rename"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:113
+#, kde-format
+msgctxt "@label accessible"
+msgid "%1 name"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:135 src/app/qml/MasterFader.qml:73
+#, kde-format
+msgctxt "@info:status"
+msgid "Muted"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:136
+#, kde-format
+msgctxt "@info:status"
+msgid "Dimmed by solo"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:137
+#, kde-format
+msgctxt "@info:status"
+msgid "Solo"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:138 src/app/qml/MicButton.qml:116
+#, kde-format
+msgctxt "@label"
+msgid "Gain"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:176
+#, kde-format
+msgctxt "@label accessible"
+msgid "%1 gain"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:207
+#, kde-format
+msgctxt "@action:button short for mute"
+msgid "M"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:210 src/app/qml/CompactView.qml:86
+#: src/app/qml/MasterFader.qml:87
+#, kde-format
+msgctxt "@action:button accessible"
+msgid "%1 mute"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:211
+#, kde-format
+msgctxt "@info:tooltip"
+msgid "Unmute (M)"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:211
+#, kde-format
+msgctxt "@info:tooltip"
+msgid "Mute (M)"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:217
+#, kde-format
+msgctxt "@action:button short for solo"
+msgid "S"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:220
+#, kde-format
+msgctxt "@action:button accessible"
+msgid "%1 solo"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:221
+#, kde-format
+msgctxt "@info:tooltip"
+msgid "Solo (S). Not saved in the scene."
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:257
+#, kde-format
+msgctxt "@action:button more apps"
+msgid "+%1 more"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:271
+#, kde-format
+msgctxt "@info placeholder"
+msgid "Drop an app here"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:294
+#, kde-format
+msgctxt "@action:button"
+msgid "Sidetone"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:301
+#, kde-format
+msgctxt "@action:button accessible"
+msgid "Show sidetone"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:323
+#, kde-format
+msgctxt "@info:status sidetone"
+msgid "On"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:323
+#, kde-format
+msgctxt "@info:status sidetone"
+msgid "Off"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:331
+#, kde-format
+msgctxt "@option:check"
+msgid "On"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:335
+#, kde-format
+msgctxt "@option:check accessible"
+msgid "Sidetone"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:345
+#, kde-format
+msgctxt "@label accessible"
+msgid "Sidetone volume"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:376
+#, kde-format
+msgctxt "@action:inmenu"
+msgid "Rename"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:381
+#, kde-format
+msgctxt "@action:inmenu"
+msgid "Color…"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:387
+#, kde-format
+msgctxt "@title:menu"
+msgid "Receives Automatically"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:391
+#, kde-format
+msgctxt "@item:inmenu automatic bus"
+msgid "Games"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:392
+#, kde-format
+msgctxt "@item:inmenu automatic bus"
+msgid "Voice Chat"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:393
+#, kde-format
+msgctxt "@item:inmenu automatic bus"
+msgid "Music Players"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:394
+#, kde-format
+msgctxt "@item:inmenu automatic bus"
+msgid "Stream Alerts"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:395
+#, kde-format
+msgctxt "@item:inmenu automatic bus"
+msgid "Everything Else"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:396
+#, kde-format
+msgctxt "@item:inmenu automatic bus"
+msgid "Nothing"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:410
+#, kde-format
+msgctxt "@action:inmenu"
+msgid "Duplicate"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:418
+#, kde-format
+msgctxt "@action:inmenu"
+msgid "Remove…"
+msgstr ""
+
+#: src/app/qml/CompactView.qml:82 src/app/qml/MasterFader.qml:83
+#, kde-format
+msgctxt "@action:button"
+msgid "Unmute"
+msgstr ""
+
+#: src/app/qml/CompactView.qml:82 src/app/qml/MasterFader.qml:83
+#, kde-format
+msgctxt "@action:button"
+msgid "Mute"
+msgstr ""
+
+#: src/app/qml/CompactView.qml:117
+#, kde-format
+msgctxt "@action:button"
+msgid "Keep on Top"
+msgstr ""
+
+#: src/app/qml/CompactView.qml:122
+#, kde-format
+msgid ""
+"Keep the compact window above other windows. Some Wayland desktops ignore "
+"this; on Plasma, use the window menu's Keep Above Others instead."
+msgstr ""
+
+#: src/app/qml/CompactView.qml:128
+#, kde-format
+msgctxt "@action:button"
+msgid "Full View"
+msgstr ""
+
+#: src/app/qml/CompactView.qml:147
+#, kde-format
+msgid "Rostrum can't reach PipeWire."
+msgstr ""
+
+#: src/app/qml/CompactView.qml:153
+#, kde-format
+msgctxt "@action:button"
+msgid "Details"
+msgstr ""
+
+#: src/app/qml/CompactView.qml:172 src/app/qml/MixerPage.qml:64
+#, kde-format
+msgctxt "@label master"
+msgid "Headphones"
+msgstr ""
+
+#: src/app/qml/CompactView.qml:181 src/app/qml/MixerPage.qml:77
+#, kde-format
+msgctxt "@label master"
+msgid "Stream"
+msgstr ""
+
+#: src/app/qml/CrashReportDialog.qml:29
+#, kde-format
+msgctxt "@title:dialog"
+msgid "What a Crash Report Contains"
+msgstr ""
+
+#: src/app/qml/CrashReportDialog.qml:30
+#, kde-format
+msgctxt "@title:dialog"
+msgid "Rostrum Quit Unexpectedly"
+msgstr ""
+
+#: src/app/qml/CrashReportDialog.qml:38
+#, kde-format
+msgctxt "@action:button"
+msgid "Close"
+msgstr ""
+
+#: src/app/qml/CrashReportDialog.qml:45
+#, kde-format
+msgctxt "@action:button"
+msgid "Send Report"
+msgstr ""
+
+#: src/app/qml/CrashReportDialog.qml:56
+#, kde-format
+msgctxt "@action:button"
+msgid "Don't Send"
+msgstr ""
+
+#: src/app/qml/CrashReportDialog.qml:72
+#, kde-format
+msgid ""
+"This is the whole report, built from this computer with a made-up crash. "
+"Folder paths, names and IDs are removed before anything is sent. The memory "
+"addresses change every time Rostrum starts, so they say nothing about you."
+msgstr ""
+
+#: src/app/qml/CrashReportDialog.qml:74
+#, kde-format
+msgid ""
+"Rostrum crashed %1 times recently, most recently on %2. Your mix kept "
+"playing. Sending the reports helps fix the problem. They contain no personal "
+"information."
+msgstr ""
+
+#: src/app/qml/CrashReportDialog.qml:76
+#, kde-format
+msgid ""
+"Rostrum crashed on %1. Your mix kept playing. Sending the report helps fix "
+"the problem. It contains no personal information."
+msgstr ""
+
+#: src/app/qml/CrashReportDialog.qml:84
+#, kde-format
+msgctxt "@action:button"
+msgid "Hide the Report"
+msgstr ""
+
+#: src/app/qml/CrashReportDialog.qml:84
+#, kde-format
+msgctxt "@action:button"
+msgid "Show the Report"
+msgstr ""
+
+#: src/app/qml/CrashReportDialog.qml:99
+#, kde-format
+msgctxt "@label accessible"
+msgid "Crash report"
+msgstr ""
+
+#: src/app/qml/CrashReportDialog.qml:106
+#, kde-format
+msgctxt "@option:check"
+msgid "Send reports without asking from now on"
+msgstr ""
+
+#: src/app/qml/CrashReportDialog.qml:114
+#, kde-format
+msgid ""
+"Reports go to Sentry, a crash reporting service, at %1 over an encrypted "
+"connection. Change this any time in Settings → Privacy."
+msgstr ""
+
+#: src/app/qml/DestinationControl.qml:18
+#, kde-format
+msgctxt "@action:button destination"
+msgid "Headphones"
+msgstr ""
+
+#: src/app/qml/DestinationControl.qml:19
+#, kde-format
+msgctxt "@action:button destination"
+msgid "Stream"
+msgstr ""
+
+#: src/app/qml/DestinationControl.qml:20
+#, kde-format
+msgctxt "@action:button destination"
+msgid "Both"
+msgstr ""
+
+#: src/app/qml/DestinationControl.qml:23
+#, kde-format
+msgctxt "@info destination caption"
+msgid "Headphones only"
+msgstr ""
+
+#: src/app/qml/DestinationControl.qml:24
+#, kde-format
+msgctxt "@info destination caption"
+msgid "Stream only"
+msgstr ""
+
+#: src/app/qml/DestinationControl.qml:25
+#, kde-format
+msgctxt "@info destination caption"
+msgid "Headphones + Stream"
+msgstr ""
+
+#: src/app/qml/DestinationControl.qml:31
+#, kde-format
+msgctxt "@label accessible"
+msgid "%1 destination"
+msgstr ""
+
+#: src/app/qml/DestinationControl.qml:55
+#, kde-format
+msgctxt "@action:button accessible"
+msgid "%1 destination %2"
+msgstr ""
+
+#: src/app/qml/DeviceList.qml:33
+#, kde-format
+msgctxt "@option:radio %1 is a device"
+msgid "System default (%1)"
+msgstr ""
+
+#: src/app/qml/DeviceList.qml:34
+#, kde-format
+msgctxt "@option:radio"
+msgid "System default"
+msgstr ""
+
+#: src/app/qml/DeviceList.qml:35
+#, kde-format
+msgctxt "@info"
+msgid "Follows the default device in System Settings"
+msgstr ""
+
+#: src/app/qml/DeviceList.qml:85
+#, kde-format
+msgctxt "@info"
+msgid "Rostrum mic"
+msgstr ""
+
+#: src/app/qml/DeviceList.qml:85
+#, kde-format
+msgctxt "@info"
+msgid "Rostrum headphones"
+msgstr ""
+
+#: src/app/qml/DeviceList.qml:87
+#, kde-format
+msgctxt "@info:tooltip"
+msgid "Rostrum uses this mic"
+msgstr ""
+
+#: src/app/qml/DeviceList.qml:88
+#, kde-format
+msgctxt "@info:tooltip"
+msgid "Rostrum plays your headphone mix here"
+msgstr ""
+
+#: src/app/qml/DeviceList.qml:102 src/app/qml/DevicesPage.qml:141
+#, kde-format
+msgctxt "@info node name and id"
+msgid "%1 (#%2)"
+msgstr ""
+
+#: src/app/qml/DeviceList.qml:124
+#, kde-format
+msgctxt "@action:button"
+msgid "Test"
+msgstr ""
+
+#: src/app/qml/DeviceList.qml:127
+#, kde-format
+msgctxt "@action:button accessible"
+msgid "Play a test chime on %1"
+msgstr ""
+
+#: src/app/qml/DeviceList.qml:130
+#, kde-format
+msgctxt "@info:tooltip"
+msgid "Play a short chime: left, right, then both"
+msgstr ""
+
+#: src/app/qml/DevicesPage.qml:28
+#, kde-format
+msgid ""
+"A Bluetooth headset is in headset mode (HSP/HFP), which sounds muffled. "
+"Switch it to A2DP in the desktop sound settings when you do not need its mic."
+msgstr ""
+
+#: src/app/qml/DevicesPage.qml:31
+#, kde-format
+msgctxt "@action:button"
+msgid "Open Sound Settings"
+msgstr ""
+
+#: src/app/qml/DevicesPage.qml:51 src/app/qml/DevicesPage.qml:61
+#: src/app/qml/Wizard.qml:315
+#, kde-format
+msgctxt "@title"
+msgid "Headphones"
+msgstr ""
+
+#: src/app/qml/DevicesPage.qml:57
+#, kde-format
+msgid "Where you hear the mix. Buses set to Headphones or Both play here."
+msgstr ""
+
+#: src/app/qml/DevicesPage.qml:75 src/app/qml/DevicesPage.qml:85
+#: src/app/qml/MicButton.qml:106 src/app/qml/Wizard.qml:327
+#, kde-format
+msgctxt "@title"
+msgid "Mic"
+msgstr ""
+
+#: src/app/qml/DevicesPage.qml:81
+#, kde-format
+msgid "Speak and watch the meters to find the right one."
+msgstr ""
+
+#: src/app/qml/DevicesPage.qml:104
+#, kde-format
+msgctxt "@action:button"
+msgid "Advanced nodes"
+msgstr ""
+
+#: src/app/qml/DevicesPage.qml:106 src/app/qml/ObsPage.qml:249
+#, kde-format
+msgid "Expanded"
+msgstr ""
+
+#: src/app/qml/DevicesPage.qml:106 src/app/qml/ObsPage.qml:249
+#, kde-format
+msgid "Collapsed"
+msgstr ""
+
+#: src/app/qml/DevicesPage.qml:122
+#, kde-format
+msgid "The virtual devices Rostrum created. Other apps can use these names."
+msgstr ""
+
+#: src/app/qml/DevicesPage.qml:123
+#, kde-format
+msgid "Rostrum has not created its virtual devices yet."
+msgstr ""
+
+#: src/app/qml/DevicesPage.qml:152
+#, kde-format
+msgctxt "@action:button"
+msgid "Copy name"
+msgstr ""
+
+#: src/app/qml/DevicesPage.qml:154 src/app/qml/ObsPage.qml:52
+#, kde-format
+msgid "Copied node name"
+msgstr ""
+
+#: src/app/qml/DevicesPage.qml:155 src/app/qml/ObsPage.qml:53
+#, kde-format
+msgctxt "@action:button accessible"
+msgid "Copy %1"
+msgstr ""
+
+#: src/app/qml/Fader.qml:160
+#, kde-format
+msgctxt "@info:tooltip"
+msgid ""
+"%1\n"
+"Arrows: 1%  Page Up/Down: 10%  Double-click: reset\n"
+"M: mute  S: solo  1/2/3: Headphones/Stream/Both"
+msgstr ""
+
+#: src/app/qml/HeaderBar.qml:41
+#, kde-format
+msgctxt "@title app name"
+msgid "Rostrum"
+msgstr ""
+
+#: src/app/qml/HeaderBar.qml:74
+#, kde-format
+msgctxt "@action:button"
+msgid "Menu"
+msgstr ""
+
+#: src/app/qml/HeaderBar.qml:87 src/app/qml/SceneSwitcher.qml:94
+#, kde-format
+msgctxt "@action:inmenu"
+msgid "Save Scene"
+msgstr ""
+
+#: src/app/qml/HeaderBar.qml:106 src/app/qml/SceneSwitcher.qml:104
+#, kde-format
+msgctxt "@action:inmenu"
+msgid "Manage Scenes…"
+msgstr ""
+
+#: src/app/qml/HeaderBar.qml:111
+#, kde-format
+msgctxt "@action:inmenu"
+msgid "Compact View"
+msgstr ""
+
+#: src/app/qml/HeaderBar.qml:117
+#, kde-format
+msgctxt "@action:inmenu"
+msgid "Settings"
+msgstr ""
+
+#: src/app/qml/Main.qml:9
+#, kde-format
+msgctxt "@title:window scene name"
+msgid "%1 — Rostrum"
+msgstr ""
+
+#: src/app/qml/Main.qml:10
+#, kde-format
+msgctxt "@title:window"
+msgid "Rostrum"
+msgstr ""
+
+#: src/app/qml/Main.qml:223
+#, kde-format
+msgctxt "@title:dialog"
+msgid "Discard fader moves?"
+msgstr ""
+
+#: src/app/qml/Main.qml:224
+#, kde-format
+msgid ""
+"Faders in “%1” have moved since the last save. Switching to “%2” discards "
+"those moves."
+msgstr ""
+
+#: src/app/qml/Main.qml:229
+#, kde-format
+msgctxt "@action:button"
+msgid "Save and Switch"
+msgstr ""
+
+#: src/app/qml/Main.qml:239
+#, kde-format
+msgctxt "@action:button"
+msgid "Switch"
+msgstr ""
+
+#: src/app/qml/MicButton.qml:26
+#, kde-format
+msgctxt "@action:button mic state"
+msgid "Mic offline"
+msgstr ""
+
+#: src/app/qml/MicButton.qml:27
+#, kde-format
+msgctxt "@action:button mic state"
+msgid "No mic"
+msgstr ""
+
+#: src/app/qml/MicButton.qml:28
+#, kde-format
+msgctxt "@action:button mic state"
+msgid "Mic muted"
+msgstr ""
+
+#: src/app/qml/MicButton.qml:29
+#, kde-format
+msgctxt "@action:button mic state"
+msgid "Mic live"
+msgstr ""
+
+#: src/app/qml/MicButton.qml:32
+#, kde-format
+msgctxt "@action:button"
+msgid "Mic mute"
+msgstr ""
+
+#: src/app/qml/MicButton.qml:88
+#, kde-format
+msgid "No mic found. Right-click for options."
+msgstr ""
+
+#: src/app/qml/MicButton.qml:89
+#, kde-format
+msgid "Click to mute or unmute. Right-click for gain and sidetone."
+msgstr ""
+
+#: src/app/qml/MicButton.qml:126
+#, kde-format
+msgctxt "@label"
+msgid "Mic gain"
+msgstr ""
+
+#: src/app/qml/MicButton.qml:136
+#, kde-format
+msgctxt "@option:check"
+msgid "Sidetone (hear yourself)"
+msgstr ""
+
+#: src/app/qml/MicButton.qml:147
+#, kde-format
+msgctxt "@label"
+msgid "Sidetone volume"
+msgstr ""
+
+#: src/app/qml/MicButton.qml:152
+#, kde-format
+msgctxt "@action:button"
+msgid "Choose Mic…"
+msgstr ""
+
+#: src/app/qml/MixDiagram.qml:12
+#, kde-format
+msgid "Apps go to buses. Buses go to your headphones and to OBS."
+msgstr ""
+
+#: src/app/qml/MixDiagram.qml:35
+#, kde-format
+msgctxt "diagram box"
+msgid ""
+"Apps\n"
+"Discord, game, music"
+msgstr ""
+
+#: src/app/qml/MixDiagram.qml:40
+#, kde-format
+msgctxt "diagram box"
+msgid ""
+"Buses\n"
+"Game, Voice, Music…"
+msgstr ""
+
+#: src/app/qml/MixDiagram.qml:47
+#, kde-format
+msgctxt "diagram box"
+msgid "Your headphones"
+msgstr ""
+
+#: src/app/qml/MixDiagram.qml:52
+#, kde-format
+msgctxt "diagram box"
+msgid "OBS (your stream)"
+msgstr ""
+
+#: src/app/qml/MixerPage.qml:41
+#, kde-format
+msgctxt "@title"
+msgid "No mix yet"
+msgstr ""
+
+#: src/app/qml/MixerPage.qml:42
+#, kde-format
+msgid "Create the mix to add Rostrum's buses to PipeWire."
+msgstr ""
+
+#: src/app/qml/MixerPage.qml:46 src/app/qml/ObsPage.qml:107
+#: src/app/qml/Wizard.qml:577
+#, kde-format
+msgctxt "@action:button"
+msgid "Create Mix"
+msgstr ""
+
+#: src/app/qml/MixerPage.qml:65
+#, kde-format
+msgctxt "@label master caption"
+msgid "What you hear"
+msgstr ""
+
+#: src/app/qml/MixerPage.qml:78
+#, kde-format
+msgctxt "@label master caption"
+msgid "What your audience hears"
+msgstr ""
+
+#: src/app/qml/MixerPage.qml:97 src/app/qml/ObsPage.qml:103
+#, kde-format
+msgid "Creating the mix in PipeWire…"
+msgstr ""
+
+#: src/app/qml/MixerPage.qml:139
+#, kde-format
+msgctxt "@action:button"
+msgid "Add Bus"
+msgstr ""
+
+#: src/app/qml/MixerPage.qml:161
+#, kde-format
+msgctxt "@title:dialog"
+msgid "Remove %1?"
+msgstr ""
+
+#: src/app/qml/MixerPage.qml:163
+#, kde-format
+msgctxt "@info"
+msgid "One app assigned to %2 goes back to the default output."
+msgid_plural "%1 apps assigned to %2 go back to the default output."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/app/qml/MixerPage.qml:165
+#, kde-format
+msgid "The %1 bus is removed from this scene."
+msgstr ""
+
+#: src/app/qml/MixerPage.qml:169
+#, kde-format
+msgctxt "@action:button"
+msgid "Remove"
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:38
+#, kde-format
+msgid "Present"
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:38
+#, kde-format
+msgid "Missing"
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:45
+#, kde-format
+msgctxt "@info node name in parentheses"
+msgid "(%1)"
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:50 src/app/qml/PipeWireMissingPage.qml:26
+#, kde-format
+msgctxt "@action:button"
+msgid "Copy"
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:76
+#, kde-format
+msgctxt "@info accessible"
+msgid "Step %1"
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:96
+#, kde-format
+msgctxt "@title"
+msgid "OBS"
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:104
+#, kde-format
+msgid "The Rostrum nodes are not there yet. Create the mix first."
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:165
+#, kde-format
+msgctxt "@action:button"
+msgid "Fix OBS…"
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:166
+#, kde-format
+msgctxt "@action:button"
+msgid "Set Up OBS…"
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:172
+#, kde-format
+msgctxt "@action:button"
+msgid "Undo OBS Changes"
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:178
+#, kde-format
+msgctxt "@action:button"
+msgid "Check Again"
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:197
+#, kde-format
+msgctxt "@title"
+msgid "What OBS records right now"
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:204
+#, kde-format
+msgid ""
+"No audio device. Sources that aren't playing anything don't show up here."
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:247
+#, kde-format
+msgctxt "@action:button"
+msgid "Set it up by hand"
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:262
+#, kde-format
+msgid ""
+"In OBS, add an <b>Audio Output Capture</b> source (or <b>Audio Capture "
+"(PipeWire)</b>) to every scene, and pick:"
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:277
+#, kde-format
+msgid ""
+"In Settings ▸ Audio, set <b>Mic/Aux</b> to this device, or add an <b>Audio "
+"Input Capture</b> with it:"
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:292
+#, kde-format
+msgid ""
+"Mute every other audio source that records your mic, your headphones (often "
+"called “Default”) or a single app. They skip Rostrum and double the audio. "
+"In Settings ▸ Audio, leave Desktop Audio disabled or on Rostrum Stream Mix. "
+"Never pick a single bus such as Rostrum Desktop or Rostrum Game: the Stream "
+"Mix already has it."
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:301
+#, kde-format
+msgid ""
+"Optional, for separate VOD audio: in OBS, open Advanced Audio Properties. "
+"Send Rostrum Stream Mix to track 1, and Rostrum Mic to tracks 1 and 2."
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:314
+#, kde-format
+msgctxt "@title:dialog"
+msgid "Fix OBS"
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:314
+#, kde-format
+msgctxt "@title:dialog"
+msgid "Set Up OBS"
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:320
+#, kde-format
+msgctxt "@action:button"
+msgid "Apply"
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:342
+#, kde-format
+msgid "OBS is closed. Rostrum will back up its scene collection, then change:"
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:343
+#, kde-format
+msgid "Rostrum will change these in OBS now:"
+msgstr ""
+
+#: src/app/qml/ObsPage.qml:388
+#, kde-format
+msgid ""
+"Nothing is deleted. Muted sources stay in OBS, and Undo OBS Changes puts "
+"everything back."
+msgstr ""
+
+#: src/app/qml/PeakMeter.qml:20 src/app/qml/PeakMeter.qml:34
+#, kde-format
+msgctxt "@info meter level"
+msgid "Silent"
+msgstr ""
+
+#: src/app/qml/PeakMeter.qml:35
+#, kde-format
+msgctxt "@info meter level"
+msgid "Clipping"
+msgstr ""
+
+#: src/app/qml/PeakMeter.qml:36
+#, kde-format
+msgctxt "@info meter level in dB"
+msgid "%1 dB"
+msgstr ""
+
+#: src/app/qml/PipeWireMissingPage.qml:21
+#, kde-format
+msgctxt "@label accessible"
+msgid "Command"
+msgstr ""
+
+#: src/app/qml/PipeWireMissingPage.qml:28
+#, kde-format
+msgid "Copied command"
+msgstr ""
+
+#: src/app/qml/PipeWireMissingPage.qml:29
+#, kde-format
+msgctxt "@info:tooltip"
+msgid "Copy command"
+msgstr ""
+
+#: src/app/qml/PipeWireMissingPage.qml:62
+#, kde-format
+msgctxt "@title"
+msgid "PipeWire is too old"
+msgstr ""
+
+#: src/app/qml/PipeWireMissingPage.qml:63
+#, kde-format
+msgctxt "@title"
+msgid "Rostrum can't reach PipeWire"
+msgstr ""
+
+#: src/app/qml/PipeWireMissingPage.qml:69
+#, kde-format
+msgctxt "@title:group"
+msgid "Start PipeWire"
+msgstr ""
+
+#: src/app/qml/PipeWireMissingPage.qml:70
+#, kde-format
+msgid ""
+"It is usually installed already and only needs starting for your session."
+msgstr ""
+
+#: src/app/qml/PipeWireMissingPage.qml:78
+#, kde-format
+msgctxt "@title:group"
+msgid "Update PipeWire"
+msgstr ""
+
+#: src/app/qml/PipeWireMissingPage.qml:79
+#, kde-format
+msgctxt "@title:group"
+msgid "Not installed?"
+msgstr ""
+
+#: src/app/qml/PipeWireMissingPage.qml:81
+#, kde-format
+msgid ""
+"Rostrum needs PipeWire 1.0 or newer with WirePlumber 0.5 or newer. Install "
+"the latest packages, then log out and back in."
+msgstr ""
+
+#: src/app/qml/PipeWireMissingPage.qml:82
+#, kde-format
+msgid "Install PipeWire with WirePlumber, then log out and back in."
+msgstr ""
+
+#: src/app/qml/PipeWireMissingPage.qml:108
+#, kde-format
+msgid "Rostrum checks again every few seconds."
+msgstr ""
+
+#: src/app/qml/PipeWireMissingPage.qml:112
+#, kde-format
+msgctxt "@action:button"
+msgid "Retry Now"
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:19
+#, kde-format
+msgctxt "@title:group"
+msgid "Crash reports"
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:26
+#, kde-format
+msgctxt "@option:radio crash reports"
+msgid "Send automatically"
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:27
+#, kde-format
+msgid ""
+"After a crash, a short report goes out quietly the next time Rostrum starts."
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:32
+#, kde-format
+msgctxt "@option:radio crash reports"
+msgid "Ask me after a crash"
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:33
+#, kde-format
+msgid "You see the report and decide each time."
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:38
+#, kde-format
+msgctxt "@option:radio crash reports"
+msgid "Never send"
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:39
+#, kde-format
+msgid "Crashes are not recorded, and nothing leaves this computer."
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:76
+#, kde-format
+msgctxt "@title"
+msgid "No personal information, ever"
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:82
+#, kde-format
+msgid ""
+"A report holds only what is needed to find the bug, and goes to Sentry, a "
+"crash reporting service. There is no account and no ID that links reports to "
+"you or to each other."
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:94
+#, kde-format
+msgctxt "@title crash report contents"
+msgid "Included"
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:101
+#, kde-format
+msgctxt "@title crash report contents"
+msgid "Never included"
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:113
+#, kde-format
+msgid "Where in Rostrum's code it crashed, and the libraries on the way there"
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:114
+#, kde-format
+msgid "Rostrum's version, build and how it was installed"
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:115
+#, kde-format
+msgid "Linux distribution, kernel, CPU type, desktop and session type"
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:116
+#, kde-format
+msgid "Qt, KDE Frameworks, PipeWire and WirePlumber versions"
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:124
+#, kde-format
+msgid "Your name, user name, files or folders"
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:125
+#, kde-format
+msgid "App, device and scene names"
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:126
+#, kde-format
+msgid "Logs, audio, or anything you type or say"
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:127
+#, kde-format
+msgid "Tracking IDs or accounts"
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:134
+#, kde-format
+msgctxt "@action:button"
+msgid "See an Example Report"
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:144 src/app/qml/SettingsPage.qml:231
+#, kde-format
+msgctxt "@title:group"
+msgid "Updates"
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:151 src/app/qml/SettingsPage.qml:236
+#, kde-format
+msgctxt "@option:check"
+msgid "Check for updates"
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:152 src/app/qml/SettingsPage.qml:237
+#, kde-format
+msgid ""
+"Once a day, Rostrum asks %1 for the newest version number. Nothing about you "
+"is sent."
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:161 src/app/qml/SettingsPage.qml:246
+#, kde-format
+msgctxt "@option:check"
+msgid "Install updates automatically"
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:166 src/app/qml/SettingsPage.qml:251
+#, kde-format
+msgid ""
+"New versions download in the background, are checked against the release "
+"checksum, and start the next time you open Rostrum."
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:167 src/app/qml/SettingsPage.qml:252
+#, kde-format
+msgid ""
+"Rostrum cannot write to the folder its AppImage is in, so it only tells you "
+"about new versions."
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:169 src/app/qml/SettingsPage.qml:254
+#, kde-format
+msgid ""
+"Your package manager installs Rostrum's updates. Rostrum tells you when one "
+"is out."
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:170 src/app/qml/SettingsPage.qml:255
+#, kde-format
+msgid ""
+"This copy was built from source, so Rostrum tells you when a new version is "
+"out and links to what changed."
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:174 src/app/qml/Wizard.qml:497
+#, kde-format
+msgctxt "@label"
+msgid "Updates"
+msgstr ""
+
+#: src/app/qml/PrivacyChoices.qml:175 src/app/qml/SettingsPage.qml:283
+#, kde-format
+msgid ""
+"Flatpak keeps Rostrum up to date through Discover or your software center."
+msgstr ""
+
+#: src/app/qml/RuleRow.qml:16
+#, kde-format
+msgctxt "@info accessible: rule match to bus"
+msgid "%1 to %2"
+msgstr ""
+
+#: src/app/qml/RuleRow.qml:53
+#, kde-format
+msgctxt "@info rule: app → bus"
+msgid "%1 → %2"
+msgstr ""
+
+#: src/app/qml/RuleRow.qml:61
+#, kde-format
+msgctxt "@info rule key"
+msgid "binary is “%1”"
+msgstr ""
+
+#: src/app/qml/RuleRow.qml:62
+#, kde-format
+msgctxt "@info rule key"
+msgid "name is “%1”"
+msgstr ""
+
+#: src/app/qml/RuleRow.qml:63
+#, kde-format
+msgctxt "@info rule details: key, last seen"
+msgid "%1 · %2"
+msgstr ""
+
+#: src/app/qml/RuleRow.qml:73
+#, kde-format
+msgctxt "@action:button"
+msgid "Edit match"
+msgstr ""
+
+#: src/app/qml/RuleRow.qml:76
+#, kde-format
+msgctxt "@action:button accessible"
+msgid "Edit the match for %1"
+msgstr ""
+
+#: src/app/qml/RuleRow.qml:82
+#, kde-format
+msgctxt "@action:button"
+msgid "Delete rule"
+msgstr ""
+
+#: src/app/qml/RuleRow.qml:85
+#, kde-format
+msgctxt "@action:button accessible"
+msgid "Delete the rule for %1"
+msgstr ""
+
+#: src/app/qml/RuleRow.qml:96
+#, kde-format
+msgctxt "@item:inlistbox match key"
+msgid "Name"
+msgstr ""
+
+#: src/app/qml/RuleRow.qml:96
+#, kde-format
+msgctxt "@item:inlistbox match key"
+msgid "Binary"
+msgstr ""
+
+#: src/app/qml/RuleRow.qml:97
+#, kde-format
+msgctxt "@label accessible"
+msgid "Match on"
+msgstr ""
+
+#: src/app/qml/RuleRow.qml:102
+#, kde-format
+msgctxt "@info:placeholder"
+msgid "Exact app name or binary"
+msgstr ""
+
+#: src/app/qml/RuleRow.qml:103
+#, kde-format
+msgctxt "@label accessible"
+msgid "Match"
+msgstr ""
+
+#: src/app/qml/RuleRow.qml:108 src/app/qml/SceneNameDialog.qml:12
+#, kde-format
+msgctxt "@action:button"
+msgid "Save"
+msgstr ""
+
+#: src/app/qml/SceneNameDialog.qml:88
+#, kde-format
+msgctxt "@info:placeholder"
+msgid "Ranked, Just Chatting, BRB…"
+msgstr ""
+
+#: src/app/qml/SceneNameDialog.qml:89
+#, kde-format
+msgctxt "@label accessible"
+msgid "Scene name"
+msgstr ""
+
+#: src/app/qml/SceneSwitcher.qml:20
+#, kde-format
+msgctxt "@action:button"
+msgid "Scene"
+msgstr ""
+
+#: src/app/qml/SceneSwitcher.qml:23
+#, kde-format
+msgid "%1, unsaved fader moves"
+msgstr ""
+
+#: src/app/qml/SceneSwitcher.qml:43
+#, kde-format
+msgctxt "@label followed by the scene name"
+msgid "Scene"
+msgstr ""
+
+#: src/app/qml/SceneSwitcher.qml:61
+#, kde-format
+msgid "Faders moved since the last save"
+msgstr ""
+
+#: src/app/qml/SceneSwitcher.qml:99
+#, kde-format
+msgctxt "@action:inmenu"
+msgid "Save Scene As…"
+msgstr ""
+
+#: src/app/qml/SceneSwitcher.qml:113
+#, kde-format
+msgctxt "@title:dialog"
+msgid "Save Scene As"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:25
+#, kde-format
+msgctxt "@action:inmenu scene preset"
+msgid "%1…"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:53
+#, kde-format
+msgctxt "@action:button"
+msgid "Load"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:60
+#, kde-format
+msgctxt "@action:button"
+msgid "New"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:63
+#, kde-format
+msgctxt "@action:inmenu"
+msgid "Empty Scene…"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:74
+#, kde-format
+msgctxt "@title:menu section"
+msgid "From a Preset"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:79
+#, kde-format
+msgctxt "@action:button"
+msgid "Duplicate"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:90 src/app/qml/ScenesPage.qml:314
+#, kde-format
+msgctxt "@action:button"
+msgid "Rename"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:99
+#, kde-format
+msgctxt "@action:button"
+msgid "Move Up"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:101
+#, kde-format
+msgid ""
+"Scenes keep this order in the header, the tray and the Load scene hotkeys. "
+"Alt+Up also moves the selected scene."
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:107
+#, kde-format
+msgctxt "@action:button"
+msgid "Move Down"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:109
+#, kde-format
+msgid ""
+"Scenes keep this order in the header, the tray and the Load scene hotkeys. "
+"Alt+Down also moves the selected scene."
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:115
+#, kde-format
+msgctxt "@action:button"
+msgid "Set as Default"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:121 src/app/qml/ScenesPage.qml:332
+#, kde-format
+msgctxt "@action:button"
+msgid "Delete"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:130
+#, kde-format
+msgctxt "@action:button"
+msgid "Export…"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:136
+#, kde-format
+msgctxt "@action:button"
+msgid "Import…"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:142
+#, kde-format
+msgctxt "@action:button"
+msgid "Recently Deleted…"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:159
+#, kde-format
+msgctxt "@title"
+msgid "Scenes"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:174
+#, kde-format
+msgid "Live now"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:175
+#, kde-format
+msgid "Default on launch"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:179
+#, kde-format
+msgctxt "@info:tooltip scene hotkey slot"
+msgid "Load scene %1: %2"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:180
+#, kde-format
+msgctxt "@info:tooltip scene hotkey slot"
+msgid "Load scene %1 (no shortcut set)"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:227
+#, kde-format
+msgctxt "@info scene state"
+msgid "Live, unsaved fader moves"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:228
+#, kde-format
+msgctxt "@info scene state"
+msgid "Live"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:235
+#, kde-format
+msgctxt "@info scene state"
+msgid "Default"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:272
+#, kde-format
+msgid ""
+"Selecting a scene does not change your mix. Press Load, or switch from the "
+"header. Changes to the live scene save automatically, and the default scene "
+"loads when Rostrum starts."
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:273
+#, kde-format
+msgid ""
+"Selecting a scene does not change your mix. Press Load, or switch from the "
+"header. Save keeps fader moves in the live scene, and the default scene "
+"loads when Rostrum starts."
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:279
+#, kde-format
+msgctxt "@title:dialog"
+msgid "New Scene"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:280 src/app/qml/ScenesPage.qml:293
+#, kde-format
+msgctxt "@action:button"
+msgid "Create"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:292
+#, kde-format
+msgctxt "@title:dialog"
+msgid "New Scene from Preset"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:294
+#, kde-format
+msgid ""
+"Uses your current buses and app rules. Only levels, mutes and destinations "
+"come from the preset."
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:313
+#, kde-format
+msgctxt "@title:dialog"
+msgid "Rename Scene"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:325
+#, kde-format
+msgctxt "@title:dialog"
+msgid "Delete “%1”?"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:327
+#, kde-format
+msgid ""
+"This is the live scene. Rostrum switches to the default scene after deleting "
+"it."
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:328
+#, kde-format
+msgid "It stays in Recently Deleted for %1 day."
+msgid_plural "It stays in Recently Deleted for %1 days."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/app/qml/ScenesPage.qml:339
+#, kde-format
+msgid "Deleted “%1”"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:339
+#, kde-format
+msgctxt "@action:button"
+msgid "Undo"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:358
+#, kde-format
+msgctxt "@title:dialog"
+msgid "Recently Deleted Scenes"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:370
+#, kde-format
+msgid "No deleted scenes"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:392
+#, kde-format
+msgctxt "@info deletion time"
+msgid "Deleted %1"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:399 src/app/qml/SettingsPage.qml:422
+#, kde-format
+msgctxt "@action:button"
+msgid "Restore"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:418
+#, kde-format
+msgid "Deleted scenes are removed for good after %1 day."
+msgid_plural "Deleted scenes are removed for good after %1 days."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/app/qml/ScenesPage.qml:426
+#, kde-format
+msgctxt "@title:window"
+msgid "Export Scenes"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:429 src/app/qml/ScenesPage.qml:439
+#, kde-format
+msgctxt "file filter"
+msgid "Rostrum scenes (*.toml)"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:436
+#, kde-format
+msgctxt "@title:window"
+msgid "Import Scenes"
+msgstr ""
+
+#: src/app/qml/ScenesPage.qml:439 src/app/qml/SettingsPage.qml:405
+#, kde-format
+msgctxt "file filter"
+msgid "All files (*)"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:23
+#, kde-format
+msgctxt "@title:group"
+msgid "General"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:27
+#, kde-format
+msgctxt "@option:check"
+msgid "Launch at login"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:28
+#, kde-format
+msgid ""
+"Start Rostrum when you log in, so the mix is ready before Discord or OBS."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:34
+#, kde-format
+msgctxt "@option:check"
+msgid "Start in tray"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:35
+#, kde-format
+msgid "At login, start with the window hidden. Click the tray icon to show it."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:36 src/app/qml/Wizard.qml:443
+#, kde-format
+msgid "Needs a system tray, and this desktop does not show one."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:43
+#, kde-format
+msgctxt "@option:check"
+msgid "Save scene changes automatically"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:44
+#, kde-format
+msgid ""
+"Fader, mute and destination changes save to the live scene a moment after "
+"you make them. Turn off to keep scenes fixed until you press Save."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:50
+#, kde-format
+msgctxt "@option:check"
+msgid "Confirm before switching scenes"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:51
+#, kde-format
+msgid "Not needed while scene changes save automatically."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:52
+#, kde-format
+msgid "Ask before a scene switch discards fader moves you have not saved."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:59
+#, kde-format
+msgctxt "@option:check"
+msgid "Scroll to adjust faders"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:60
+#, kde-format
+msgid "Turn off if you scroll the page and move faders by accident."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:66
+#, kde-format
+msgctxt "@action:button"
+msgid "Quit Rostrum"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:67
+#, kde-format
+msgid ""
+"Closing the window keeps Rostrum in the tray. After quitting, audio keeps "
+"flowing through the mix, but hotkeys and the tray stop."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:68
+#, kde-format
+msgid "Audio keeps flowing through the mix, but hotkeys stop."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:75 src/app/qml/Wizard.qml:450
+#, kde-format
+msgctxt "@title:group"
+msgid "Hotkeys"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:79
+#, kde-format
+msgid ""
+"Click a shortcut, then press the keys. Backspace or the clear button removes "
+"it."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:81
+#, kde-format
+msgid "They work in any app and also appear in System Settings → Shortcuts."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:83
+#, kde-format
+msgid ""
+"They work in any app once the desktop allows them. It may ask you to confirm."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:108
+#, kde-format
+msgctxt "@info"
+msgid "Also used by “%1”"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:134
+#, kde-format
+msgctxt "@label accessible"
+msgid "Shortcut for %1"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:138
+#, kde-format
+msgctxt "@action:button"
+msgid "Reset to default"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:142
+#, kde-format
+msgctxt "@action:button accessible"
+msgid "Reset the shortcut for %1"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:152
+#, kde-format
+msgctxt "@title:group"
+msgid "Mixer"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:156
+#, kde-format
+msgctxt "@label:listbox"
+msgid "Meter speed"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:157
+#, kde-format
+msgctxt "@item:inlistbox meter speed"
+msgid "Normal (25 updates a second)"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:158
+#, kde-format
+msgctxt "@item:inlistbox meter speed"
+msgid "Low (uses less power)"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:164
+#, kde-format
+msgctxt "@option:check"
+msgid "Show dB readouts"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:165
+#, kde-format
+msgid "Print the level under every fader. Off shows it only on hover or focus."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:172
+#, kde-format
+msgctxt "@title:group"
+msgid "Apps"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:176
+#, kde-format
+msgctxt "@option:check"
+msgid "Assign apps automatically"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:177
+#, kde-format
+msgid ""
+"Rostrum recognises games, voice chat, music players and stream alert tools, "
+"and puts each on the bus that receives it. Your own assignments and rules "
+"always win. Choose what a bus receives from its right-click menu."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:183
+#, kde-format
+msgctxt "@action:button"
+msgid "Forget skipped apps"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:185
+#, kde-format
+msgctxt "@info"
+msgid ""
+"One app you took off its bus stays unassigned. Forget it and it is assigned "
+"automatically again."
+msgid_plural ""
+"%1 apps you took off their bus stay unassigned. Forget them and they are "
+"assigned automatically again."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/app/qml/SettingsPage.qml:188
+#, kde-format
+msgid "Apps you take off their bus stay unassigned. None so far."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:197
+#, kde-format
+msgctxt "@title:group"
+msgid "Privacy"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:202
+#, kde-format
+msgctxt "@label:listbox"
+msgid "Crash reports"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:203
+#, kde-format
+msgid ""
+"A crash report shows where in Rostrum's code it crashed, and which versions "
+"of Rostrum, Linux, Qt and PipeWire were running. It goes to Sentry, a crash "
+"reporting service, and never includes personal information, names, files or "
+"logs."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:205
+#, kde-format
+msgctxt "@item:inlistbox crash reports"
+msgid "Send automatically"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:206
+#, kde-format
+msgctxt "@item:inlistbox crash reports"
+msgid "Ask after a crash"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:207
+#, kde-format
+msgctxt "@item:inlistbox crash reports"
+msgid "Never send"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:213
+#, kde-format
+msgctxt "@action:button"
+msgid "What a crash report contains"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:214
+#, kde-format
+msgid "See a complete example built from this computer."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:223
+#, kde-format
+msgctxt "@action:button"
+msgid "Review the unsent crash report"
+msgid_plural "Review %1 unsent crash reports"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/app/qml/SettingsPage.qml:224
+#, kde-format
+msgid "Most recent crash: %1"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:262
+#, kde-format
+msgctxt "@action:button"
+msgid "Check now"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:266
+#, kde-format
+msgctxt "@info"
+msgid "Last checked %1."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:266
+#, kde-format
+msgctxt "@info"
+msgid "Not checked yet."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:268
+#, kde-format
+msgctxt "@info"
+msgid "Checking…"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:269
+#, kde-format
+msgctxt "@info"
+msgid "Rostrum %1 is the newest version. %2"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:271
+#, kde-format
+msgctxt "@info"
+msgid "Rostrum %1 is available, but it could not be installed: %2"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:272
+#, kde-format
+msgctxt "@info"
+msgid "Rostrum %1 is available. %2"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:273
+#, kde-format
+msgctxt "@info"
+msgid "Downloading Rostrum %1…"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:274
+#, kde-format
+msgctxt "@info"
+msgid "Rostrum %1 is installed and starts the next time you open Rostrum."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:275
+#, kde-format
+msgctxt "@info"
+msgid "Could not check: %1 %2"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:276
+#, kde-format
+msgctxt "@info"
+msgid "You have Rostrum %1. %2"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:289
+#, kde-format
+msgctxt "@title:group"
+msgid "Advanced"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:293
+#, kde-format
+msgctxt "@option:check"
+msgid "Show node ids"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:294
+#, kde-format
+msgid "Show PipeWire node names and ids next to devices and apps."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:300
+#, kde-format
+msgctxt "@action:button"
+msgid "Open config folder"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:307
+#, kde-format
+msgctxt "@action:button"
+msgid "Back Up Settings…"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:308
+#, kde-format
+msgid ""
+"Saves settings, hotkeys, devices and every scene to one file. Crash report "
+"and update choices are left out."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:317
+#, kde-format
+msgctxt "@action:button"
+msgid "Restore…"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:318
+#, kde-format
+msgid ""
+"Replaces settings and same-named scenes with those from a backup. The "
+"current setup is backed up first."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:323
+#, kde-format
+msgctxt "@action:button"
+msgid "Rebuild virtual devices"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:324
+#, kde-format
+msgid ""
+"Removes and recreates Rostrum's PipeWire nodes. Audio drops for a moment."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:334
+#, kde-format
+msgctxt "@action:button"
+msgid "Write app rules now"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:335
+#, kde-format
+msgid ""
+"Rules from the default scene, so apps land on their bus before Rostrum "
+"starts. Written to %1 and %2."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:342
+#, kde-format
+msgid ""
+"App rules are not written because the session manager is not WirePlumber. "
+"Routes may not survive a reboot."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:348
+#, kde-format
+msgctxt "@title:group"
+msgid "About"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:353
+#, kde-format
+msgctxt "@label"
+msgid "Rostrum"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:354
+#, kde-format
+msgctxt "@info version"
+msgid "Version %1. A stream mix console for Linux."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:358
+#, kde-format
+msgctxt "@label"
+msgid "PipeWire"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:359
+#, kde-format
+msgctxt "@info"
+msgid "Not connected"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:363
+#, kde-format
+msgctxt "@label"
+msgid "WirePlumber"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:364
+#, kde-format
+msgctxt "@info"
+msgid "Running"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:365
+#, kde-format
+msgctxt "@info"
+msgid "Not running"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:369
+#, kde-format
+msgctxt "@label"
+msgid "Log file"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:377
+#, kde-format
+msgctxt "@action:button"
+msgid "Open the README"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:393
+#, kde-format
+msgctxt "@title:window"
+msgid "Back Up Settings"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:396 src/app/qml/SettingsPage.qml:405
+#, kde-format
+msgctxt "file filter"
+msgid "Rostrum backups (*.toml)"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:403
+#, kde-format
+msgctxt "@title:window"
+msgid "Restore Settings"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:416
+#, kde-format
+msgctxt "@title:dialog"
+msgid "Restore Settings?"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:417
+#, kde-format
+msgid ""
+"Settings, hotkeys and devices are replaced, and scenes with the same name "
+"are overwritten (the old versions go to Recently Deleted). Other scenes "
+"stay. Your current setup is saved in %1 first."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:439
+#, kde-format
+msgctxt "@title:dialog"
+msgid "Rebuild Virtual Devices?"
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:440
+#, kde-format
+msgid ""
+"Audio through Rostrum stops for a moment while its nodes are recreated. OBS "
+"reconnects on its own."
+msgstr ""
+
+#: src/app/qml/SettingsPage.qml:444
+#, kde-format
+msgctxt "@action:button"
+msgid "Rebuild"
+msgstr ""
+
+#: src/app/qml/SetupUpdateDialog.qml:15
+#, kde-format
+msgctxt "@title:dialog"
+msgid "Crash Reports and Updates"
+msgstr ""
+
+#: src/app/qml/SetupUpdateDialog.qml:15
+#, kde-format
+msgctxt "@title:dialog"
+msgid "Updates"
+msgstr ""
+
+#: src/app/qml/SetupUpdateDialog.qml:20
+#, kde-format
+msgctxt "@action:button"
+msgid "Done"
+msgstr ""
+
+#: src/app/qml/SetupUpdateDialog.qml:41
+#, kde-format
+msgid ""
+"Rostrum can now help fix crashes and keep itself up to date. Choose what you "
+"are comfortable with; you can change it later in Settings."
+msgstr ""
+
+#: src/app/qml/SetupUpdateDialog.qml:42
+#, kde-format
+msgid ""
+"Rostrum can now keep itself up to date. You can change this later in "
+"Settings."
+msgstr ""
+
+#: src/app/qml/Shell.qml:11
+#, kde-format
+msgctxt "@title page"
+msgid "Mixer"
+msgstr ""
+
+#: src/app/qml/Shell.qml:12
+#, kde-format
+msgctxt "@title page"
+msgid "Apps"
+msgstr ""
+
+#: src/app/qml/Shell.qml:13
+#, kde-format
+msgctxt "@title page"
+msgid "Scenes"
+msgstr ""
+
+#: src/app/qml/Shell.qml:14
+#, kde-format
+msgctxt "@title page"
+msgid "Devices"
+msgstr ""
+
+#: src/app/qml/Shell.qml:15
+#, kde-format
+msgctxt "@title page"
+msgid "OBS"
+msgstr ""
+
+#: src/app/qml/Shell.qml:16
+#, kde-format
+msgctxt "@title page"
+msgid "Settings"
+msgstr ""
+
+#: src/app/qml/Shell.qml:100
+#, kde-format
+msgid "Connecting to PipeWire"
+msgstr ""
+
+#: src/app/qml/Sidebar.qml:39 src/app/qml/Sidebar.qml:57
+#, kde-format
+msgctxt "@title accessible"
+msgid "Pages"
+msgstr ""
+
+#: src/app/qml/Sidebar.qml:110
+#, kde-format
+msgctxt "@action:button"
+msgid "Expand Sidebar"
+msgstr ""
+
+#: src/app/qml/Sidebar.qml:110
+#, kde-format
+msgctxt "@action:button"
+msgid "Collapse Sidebar"
+msgstr ""
+
+#: src/app/qml/StatusBar.qml:23
+#, kde-format
+msgctxt "@info:status"
+msgid "Headphones: %1"
+msgstr ""
+
+#: src/app/qml/StatusBar.qml:27
+#, kde-format
+msgid "Saved headphones are disconnected. Click to choose."
+msgstr ""
+
+#: src/app/qml/StatusBar.qml:28
+#, kde-format
+msgid "Choose headphones"
+msgstr ""
+
+#: src/app/qml/StatusBar.qml:35
+#, kde-format
+msgctxt "@info:status"
+msgid "Mic: %1"
+msgstr ""
+
+#: src/app/qml/StatusBar.qml:39
+#, kde-format
+msgid "Saved mic is disconnected. Click to choose."
+msgstr ""
+
+#: src/app/qml/StatusBar.qml:39
+#, kde-format
+msgid "Choose mic"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:17
+#, kde-format
+msgctxt "@title wizard step"
+msgid "Welcome"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:18
+#, kde-format
+msgctxt "@title"
+msgid "Welcome to Rostrum"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:19
+#, kde-format
+msgid ""
+"Your game, voice chat, music and mic each get their own fader, and you "
+"decide what you hear and what your stream hears. Setup takes about a minute."
+msgstr ""
+
+#: src/app/qml/Wizard.qml:20
+#, kde-format
+msgctxt "@title wizard step"
+msgid "Headphones"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:21
+#, kde-format
+msgctxt "@title"
+msgid "Where do you listen?"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:22
+#, kde-format
+msgid "Pick your headphones. Press Test to hear a short chime in them."
+msgstr ""
+
+#: src/app/qml/Wizard.qml:23
+#, kde-format
+msgctxt "@title wizard step"
+msgid "Mic"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:24
+#, kde-format
+msgctxt "@title"
+msgid "Which mic is yours?"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:25
+#, kde-format
+msgid "Say something. The meter under your mic moves."
+msgstr ""
+
+#: src/app/qml/Wizard.qml:26
+#, kde-format
+msgctxt "@title wizard step"
+msgid "Apps and Buses"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:27
+#, kde-format
+msgctxt "@title"
+msgid "Apps and buses"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:28
+#, kde-format
+msgid ""
+"Each bus has its own fader and goes to your headphones, your stream, or "
+"both. Rostrum can put each app on the right bus by itself."
+msgstr ""
+
+#: src/app/qml/Wizard.qml:29
+#, kde-format
+msgctxt "@title wizard step"
+msgid "Startup"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:30
+#, kde-format
+msgctxt "@title"
+msgid "When Rostrum starts"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:31
+#, kde-format
+msgid ""
+"Your mix keeps playing while Rostrum is closed, but apps find their bus and "
+"hotkeys work only while it runs."
+msgstr ""
+
+#: src/app/qml/Wizard.qml:33
+#, kde-format
+msgctxt "@title wizard step"
+msgid "Privacy and Updates"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:34
+#, kde-format
+msgctxt "@title"
+msgid "Privacy and updates"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:35
+#, kde-format
+msgid ""
+"Help fix crashes and stay up to date. Nothing personal is ever collected."
+msgstr ""
+
+#: src/app/qml/Wizard.qml:36
+#, kde-format
+msgctxt "@title wizard step"
+msgid "Updates"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:37
+#, kde-format
+msgctxt "@title"
+msgid "Updates"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:38
+#, kde-format
+msgid "Stay up to date. Nothing about you is sent."
+msgstr ""
+
+#: src/app/qml/Wizard.qml:39
+#, kde-format
+msgctxt "@title wizard step"
+msgid "Ready"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:40
+#, kde-format
+msgctxt "@title"
+msgid "You're all set"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:41
+#, kde-format
+msgid ""
+"Here is your setup. Create the mix and the Mixer opens. Everything can be "
+"changed later in Settings."
+msgstr ""
+
+#: src/app/qml/Wizard.qml:72
+#, kde-format
+msgctxt "@info crash reports"
+msgid "Sent automatically"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:73
+#, kde-format
+msgctxt "@info crash reports"
+msgid "Never sent"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:74
+#, kde-format
+msgctxt "@info crash reports"
+msgid "Ask after a crash"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:79
+#, kde-format
+msgctxt "@info updates"
+msgid "Through Flatpak"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:82
+#, kde-format
+msgctxt "@info updates"
+msgid "Not checked"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:84
+#, kde-format
+msgctxt "@info updates"
+msgid "Checked daily and installed automatically"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:85
+#, kde-format
+msgctxt "@info updates"
+msgid "Checked daily"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:110
+#, kde-format
+msgctxt "@title"
+msgid "Setup"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:135
+#, kde-format
+msgctxt "@info accessible"
+msgid "Done"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:135
+#, kde-format
+msgctxt "@info accessible"
+msgid "Current step"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:213
+#, kde-format
+msgctxt "@info"
+msgid "Rostrum %1"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:278
+#, kde-format
+msgctxt "@title"
+msgid "A bus for everything"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:279
+#, kde-format
+msgid "Game, voice, music, alerts and desktop audio on their own faders."
+msgstr ""
+
+#: src/app/qml/Wizard.qml:280
+#, kde-format
+msgctxt "@title"
+msgid "Two mixes"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:281
+#, kde-format
+msgid "Music for your viewers without it playing in your ears."
+msgstr ""
+
+#: src/app/qml/Wizard.qml:282
+#, kde-format
+msgctxt "@title"
+msgid "Ready for OBS"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:283
+#, kde-format
+msgid "OBS records one clean stream mix and your mic."
+msgstr ""
+
+#: src/app/qml/Wizard.qml:341
+#, kde-format
+msgctxt "@action:button"
+msgid "Unmute Mic"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:341
+#, kde-format
+msgctxt "@action:button"
+msgid "Mute Mic"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:348
+#, kde-format
+msgid "The mic button in the header does the same, any time. Ctrl+M too."
+msgstr ""
+
+#: src/app/qml/Wizard.qml:359
+#, kde-format
+msgctxt "@option:check"
+msgid "Put apps on buses automatically"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:360
+#, kde-format
+msgid ""
+"Discord goes to Voice, Spotify to Music, Steam games to Game. OBS and audio "
+"tools are never moved, and your own choices always win."
+msgstr ""
+
+#: src/app/qml/Wizard.qml:366
+#, kde-format
+msgctxt "@title:group"
+msgid "Your buses"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:381
+#, kde-format
+msgctxt "@info bus receives"
+msgid "Games"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:382
+#, kde-format
+msgctxt "@info bus receives"
+msgid "Voice chat"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:383
+#, kde-format
+msgctxt "@info bus receives"
+msgid "Music players"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:384
+#, kde-format
+msgctxt "@info bus receives"
+msgid "Stream alerts"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:385
+#, kde-format
+msgctxt "@info bus receives"
+msgid "Everything else"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:410
+#, kde-format
+msgctxt "@info"
+msgid "Your mic"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:412
+#, kde-format
+msgctxt "@info %1 is a kind of app"
+msgid "Receives %1"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:413
+#, kde-format
+msgctxt "@info"
+msgid "Apps you drag here"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:417
+#, kde-format
+msgctxt "destination"
+msgid "Headphones"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:418
+#, kde-format
+msgctxt "destination"
+msgid "Stream"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:419
+#, kde-format
+msgctxt "destination"
+msgid "Headphones and stream"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:434
+#, kde-format
+msgctxt "@option:check"
+msgid "Launch Rostrum at login"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:435
+#, kde-format
+msgid ""
+"Recommended. The mix is ready before Discord or OBS start, and apps land on "
+"their bus from the first second."
+msgstr ""
+
+#: src/app/qml/Wizard.qml:441
+#, kde-format
+msgctxt "@option:check"
+msgid "Start hidden in the tray"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:442
+#, kde-format
+msgid "At login, Rostrum waits in the tray instead of opening its window."
+msgstr ""
+
+#: src/app/qml/Wizard.qml:461
+#, kde-format
+msgctxt "@info no shortcut"
+msgid "None"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:468
+#, kde-format
+msgid ""
+"These work in any app while Rostrum runs. Change them in Settings → Hotkeys."
+msgstr ""
+
+#: src/app/qml/Wizard.qml:488
+#, kde-format
+msgctxt "@label"
+msgid "Headphones"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:489
+#, kde-format
+msgctxt "@label"
+msgid "Mic"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:490
+#, kde-format
+msgctxt "@label"
+msgid "Apps"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:491
+#, kde-format
+msgctxt "@info"
+msgid "Put on buses automatically"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:491
+#, kde-format
+msgctxt "@info"
+msgid "You put them on buses"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:492
+#, kde-format
+msgctxt "@label"
+msgid "Startup"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:493
+#, kde-format
+msgctxt "@info"
+msgid "When you open it"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:494
+#, kde-format
+msgctxt "@info"
+msgid "At login, in the tray"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:495
+#, kde-format
+msgctxt "@info"
+msgid "At login"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:496
+#, kde-format
+msgctxt "@label"
+msgid "Crash reports"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:506
+#, kde-format
+msgctxt "@info accessible"
+msgid "Change"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:514
+#, kde-format
+msgid ""
+"PipeWire did not create the mix: %1 Check that PipeWire and WirePlumber are "
+"running, then try again."
+msgstr ""
+
+#: src/app/qml/Wizard.qml:535
+#, kde-format
+msgctxt "@action:button"
+msgid "Skip Setup"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:539
+#, kde-format
+msgctxt "@info:tooltip"
+msgid ""
+"Keep the choices made so far, use the defaults for the rest, and go to the "
+"Mixer"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:545
+#, kde-format
+msgctxt "@info wizard progress"
+msgid "Step %1 of %2"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:555
+#, kde-format
+msgid "Creating the mix"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:560
+#, kde-format
+msgctxt "@action:button"
+msgid "Back"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:568
+#, kde-format
+msgctxt "@action:button"
+msgid "Get Started"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:568
+#, kde-format
+msgctxt "@action:button"
+msgid "Next"
+msgstr ""
+
+#: src/app/qml/Wizard.qml:577
+#, kde-format
+msgctxt "@action:button"
+msgid "Creating…"
+msgstr ""

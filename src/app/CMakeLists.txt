@@ -135,3 +135,11 @@ foreach(size 16x16 22x22)
         DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/${size}/apps)
 endforeach()
 install(FILES ${PROJECT_SOURCE_DIR}/README.md ${PROJECT_SOURCE_DIR}/LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR})
+
+# Translations: po/<lang>/rostrum.po becomes share/locale/<lang>/LC_MESSAGES/rostrum.mo.
+ki18n_install(${PROJECT_SOURCE_DIR}/po)
+add_custom_target(rostrum-pot
+    COMMAND ${CMAKE_COMMAND} -E env podir=${PROJECT_SOURCE_DIR}/po bash ${PROJECT_SOURCE_DIR}/po/Messages.sh
+    COMMENT "Extracting messages into po/rostrum.pot"
+    VERBATIM
+)
