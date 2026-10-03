@@ -33,6 +33,9 @@
   tools are never touched.
 - 🧲 **Apps remember their bus.** Drag an app onto a bus once and it lands there every time, even
   before Rostrum starts at your next login.
+- 🎛️ **Control from anywhere.** Global hotkeys (push to talk, panic mute, scene switching), the
+  tray, and the `rostrum` command or D-Bus for Stream Deck buttons and scripts. Optional
+  auto-ducking turns Music down while you speak.
 - 🛟 **Safe by design.** The virtual devices live in PipeWire, so audio keeps flowing if Rostrum
   quits or crashes.
 - 🔒 **Private crash reports, your call.** In official builds, Rostrum asks after a crash before
@@ -92,12 +95,15 @@ Five minutes to a split stream:
    whenever Rostrum sees it, and from your next login on even before Rostrum starts. Take an app off
    its bus and Rostrum stops placing it. Right-click a strip → **Receives Automatically** to choose
    which kind of app each bus gets. Apps that report no name (Wine and Proton games) get a banner so
-   you can name them once.
+   you can name them once. Each app on the Apps page also has its own volume and Mute, without
+   touching the rest of its bus; with "Always" on, they save with the scene.
 
    ![The Apps page: what is playing now, and the saved rules](docs/screenshots/apps.png)
 
 4. **Pick destinations.** Each bus goes to Headphones, Stream or Both. Defaults: Music → Stream (your
    viewers hear it, you don't), the other playback buses → Both, Mic → Stream with sidetone off.
+   The small slider under each playback bus sets its balance. If you listen on one ear, turn on
+   Devices → Mono headphones.
 5. **Add Rostrum to OBS.** Open the OBS page and press **Set Up OBS**. A preview lists every
    change: your mic source switches to **Rostrum Mic**, a **Rostrum Stream Mix** source joins
    every scene, and sources that would double audio (desktop audio, single-app captures) are
@@ -146,6 +152,7 @@ The tray menu has Mute Mic, Mute Stream, Previous and Next Scene, a Scenes subme
 Middle-click the tray icon to mute or unmute the mic, scroll on it to change the Stream master.
 
 With a fader focused: Up/Down 1 %, Page Up/Down 10 %, M mute, S solo, 1/2/3 Headphones/Stream/Both.
+Double-click a fader, a balance slider or the mic gain to reset it.
 App menu → Compact View shrinks Rostrum to a small mixer (mic, scene, masters and a slim fader per
 bus) that can stay on top of a game or OBS; it remembers its own size and comes back that way.
 Ctrl+Z and Ctrl+Shift+Z undo and redo level and bus edits in the live scene (not solo, and never
@@ -185,7 +192,8 @@ listener.
   12 dB while you speak. Neither is saved in scenes.
 - If your chosen mic is unplugged, the stream mic stays silent until it comes back. No other mic
   goes live unless you turn on "Use another mic while mine is unplugged" on the Devices page.
-- Close window hides to tray (when the desktop has one). Quit from the tray or Settings.
+- Closing the window hides it to the tray (when the desktop has one); minimizing just minimizes.
+  Both are switches in Settings → General. Quit from the tray or Settings.
 - Scroll-to-adjust faders: on. Confirm scene switch: off. Launch at login: off until you turn it
   on (setup recommends it).
 - Crash reports: ask after a crash. Update checks: once a day. Automatic install: on, for the
