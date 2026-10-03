@@ -119,14 +119,29 @@ QQC2.Control {
                 color: row.assigned ? row.app.busColor : Kirigami.Theme.positiveTextColor
                 accessibleName: i18nc("@label accessible", "%1 level", row.app.name)
             }
+            QQC2.ToolButton {
+                icon.name: row.app.muted ? "audio-volume-muted" : "audio-volume-high"
+                text: row.app.muted ? i18nc("@action:button", "Unmute") : i18nc("@action:button", "Mute")
+                display: QQC2.AbstractButton.IconOnly
+                checkable: true
+                checked: row.app.muted
+                onToggled: Apps.setMuted(row.app.key, checked)
+                Accessible.name: i18nc("@action:button accessible", "Mute %1", row.app.name)
+                QQC2.ToolTip.visible: hovered
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                QQC2.ToolTip.text: !row.app.muted ? i18nc("@info:tooltip", "Mute this app")
+                                 : row.app.always ? i18nc("@info:tooltip", "Muted. Saved with its rule in this scene.")
+                                                  : i18nc("@info:tooltip", "Muted until Rostrum quits")
+            }
             QQC2.Label {
                 text: i18nc("@label per-app volume", "Volume")
                 font: Kirigami.Theme.smallFont
-                opacity: 0.7
+                opacity: row.app.muted ? 0.4 : 0.7
             }
             PlainSlider {
                 id: volume
                 Layout.preferredWidth: Kirigami.Units.gridUnit * 6
+                opacity: row.app.muted ? 0.5 : 1
                 from: 0
                 to: 1
                 value: row.app.volume

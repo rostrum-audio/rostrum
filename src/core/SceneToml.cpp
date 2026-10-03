@@ -96,6 +96,9 @@ toml::table sceneTable(const Scene &scene)
             {"bus", s(r.busId)},
             {"volume", r.volume},
         };
+        if (r.muted) {
+            rt.insert("muted", true);
+        }
         if (!r.label.isEmpty()) {
             rt.insert("label", s(r.label));
         }
@@ -154,6 +157,7 @@ Scene sceneFrom(const toml::table &t)
             r.key = matchKeyFromString(qs(rv["key"])).value_or(MatchKey::Name);
             r.busId = qs(rv["bus"]);
             r.volume = num(rv["volume"], 1.0);
+            r.muted = flag(rv["muted"], false);
             r.label = qs(rv["label"]).trimmed().left(64);
             r.lastSeen = fromToml(rv["last_seen"]);
             scene.rules.append(r);

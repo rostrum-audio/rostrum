@@ -57,6 +57,9 @@ int main(int argc, char *argv[])
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &controller, [&controller] {
         controller.scenes()->flush();
         controller.saveSettingsNow();
+        if (controller.engine()->releaseAppMutes()) {
+            controller.pw()->roundtrip(500);
+        }
     });
     controller.start();
     rostrum::app::Mixer mixer(&controller, nullptr);

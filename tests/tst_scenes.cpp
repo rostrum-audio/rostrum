@@ -29,6 +29,7 @@ Scene sample()
     r.key = MatchKey::Binary;
     r.busId = QStringLiteral("voice");
     r.volume = 0.7;
+    r.muted = true;
     r.lastSeen = QDateTime(QDate(2026, 10, 2), QTime(21, 30, 5), QTimeZone::UTC);
     s.rules.append(r);
     AppRule wine;

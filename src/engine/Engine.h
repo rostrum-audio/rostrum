@@ -32,6 +32,7 @@ struct AppStream
     QString detectedName;     // e.g. the Steam game's name, empty if none
     bool skipped = false;     // the user took it off its automatic bus
     double volume = 1.0;
+    bool muted = false;
 };
 
 // The device Rostrum links for headphones (sink) or the mic: the saved node.name if present,
@@ -116,6 +117,12 @@ public:
     void unassignStream(uint32_t nodeId);
     void setAppVolume(const AppKey &key, double volume);
     double appVolume(const AppKey &key) const;
+    // Saved in the app's rule like its volume; for apps without a rule, until Rostrum quits.
+    void setAppMuted(const AppKey &key, bool muted);
+    bool appMuted(const AppKey &key) const;
+    // On quit: unmutes the streams Rostrum muted, so quitting never leaves an app silent. Saved
+    // mutes apply again at the next start. Returns whether anything was sent.
+    bool releaseAppMutes();
     void removeRule(const AppKey &key);
     void editRule(const AppKey &oldKey, const AppKey &newKey);
     void setRuleLabel(const AppKey &key, const QString &label);
@@ -185,8 +192,10 @@ protected:
     QHash<uint32_t, Routed> m_routed;
     QHash<QString, QString> m_sessionAssign;    // AppKey string -> bus id
     QHash<QString, double> m_sessionVolume;      // AppKey string -> volume for apps without a rule
+    QHash<QString, bool> m_sessionMuted;         // AppKey string -> mute for apps without a rule
     QHash<QString, QElapsedTimer> m_sessionSeen; // AppKey string -> last time a stream was present
     QHash<uint32_t, double> m_appliedStreamVolume;
+    QHash<uint32_t, bool> m_appliedStreamMute;
     QSet<QString> m_seenThisSession;
     bool m_autoAssign = true;
     QSet<QString> m_autoSkip; // lower-case skip keys

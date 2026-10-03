@@ -340,6 +340,19 @@ audio.position=[MONO] }'` set as default with `wpctl set-default`.
    the saved mic. Turn it off again: the fallback links go away at once.
 6. With no mic ever chosen (`mic = ''`), Rostrum uses the system default source as before.
 
+## 16. Per-app mute
+
+1. Play Firefox and Spotify, each on a bus. On the Apps page, press Firefox's mute button. Firefox
+   goes silent at once, its row meter drops, Spotify keeps playing, and `wpctl inspect` on
+   Firefox's stream shows `mute = true`. The log has `mute "Firefox" <id>`.
+2. With Always on for Firefox, the scene file's `[[rule]]` for it gains `muted = true`. Unmute:
+   the line goes away. Turn Always off and mute: the scene file is unchanged.
+3. Mute Firefox in Plasma's volume applet or pavucontrol instead: Rostrum leaves it muted and does
+   not unmute it back, and vice versa.
+4. With Firefox muted by Rostrum, quit Rostrum from the tray. Firefox plays again (through its bus,
+   which lingers). Start Rostrum: if the mute was saved in the rule, Firefox is muted again.
+5. Switch to a scene whose rule for Firefox is not muted: Firefox plays.
+
 ## Smoke test log
 
 Kubuntu 26.04, Plasma 6.6 Wayland, PipeWire 1.6.2, WirePlumber 0.5.13, build 0.1.0. The checks

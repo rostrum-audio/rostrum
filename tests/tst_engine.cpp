@@ -1,8 +1,12 @@
+#include "core/SceneStore.h"
+#include "core/SceneToml.h"
 #include "core/Settings.h"
 #include "engine/Engine.h"
+#include "engine/SceneManager.h"
 #include "pw/Graph.h"
 #include "pw/PwContext.h"
 
+#include <QTemporaryDir>
 #include <QTest>
 
 using namespace rostrum;
@@ -99,6 +103,54 @@ private Q_SLOTS:
                  QStringLiteral("alsa_output.speakers"));
         QCOMPARE(nameOf(engine::resolveDevice(g, QString(), QString(), true, true)),
                  QStringLiteral("alsa_output.speakers"));
+    }
+
+    void appMuteIsSavedLikeTheVolume()
+    {
+        QTemporaryDir dir;
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        engine::SceneManager scenes(&engine, dir.path());
+        scenes.load(QStringLiteral("Live"));
+
+        // Without a rule, the mute lasts for this run only and never touches the scene.
+        const AppKey discord{MatchKey::Binary, QStringLiteral("Discord")};
+        engine.setAppMuted(discord, true);
+        QVERIFY(engine.appMuted(discord));
+        QVERIFY(!scenes.dirty());
+
+        // Making it a rule carries the mute over, and the rule saves it.
+        engine.assignApp(discord, QStringLiteral("voice"), true);
+        QVERIFY(engine.scene().rule(MatchKey::Binary, QStringLiteral("discord"))->muted);
+        QVERIFY(scenes.save());
+        const QString text =
+            SceneStore::readFile(SceneStore(dir.path()).fileFor(QStringLiteral("Live")), nullptr);
+        QVERIFY2(text.contains(QStringLiteral("muted = true")), qPrintable(text));
+        QVERIFY(toml_io::parseScene(text)->rule(MatchKey::Binary, QStringLiteral("Discord"))->muted);
+
+        engine.setAppMuted(discord, false);
+        QVERIFY(scenes.dirty());
+        QVERIFY(!engine.appMuted(discord));
+        // An unmuted rule writes no mute line at all.
+        const QString rules = toml_io::serializeScene(engine.scene()).section(QStringLiteral("[[rule]]"), 1);
+        QVERIFY(!rules.isEmpty());
+        QVERIFY2(!rules.contains(QStringLiteral("muted")), qPrintable(rules));
+    }
+
+    void mergeKeepsSavedAppMute()
+    {
+        Scene saved = defaults::scene();
+        AppRule r;
+        r.match = QStringLiteral("Spotify");
+        r.busId = QStringLiteral("music");
+        r.muted = true;
+        saved.rules.append(r);
+        Scene current = saved;
+        current.rules.first().muted = false;
+        current.rules.first().busId = QStringLiteral("desktop");
+        const Scene merged = mergeStructure(saved, current);
+        QVERIFY(merged.rules.first().muted);
+        QCOMPARE(merged.rules.first().busId, QStringLiteral("desktop"));
     }
 
     void micFallbackIsOffByDefault()

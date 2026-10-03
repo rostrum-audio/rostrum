@@ -26,7 +26,7 @@ class Apps : public QObject
     QML_ELEMENT
     QML_SINGLETON
 
-    // Rows: {key, name, binary, matchKey, busId, busName, busColor, volume, always, unnamed,
+    // Rows: {key, name, binary, matchKey, busId, busName, busColor, volume, muted, always, unnamed,
     //        nodeIds, automatic, detail}. detail explains an automatic placement, or why an
     //        app Rostrum recognised was left where it is; empty for the user's own choices.
     Q_PROPERTY(QVariantList running READ running NOTIFY changed)
@@ -68,6 +68,7 @@ public:
     Q_INVOKABLE void setAlways(const QString &key, bool always);
     Q_INVOKABLE void unassign(const QString &key);
     Q_INVOKABLE void setVolume(const QString &key, double volume);
+    Q_INVOKABLE void setMuted(const QString &key, bool muted);
     Q_INVOKABLE void removeRule(const QString &key);
     // matchKey: "name" or "binary". Returns false if the match is empty or already has a rule.
     Q_INVOKABLE bool editMatch(const QString &key, const QString &match, const QString &matchKey);

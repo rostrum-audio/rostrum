@@ -47,6 +47,9 @@ public:
     void createLink(uint32_t outPort, uint32_t inPort);
     void setNodeVolume(uint32_t nodeId, float linear, bool mute);
     void setNodeVolume(uint32_t nodeId, float linear); // leaves mute alone
+    void setNodeMute(uint32_t nodeId, bool mute);      // leaves volume alone
+    // Blocks until the daemon has handled every request sent so far, or the timeout passes.
+    bool roundtrip(int timeoutMs);
     void setMetadata(uint32_t subject, const QString &key, const QString &type, const QString &value);
     void clearMetadata(uint32_t subject, const QString &key);
 
@@ -68,7 +71,8 @@ public:
     void scheduleChanged();
 
 private:
-    void sendProps(uint32_t nodeId, float linear, int mute); // mute: -1 untouched, 0/1
+    // volumes: one per channel, a single value for all, or empty to leave them; mute: -1 untouched, 0/1
+    void sendProps(uint32_t nodeId, const QList<float> &volumes, int mute);
     std::unique_ptr<Impl> d;
 };
 

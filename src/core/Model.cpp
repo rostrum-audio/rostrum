@@ -265,6 +265,7 @@ Scene mergeStructure(const Scene &saved, const Scene &current)
     for (auto &r : out.rules) {
         if (const AppRule *s = saved.rule(r.key, r.match)) {
             r.volume = s->volume;
+            r.muted = s->muted;
         }
     }
     return out;

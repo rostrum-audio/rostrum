@@ -304,6 +304,7 @@ QList<AppStream> Engine::appStreams() const
             s.identity.unnamed = false;
         }
         s.volume = s.ruleKey.isValid() ? appVolume(s.ruleKey) : appVolume(s.identity.key);
+        s.muted = s.ruleKey.isValid() ? appMuted(s.ruleKey) : appMuted(s.identity.key);
         if (s.ruleKey.isValid()) {
             if (const AppRule *r = m_scene.rule(s.ruleKey.key, s.ruleKey.match); r && !r->label.isEmpty()) {
                 s.identity.displayName = r->label;
@@ -339,6 +340,7 @@ void Engine::assignApp(const AppKey &key, const QString &busId, bool always)
             if (rule.volume <= 0.0) {
                 rule.volume = 1.0;
             }
+            rule.muted = m_sessionMuted.take(key.toString());
             rule.lastSeen = QDateTime::currentDateTimeUtc();
             m_scene.rules.append(rule);
         }
@@ -545,6 +547,44 @@ double Engine::appVolume(const AppKey &key) const
     return m_sessionVolume.value(key.toString(), 1.0);
 }
 
+void Engine::setAppMuted(const AppKey &key, bool muted)
+{
+    if (AppRule *r = m_scene.rule(key.key, key.match)) {
+        if (r->muted == muted) {
+            return;
+        }
+        r->muted = muted;
+        Q_EMIT sceneChanged();
+    } else if (muted) {
+        m_sessionMuted.insert(key.toString(), true);
+    } else {
+        m_sessionMuted.remove(key.toString());
+    }
+    Q_EMIT appsChanged();
+    scheduleReconcile();
+}
+
+bool Engine::appMuted(const AppKey &key) const
+{
+    if (const AppRule *r = m_scene.rule(key.key, key.match)) {
+        return r->muted;
+    }
+    return m_sessionMuted.value(key.toString(), false);
+}
+
+bool Engine::releaseAppMutes()
+{
+    bool sent = false;
+    for (auto it = m_appliedStreamMute.cbegin(); it != m_appliedStreamMute.cend(); ++it) {
+        if (it.value() && m_pw->graph().node(it.key())) {
+            m_pw->setNodeMute(it.key(), false);
+            sent = true;
+        }
+    }
+    m_appliedStreamMute.clear();
+    return sent;
+}
+
 void Engine::reconcileRoutes()
 {
     const auto &graph = m_pw->graph();
@@ -616,6 +656,15 @@ void Engine::reconcileRoutes()
             m_pw->setNodeVolume(n.id, float(volume::faderToLinear(vol)));
             m_appliedStreamVolume.insert(n.id, vol);
         }
+        // Per-app mute, the same way: a stream is only touched once the user has muted the app.
+        const bool muted = ruleKey.isValid() ? appMuted(ruleKey) : appMuted(id.key);
+        const auto appliedMute = m_appliedStreamMute.constFind(n.id);
+        if ((appliedMute == m_appliedStreamMute.cend() && muted) ||
+            (appliedMute != m_appliedStreamMute.cend() && appliedMute.value() != muted)) {
+            qCInfo(lcEngine) << (muted ? "mute" : "unmute") << id.displayName << n.id;
+            m_pw->setNodeMute(n.id, muted);
+            m_appliedStreamMute.insert(n.id, muted);
+        }
     }
 
     for (auto it = m_routed.begin(); it != m_routed.end();) {
@@ -623,6 +672,9 @@ void Engine::reconcileRoutes()
     }
     for (auto it = m_appliedStreamVolume.begin(); it != m_appliedStreamVolume.end();) {
         it = present.contains(it.key()) ? std::next(it) : m_appliedStreamVolume.erase(it);
+    }
+    for (auto it = m_appliedStreamMute.begin(); it != m_appliedStreamMute.end();) {
+        it = present.contains(it.key()) ? std::next(it) : m_appliedStreamMute.erase(it);
     }
     for (auto it = m_recognised.begin(); it != m_recognised.end();) {
         it = present.contains(it.key()) ? std::next(it) : m_recognised.erase(it);

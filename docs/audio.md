@@ -133,6 +133,24 @@ stream. No `pactl`, no `module-move`.
   user moves the stream in another mixer afterwards, Rostrum leaves it there.
 - Streams from Rostrum's own process (meters, test tones) and any `rostrum.*` node are ignored.
 
+### Per-app volume and mute
+
+The Apps page sets a volume and a mute per app. Both go to the app's own stream node
+(`SPA_PROP_channelVolumes` and `SPA_PROP_mute`), not to a bus. A stream is only touched once the
+user has set something other than 100% or muted it, and Rostrum sends a value only when it changes,
+so it does not fight a volume or mute set in another mixer.
+
+Both are stored the same way: in the app's rule (`volume`, and `muted = true`, omitted when not
+muted) when the app has one, so they belong to the scene and save with it; otherwise only until
+Rostrum quits. Turning on Always carries the current volume and mute into the new rule. Rule
+fragments never carry either: they only set `target.object`.
+
+When Rostrum quits normally it unmutes every stream it muted and waits for PipeWire to confirm,
+so quitting never leaves an app silent (and WirePlumber does not remember the app as muted). A
+saved mute applies again when Rostrum starts. After a crash, a stream Rostrum muted stays muted
+until it is unmuted in any mixer; WirePlumber may also restore that mute when the app restarts,
+exactly as it does for a mute set in Plasma's volume applet.
+
 ### App identity
 
 Apps are shown by `application.name`. Generic names that do not identify the app (Chromium's
@@ -327,8 +345,8 @@ All configuration is TOML under `$XDG_CONFIG_HOME/rostrum/` (default `~/.config/
   `node.name`, shortcuts, window size, last page.
 - `scenes/<slug>.toml`: one scene per file. The `name` inside the file wins over the file name.
   A scene holds master levels, sidetone level, the bus list (id, name, color, kind, volume, mute,
-  destination) and app rules (match, key, bus, per-app volume, an optional label for apps that
-  report no name, last seen).
+  destination) and app rules (match, key, bus, per-app volume and mute, an optional label for apps
+  that report no name, last seen).
 - Export writes every scene into one TOML file with a `[[scene]]` array. Import never overwrites:
   clashing names get a numeric suffix.
 
