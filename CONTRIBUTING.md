@@ -32,7 +32,8 @@ ctest --test-dir build
 Useful options:
 
 - `-DROSTRUM_BUILD_APP=OFF` builds only the engine, the command-line tools and the tests, without
-  Kirigami. CI builds this way, so it only needs Qt Base, Qt WebSockets, libpipewire and toml++.
+  Kirigami. Most CI jobs build this way, so they only need Qt Base, Qt WebSockets, libpipewire
+  and toml++.
 - `-DROSTRUM_BUILD_TESTS=OFF` skips the unit tests.
 - `-DROSTRUM_UPDATE_URL=…` points the update check at your own feed. See
   [docs/privacy.md](docs/privacy.md) for testing it against a local server.
@@ -145,8 +146,11 @@ it can merge:
 - **Ubuntu unit tests:** builds the engine, tools and tests on Ubuntu 26.04 and runs `ctest`.
 - **Fedora build:** builds the engine and tools on the latest Fedora.
 
-An Arch build also runs and is allowed to fail. CI does not build the Kirigami app, so build and
-start it locally if you change anything in `src/app/`.
+An Arch build also runs and is allowed to fail. **Ubuntu app build** builds the whole Kirigami
+app on Ubuntu 26.04, runs the tests, validates the desktop entry and the AppStream metainfo with
+`desktop-file-validate` and `appstreamcli validate`, and starts the app offscreen once so a QML
+error fails the job. It cannot click through the pages, so still start the app locally if you
+change anything in `src/app/`.
 
 1. Fork the repository and create a branch from `main`.
 2. Make the change, with tests where they fit.

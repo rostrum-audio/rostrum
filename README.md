@@ -164,7 +164,7 @@ sudo apt install build-essential cmake ninja-build pkg-config extra-cmake-module
   libkf6i18n-dev libkf6globalaccel-dev libkf6statusnotifieritem-dev \
   qml6-module-org-kde-kirigami qml6-module-org-kde-kquickcontrols qml6-module-org-kde-desktop \
   qml6-module-org-kde-kirigamiaddons-formcard qml6-module-org-kde-kitemmodels \
-  qml6-module-qtquick-dialogs qml6-module-qtcore
+  qml6-module-qtquick-dialogs qml6-module-qtcore qt6-svg-plugins
 cmake -S . -B build -G Ninja
 cmake --build build
 cmake --install build --prefix ~/.local
@@ -210,7 +210,7 @@ ctest --test-dir build
 ./build/src/app/rostrum
 ```
 
-Configure with `-DROSTRUM_BUILD_APP=OFF` to build only the engine, tools and tests (CI does this).
+Configure with `-DROSTRUM_BUILD_APP=OFF` to build only the engine, tools and tests.
 Logs go to `~/.local/state/rostrum/rostrum.log`; a crash appends a backtrace there. Official
 builds use `cmake --preset official`, which turns on crash reports to Rostrum's Sentry project and
 fetches a pinned sentry-native release at configure time; other builds have no crash reporting.

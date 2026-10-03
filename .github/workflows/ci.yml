@@ -33,6 +33,62 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
+  app:
+    name: Ubuntu app build
+    runs-on: ubuntu-24.04
+    # Ubuntu 26.04 has Qt 6.10 and KDE Frameworks 6.24; 24.04 has neither Qt 6.5 nor KF6 6.8.
+    container: ubuntu:26.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates build-essential cmake ninja-build pkg-config extra-cmake-modules gettext \
+            libpipewire-0.3-dev libtomlplusplus-dev qt6-base-dev qt6-declarative-dev qt6-websockets-dev \
+            libkirigami-dev kirigami-addons-dev libkf6coreaddons-dev libkf6dbusaddons-dev \
+            libkf6i18n-dev libkf6globalaccel-dev libkf6statusnotifieritem-dev \
+            qml6-module-org-kde-kirigami qml6-module-org-kde-kquickcontrols qml6-module-org-kde-desktop \
+            qml6-module-org-kde-kirigamiaddons-formcard qml6-module-org-kde-kitemmodels \
+            qml6-module-qtquick-dialogs qml6-module-qtcore qt6-svg-plugins \
+            appstream desktop-file-utils dbus
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Validate desktop entry and AppStream metadata
+        run: |
+          desktop-file-validate data/dev.getrostrum.Rostrum.desktop
+          appstreamcli validate --no-net data/dev.getrostrum.Rostrum.metainfo.xml
+          DESTDIR="$PWD/stage" cmake --install build --prefix /usr
+          appstreamcli validate --no-net stage/usr/share/metainfo/dev.getrostrum.Rostrum.metainfo.xml
+          desktop-file-validate stage/usr/share/applications/dev.getrostrum.Rostrum.desktop
+      # Loads every QML file and renders the window offscreen, with no PipeWire and a private
+      # D-Bus session, so a missing QML module or a broken binding fails here.
+      - name: Start the app offscreen
+        shell: bash
+        run: |
+          set -o pipefail
+          export XDG_CONFIG_HOME="$RUNNER_TEMP/config" XDG_STATE_HOME="$RUNNER_TEMP/state"
+          export XDG_RUNTIME_DIR="$RUNNER_TEMP/runtime"
+          mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
+          QT_QPA_PLATFORM=offscreen PIPEWIRE_REMOTE=rostrum-test-none ROSTRUM_SCREENSHOT="$PWD/screenshot.png" \
+            timeout 60 dbus-run-session -- ./build/src/app/rostrum 2>&1 | tee app.log
+          test -s screenshot.png
+          if grep -E 'qrc:/.*\.qml:[0-9]+.*(Error|error|is not a type|is not installed|not found)' app.log; then
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: app-offscreen
+          path: |
+            screenshot.png
+            app.log
+          if-no-files-found: ignore
+
   fedora:
     name: Fedora build
     runs-on: ubuntu-24.04
