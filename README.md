@@ -16,7 +16,7 @@
 
 > *A stream mix console for Linux, not a patchbay.*
 
-![The Mixer: Headphones and Stream masters, then six buses with faders, mute, solo, destinations and the apps on each bus](docs/screenshots/mixer.png)
+![The Mixer: Headphones and Stream masters, then six buses with faders, mute, solo, destinations and the apps on each bus, and FX for the mic filters](docs/screenshots/mixer.png)
 
 
 ## 🌟 Highlights
@@ -31,6 +31,9 @@
   (RNNoise), cut rumble and even out your level. The stream and every app that records your mic,
   Discord included, hear the clean voice; audio tools keep the plain mic, and any app can be
   switched. It all runs inside PipeWire, so it keeps working if Rostrum quits.
+- 👂 **Hear what your viewers hear.** Check Mic records 5 seconds of your stream mic, gain and
+  filters included, plays it back in your headphones only, and tells you if the level is good, too
+  quiet or too loud.
 - 🎬 **Scenes.** Recall every level, mute and destination at once, from the header or a global shortcut.
 - 🪄 **Apps find their bus on their own.** Discord goes to Voice, Spotify to Music, Steam and Proton
   games to Game, and Streamer.bot to Alerts. Every placement shows why it was made, and OBS and audio
@@ -140,6 +143,9 @@ Five minutes to a split stream:
    mic and the system's default input are never changed: apps are moved to "Rostrum Filtered Mic",
    which you can also pick in an app's own settings. OBS keeps recording Rostrum Mic, which is
    filtered too.
+
+   ![The Mic Filters page: the on switch, preset and who gets the filtered mic, then Check Your Mic and the rumble filter](docs/screenshots/micfilters.png)
+
 8. **Check how you sound.** Under "Check Your Mic" (on Mic Filters and Devices, or Check Mic in
    the header's mic popup), press **Check Mic** and talk for 5 seconds. Rostrum plays the
    recording back in your headphones only, exactly as the stream gets it, with gain and filters,

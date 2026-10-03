@@ -32,6 +32,12 @@ Custom controls set an accessible name and, where Qt cannot work it out, a role:
 - **Meters** are exposed as progress bars. Their description gives the level in words: "Silent",
   a peak level in dB such as "-12 dB", or "Clipping". It updates at most twice a second so it does
   not flood the screen reader.
+- **Mic filters:** the FX button on the Mic strip is named "Mic filters". On the Mic Filters page,
+  each filter's switch and slider is named, and a slider's description gives its value with the
+  unit, such as "-40 dB". Each app's switch is named "Filtered mic for" and the app.
+- **Mic check:** the progress bar is named "Recording progress" or "Playback progress", and the
+  result is written out with the loudest level ("Good level: your loudest moment was -7.0 dBFS"), so
+  the check does not depend on seeing a meter.
 - **Apps:** each row is read as the app and its bus ("Firefox, on Music"). App chips on the Mixer
   give the reason when Rostrum placed an app automatically.
 - **Navigation:** the sidebar is a list of page tabs, and the scene switcher says the current scene
@@ -59,6 +65,7 @@ Page Down twice, M, 2, Ctrl+S) is part of the smoke tests in
 | Bus fader | 1 / 2 / 3 | Send to Headphones / Stream / Both |
 | Bus fader | F2 | Rename the bus |
 | Bus fader | Menu key | Open the bus's context menu |
+| FX button (Mic strip) | Menu key | Open the Mic Filters page |
 | Master fader | Right / Left | Level up or down 1 % |
 | Master fader | Page Up / Page Down, M | Level up or down 10 %, mute |
 | Sidebar | Enter or Space | Open the selected page |

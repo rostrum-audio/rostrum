@@ -7,7 +7,7 @@ touches the network, apart from obs-websocket on `localhost` (see [OBS](#obs) be
 
 Your audio never leaves your computer. Mic filters, noise removal included, run inside PipeWire on
 your machine; RNNoise's model is part of the plugin, and no audio, level or transcript is stored or
-sent.
+sent. Check Mic keeps its 5-second recording in memory only and never writes it to disk.
 
 ## Crash reports
 
