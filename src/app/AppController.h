@@ -79,6 +79,14 @@ public:
         Hotkey,
         Remote
     };
+    // What the user would want confirmed after an action they could not see.
+    struct Snapshot
+    {
+        bool micMuted = false;
+        bool streamMuted = false;
+        bool panic = false;
+        QString scene;
+    };
 
     // No default argument: QML must get the one instance through create(), never construct it.
     explicit AppController(QObject *parent);
@@ -170,6 +178,9 @@ public:
     QStringList actionIds() const { return m_controls.actionIds(); }
     // The name of a bus in the live scene or a saved one; empty if none has it.
     QString busName(const QString &busId) const;
+    Snapshot snapshot() const;
+    // Emits feedbackRequested for what changed since `before`, if anything.
+    void reportChange(const Snapshot &before);
     Q_INVOKABLE bool saveScene();
     Q_INVOKABLE void createMix();
     // Wizard: finish once the mix exists; skip creates the mix with defaults and finishes too.
@@ -196,6 +207,8 @@ Q_SIGNALS:
     void headphonesLost(const QString &description);
     // The list from actionIds() or a bus name in it changed.
     void actionsChanged();
+    // A hotkey or remote change the user may not have seen; Desktop decides whether to show it.
+    void feedbackRequested(const QString &iconName, const QString &text);
 
 private:
     void updateStatus();

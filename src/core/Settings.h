@@ -76,6 +76,7 @@ struct Settings
     bool autoSaveScenes = true; // level changes save to the live scene by themselves
     bool confirmSceneSwitch = false; // only asked while auto-save is off
     bool scrollToAdjust = true;
+    bool osdFeedback = true; // show mic, panic and scene changes from hotkeys on screen
     // Mixer
     QString meterSpeed = QStringLiteral("normal"); // "low" or "normal"
     bool showDb = false;

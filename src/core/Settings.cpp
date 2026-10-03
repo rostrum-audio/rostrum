@@ -172,6 +172,7 @@ QString serializeSettings(const Settings &s)
              {"auto_save_scenes", s.autoSaveScenes},
              {"confirm_scene_switch", s.confirmSceneSwitch},
              {"scroll_to_adjust", s.scrollToAdjust},
+             {"osd_feedback", s.osdFeedback},
          }},
         {"mixer", toml::table{{"meter_speed", s.meterSpeed.toStdString()}, {"show_db", s.showDb}}},
         {"apps", toml::table{{"auto_assign", s.autoAssign}, {"auto_skip", skip}}},
@@ -220,6 +221,7 @@ Settings parseSettings(const QString &text, QString *error)
     s.autoSaveScenes = get(t, "general", "auto_save_scenes", s.autoSaveScenes);
     s.confirmSceneSwitch = get(t, "general", "confirm_scene_switch", s.confirmSceneSwitch);
     s.scrollToAdjust = get(t, "general", "scroll_to_adjust", s.scrollToAdjust);
+    s.osdFeedback = get(t, "general", "osd_feedback", s.osdFeedback);
     s.meterSpeed = getStr(t, "mixer", "meter_speed", s.meterSpeed);
     if (s.meterSpeed != QLatin1String("low")) {
         s.meterSpeed = QStringLiteral("normal");

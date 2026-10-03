@@ -322,6 +322,7 @@ engine::Controls::Outcome AppController::runAction(const QString &id, Origin ori
     if (sceneAction && !remote && !connected()) {
         return {Result::Done, {}};
     }
+    const Snapshot before = snapshot();
     const auto out = m_controls.press(id);
     switch (out.result) {
     case Result::SwitchScene:
@@ -347,6 +348,9 @@ engine::Controls::Outcome AppController::runAction(const QString &id, Origin ori
     case Result::UnknownAction:
         break;
     }
+    if ((origin == Origin::Hotkey || remote) && !actions::isHold(id)) {
+        reportChange(before);
+    }
     return out;
 }
 
@@ -371,6 +375,33 @@ void AppController::updateBusActions()
     if (buses != m_busActions) {
         m_busActions = buses;
         Q_EMIT actionsChanged();
+    }
+}
+
+AppController::Snapshot AppController::snapshot() const
+{
+    return {m_engine.effectiveMicMuted(), m_engine.effectiveStreamMuted(), m_engine.panic(),
+            m_scenes.currentName()};
+}
+
+void AppController::reportChange(const Snapshot &before)
+{
+    const Snapshot now = snapshot();
+    if (now.panic != before.panic) {
+        Q_EMIT feedbackRequested(now.panic ? QStringLiteral("audio-volume-muted")
+                                           : QStringLiteral("audio-volume-high"),
+                                 now.panic ? i18n("Panic mute: mic and stream muted")
+                                           : i18n("Panic mute off: mic and stream restored"));
+    } else if (now.scene != before.scene) {
+        Q_EMIT feedbackRequested(QStringLiteral("view-media-playlist"), i18n("Scene: %1", now.scene));
+    } else if (now.micMuted != before.micMuted) {
+        Q_EMIT feedbackRequested(now.micMuted ? QStringLiteral("microphone-sensitivity-muted")
+                                              : QStringLiteral("audio-input-microphone"),
+                                 now.micMuted ? i18n("Mic muted") : i18n("Mic live"));
+    } else if (now.streamMuted != before.streamMuted) {
+        Q_EMIT feedbackRequested(now.streamMuted ? QStringLiteral("audio-volume-muted")
+                                                 : QStringLiteral("audio-volume-high"),
+                                 now.streamMuted ? i18n("Stream muted") : i18n("Stream unmuted"));
     }
 }
 

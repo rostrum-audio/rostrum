@@ -64,6 +64,8 @@ bool Preferences::confirmSceneSwitch() const { return m_app->settings().confirmS
 void Preferences::setConfirmSceneSwitch(bool on) { update(m_app->settings().confirmSceneSwitch, on); }
 bool Preferences::scrollToAdjust() const { return m_app->settings().scrollToAdjust; }
 void Preferences::setScrollToAdjust(bool on) { update(m_app->settings().scrollToAdjust, on); }
+bool Preferences::osdFeedback() const { return m_app->settings().osdFeedback; }
+void Preferences::setOsdFeedback(bool on) { update(m_app->settings().osdFeedback, on); }
 bool Preferences::lowMeterSpeed() const { return m_app->settings().meterSpeed == QLatin1String("low"); }
 
 void Preferences::setLowMeterSpeed(bool on)

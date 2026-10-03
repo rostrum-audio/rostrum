@@ -60,6 +60,13 @@ QQC2.ScrollView {
                 onToggled: Preferences.scrollToAdjust = checked
             }
             FormCard.FormDelegateSeparator {}
+            FormCard.FormSwitchDelegate {
+                text: i18nc("@option:check", "Show hotkey changes on screen")
+                description: i18n("When a hotkey or another app mutes the mic, sets off panic mute or switches scenes while Rostrum's window is hidden or in the background, show it briefly on screen.")
+                checked: Preferences.osdFeedback
+                onToggled: Preferences.osdFeedback = checked
+            }
+            FormCard.FormDelegateSeparator {}
             FormCard.FormButtonDelegate {
                 text: i18nc("@action:button", "Quit Rostrum")
                 description: Desktop.trayAvailable ? i18n("Closing the window keeps Rostrum in the tray. After quitting, audio keeps flowing through the mix, but hotkeys and the tray stop.")

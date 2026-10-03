@@ -86,6 +86,7 @@ private Q_SLOTS:
     void settingsKeepNewActions()
     {
         const Settings d = defaultSettings();
+        QVERIFY(d.osdFeedback);
         // New actions start unbound; the old defaults stay.
         QCOMPARE(d.hotkeys.value(QStringLiteral("mute_mic")), QStringLiteral("Meta+Alt+M"));
         QCOMPARE(d.hotkeys.value(QStringLiteral("scene_4")), QStringLiteral("Meta+Alt+4"));
@@ -95,11 +96,13 @@ private Q_SLOTS:
         }
 
         Settings s = d;
+        s.osdFeedback = false;
         s.hotkeys[QStringLiteral("push_to_talk")] = QStringLiteral("Meta+Alt+T");
         s.hotkeys[QStringLiteral("panic_mute")] = QStringLiteral("Meta+Alt+Esc");
         s.hotkeys[QStringLiteral("mute_bus_game")] = QStringLiteral("Meta+Alt+G");
         s.hotkeys[QStringLiteral("mute_bus_soundboard")] = QStringLiteral("Meta+Alt+B");
         const QString text = serializeSettings(s);
+        QVERIFY(text.contains(QStringLiteral("osd_feedback = false")));
         QCOMPARE(parseSettings(text), s);
 
         // Unknown ids and malformed bus ids are dropped.
