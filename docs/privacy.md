@@ -179,7 +179,24 @@ name ends in `-<arch>.AppImage`, using GitHub's `digest` (`sha256:…`) as the c
 
 ## Builds and testing
 
-Official builds turn crash reports on and can point updates at their own feed:
+Official builds use the `official` preset, which turns crash reports on with the DSN of Rostrum's
+Sentry project (US region) and builds with debug info:
+
+```sh
+cmake --preset official
+cmake --build --preset official
+```
+
+Then upload the release's debug symbols, so Sentry can name Rostrum's own frames. The auth token
+is a secret; keep it out of the repository:
+
+```sh
+SENTRY_AUTH_TOKEN=… sentry-cli debug-files upload --org <org> --project rostrum \
+  build-official/src/app/rostrum
+```
+
+Upload the binary before stripping it. A stripped copy keeps the same `debug_id`, so reports from
+it still match. A fork or other distribution builds with its own Sentry project, or none:
 
 ```sh
 cmake -S . -B build -DROSTRUM_WITH_SENTRY=ON \

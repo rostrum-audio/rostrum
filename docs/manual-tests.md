@@ -331,10 +331,11 @@ nested KWin with a fake tray host, or offscreen rendering. Fake devices were nul
 | First-time setup, each step rendered in a headless nested KWin and offscreen at 1280×720 | Step list marks finished steps; no layout overlap; no QML warnings |
 | Existing settings with `wizard_done = true` and no `setup_version` | The one-time Crash Reports and Updates dialog opens over the Mixer, with no binding loops |
 | Sentry build, `kill -SEGV` on a test instance (no PipeWire, private D-Bus, temp config), local server as the DSN | Send: one 3.5 KB envelope posted at the next start, file deleted; no user name, path, installation ID, registers, timestamp or device name; only the 4 libraries in the stack listed. Ask: report kept (0600), nothing posted. Never: nothing captured, no sentry folder |
+| `official` preset build, same crash, sent to the real Sentry project | Sentry accepted the report (2xx) at the next start; the local file deleted |
 | Update feed 0.2.0 from a local server, as an AppImage | Download checked against SHA-256, AppImage replaced with mode 755, Restart Now offered; no cookies sent; `User-Agent: Rostrum/0.1.0` |
 | Same, with a wrong checksum | Refused; the old AppImage kept; no `.part` file left |
 | Unit tests | 11 of 11 pass |
 
 Still manual (needs hardware or a real session): tests 4 (mic path), 6 and 7 (quit and reboot
 routing with Discord), OBS capture, the real headset unplug, the GlobalShortcuts portal on a
-non-Plasma desktop, and crash reports and updates against the real getrostrum.dev endpoints.
+non-Plasma desktop, and updates against the real getrostrum.dev feed.

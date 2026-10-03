@@ -206,9 +206,9 @@ ctest --test-dir build
 ```
 
 Configure with `-DROSTRUM_BUILD_APP=OFF` to build only the engine, tools and tests (CI does this).
-Logs go to `~/.local/state/rostrum/rostrum.log`; a crash appends a backtrace there. Crash reports
-need `-DROSTRUM_WITH_SENTRY=ON -DROSTRUM_SENTRY_DSN=…`, which fetches a pinned sentry-native
-release at configure time; builds without them have no crash reporting.
+Logs go to `~/.local/state/rostrum/rostrum.log`; a crash appends a backtrace there. Official
+builds use `cmake --preset official`, which turns on crash reports to Rostrum's Sentry project and
+fetches a pinned sentry-native release at configure time; other builds have no crash reporting.
 `-DROSTRUM_UPDATE_URL=…` points updates at your own feed. See [docs/privacy.md](docs/privacy.md)
 for both, and for testing against a local server.
 

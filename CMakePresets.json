@@ -1,0 +1,21 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {"major": 3, "minor": 22, "patch": 0},
+  "configurePresets": [
+    {
+      "name": "official",
+      "displayName": "Official release build",
+      "description": "Release build with crash reports going to Rostrum's Sentry project",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-official",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "ROSTRUM_WITH_SENTRY": "ON",
+        "ROSTRUM_SENTRY_DSN": "https://26d23104398bca0abecb77f28266aec9@o4512190618861568.ingest.us.sentry.io/4512190657200128"
+      }
+    }
+  ],
+  "buildPresets": [
+    {"name": "official", "configurePreset": "official"}
+  ]
+}
