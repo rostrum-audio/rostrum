@@ -1,2 +1,8 @@
 blank_issues_enabled: true
-contact_links: []
+contact_links:
+  - name: Report a security problem
+    url: https://github.com/rostrum-audio/rostrum/security/policy
+    about: Please email security@getrostrum.dev instead of opening a public issue.
+  - name: Questions and feedback
+    url: https://getrostrum.dev
+    about: Or email hello@getrostrum.dev.

@@ -127,6 +127,12 @@ To get the app menu entry, icon and System Settings shortcut page, install into 
 
 Logs go to `~/.local/state/rostrum/rostrum.log`; a crash appends a backtrace there.
 
+## Contact
+
+- Website: [getrostrum.dev](https://getrostrum.dev)
+- Questions and feedback: hello@getrostrum.dev
+- Security problems: security@getrostrum.dev. See [SECURITY.md](SECURITY.md).
+
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).

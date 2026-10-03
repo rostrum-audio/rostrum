@@ -32,6 +32,7 @@ int main(int argc, char *argv[])
     about.setOrganizationDomain("rostrum_audio.github.io");
     about.setDesktopFileName(QStringLiteral(ROSTRUM_APP_ID));
     about.setBugAddress("https://github.com/rostrum-audio/rostrum/issues");
+    about.setHomepage(QStringLiteral("https://getrostrum.dev"));
     KAboutData::setApplicationData(about);
     QApplication::setWindowIcon(QIcon::fromTheme(QStringLiteral(ROSTRUM_APP_ID),
                                                  QIcon(QStringLiteral(":/icons/" ROSTRUM_APP_ID ".svg"))));
