@@ -148,6 +148,10 @@ F6 moves focus between the header, the sidebar and the page.
 ### 🗂️ Where things live
 
 - Settings and scenes: `~/.config/rostrum/` (TOML). Log: `~/.local/state/rostrum/rostrum.log`.
+- Deleted scenes: `~/.config/rostrum/trash/`, kept 30 days. The setup from before a restore:
+  `~/.config/rostrum/backups/`. Settings → Advanced → Back Up Settings… writes settings, hotkeys,
+  devices and scenes to one file, without crash report and update choices, window state or when
+  apps were last seen.
 - Crash reports waiting to be sent or discarded: `~/.local/state/rostrum/crashes/` (at most 10,
   none older than 30 days), and sentry-native's own database in `~/.local/state/rostrum/sentry/`.
 - App rules for the next login: `~/.config/pipewire/pipewire-pulse.conf.d/50-rostrum.conf` and

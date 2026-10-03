@@ -90,6 +90,12 @@ public:
     engine::SceneManager *scenes() { return &m_scenes; }
     Settings &settings() { return m_settings; }
     void saveSettingsSoon();
+    // Settings backups (see core/SettingsBackup.h). Restoring first writes a backup of the
+    // current setup to paths::backupsDir() and returns its path in *safetyCopy; nothing changes
+    // if that fails. Launch at login is only reported back: the autostart file is Desktop's.
+    bool writeBackup(const QString &path, QString *error);
+    bool restoreBackup(const QString &path, QString *safetyCopy, QString *error,
+                       bool *launchAtLogin = nullptr);
 
     QString pipewireState() const { return m_status; }
     QString pipewireStatusText() const;

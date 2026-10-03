@@ -185,6 +185,47 @@ void Preferences::openConfigFolder()
     QDesktopServices::openUrl(QUrl::fromLocalFile(paths::configDir()));
 }
 
+bool Preferences::backUpTo(const QUrl &file)
+{
+    if (!file.isLocalFile()) {
+        Q_EMIT m_app->toast(i18n("Choose a file on this computer."));
+        return false;
+    }
+    QString err;
+    if (!m_app->writeBackup(file.toLocalFile(), &err)) {
+        Q_EMIT m_app->toast(i18n("Could not back up settings. %1", err));
+        return false;
+    }
+    Q_EMIT m_app->toast(i18n("Settings and scenes backed up"));
+    return true;
+}
+
+bool Preferences::restoreFrom(const QUrl &file)
+{
+    if (!file.isLocalFile()) {
+        Q_EMIT m_app->toast(i18n("Choose a file on this computer."));
+        return false;
+    }
+    QString safety;
+    QString err;
+    bool launchAtLogin = false;
+    if (!m_app->restoreBackup(file.toLocalFile(), &safety, &err, &launchAtLogin)) {
+        Q_EMIT m_app->toast(i18n("Nothing was restored. %1", err));
+        return false;
+    }
+    if (Desktop::instance()) {
+        Desktop::instance()->setLaunchAtLogin(launchAtLogin);
+    }
+    Q_EMIT m_app->toast(i18n("Settings and scenes restored. The previous setup was saved as %1.",
+                             QFileInfo(safety).fileName()));
+    return true;
+}
+
+QString Preferences::backupFileName() const
+{
+    return QStringLiteral("rostrum-backup-%1.toml").arg(QDate::currentDate().toString(Qt::ISODate));
+}
+
 void Preferences::rebuildMix()
 {
     m_app->engine()->rebuildMix();

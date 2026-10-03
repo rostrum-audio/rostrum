@@ -361,6 +361,23 @@ at once instead of after 20 seconds.
    hint, and it comes back with the compact window.
 5. Before setup is finished, Compact View is disabled and a saved `compact = true` is ignored.
 
+## 18. Settings backup and restore
+
+1. Settings → Advanced → Back Up Settings…: the save dialog suggests
+   `rostrum-backup-<date>.toml` in Documents. The file has `kind = "rostrum-backup"`, a
+   `[settings]` table with general, mixer, apps, scenes, devices, hotkeys and advanced, and one
+   `[[scene]]` per scene. It has no `privacy`, `updates`, `window`, `wizard_done`,
+   `setup_version` or `last_seen`.
+2. Change a hotkey, turn off auto-save, edit the live scene's levels and delete a scene. Restore…
+   the backup and confirm: a toast names the safety copy, which is in
+   `~/.config/rostrum/backups/before-restore-<time>.toml`. The hotkey and auto-save are back, the
+   deleted scene is back, the live scene plays the backed-up levels, and the replaced version is
+   in Scenes → Recently Deleted. Scenes made after the backup are still there.
+3. Crash report and update choices, window size and compact mode are unchanged by the restore.
+   Launch at login follows the backup (the autostart file appears or goes).
+4. Restore a scene export or a random TOML file: the toast says nothing was restored, and no
+   safety copy is written.
+
 ## Smoke test log
 
 Kubuntu 26.04, Plasma 6.6 Wayland, PipeWire 1.6.2, WirePlumber 0.5.13, build 0.1.0. The checks

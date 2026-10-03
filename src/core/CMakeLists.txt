@@ -16,6 +16,7 @@ add_library(rostrum_core STATIC
     SceneTrash.cpp SceneTrash.h
     SceneHistory.cpp SceneHistory.h
     Settings.cpp Settings.h
+    SettingsBackup.cpp SettingsBackup.h
     Volume.h
 )
 

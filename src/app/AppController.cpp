@@ -2,6 +2,7 @@
 
 #include "core/Paths.h"
 #include "core/Requirements.h"
+#include "core/SettingsBackup.h"
 
 #include <KLocalizedString>
 
@@ -475,6 +476,59 @@ void AppController::setKeepOnTop(bool on)
 }
 
 void AppController::saveSettingsSoon() { m_saveTimer.start(); }
+
+bool AppController::writeBackup(const QString &path, QString *error)
+{
+    m_scenes.flush();
+    m_settings.headphones = m_engine.headphoneDevice();
+    m_settings.mic = m_engine.micDevice();
+    const QString text = backup::serialize(m_settings, m_scenes.scenes(), QDateTime::currentDateTimeUtc());
+    return SceneStore::writeFile(path, text, error);
+}
+
+bool AppController::restoreBackup(const QString &path, QString *safetyCopy, QString *error,
+                                  bool *launchAtLogin)
+{
+    QString readError;
+    const QString text = SceneStore::readFile(path, &readError);
+    if (!readError.isEmpty()) {
+        if (error) {
+            *error = readError;
+        }
+        return false;
+    }
+    const auto bundle = backup::parse(text, error);
+    if (!bundle) {
+        return false;
+    }
+    const QString safety = paths::backupsDir() + QStringLiteral("/before-restore-") +
+                           QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss")) +
+                           QStringLiteral(".toml");
+    if (!writeBackup(safety, error)) {
+        return false;
+    }
+    if (safetyCopy) {
+        *safetyCopy = safety;
+    }
+    if (launchAtLogin) {
+        *launchAtLogin = bundle->settings.launchAtLogin;
+    }
+
+    m_scenes.restoreScenes(bundle->scenes);
+    m_settings = backup::restoredSettings(m_settings, bundle->settings);
+    m_engine.setHeadphoneDevice(m_settings.headphones);
+    m_engine.setMicDevice(m_settings.mic);
+    m_engine.setAutoAssign(m_settings.autoAssign);
+    m_engine.setAutoSkip(m_settings.autoSkip);
+    m_scenes.setAutoSave(m_settings.autoSaveScenes);
+    const QString defaultScene = m_settings.defaultScene;
+    m_scenes.setOrder(m_settings.sceneOrder);
+    m_scenes.setDefault(defaultScene);
+    m_settings.defaultScene = m_scenes.defaultName();
+    saveSettingsNow();
+    Q_EMIT settingsChanged();
+    return true;
+}
 
 void AppController::saveSettingsNow()
 {

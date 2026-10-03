@@ -490,4 +490,53 @@ int SceneManager::importFrom(const QString &path)
     return count;
 }
 
+int SceneManager::restoreScenes(const QList<Scene> &scenes)
+{
+    flush();
+    int count = 0;
+    bool trashed = false;
+    bool liveReplaced = false;
+    for (Scene s : scenes) {
+        s.name = s.name.trimmed();
+        if (s.name.isEmpty()) {
+            continue;
+        }
+        const int i = indexOf(s.name);
+        if (i >= 0 && m_saved.at(i) == s) {
+            ++count;
+            continue;
+        }
+        if (i >= 0 && m_trash) {
+            trashed = !m_trash->put(m_saved.at(i), QDateTime::currentDateTimeUtc()).isEmpty() || trashed;
+        }
+        if (i >= 0 && m_store.fileFor(m_saved.at(i).name) != m_store.fileFor(s.name)) {
+            m_store.remove(m_saved.at(i).name);
+        }
+        if (!write(s)) {
+            continue;
+        }
+        if (i >= 0) {
+            liveReplaced = liveReplaced || m_saved.at(i).name == m_current;
+            if (m_saved.at(i).name == m_current) {
+                m_current = s.name;
+            }
+            if (m_saved.at(i).name == m_default) {
+                m_default = s.name;
+            }
+            m_saved[i] = s;
+        } else {
+            m_saved.append(s);
+        }
+        ++count;
+    }
+    if (trashed) {
+        Q_EMIT trashChanged();
+    }
+    Q_EMIT scenesChanged();
+    if (liveReplaced) {
+        switchTo(m_current);
+    }
+    return count;
+}
+
 } // namespace rostrum::engine

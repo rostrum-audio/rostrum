@@ -67,6 +67,10 @@ public:
 
     bool exportTo(const QString &path);
     int importFrom(const QString &path); // returns scenes imported, -1 on error
+    // From a settings backup: replaces scenes of the same name (the old version goes to the trash,
+    // if there is one) and adds the rest. The live scene reloads if it was replaced. Returns the
+    // number written.
+    int restoreScenes(const QList<Scene> &scenes);
 
     QString uniqueName(const QString &base) const;
 

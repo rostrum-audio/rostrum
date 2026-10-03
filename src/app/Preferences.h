@@ -76,6 +76,11 @@ public:
     Q_INVOKABLE void forgetSkippedApps();
     Q_INVOKABLE void rebuildMix();
     Q_INVOKABLE void exportRulesNow();
+    // One file with settings and scenes (core/SettingsBackup.h). Both toast the outcome.
+    Q_INVOKABLE bool backUpTo(const QUrl &file);
+    Q_INVOKABLE bool restoreFrom(const QUrl &file);
+    // A file name for a new backup, with today's date.
+    Q_INVOKABLE QString backupFileName() const;
 
 Q_SIGNALS:
     void changed();
