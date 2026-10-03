@@ -104,7 +104,7 @@ other libraries loaded into Rostrum (it would show what else is installed, such 
 The memory addresses are kept because Sentry needs them to find the line of code. Address space
 layout randomisation changes them every time Rostrum starts, so they say nothing about you and
 cannot link two reports. Frames in Rostrum itself have no function name until the release's debug
-symbols are uploaded to Sentry (`sentry-cli debug-files upload`). Sentry then matches them by
+symbols are uploaded to Sentry (`sentry debug-files upload`). Sentry then matches them by
 `debug_id`.
 
 `tests/tst_privacy.cpp` feeds the scrubber an event shaped like sentry-native's, with a user ID,
@@ -197,12 +197,12 @@ cmake --preset official
 cmake --build --preset official
 ```
 
-Then upload the release's debug symbols, so Sentry can name Rostrum's own frames. The auth token
-is a secret; keep it out of the repository:
+Then upload the release's debug symbols, so Sentry can name Rostrum's own frames. This uses the
+[Sentry CLI](https://cli.sentry.dev) (`sentry`), signed in once with `sentry auth login`; in CI,
+set `SENTRY_AUTH_TOKEN` instead and keep the token out of the repository:
 
 ```sh
-SENTRY_AUTH_TOKEN=… sentry-cli debug-files upload --org <org> --project rostrum \
-  build-official/src/app/rostrum
+SENTRY_ORG=rostrum SENTRY_PROJECT=rostrum sentry debug-files upload --wait build-official/src/app/rostrum
 ```
 
 Upload the binary before stripping it. A stripped copy keeps the same `debug_id`, so reports from
