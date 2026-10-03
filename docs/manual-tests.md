@@ -326,6 +326,25 @@ at once instead of after 20 seconds.
    new scene: it goes to the end. Delete `scene_order` from `settings.toml` and restart: scenes
    fall back to file-name order.
 
+## 16. Undo, redo and deleted scenes
+
+1. Drag the Game fader, let go, and wait a second. The app menu shows "Undo Game Volume". Ctrl+Z
+   puts the fader back in one step, even after a long drag; Ctrl+Shift+Z (or Redo in the menu)
+   moves it again.
+2. Mute Voice, rename the Music bus, add a bus, then press Ctrl+Z four times: each edit is
+   undone in reverse order, and the menu names each one ("Undo Add Bus “Bus”", "Undo Rename Bus
+   to …", "Undo Voice Mute"). The bus list and names on disk follow (the scene file is rewritten).
+3. Solo Game, change Music's level, and press Ctrl+Z: Music goes back and Game stays soloed. Mute
+   the mic, move a fader, and press Ctrl+Z twice: the fader goes back and the mic stays muted.
+4. Load another scene: Undo is empty again. Type in the scene rename field and press Ctrl+Z: the
+   text field undoes, not the mixer.
+5. Delete a scene that is not live: the toast says "Deleted “…”" with Undo. Press Undo within the
+   toast's time: the scene is back at the same place in the list (and as default, if it was).
+   `~/.config/rostrum/trash/` is empty again.
+6. Delete two scenes, then open Scenes → ⋮ → Recently Deleted…: both are listed newest first with
+   the time. Restore one: it comes back at the end of the list, with " 2" added if the name is
+   taken. Set a trash file's name to a date more than 30 days ago and restart: it is gone.
+
 ## Smoke test log
 
 Kubuntu 26.04, Plasma 6.6 Wayland, PipeWire 1.6.2, WirePlumber 0.5.13, build 0.1.0. The checks

@@ -103,6 +103,7 @@ void AppController::start()
     m_engine.setAutoSkip(m_settings.autoSkip);
     m_scenes.setAutoSave(m_settings.autoSaveScenes);
     m_scenes.setOrder(m_settings.sceneOrder);
+    m_scenes.setTrashDir(paths::trashDir());
     m_scenes.load(m_settings.defaultScene);
     if (m_settings.wizardDone) {
         m_engine.createMix();

@@ -45,6 +45,9 @@ public:
 
     const Scene &scene() const { return m_scene; }
     void setScene(const Scene &scene);
+    // An undo or redo step on the live scene: unlike setScene, solo stays on buses that remain,
+    // and structure changes are announced so they persist.
+    void restoreScene(const Scene &scene);
 
     // Node creation is opt-in: the wizard (or a completed first run) turns it on.
     bool mixEnabled() const { return m_mixEnabled; }

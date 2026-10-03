@@ -137,6 +137,12 @@ QQC2.Pane {
                     icon.name: "document-import"
                     displayHint: Kirigami.DisplayHint.AlwaysHide
                     onTriggered: importDialog.open()
+                },
+                Kirigami.Action {
+                    text: i18nc("@action:button", "Recently Deleted…")
+                    icon.name: "user-trash"
+                    displayHint: Kirigami.DisplayHint.AlwaysHide
+                    onTriggered: trashDialog.open()
                 }
             ]
         }
@@ -319,15 +325,24 @@ QQC2.Pane {
         title: i18nc("@title:dialog", "Delete “%1”?", page.selectedName)
         subtitle: page.selected && page.selected.isCurrent
                   ? i18n("This is the live scene. Rostrum switches to the default scene after deleting it.")
-                  : i18n("The scene file is removed. Export first if you want a backup.")
+                  : i18np("It stays in Recently Deleted for %1 day.", "It stays in Recently Deleted for %1 days.", Scenes.trashKeepDays)
         standardButtons: Kirigami.Dialog.NoButton
         customFooterActions: [
             Kirigami.Action {
                 text: i18nc("@action:button", "Delete")
                 icon.name: "edit-delete"
                 onTriggered: {
-                    Scenes.remove(page.selectedName)
+                    const name = page.selectedName
                     deleteDialog.close()
+                    if (Scenes.remove(name)) {
+                        applicationWindow().showPassiveNotification(
+                            i18n("Deleted “%1”", name), "long", i18nc("@action:button", "Undo"), () => {
+                                const restored = Scenes.restoreLast()
+                                if (restored) {
+                                    page.selectedName = restored
+                                }
+                            })
+                    }
                 }
             },
             Kirigami.Action {
@@ -336,6 +351,74 @@ QQC2.Pane {
                 onTriggered: deleteDialog.close()
             }
         ]
+    }
+
+    Kirigami.Dialog {
+        id: trashDialog
+        title: i18nc("@title:dialog", "Recently Deleted Scenes")
+        standardButtons: Kirigami.Dialog.Close
+        preferredWidth: Kirigami.Units.gridUnit * 24
+        padding: 0
+
+        ColumnLayout {
+            spacing: 0
+            Kirigami.PlaceholderMessage {
+                visible: Scenes.trash.length === 0
+                Layout.fillWidth: true
+                Layout.margins: Kirigami.Units.largeSpacing * 2
+                icon.name: "user-trash"
+                text: i18n("No deleted scenes")
+            }
+            Repeater {
+                model: Scenes.trash
+                delegate: QQC2.ItemDelegate {
+                    id: trashRow
+                    required property var modelData
+                    Layout.fillWidth: true
+                    hoverEnabled: false
+                    down: false
+                    Accessible.name: modelData.name
+                    contentItem: RowLayout {
+                        spacing: Kirigami.Units.largeSpacing
+                        ColumnLayout {
+                            spacing: 0
+                            Layout.fillWidth: true
+                            QQC2.Label {
+                                text: trashRow.modelData.name
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                            }
+                            QQC2.Label {
+                                text: i18nc("@info deletion time", "Deleted %1", trashRow.modelData.deleted)
+                                font: Kirigami.Theme.smallFont
+                                opacity: 0.7
+                                Layout.fillWidth: true
+                            }
+                        }
+                        QQC2.Button {
+                            text: i18nc("@action:button", "Restore")
+                            icon.name: "edit-undo"
+                            Accessible.description: trashRow.modelData.name
+                            onClicked: {
+                                const restored = Scenes.restore(trashRow.modelData.file)
+                                if (restored) {
+                                    page.selectedName = restored
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            QQC2.Label {
+                Layout.fillWidth: true
+                Layout.margins: Kirigami.Units.largeSpacing
+                wrapMode: Text.WordWrap
+                font: Kirigami.Theme.smallFont
+                opacity: 0.7
+                text: i18np("Deleted scenes are removed for good after %1 day.",
+                            "Deleted scenes are removed for good after %1 days.", Scenes.trashKeepDays)
+            }
+        }
     }
 
     Dialogs.FileDialog {

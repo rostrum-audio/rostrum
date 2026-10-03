@@ -7,6 +7,7 @@
 
 #include <QJSEngine>
 #include <QKeySequence>
+#include <QLocale>
 
 namespace rostrum::app {
 
@@ -28,6 +29,7 @@ Scenes::Scenes(AppController *app, QObject *parent)
         connect(sm, sig, this, &Scenes::rebuild);
     }
     connect(app, &AppController::settingsChanged, this, &Scenes::rebuild);
+    connect(sm, &engine::SceneManager::trashChanged, this, &Scenes::trashChanged);
     rebuild();
 }
 
@@ -196,6 +198,37 @@ QString Scenes::saveAs(const QString &name)
 
 bool Scenes::remove(const QString &name) { return m_app->scenes()->remove(name); }
 void Scenes::setDefault(const QString &name) { m_app->scenes()->setDefault(name); }
+
+QVariantList Scenes::trash() const
+{
+    QVariantList rows;
+    const QLocale locale;
+    for (const auto &e : m_app->scenes()->trash()) {
+        rows << QVariantMap{
+            {QStringLiteral("file"), e.file},
+            {QStringLiteral("name"), e.name},
+            {QStringLiteral("deleted"), locale.toString(e.deleted.toLocalTime(), QLocale::ShortFormat)},
+        };
+    }
+    return rows;
+}
+
+int Scenes::trashKeepDays() const { return SceneTrash::kKeepDays; }
+
+QString Scenes::restore(const QString &trashFile)
+{
+    const QString name = m_app->scenes()->restore(trashFile);
+    if (!name.isEmpty()) {
+        Q_EMIT m_app->toast(i18n("Restored “%1”", name));
+    }
+    return name;
+}
+
+QString Scenes::restoreLast()
+{
+    const QString file = m_app->scenes()->lastTrashed();
+    return file.isEmpty() ? QString() : restore(file);
+}
 
 bool Scenes::exportTo(const QUrl &file)
 {

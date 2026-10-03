@@ -4,6 +4,7 @@
 #include "core/SceneToml.h"
 #include "engine/Engine.h"
 
+#include <QFile>
 #include <QLoggingCategory>
 
 Q_DECLARE_LOGGING_CATEGORY(lcEngine)
@@ -306,7 +307,9 @@ bool SceneManager::rename(const QString &oldName, const QString &newName)
     if (m_store.fileFor(n) != oldFile) {
         m_store.remove(oldName);
     }
+    const QString was = m_saved.at(i).name;
     m_saved[i] = s;
+    Q_EMIT renamed(was, n);
     const bool wasCurrent = m_current.compare(oldName, Qt::CaseInsensitive) == 0;
     if (wasCurrent) {
         m_current = n;
@@ -335,13 +338,28 @@ bool SceneManager::remove(const QString &name)
         return false;
     }
     QString err;
+    QString trashFile;
+    if (m_trash) {
+        trashFile = m_trash->put(m_saved.at(i), QDateTime::currentDateTimeUtc(), &err);
+        if (trashFile.isEmpty()) {
+            fail(err);
+            return false;
+        }
+    }
     if (!m_store.remove(m_saved.at(i).name, &err)) {
+        if (!trashFile.isEmpty()) {
+            QFile::remove(trashFile);
+        }
         fail(err);
         return false;
     }
     const bool wasCurrent = m_saved.at(i).name == m_current;
     const bool wasDefault = m_saved.at(i).name == m_default;
     m_saved.removeAt(i);
+    if (!trashFile.isEmpty()) {
+        m_lastTrashed = {trashFile, i, wasDefault};
+        Q_EMIT trashChanged();
+    }
     if (wasDefault) {
         m_default = m_saved.first().name;
         Q_EMIT defaultChanged();
@@ -361,6 +379,55 @@ void SceneManager::setDefault(const QString &name)
     }
     m_default = m_saved.at(i).name;
     Q_EMIT defaultChanged();
+}
+
+void SceneManager::setTrashDir(const QString &dir)
+{
+    m_trash.emplace(dir);
+    m_lastTrashed = {};
+    if (m_trash->purge(QDateTime::currentDateTimeUtc()) > 0) {
+        Q_EMIT trashChanged();
+    }
+}
+
+QList<SceneTrash::Entry> SceneManager::trash() const
+{
+    return m_trash ? m_trash->entries() : QList<SceneTrash::Entry>{};
+}
+
+QString SceneManager::restore(const QString &trashFile)
+{
+    if (!m_trash) {
+        return {};
+    }
+    QString err;
+    auto scene = m_trash->take(trashFile, &err);
+    if (!scene) {
+        fail(err);
+        return {};
+    }
+    Scene s = *scene;
+    s.name = uniqueName(s.name);
+    if (!write(s)) {
+        m_trash->put(*scene, QDateTime::currentDateTimeUtc());
+        return {};
+    }
+    const bool wasLast = trashFile == m_lastTrashed.file;
+    if (wasLast && m_lastTrashed.index >= 0 && m_lastTrashed.index <= m_saved.size()) {
+        m_saved.insert(m_lastTrashed.index, s);
+    } else {
+        m_saved.append(s);
+    }
+    m_order = names();
+    Q_EMIT scenesChanged();
+    if (wasLast && m_lastTrashed.wasDefault) {
+        setDefault(s.name);
+    }
+    if (wasLast) {
+        m_lastTrashed = {};
+    }
+    Q_EMIT trashChanged();
+    return s.name;
 }
 
 void SceneManager::enableRuleExport(const QString &pulseFragment, const QString &clientFragment)

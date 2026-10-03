@@ -13,6 +13,8 @@ add_library(rostrum_core STATIC
     ScenePresets.cpp ScenePresets.h
     SceneToml.cpp SceneToml.h
     SceneStore.cpp SceneStore.h
+    SceneTrash.cpp SceneTrash.h
+    SceneHistory.cpp SceneHistory.h
     Settings.cpp Settings.h
     Volume.h
 )

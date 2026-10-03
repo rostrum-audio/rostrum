@@ -3,6 +3,7 @@
 #include "app/CrashReports.h"
 #include "app/Desktop.h"
 #include "app/Devices.h"
+#include "app/History.h"
 #include "app/Logging.h"
 #include "app/Mixer.h"
 #include "app/Obs.h"
@@ -64,6 +65,7 @@ int main(int argc, char *argv[])
                      &rostrum::app::Mixer::notifySettingsChanged);
     rostrum::app::Apps apps(&controller, nullptr);
     rostrum::app::Scenes scenes(&controller, nullptr);
+    rostrum::app::History history(&controller, nullptr);
     rostrum::app::Devices devices(&controller, nullptr);
     rostrum::app::Desktop desktop(&controller, nullptr);
     rostrum::app::Preferences preferences(&controller, nullptr);

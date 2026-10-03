@@ -42,6 +42,27 @@ void Engine::setScene(const Scene &scene)
     scheduleReconcile();
 }
 
+void Engine::restoreScene(const Scene &scene)
+{
+    const Scene before = m_scene;
+    m_scene = scene;
+    const qsizetype soloed = m_soloed.size();
+    m_soloed.removeIf([&](const QString &id) { return !m_scene.bus(id); });
+    for (auto it = m_sessionAssign.begin(); it != m_sessionAssign.end();) {
+        it = m_scene.bus(it.value()) ? std::next(it) : m_sessionAssign.erase(it);
+    }
+    if (m_soloed.size() != soloed) {
+        Q_EMIT soloChanged();
+    }
+    if (mergeStructure(before, m_scene) != before) {
+        Q_EMIT structureChanged();
+    }
+    if (before.rules != m_scene.rules || before.buses.size() != m_scene.buses.size()) {
+        Q_EMIT appsChanged();
+    }
+    levelChanged();
+}
+
 void Engine::createMix()
 {
     if (m_mixEnabled && m_mixError.isEmpty()) {

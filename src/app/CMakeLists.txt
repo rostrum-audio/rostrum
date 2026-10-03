@@ -19,6 +19,7 @@ qt_add_qml_module(rostrum
         CrashReports.cpp CrashReports.h
         Desktop.cpp Desktop.h
         Devices.cpp Devices.h
+        History.cpp History.h
         Hotkeys.cpp Hotkeys.h
         MeterBallistics.h
         Mixer.cpp Mixer.h

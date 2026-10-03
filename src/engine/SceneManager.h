@@ -2,6 +2,7 @@
 
 #include "core/Model.h"
 #include "core/SceneStore.h"
+#include "core/SceneTrash.h"
 
 #include <QObject>
 #include <QTimer>
@@ -55,6 +56,15 @@ public:
     bool remove(const QString &name);
     void setDefault(const QString &name);
 
+    // With a trash folder, remove() moves the scene there instead of deleting it, and entries
+    // older than SceneTrash::kKeepDays are purged. Off until called; tests and tools leave it off.
+    void setTrashDir(const QString &dir);
+    QList<SceneTrash::Entry> trash() const;
+    QString lastTrashed() const { return m_lastTrashed.file; }
+    // Brings a trashed scene back under a unique name: the last deleted one at its old place (and
+    // as default again if it was), others at the end. Returns the name, empty on failure.
+    QString restore(const QString &trashFile);
+
     bool exportTo(const QString &path);
     int importFrom(const QString &path); // returns scenes imported, -1 on error
 
@@ -68,8 +78,10 @@ public:
 Q_SIGNALS:
     void scenesChanged();
     void currentChanged();
+    void renamed(const QString &from, const QString &to); // before currentChanged, if it was current
     void dirtyChanged();
     void defaultChanged();
+    void trashChanged();
     void errorOccurred(const QString &message);
 
 private:
@@ -91,6 +103,13 @@ private:
     QString m_pulseFragment;
     QString m_clientFragment;
     QStringList m_order;
+    std::optional<SceneTrash> m_trash;
+    struct Trashed
+    {
+        QString file;
+        int index = -1;
+        bool wasDefault = false;
+    } m_lastTrashed;
 };
 
 } // namespace rostrum::engine

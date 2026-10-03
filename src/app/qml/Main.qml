@@ -112,6 +112,16 @@ Kirigami.ApplicationWindow {
         onActivated: App.saveScene()
     }
     Shortcut {
+        sequences: [StandardKey.Undo]
+        enabled: App.connected && App.wizardDone && History.canUndo
+        onActivated: History.undo()
+    }
+    Shortcut {
+        sequences: ["Ctrl+Shift+Z"]
+        enabled: App.connected && App.wizardDone && History.canRedo
+        onActivated: History.redo()
+    }
+    Shortcut {
         sequences: [StandardKey.Quit]
         onActivated: App.quit()
     }

@@ -28,6 +28,9 @@ class Scenes : public QObject
     Q_PROPERTY(QVariantList rows READ rows NOTIFY changed)
     // Rows: {id, name, description, icon}
     Q_PROPERTY(QVariantList presets READ presets CONSTANT)
+    // Recently deleted scenes, newest first. Rows: {file, name, deleted}
+    Q_PROPERTY(QVariantList trash READ trash NOTIFY trashChanged)
+    Q_PROPERTY(int trashKeepDays READ trashKeepDays CONSTANT)
 
 public:
     Scenes(AppController *app, QObject *parent);
@@ -37,6 +40,8 @@ public:
 
     QVariantList rows() const { return m_rows; }
     QVariantList presets() const;
+    QVariantList trash() const;
+    int trashKeepDays() const;
 
     // Each returns the resulting scene name, or empty on failure (with a toast).
     Q_INVOKABLE QString createScene(const QString &name);
@@ -45,7 +50,10 @@ public:
     Q_INVOKABLE QString duplicate(const QString &name);
     Q_INVOKABLE QString rename(const QString &oldName, const QString &newName);
     Q_INVOKABLE QString saveAs(const QString &name);
-    Q_INVOKABLE bool remove(const QString &name);
+    Q_INVOKABLE bool remove(const QString &name); // to the trash
+    // Brings a deleted scene back; returns its name, or empty.
+    Q_INVOKABLE QString restore(const QString &trashFile);
+    Q_INVOKABLE QString restoreLast();
     Q_INVOKABLE void setDefault(const QString &name);
     // Reorders; next/previous and the scene hotkeys follow the order.
     Q_INVOKABLE bool move(const QString &name, int toIndex);
@@ -60,6 +68,7 @@ public:
 
 Q_SIGNALS:
     void changed();
+    void trashChanged();
 
 private:
     void rebuild();
