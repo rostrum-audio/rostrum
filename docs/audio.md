@@ -193,9 +193,11 @@ another device. These keys are allowed here because meters are Rostrum's own int
 
 ## Test tone
 
-The Devices page and the wizard play a one-second 440 Hz tone at −14 dBFS on the chosen sink
-through an internal `pw_stream` (`rostrum-test-tone`, `rostrum.internal = true`), so the router
-never moves it onto a bus. `rostrum-graphtest --tone <sink>` plays the same tone from a terminal.
+The Devices page and the wizard play a short chime on the chosen sink: four rising bell-like notes
+(C5, E5, G5, C6) over about 1.4 s, peaking near −10 dBFS. The first note leans left and the second
+leans right, so one press also shows that both ear cups work. It plays through an internal
+`pw_stream` (`rostrum-test-tone`, `rostrum.internal = true`), so the router never moves it onto a
+bus. `rostrum-graphtest --tone <sink>` plays the same chime from a terminal.
 
 ## Files
 

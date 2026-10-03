@@ -141,8 +141,8 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
 
 1. Move `~/.config/rostrum` aside and tear the buses down (`$B --teardown`). Start Rostrum.
 2. The wizard shows Welcome with the diagram. `wpctl status` shows no Rostrum nodes yet.
-3. Start. On Headphones, press Test on your headset: you hear a short tone there and nowhere
-   else. Pick it. The star moves to it.
+3. Start. On Headphones, press Test on your headset: you hear a short chime there and nowhere
+   else, the first note on the left, the second on the right. Pick it. The star moves to it.
 4. Next. On Mic, speak: only your mic's meter moves. Press Mute Mic: the header button turns
    red too. Unmute.
 5. Next. The six buses show their destinations (Music → Stream, the rest Both, Mic → Stream).

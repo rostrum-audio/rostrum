@@ -92,7 +92,7 @@ QQC2.Pane {
                     QQC2.Label {
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
-                        text: i18n("Pick your headphones. Press Test to hear a short tone.")
+                        text: i18n("Pick your headphones. Press Test to hear a short chime.")
                     }
                     QQC2.ScrollView {
                         Layout.fillWidth: true

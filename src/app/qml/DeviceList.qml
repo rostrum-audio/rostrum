@@ -124,10 +124,10 @@ ColumnLayout {
                     text: i18nc("@action:button", "Test")
                     display: QQC2.AbstractButton.TextBesideIcon
                     onClicked: Devices.playTone(row.toneTarget)
-                    Accessible.name: i18nc("@action:button accessible", "Play a test tone on %1", row.modelData.description)
+                    Accessible.name: i18nc("@action:button accessible", "Play a test chime on %1", row.modelData.description)
                     QQC2.ToolTip.visible: hovered
                     QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
-                    QQC2.ToolTip.text: i18nc("@info:tooltip", "Play a one-second tone")
+                    QQC2.ToolTip.text: i18nc("@info:tooltip", "Play a short chime: left, right, then both")
                 }
             }
         }

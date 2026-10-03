@@ -65,7 +65,7 @@ int main(int argc, char **argv)
     QCommandLineOption config(QStringLiteral("config"),
                               QStringLiteral("Apply the saved default scene and devices from $XDG_CONFIG_HOME/rostrum."));
     QCommandLineOption tone(QStringLiteral("tone"),
-                            QStringLiteral("Play the one-second test tone on a sink (node.name) and exit."),
+                            QStringLiteral("Play the test chime on a sink (node.name) and exit."),
                             QStringLiteral("sink"));
     parser.addOptions({seconds, teardown, rule, session, unassignAfter, listApps, dest, headphones, mic, micMuted,
                        sidetone, solo, config, tone});

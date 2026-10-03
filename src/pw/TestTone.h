@@ -7,8 +7,17 @@ namespace rostrum::pw {
 
 class PwContext;
 
-// A one-second 440 Hz tone at −14 dBFS on a chosen sink, for "is this my headset?". One tone at a
-// time; starting another replaces it. The stream is internal, so the router never moves it.
+// The test chime: four rising bell-like notes (C5 E5 G5 C6) in about 1.4 s, peaking near −10 dBFS.
+// The first note leans left and the second right, so one press also checks both ear cups.
+namespace chime {
+int totalFrames();
+int sampleRate();
+// Realtime-safe: no allocation, no locks. Frames past the end are silent.
+void sample(int frame, float &left, float &right);
+} // namespace chime
+
+// Plays the test chime on a chosen sink, for "is this my headset?". One chime at a time; starting
+// another replaces it. The stream is internal, so the router never moves it.
 class TestTone : public QObject
 {
     Q_OBJECT

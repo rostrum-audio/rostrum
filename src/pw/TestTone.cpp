@@ -6,6 +6,7 @@
 #include <spa/param/audio/format-utils.h>
 #include <spa/pod/builder.h>
 
+#include <algorithm>
 #include <cmath>
 #include <numbers>
 
@@ -14,12 +15,68 @@ namespace rostrum::pw {
 namespace {
 constexpr int kRate = 48000;
 constexpr int kChannels = 2;
-constexpr double kFrequency = 440.0;
-constexpr double kAmplitude = 0.2; // about −14 dBFS
-constexpr int kToneFrames = kRate;  // one second
-constexpr int kFadeFrames = kRate / 50;
-constexpr int kStopAfterMs = 1300;
+
+struct Note
+{
+    double start; // seconds
+    double frequency;
+    double pan; // -1 left .. +1 right
+};
+constexpr Note kNotes[] = {
+    {0.00, 523.25, -0.55}, // C5
+    {0.16, 659.25, 0.55},  // E5
+    {0.32, 783.99, 0.0},   // G5
+    {0.48, 1046.50, 0.0},  // C6
+};
+constexpr double kNoteGain = 0.09;
+constexpr double kAttack = 0.004;      // seconds; soft enough not to click
+constexpr double kDecay = 0.32;        // fundamental decay time constant
+constexpr double kOvertoneDecay = 0.1; // overtones fade faster, like a struck bar
+constexpr double kLength = 1.4;
+constexpr double kTailFade = 0.06; // forces silence at the very end
+constexpr int kStopAfterMs = 1600;
+
+double noteSample(const Note &n, double t)
+{
+    const double local = t - n.start;
+    if (local < 0.0) {
+        return 0.0;
+    }
+    const double attack = std::min(1.0, local / kAttack);
+    const double w = 2.0 * std::numbers::pi * n.frequency * local;
+    const double body = std::exp(-local / kDecay) * std::sin(w);
+    const double overtones = std::exp(-local / kOvertoneDecay) * (0.35 * std::sin(2.0 * w) + 0.12 * std::sin(3.0 * w));
+    return kNoteGain * attack * (body + overtones);
+}
 } // namespace
+
+namespace chime {
+
+int totalFrames() { return int(kLength * kRate); }
+int sampleRate() { return kRate; }
+
+void sample(int frame, float &left, float &right)
+{
+    left = right = 0.0f;
+    if (frame < 0 || frame >= totalFrames()) {
+        return;
+    }
+    const double t = double(frame) / kRate;
+    const double tail = std::clamp((kLength - t) / kTailFade, 0.0, 1.0);
+    double l = 0.0;
+    double r = 0.0;
+    for (const Note &n : kNotes) {
+        const double v = noteSample(n, t) * tail;
+        // Equal-power pan: centre is -3 dB per side.
+        const double angle = (n.pan + 1.0) * std::numbers::pi / 4.0;
+        l += v * std::cos(angle);
+        r += v * std::sin(angle);
+    }
+    left = float(l);
+    right = float(r);
+}
+
+} // namespace chime
 
 struct TestTone::State
 {
@@ -50,15 +107,9 @@ void onProcess(void *data)
     }
     auto *out = static_cast<float *>(d.data);
     for (uint32_t i = 0; i < frames; ++i) {
-        float v = 0.0f;
-        if (s->frame < kToneFrames) {
-            const double fade = std::min({1.0, double(s->frame) / kFadeFrames,
-                                          double(kToneFrames - s->frame) / kFadeFrames});
-            v = float(kAmplitude * fade * std::sin(2.0 * std::numbers::pi * kFrequency * s->frame / kRate));
+        chime::sample(s->frame, out[i * kChannels], out[i * kChannels + 1]);
+        if (s->frame < chime::totalFrames()) {
             ++s->frame;
-        }
-        for (int c = 0; c < kChannels; ++c) {
-            out[i * kChannels + c] = v;
         }
     }
     d.chunk->offset = 0;

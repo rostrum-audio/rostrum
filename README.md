@@ -19,7 +19,7 @@ machine, not the only supported system. Plasma, GNOME, and other desktops are in
 
 1. **Start Rostrum** from the app menu (after `cmake --install`, see Build) or run
    `./build/src/app/rostrum`.
-2. **Run the wizard.** Welcome → Headphones (press Test: a short tone plays only there) → Mic (speak
+2. **Run the wizard.** Welcome → Headphones (press Test: a short chime plays only there) → Mic (speak
    and watch its meter) → Buses → **Create Mix**. Skip creates the same mix with the defaults.
 
    ![First-run wizard, step 1 of 4](docs/screenshots/wizard.png)
