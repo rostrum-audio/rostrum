@@ -1,0 +1,258 @@
+#include "core/SceneStore.h"
+#include "core/SceneToml.h"
+#include "core/Settings.h"
+#include "engine/Engine.h"
+#include "engine/SceneManager.h"
+#include "pw/PwContext.h"
+
+#include <QTemporaryDir>
+#include <QTest>
+
+using namespace rostrum;
+
+namespace {
+
+Scene sample()
+{
+    Scene s = defaults::scene(QStringLiteral("Ranked"));
+    s.masterPhones = 0.8;
+    s.masterStreamMuted = true;
+    s.sidetoneVolume = 0.25;
+    s.bus(QStringLiteral("game"))->volume = 0.42;
+    s.bus(QStringLiteral("voice"))->muted = true;
+    s.bus(QStringLiteral("music"))->destination = Destination::Phones;
+    s.bus(QStringLiteral("alerts"))->name = QStringLiteral("Alerts \"loud\" = yes");
+    s.bus(QStringLiteral("alerts"))->color = QStringLiteral("#e93a9a");
+    AppRule r;
+    r.match = QStringLiteral("Discord");
+    r.key = MatchKey::Binary;
+    r.busId = QStringLiteral("voice");
+    r.volume = 0.7;
+    r.lastSeen = QDateTime(QDate(2026, 10, 2), QTime(21, 30, 5), QTimeZone::UTC);
+    s.rules.append(r);
+    s.rules.append({QStringLiteral("Firefox"), MatchKey::Name, QStringLiteral("music")});
+    return s;
+}
+
+} // namespace
+
+class TestScenes : public QObject
+{
+    Q_OBJECT
+private Q_SLOTS:
+    void roundTrip()
+    {
+        const Scene s = sample();
+        const QString text = toml_io::serializeScene(s);
+        QString err;
+        const auto back = toml_io::parseScene(text, &err);
+        QVERIFY2(back.has_value(), qPrintable(err));
+        QCOMPARE(*back, s);
+        QCOMPARE(back->rules.first().lastSeen, s.rules.first().lastSeen);
+        QCOMPARE(back->bus(QStringLiteral("alerts"))->name, QStringLiteral("Alerts \"loud\" = yes"));
+        // Serializing the parsed scene gives identical text (stable output).
+        QCOMPARE(toml_io::serializeScene(*back), text);
+    }
+
+    void neverWritesSolo()
+    {
+        const QString text = toml_io::serializeScene(sample());
+        QVERIFY(!text.contains(QStringLiteral("solo"), Qt::CaseInsensitive));
+        const QString bundle = toml_io::serializeBundle({sample(), defaults::scene()});
+        QVERIFY(!bundle.contains(QStringLiteral("solo"), Qt::CaseInsensitive));
+    }
+
+    void soloDoesNotChangeSavedScene()
+    {
+        QTemporaryDir dir;
+        pw::PwContext pw; // never started: no audio server needed
+        engine::Engine engine(&pw);
+        engine::SceneManager scenes(&engine, dir.path());
+        scenes.load(QStringLiteral("Live"));
+        QVERIFY(scenes.save());
+        const QString file = SceneStore(dir.path()).fileFor(QStringLiteral("Live"));
+        const QString before = SceneStore::readFile(file, nullptr);
+
+        engine.setSolo(QStringLiteral("game"), true);
+        engine.setSolo(QStringLiteral("music"), true);
+        QVERIFY(engine.dimmedBySolo(QStringLiteral("voice")));
+        QVERIFY(!engine.dimmedBySolo(QStringLiteral("game")));
+        QVERIFY(!engine.dimmedBySolo(QStringLiteral("mic")));
+        QVERIFY(!scenes.dirty());
+
+        QVERIFY(scenes.save());
+        const QString after = SceneStore::readFile(file, nullptr);
+        QCOMPARE(after, before);
+        QVERIFY(!after.contains(QStringLiteral("solo"), Qt::CaseInsensitive));
+        // Every bus keeps the user's own mute flag; solo did not turn into saved mutes.
+        const auto parsed = toml_io::parseScene(after);
+        for (const auto &b : parsed->buses) {
+            QVERIFY(!b.muted);
+        }
+    }
+
+    void sanitizeRepairs()
+    {
+        const QString text = QStringLiteral(R"(
+name = "Broken"
+[[bus]]
+id = "game"
+name = "Game"
+color = "not-a-color"
+volume = 4.0
+destination = "sideways"
+[[bus]]
+id = "game"
+name = "Duplicate"
+[[bus]]
+id = "stream"
+name = "Reserved id"
+[[rule]]
+match = "Ghost"
+bus = "missing"
+[[rule]]
+match = "Discord"
+key = "binary"
+bus = "game"
+[[rule]]
+match = "discord"
+key = "binary"
+bus = "game"
+)");
+        const auto s = toml_io::parseScene(text);
+        QVERIFY(s.has_value());
+        QCOMPARE(s->buses.size(), 2); // mic inserted first, duplicate and reserved ids dropped
+        QCOMPARE(s->buses.first().id, QStringLiteral("mic"));
+        QVERIFY(s->buses.first().isInput());
+        const Bus *game = s->bus(QStringLiteral("game"));
+        QCOMPARE(game->volume, 1.0);
+        QCOMPARE(game->destination, Destination::Both);
+        QVERIFY(game->color.startsWith(QLatin1Char('#')) && game->color.size() == 7);
+        QCOMPARE(s->rules.size(), 1);
+    }
+
+    void capsBuses()
+    {
+        Scene s = defaults::scene();
+        for (int i = 0; i < 20; ++i) {
+            Bus b;
+            b.id = QStringLiteral("extra-%1").arg(i);
+            b.name = b.id;
+            s.buses.append(b);
+        }
+        QCOMPARE(toml_io::sanitize(s).buses.size(), kMaxBuses);
+    }
+
+    void invalidToml()
+    {
+        QString err;
+        QVERIFY(!toml_io::parseScene(QStringLiteral("name = [unterminated"), &err).has_value());
+        QVERIFY(err.startsWith(QStringLiteral("Line 1")));
+    }
+
+    void bundleRoundTrip()
+    {
+        const QList<Scene> scenes = {sample(), defaults::scene(QStringLiteral("Just Chatting")),
+                                     defaults::scene(QStringLiteral("BRB"))};
+        const auto back = toml_io::parseBundle(toml_io::serializeBundle(scenes));
+        QCOMPARE(back, scenes);
+        QString err;
+        QVERIFY(toml_io::parseBundle(QStringLiteral("format = 1"), &err).isEmpty());
+        QVERIFY(!err.isEmpty());
+    }
+
+    void storeSkipsBadFiles()
+    {
+        QTemporaryDir dir;
+        SceneStore store(dir.path());
+        QVERIFY(store.save(sample()));
+        QVERIFY(SceneStore::writeFile(dir.path() + QStringLiteral("/bad.toml"), QStringLiteral("x = ["), nullptr));
+        QStringList errors;
+        const auto all = store.loadAll(&errors);
+        QCOMPARE(all.size(), 1);
+        QCOMPARE(errors.size(), 1);
+        QVERIFY(SceneStore(dir.path() + QStringLiteral("/missing")).loadAll().isEmpty());
+    }
+
+    void structurePersistsWithoutSavingFaders()
+    {
+        QTemporaryDir dir;
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        engine::SceneManager scenes(&engine, dir.path());
+        scenes.load(QStringLiteral("Live"));
+
+        engine.setBusVolume(QStringLiteral("game"), 0.2);
+        QVERIFY(scenes.dirty());
+        engine.renameBus(QStringLiteral("game"), QStringLiteral("Ranked"));
+        engine.recolorBus(QStringLiteral("game"), QStringLiteral("#16a085"));
+        engine.assignApp({MatchKey::Name, QStringLiteral("Firefox")}, QStringLiteral("music"), true);
+
+        const auto onDisk = SceneStore(dir.path()).loadAll().first();
+        QCOMPARE(onDisk.bus(QStringLiteral("game"))->name, QStringLiteral("Ranked"));
+        QCOMPARE(onDisk.bus(QStringLiteral("game"))->color, QStringLiteral("#16a085"));
+        QCOMPARE(onDisk.bus(QStringLiteral("game"))->volume, 1.0);
+        QCOMPARE(onDisk.rules.size(), 1);
+        QVERIFY(scenes.dirty()); // the fader move is still unsaved
+
+        // Switching scenes discards the unsaved fader move but keeps the structure.
+        QVERIFY(scenes.switchTo(QStringLiteral("Live")));
+        QCOMPARE(engine.scene().bus(QStringLiteral("game"))->volume, 1.0);
+        QCOMPARE(engine.scene().bus(QStringLiteral("game"))->name, QStringLiteral("Ranked"));
+        QVERIFY(!scenes.dirty());
+    }
+
+    void sceneManagement()
+    {
+        QTemporaryDir dir;
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        engine::SceneManager scenes(&engine, dir.path());
+        scenes.load(QStringLiteral("Live"));
+        QCOMPARE(scenes.names(), QStringList{QStringLiteral("Live")});
+        QVERIFY(scenes.saveAs(QStringLiteral("Just Chatting")));
+        QCOMPARE(scenes.currentName(), QStringLiteral("Just Chatting"));
+        QVERIFY(scenes.duplicate(QStringLiteral("Live")));
+        QVERIFY(scenes.names().contains(QStringLiteral("Live copy")));
+        QVERIFY(!scenes.rename(QStringLiteral("Live copy"), QStringLiteral("live")));
+        QVERIFY(scenes.rename(QStringLiteral("Live copy"), QStringLiteral("BRB")));
+        scenes.setDefault(QStringLiteral("BRB"));
+        QVERIFY(scenes.remove(QStringLiteral("BRB")));
+        QCOMPARE(scenes.defaultName(), QStringLiteral("Live"));
+        QVERIFY(scenes.next());
+        QVERIFY(scenes.previous());
+
+        const QString bundle = dir.path() + QStringLiteral("/backup.toml");
+        QVERIFY(scenes.exportTo(bundle));
+        QCOMPARE(scenes.importFrom(bundle), 2); // imported under unique names, never overwriting
+        QCOMPARE(scenes.names().size(), 4);
+
+        // A fresh manager reads back what was written.
+        engine::Engine engine2(&pw);
+        engine::SceneManager again(&engine2, dir.path());
+        again.load(QStringLiteral("Live"));
+        QCOMPARE(again.names().size(), 4);
+    }
+
+    void settingsRoundTrip()
+    {
+        Settings s = defaultSettings();
+        QCOMPARE(s.hotkeys.value(QStringLiteral("mute_mic")), QStringLiteral("Meta+Alt+M"));
+        QVERIFY(s.scrollToAdjust);
+        QVERIFY(!s.confirmSceneSwitch);
+        s.wizardDone = true;
+        s.headphones = QStringLiteral("alsa_output.usb-HyperX");
+        s.hotkeys[QStringLiteral("next_scene")] = QString();
+        s.meterSpeed = QStringLiteral("low");
+        s.lastPage = QStringLiteral("apps");
+        QCOMPARE(parseSettings(serializeSettings(s)), s);
+        QString err;
+        QCOMPARE(parseSettings(QStringLiteral("[[["), &err), defaultSettings());
+        QVERIFY(!err.isEmpty());
+        // Window size never drops below the minimum.
+        QCOMPARE(parseSettings(QStringLiteral("[window]\nwidth = 100\nheight = 100\n")).windowWidth, 960);
+    }
+};
+
+QTEST_GUILESS_MAIN(TestScenes)
+#include "tst_scenes.moc"

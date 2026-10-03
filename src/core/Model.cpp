@@ -183,7 +183,10 @@ QString makeSlug(const QString &name, const QStringList &taken, const QString &f
     if (base.isEmpty()) {
         base = fallback;
     }
-    base = base.left(32);
+    base = base.left(28); // room for a "-NN" suffix inside the 32-character id limit
+    while (base.endsWith(QLatin1Char('-'))) {
+        base.chop(1);
+    }
     QString candidate = base;
     for (int n = 2; taken.contains(candidate, Qt::CaseInsensitive); ++n) {
         candidate = QStringLiteral("%1-%2").arg(base).arg(n);

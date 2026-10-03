@@ -129,6 +129,28 @@ Apps are shown by `application.name`. Generic names that do not identify the app
 running). A new rule matches on whichever key the identity came from, and the app row shows that
 key. Name rules are checked before binary rules. Matching is case-insensitive.
 
+## Files
+
+All configuration is TOML under `$XDG_CONFIG_HOME/rostrum/` (default `~/.config/rostrum/`):
+
+- `settings.toml`: general options, mixer options, default scene, saved headphone and mic
+  `node.name`, shortcuts, window size, last page.
+- `scenes/<slug>.toml`: one scene per file. The `name` inside the file wins over the file name.
+  A scene holds master levels, sidetone level, the bus list (id, name, color, kind, volume, mute,
+  destination) and app rules (match, key, bus, per-app volume, last seen).
+- Export writes every scene into one TOML file with a `[[scene]]` array. Import never overwrites:
+  clashing names get a numeric suffix.
+
+Loading is forgiving. Unreadable files are skipped with a message. Missing fields take defaults.
+The mic bus is always present and first, ids must be unique slugs, there are at most 12 buses, bad
+colors are replaced from the palette, levels are clamped, and rules for unknown buses are dropped.
+
+Fader moves make the scene dirty until Save. Bus renames, colors, adding or removing a bus and app
+rules are written to the current scene file right away, merged onto its saved levels, so they
+survive a quit without saving faders. Switching scenes discards unsaved fader moves.
+
+The log is `$XDG_STATE_HOME/rostrum/rostrum.log`.
+
 ## Solo is never persisted
 
 Solo is session-only state owned by the engine. It is never a field of `Bus` or `Scene` and never

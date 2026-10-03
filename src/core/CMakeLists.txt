@@ -3,6 +3,9 @@ add_library(rostrum_core STATIC
     Requirements.cpp Requirements.h
     Model.cpp Model.h
     AppIdentity.cpp AppIdentity.h
+    SceneToml.cpp SceneToml.h
+    SceneStore.cpp SceneStore.h
+    Settings.cpp Settings.h
     Volume.h
 )
 

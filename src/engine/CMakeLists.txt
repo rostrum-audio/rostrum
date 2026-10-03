@@ -2,6 +2,7 @@ add_library(rostrum_engine STATIC
     Engine.cpp Engine.h
     EngineMix.cpp
     NodeSpecs.cpp NodeSpecs.h
+    SceneManager.cpp SceneManager.h
 )
 
 target_include_directories(rostrum_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)

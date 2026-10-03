@@ -1,7 +1,10 @@
 // rostrum-graphtest: headless driver for the manual graph tests in docs/manual-tests.md.
 // It runs the same Engine as the app, without any UI.
 
+#include "core/Paths.h"
+#include "core/Settings.h"
 #include "engine/Engine.h"
+#include "engine/SceneManager.h"
 #include "pw/PwContext.h"
 
 #include <QCommandLineParser>
@@ -58,8 +61,10 @@ int main(int argc, char **argv)
                                 QStringLiteral("v"));
     QCommandLineOption solo(QStringLiteral("solo"), QStringLiteral("Solo a bus (session only)."),
                             QStringLiteral("bus"));
+    QCommandLineOption config(QStringLiteral("config"),
+                              QStringLiteral("Apply the saved default scene and devices from $XDG_CONFIG_HOME/rostrum."));
     parser.addOptions({seconds, teardown, rule, session, unassignAfter, listApps, dest, headphones, mic, micMuted,
-                       sidetone, solo});
+                       sidetone, solo, config});
     parser.process(app);
 
     pw::PwContext pw;
@@ -68,6 +73,18 @@ int main(int argc, char **argv)
         return 2;
     }
     engine::Engine engine(&pw);
+    engine::SceneManager scenes(&engine, paths::scenesDir());
+    if (parser.isSet(config)) {
+        const Settings settings = loadSettings(paths::settingsFile());
+        scenes.load(settings.defaultScene);
+        QTextStream(stdout) << "Scene: " << scenes.currentName() << "\n";
+        if (!parser.isSet(headphones)) {
+            engine.setHeadphoneDevice(settings.headphones);
+        }
+        if (!parser.isSet(mic)) {
+            engine.setMicDevice(settings.mic);
+        }
+    }
 
     std::signal(SIGINT, [](int) { QCoreApplication::quit(); });
     std::signal(SIGTERM, [](int) { QCoreApplication::quit(); });
@@ -91,15 +108,21 @@ int main(int argc, char **argv)
             });
             return;
         }
-        engine.setHeadphoneDevice(parser.value(headphones));
-        engine.setMicDevice(parser.value(mic));
+        if (parser.isSet(headphones) || !parser.isSet(config)) {
+            engine.setHeadphoneDevice(parser.value(headphones));
+        }
+        if (parser.isSet(mic) || !parser.isSet(config)) {
+            engine.setMicDevice(parser.value(mic));
+        }
         for (const auto &spec : parser.values(dest)) {
             const auto parts = spec.split(QLatin1Char('='));
             if (const auto d = destinationFromString(parts.value(1))) {
                 engine.setBusDestination(parts.value(0), *d);
             }
         }
-        engine.setMicMuted(parser.isSet(micMuted));
+        if (parser.isSet(micMuted)) {
+            engine.setMicMuted(true);
+        }
         if (parser.isSet(sidetone)) {
             engine.setSidetoneEnabled(true);
             engine.setSidetoneVolume(parser.value(sidetone).toDouble());
