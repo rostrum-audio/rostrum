@@ -21,6 +21,13 @@ rostrum_add_test(tst_testtone)
 rostrum_add_test(tst_obs)
 target_link_libraries(tst_obs PRIVATE rostrum_obs)
 
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_Interpreter_FOUND)
+    rostrum_add_test(tst_releasefeed)
+    target_compile_definitions(tst_releasefeed PRIVATE
+        ROSTRUM_PYTHON="${Python3_EXECUTABLE}" ROSTRUM_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+endif()
+
 # Desktop metadata checks run where the validators are installed (CI's app build has both).
 find_program(APPSTREAMCLI_EXECUTABLE appstreamcli)
 if(APPSTREAMCLI_EXECUTABLE)
