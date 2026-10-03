@@ -95,3 +95,29 @@ also captures `Rostrum Mic`. Run this with the real mic and OBS.
    `rostrum.phones` is linked to the default sink.
 3. Plug it back in (or recreate the fake). It prints `Headphones back`, `rostrum.phones` is linked
    to the headset again, and the fallback links are removed. The scene was never modified.
+
+## 6. Quitting Rostrum falls back to the default sink
+
+1. Assign Discord (or any playing app) to Voice with "Always". Check that
+   `~/.config/pipewire/pipewire-pulse.conf.d/50-rostrum.conf` lists it with only `target.object`.
+2. Quit Rostrum and tear the buses down (`$B --teardown`).
+3. Discord keeps playing, now through the default sink (`wpctl status` shows its stream linked
+   there). It is never silent.
+4. `rg 'dont-(fallback|move|reconnect)' ~/.config/pipewire` finds nothing.
+
+## 7. Reboot restores routing
+
+1. Keep the rule from test 6, enable "Launch at login", and reboot.
+2. Start Discord before Rostrum starts (or turn autostart off, log in, start Discord, and then start
+   Rostrum).
+3. Before Rostrum runs, Discord plays through the default sink.
+4. Within a second of Rostrum starting, Discord's stream is linked to `rostrum.voice`
+   (`pw-link -l | rg -A2 -i discord`), without restarting Discord. If Discord stays on the default
+   sink until it is restarted, that is a router bug. Fix it in the router, not with a WirePlumber
+   script.
+5. Quit Rostrum again: Discord falls back to the default sink, as in test 6.
+
+The fragment matching itself can be checked without logging out. Point `XDG_CONFIG_HOME` at a
+directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
+`pw-play -P '{ application.name = "firefox" }' file.wav`. The stream's `target.object` (shown by
+`pw-dump`) is the bus from the rule.

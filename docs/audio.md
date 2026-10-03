@@ -129,6 +129,50 @@ Apps are shown by `application.name`. Generic names that do not identify the app
 running). A new rule matches on whichever key the identity came from, and the app row shows that
 key. Name rules are checked before binary rules. Matching is case-insensitive.
 
+### Rules for apps that start before Rostrum
+
+While Rostrum runs, the router above handles every stream. App rules from the default scene are
+also written as PipeWire client rule fragments. That way an app started at login, before Rostrum,
+asks for its bus itself:
+
+| File | Array | Read by |
+| --- | --- | --- |
+| `~/.config/pipewire/pipewire-pulse.conf.d/50-rostrum.conf` | `pulse.rules` | `pipewire-pulse` when it starts (normally at login), applied to every PulseAudio client: Discord, browsers, most games |
+| `~/.config/pipewire/client.conf.d/50-rostrum.conf` | `stream.rules` | every native PipeWire app when it starts |
+
+The array names are copied from `/usr/share/pipewire/pipewire-pulse.conf` and
+`/usr/share/pipewire/client.conf`, and a unit test checks them against the installed files. Fragment
+arrays are appended to the system ones, so the system rules (for example Firefox quirks) stay in
+effect.
+
+Each rule matches `application.name` or `application.process.binary` with an anchored,
+ASCII-case-insensitive regex. The only property it sets is `target.object = "rostrum.<bus>"`.
+Binary rules are written first, so a name rule for the same app wins, as it does in the app.
+WirePlumber's `find-defined-target.lua` honours the property when it first links the stream.
+
+The rules never set `node.dont-fallback`, `node.dont-move` or `node.dont-reconnect`. If the bus
+node is missing, for example because Rostrum is not running, WirePlumber links the stream to the
+default sink. Quitting Rostrum therefore never mutes Discord, and the user can still move the stream
+in any other mixer. A golden test fails if any of these keys appears.
+
+Nothing is written to `~/.config/wireplumber/`. In WirePlumber 0.5, `stream.rules` in
+`wireplumber.conf` only feed `state-stream.lua` (restoring volume and mute), so they cannot route a
+stream. Rostrum also does not ship a Lua script.
+
+The fragments are rewritten when the default scene's rules change, or when another scene becomes
+the default. Files are only written when their content changes. They are removed when there are no
+rules. `pipewire-pulse` reads its fragment at startup, so new rules reach PulseAudio apps started
+before Rostrum after the next login. Until then the router handles them.
+
+After a reboot or re-login, the order is as follows:
+
+1. Discord starts before Rostrum. Its stream asks for `rostrum.voice`, which does not exist yet, so
+   WirePlumber falls back to the default sink.
+2. Rostrum starts and creates the buses.
+3. The router sets `target.object` for Discord's stream, and it moves to Voice.
+
+If Discord stays on the default sink until it is restarted, that is a router bug.
+
 ## Files
 
 All configuration is TOML under `$XDG_CONFIG_HOME/rostrum/` (default `~/.config/rostrum/`):

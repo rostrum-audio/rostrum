@@ -1,5 +1,6 @@
 #include "engine/SceneManager.h"
 
+#include "core/RuleExport.h"
 #include "core/SceneToml.h"
 #include "engine/Engine.h"
 
@@ -305,6 +306,30 @@ void SceneManager::setDefault(const QString &name)
     }
     m_default = m_saved.at(i).name;
     Q_EMIT defaultChanged();
+}
+
+void SceneManager::enableRuleExport(const QString &pulseFragment, const QString &clientFragment)
+{
+    const bool first = m_pulseFragment.isEmpty();
+    m_pulseFragment = pulseFragment;
+    m_clientFragment = clientFragment;
+    if (first) {
+        connect(this, &SceneManager::scenesChanged, this, &SceneManager::exportRules);
+        connect(this, &SceneManager::defaultChanged, this, &SceneManager::exportRules);
+    }
+    exportRules();
+}
+
+void SceneManager::exportRules()
+{
+    const Scene *scene = saved(m_default);
+    if (m_pulseFragment.isEmpty() || !scene) {
+        return;
+    }
+    QString err;
+    if (!rule_export::apply(*scene, m_pulseFragment, m_clientFragment, &err)) {
+        fail(QStringLiteral("Could not update the PipeWire app rules. %1").arg(err));
+    }
 }
 
 bool SceneManager::exportTo(const QString &path)

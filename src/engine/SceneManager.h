@@ -46,6 +46,11 @@ public:
 
     QString uniqueName(const QString &base) const;
 
+    // Keeps the PipeWire rule fragments in step with the default scene's app rules.
+    // Off until called; tests and tools leave it off.
+    void enableRuleExport(const QString &pulseFragment, const QString &clientFragment);
+    void exportRules();
+
 Q_SIGNALS:
     void scenesChanged();
     void currentChanged();
@@ -67,6 +72,8 @@ private:
     QString m_default;
     bool m_dirty = false;
     QString m_error;
+    QString m_pulseFragment;
+    QString m_clientFragment;
 };
 
 } // namespace rostrum::engine
