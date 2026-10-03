@@ -19,6 +19,7 @@ struct AppFacts
     QString steamAppId;    // SteamAppId / SteamGameId of the process, empty if none or "0"
     QString steamGameName; // from the Steam library, when the app id is known
     QString desktopId;     // the matching .desktop entry, if any
+    QString desktopIcon;   // its Icon=
     QStringList desktopCategories;
     bool dontMove = false;       // node.dont-move: the app asked to stay where it is
     bool ownOutputChoice = false; // the app picked a device itself (target.object outside Rostrum)

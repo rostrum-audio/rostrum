@@ -15,6 +15,7 @@ struct DesktopEntry
 {
     QString id;   // "org.kde.elisa" for org.kde.elisa.desktop
     QString name; // Name=
+    QString icon; // Icon=: a theme icon name or an absolute path
     QStringList categories;
     QStringList tokens; // lower-case ways a running app can point at this entry
 };

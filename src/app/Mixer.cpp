@@ -123,6 +123,7 @@ void BusModel::refresh()
         m_apps[a.busId].append(QVariantMap{
             {QStringLiteral("key"), key},
             {QStringLiteral("name"), a.identity.displayName},
+            {QStringLiteral("icon"), Apps::iconFor(a.iconNames)},
             {QStringLiteral("session"), a.sessionOnly},
             {QStringLiteral("automatic"), a.automatic},
             {QStringLiteral("reason"), a.automatic ? Apps::reason(a) : QString()},

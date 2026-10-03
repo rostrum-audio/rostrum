@@ -26,11 +26,11 @@ class Apps : public QObject
     QML_ELEMENT
     QML_SINGLETON
 
-    // Rows: {key, name, binary, matchKey, busId, busName, busColor, volume, muted, always, unnamed,
-    //        nodeIds, automatic, detail}. detail explains an automatic placement, or why an
+    // Rows: {key, name, icon, binary, matchKey, busId, busName, busColor, volume, muted, always,
+    //        unnamed, nodeIds, automatic, detail}. detail explains an automatic placement, or why an
     //        app Rostrum recognised was left where it is; empty for the user's own choices.
     Q_PROPERTY(QVariantList running READ running NOTIFY changed)
-    // Rows: {key, match, matchKey, label, busId, busName, busColor, lastSeen, running}
+    // Rows: {key, match, matchKey, label, icon, busId, busName, busColor, lastSeen, running}
     Q_PROPERTY(QVariantList rules READ rules NOTIFY changed)
     // The same rows as models, for views: rows update in place while their keys stay the same.
     Q_PROPERTY(rostrum::app::RowsModel *runningModel READ runningModel CONSTANT)
@@ -52,6 +52,9 @@ public:
     // "Steam game", "Its app menu entry lists it as a music player", ... Empty if Rostrum does
     // not recognise the app.
     static QString reason(const engine::AppStream &app);
+    // The first candidate the icon theme has, as an icon name, or a file URL for a path. Empty if
+    // none; views then show a generic app icon.
+    static QString iconFor(const QStringList &candidates);
 
     QVariantList running() const { return m_running; }
     QVariantList rules() const { return m_rules; }

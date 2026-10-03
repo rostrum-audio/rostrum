@@ -29,6 +29,13 @@ QQC2.Control {
 
         RowLayout {
             spacing: Kirigami.Units.largeSpacing
+            Kirigami.Icon {
+                source: row.app.icon || "application-x-executable"
+                fallback: "application-x-executable"
+                implicitWidth: Kirigami.Units.iconSizes.medium
+                implicitHeight: Kirigami.Units.iconSizes.medium
+                Accessible.ignored: true
+            }
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 0

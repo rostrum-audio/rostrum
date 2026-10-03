@@ -32,4 +32,8 @@ AppFacts collectFacts(const StreamProps &props, const QMap<QString, QString> &no
                       DesktopIndex &desktop, const std::function<bool(const QString &)> &isRostrumTarget,
                       const QString &procRoot = QStringLiteral("/proc"));
 
+// Icons that may show the app, best first: theme icon names or absolute paths. The Steam game's
+// own icon, then the app menu entry's, then what the stream reports, then its ids and binary.
+QStringList iconCandidates(const AppFacts &facts);
+
 } // namespace rostrum

@@ -133,9 +133,22 @@ AppFacts collectFacts(const StreamProps &props, const QMap<QString, QString> &no
     const QString name = isGenericAppName(props.appName) ? QString() : props.appName;
     if (const auto entry = desktop.find({f.appId, cleanBinary(props.binary), name, f.iconName})) {
         f.desktopId = entry->id;
+        f.desktopIcon = entry->icon;
         f.desktopCategories = entry->categories;
     }
     return f;
+}
+
+QStringList iconCandidates(const AppFacts &f)
+{
+    QStringList out;
+    if (!f.steamAppId.isEmpty()) {
+        out << QStringLiteral("steam_icon_") + f.steamAppId;
+    }
+    out << f.desktopIcon << f.iconName << f.appId << f.desktopId << cleanBinary(f.props.binary).toLower();
+    out.removeAll(QString());
+    out.removeDuplicates();
+    return out;
 }
 
 } // namespace rostrum

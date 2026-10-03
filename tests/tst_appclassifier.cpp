@@ -180,6 +180,12 @@ private Q_SLOTS:
         QVERIFY(e->tokens.contains(QStringLiteral("elisa")));
         QVERIFY(e->tokens.contains(QStringLiteral("elisa-wm")));
         QVERIFY(!e->tokens.contains(QStringLiteral("other")));
+        QVERIFY(e->icon.isEmpty());
+        const auto withIcon = rostrum::parseDesktopEntry(
+            QStringLiteral("[Desktop Entry]\nType=Application\nName=Brave\nIcon=brave-browser\nIcon[de]=x\n"),
+            QStringLiteral("brave-browser"));
+        QVERIFY(withIcon);
+        QCOMPARE(withIcon->icon, QStringLiteral("brave-browser"));
         QVERIFY(!rostrum::parseDesktopEntry(QStringLiteral("[Desktop Entry]\nType=Application\nHidden=true\n"),
                                             QStringLiteral("gone")));
     }
@@ -204,6 +210,22 @@ private Q_SLOTS:
         QVERIFY(chat);
         QCOMPARE(chat->id, QStringLiteral("vendor-chat"));
         QVERIFY(!index.find({QStringLiteral("missing")}));
+    }
+
+    void iconCandidatesBestFirst()
+    {
+        AppFacts f;
+        f.props.binary = QStringLiteral("/opt/brave.com/brave/Brave");
+        f.iconName = QStringLiteral("brave-browser");
+        f.desktopIcon = QStringLiteral("brave-browser");
+        f.desktopId = QStringLiteral("brave-browser");
+        QCOMPARE(iconCandidates(f), (QStringList{"brave-browser", "brave"}));
+
+        f.steamAppId = QStringLiteral("1145350");
+        f.desktopIcon = QStringLiteral("/home/x/.local/share/icons/game.png");
+        QCOMPARE(iconCandidates(f).first(), QStringLiteral("steam_icon_1145350"));
+        QCOMPARE(iconCandidates(f).at(1), QStringLiteral("/home/x/.local/share/icons/game.png"));
+        QVERIFY(iconCandidates(AppFacts{}).isEmpty());
     }
 
     void processFactsNeedTheRightBinary()

@@ -330,6 +330,11 @@ read could belong to an unrelated process. Flatpak apps are still identified by
 and Snap export directories. They are looked up by app id, binary, `Exec`, `TryExec`,
 `StartupWMClass`, icon and name, and rescanned at most once a minute when a lookup misses.
 
+App rows, saved rules and strip chips show the app's icon: for a Steam game `steam_icon_<appid>`,
+then the desktop entry's `Icon=`, then `application.icon-name`, then the app id and the binary,
+whichever the icon theme has first. A saved rule whose app is not running takes the icon of the
+desktop entry its match finds. With none, a generic app icon.
+
 The Apps page marks automatic rows **Auto** and states the evidence in plain words, and the strip
 chip's tooltip repeats it. Each placement is logged as `recognised "<app>" <id> as "<kind>"` and
 `route ... (automatic)`.

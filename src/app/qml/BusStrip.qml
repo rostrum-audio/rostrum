@@ -279,6 +279,7 @@ QQC2.Control {
                     Layout.fillWidth: true
                     appKey: modelData.key
                     appName: modelData.name
+                    appIcon: modelData.icon
                     automatic: modelData.automatic
                     reason: modelData.reason
                     busId: strip.busId

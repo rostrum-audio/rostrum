@@ -98,6 +98,7 @@ std::optional<DesktopEntry> parseDesktopEntry(const QString &text, const QString
     DesktopEntry e;
     e.id = id;
     e.name = keys.value(QStringLiteral("Name"));
+    e.icon = keys.value(QStringLiteral("Icon"));
     e.categories = keys.value(QStringLiteral("Categories")).split(QLatin1Char(';'), Qt::SkipEmptyParts);
     e.tokens << id.toLower();
     e.tokens << execTokens(keys.value(QStringLiteral("Exec")));

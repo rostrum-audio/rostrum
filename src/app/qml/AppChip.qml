@@ -11,6 +11,7 @@ QQC2.Control {
 
     required property string appKey
     required property string appName
+    property string appIcon
     property string busId
     property color busColor: Kirigami.Theme.highlightColor
     property bool automatic: false
@@ -41,6 +42,14 @@ QQC2.Control {
 
     contentItem: RowLayout {
         spacing: 0
+        Kirigami.Icon {
+            source: chip.appIcon || "application-x-executable"
+            fallback: "application-x-executable"
+            implicitWidth: Kirigami.Units.iconSizes.small
+            implicitHeight: Kirigami.Units.iconSizes.small
+            Layout.rightMargin: Kirigami.Units.smallSpacing
+            Accessible.ignored: true
+        }
         QQC2.Label {
             text: chip.appName
             elide: Text.ElideRight

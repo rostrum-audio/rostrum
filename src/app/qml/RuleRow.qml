@@ -46,6 +46,13 @@ QQC2.Control {
                 color: row.rule.busColor || Kirigami.Theme.disabledTextColor
                 radius: 2
             }
+            Kirigami.Icon {
+                source: row.rule.icon || "application-x-executable"
+                fallback: "application-x-executable"
+                implicitWidth: Kirigami.Units.iconSizes.smallMedium
+                implicitHeight: Kirigami.Units.iconSizes.smallMedium
+                Accessible.ignored: true
+            }
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 0

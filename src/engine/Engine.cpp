@@ -390,6 +390,7 @@ QList<AppStream> Engine::appStreams() const
         s.detected = r.detected;
         s.detectedName = r.facts.steamGameName;
         s.skipped = m_autoSkip.contains(r.skipKey);
+        s.iconNames = iconCandidates(r.facts);
         if (s.identity.unnamed && !s.detectedName.isEmpty()) {
             s.identity.displayName = s.detectedName;
             s.identity.unnamed = false;
@@ -408,6 +409,19 @@ QList<AppStream> Engine::appStreams() const
         const int c = a.identity.displayName.compare(b.identity.displayName, Qt::CaseInsensitive);
         return c != 0 ? c < 0 : a.nodeId < b.nodeId;
     });
+    return out;
+}
+
+QStringList Engine::ruleIconCandidates(const AppRule &rule) const
+{
+    QStringList out;
+    const QString match = rule.key == MatchKey::Binary ? cleanBinary(rule.match) : rule.match;
+    if (const auto entry = m_desktop.find({match, rule.label})) {
+        out << entry->icon << entry->id;
+    }
+    out << match.toLower();
+    out.removeAll(QString());
+    out.removeDuplicates();
     return out;
 }
 

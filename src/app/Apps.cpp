@@ -5,7 +5,11 @@
 #include <KFormat>
 #include <KLocalizedString>
 
+#include <QDir>
+#include <QFileInfo>
+#include <QIcon>
 #include <QJSEngine>
+#include <QUrl>
 
 namespace rostrum::app {
 
@@ -117,6 +121,29 @@ QString Apps::reason(const engine::AppStream &a)
     return {};
 }
 
+QString Apps::iconFor(const QStringList &candidates)
+{
+    static QHash<QString, QString> cache;
+    const QString cacheKey = candidates.join(QChar(u'\x1f'));
+    if (auto it = cache.constFind(cacheKey); it != cache.cend()) {
+        return it.value();
+    }
+    QString found;
+    for (const QString &c : candidates) {
+        if (QDir::isAbsolutePath(c)) {
+            if (QFileInfo(c).isFile()) {
+                found = QUrl::fromLocalFile(c).toString();
+                break;
+            }
+        } else if (QIcon::hasThemeIcon(c)) {
+            found = c;
+            break;
+        }
+    }
+    cache.insert(cacheKey, found);
+    return found;
+}
+
 void Apps::rebuild()
 {
     const engine::Engine *e = m_app->engine();
@@ -136,14 +163,18 @@ void Apps::rebuild()
     QVariantList running;
     QHash<QString, int> rowOf;
     QHash<QString, QStringList> targets;
-    QSet<QString> runningRuleKeys;
+    QHash<QString, QString> runningRuleIcons; // lower-case rule key -> icon of the app it placed
     QVariantMap unnamed;
     for (const auto &a : e->appStreams()) {
         const AppKey key = a.ruleKey.isValid() ? a.ruleKey : a.identity.key;
         const QString keyString = key.toString();
+        const QString icon = iconFor(a.iconNames);
         targets[keyString] << QStringLiteral("#%1").arg(a.nodeId);
         if (a.ruleKey.isValid()) {
-            runningRuleKeys.insert(a.ruleKey.toString().toLower());
+            const QString ruleKey = a.ruleKey.toString().toLower();
+            if (runningRuleIcons.value(ruleKey).isEmpty()) {
+                runningRuleIcons.insert(ruleKey, icon);
+            }
         }
         if (a.identity.unnamed && unnamed.isEmpty()) {
             unnamed = {{QStringLiteral("key"), keyString}, {QStringLiteral("binary"), a.identity.binary}};
@@ -175,6 +206,7 @@ void Apps::rebuild()
         running << QVariantMap{
             {QStringLiteral("key"), keyString},
             {QStringLiteral("name"), a.identity.displayName},
+            {QStringLiteral("icon"), icon},
             {QStringLiteral("binary"), a.identity.binary},
             {QStringLiteral("matchKey"), matchKeyName(key.key)},
             {QStringLiteral("busId"), bus ? bus->id : QString()},
@@ -195,7 +227,9 @@ void Apps::rebuild()
     for (const auto &r : scene.rules) {
         const Bus *bus = scene.bus(r.busId);
         const QString keyString = AppKey{r.key, r.match}.toString();
-        const bool isRunning = runningRuleKeys.contains(keyString.toLower());
+        const auto runningIcon = runningRuleIcons.constFind(keyString.toLower());
+        const bool isRunning = runningIcon != runningRuleIcons.cend();
+        const QString icon = isRunning && !runningIcon->isEmpty() ? *runningIcon : iconFor(e->ruleIconCandidates(r));
         QString seen;
         if (isRunning) {
             seen = i18nc("@info rule last seen", "Playing now");
@@ -210,6 +244,7 @@ void Apps::rebuild()
             {QStringLiteral("match"), r.match},
             {QStringLiteral("matchKey"), matchKeyName(r.key)},
             {QStringLiteral("label"), r.label},
+            {QStringLiteral("icon"), icon},
             {QStringLiteral("busId"), r.busId},
             {QStringLiteral("busName"), bus ? bus->name : r.busId},
             {QStringLiteral("busColor"), bus ? bus->color : QString()},

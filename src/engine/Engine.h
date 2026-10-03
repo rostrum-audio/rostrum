@@ -36,6 +36,7 @@ struct AppStream
     Classification detected;  // what Rostrum recognised, whether or not it placed it
     QString detectedName;     // e.g. the Steam game's name, empty if none
     bool skipped = false;     // the user took it off its automatic bus
+    QStringList iconNames;    // theme icon names or absolute paths, best first
     double volume = 1.0;
     bool muted = false;
 };
@@ -151,6 +152,8 @@ public:
 
     // Apps
     QList<AppStream> appStreams() const;
+    // Icons for a saved rule's app while it is not running, from the app menu, best first.
+    QStringList ruleIconCandidates(const AppRule &rule) const;
     // always = true writes a rule into the scene; false places the app for this launch only.
     void assignApp(const AppKey &key, const QString &busId, bool always);
     void unassignApp(const AppKey &key);
