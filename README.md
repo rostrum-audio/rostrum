@@ -221,7 +221,13 @@ or crashes. To remove Rostrum completely, quit it, delete the files above, and r
 
 ## ⬇️ Installation
 
-There are no packages yet, so Rostrum installs from source into your home folder. On Kubuntu 26.04:
+There are no packages yet, so Rostrum installs from source into your home folder: install the
+packages for your distro below, then build and install. Older releases can't build it: Rostrum
+needs Qt 6.5+, KDE Frameworks 6.8+, PipeWire 1.0+ and WirePlumber 0.5+.
+
+### 🟠 Kubuntu / Ubuntu
+
+Ubuntu 26.04 or newer (24.04 has Qt 6.4 and no KDE Frameworks 6):
 
 ```sh
 sudo apt install build-essential cmake ninja-build pkg-config extra-cmake-modules \
@@ -230,7 +236,41 @@ sudo apt install build-essential cmake ninja-build pkg-config extra-cmake-module
   libkf6i18n-dev libkf6globalaccel-dev libkf6statusnotifieritem-dev \
   qml6-module-org-kde-kirigami qml6-module-org-kde-kquickcontrols qml6-module-org-kde-desktop \
   qml6-module-org-kde-kirigamiaddons-formcard qml6-module-org-kde-kitemmodels \
-  qml6-module-qtquick-dialogs qml6-module-qtcore qt6-svg-plugins
+  qml6-module-qtquick-dialogs qml6-module-qtcore qt6-svg-plugins \
+  pipewire pipewire-pulse wireplumber
+```
+
+### 🎩 Fedora
+
+Fedora 43 or newer (checked on Fedora 44):
+
+```sh
+sudo dnf install gcc-c++ cmake ninja-build pkgconf-pkg-config extra-cmake-modules \
+  pipewire-devel tomlplusplus-devel qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtwebsockets-devel \
+  kf6-kirigami-devel kf6-kcoreaddons-devel kf6-kdbusaddons-devel kf6-ki18n-devel \
+  kf6-kglobalaccel-devel kf6-kstatusnotifieritem-devel \
+  kf6-kirigami-addons kf6-kdeclarative kf6-qqc2-desktop-style kf6-kitemmodels qt6-qtsvg \
+  pipewire pipewire-pulseaudio wireplumber
+```
+
+### 🔷 Arch Linux
+
+Arch is a rolling release; these packages were last checked on 3 October 2026 (Qt 6.11, KDE
+Frameworks 6.30):
+
+```sh
+sudo pacman -S --needed base-devel cmake ninja extra-cmake-modules tomlplusplus \
+  qt6-base qt6-declarative qt6-websockets qt6-svg \
+  kirigami kirigami-addons kcoreaddons kdbusaddons ki18n kglobalaccel kstatusnotifieritem \
+  kdeclarative qqc2-desktop-style kitemmodels \
+  pipewire pipewire-pulse wireplumber
+```
+
+### 🔨 Build and install
+
+From a clone of this repository (`git clone https://github.com/rostrum-audio/rostrum && cd rostrum`):
+
+```sh
 cmake -S . -B build -G Ninja
 cmake --build build
 cmake --install build --prefix ~/.local
@@ -241,16 +281,13 @@ Installing into `~/.local` adds the app menu entry, the icon and the System Sett
 ### 📋 Requirements
 
 - Linux with PipeWire 1.0 or newer and WirePlumber 0.5 or newer. PulseAudio is not used or required.
-- Qt 6.5+ (with Qt WebSockets), KDE Frameworks 6.8+ (Kirigami, Kirigami Addons, GlobalAccel,
-  StatusNotifierItem, CoreAddons, I18n, DBusAddons), toml++ 3.
+- Qt 6.5+ (Base, Declarative, WebSockets and SVG), KDE Frameworks 6.8+ (Kirigami, CoreAddons,
+  DBusAddons, GlobalAccel, I18n, StatusNotifierItem, and at run time KDeclarative, KItemModels and
+  QQC2 Desktop Style), Kirigami Addons, toml++ 3, CMake 3.22+ and a C++20 compiler.
 
-Base packages on other distros (add the Kirigami and KDE Frameworks packages above):
-
-| Distro | Packages |
-| --- | --- |
-| Debian, Ubuntu, Kubuntu | `build-essential` `pipewire` `pipewire-pulse` `wireplumber` `qt6-base-dev` `qt6-websockets-dev` `libpipewire-0.3-dev` `libtomlplusplus-dev` `cmake` `ninja-build` `pkg-config` |
-| Fedora | `pipewire` `pipewire-pulseaudio` `wireplumber` `qt6-qtbase-devel` `qt6-qtwebsockets-devel` `pipewire-devel` `tomlplusplus-devel` `gcc-c++` `cmake` `ninja-build` `pkgconf-pkg-config` |
-| Arch | `pipewire` `pipewire-pulse` `wireplumber` `qt6-base` `qt6-websockets` `tomlplusplus` `gcc` `cmake` `ninja` `pkgconf` |
+On another distro, install the same components under its own package names. CI builds the app on
+Ubuntu, Fedora and Arch with the lists above, runs the tests and starts it once to catch missing
+QML modules.
 
 Smoke-tested on **Kubuntu 26.04 LTS, KDE Plasma 6 on Wayland**, PipeWire 1.6.2, WirePlumber 0.5.13,
 Qt 6.10, KDE Frameworks 6.24.
