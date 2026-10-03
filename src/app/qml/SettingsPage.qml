@@ -88,6 +88,13 @@ QQC2.ScrollView {
                 icon.name: "application-exit"
                 onClicked: App.quit()
             }
+            FormCard.FormDelegateSeparator {}
+            FormCard.FormButtonDelegate {
+                text: i18nc("@action:button", "Restart Rostrum")
+                description: i18n("Quits and opens Rostrum again, for example after installing a new version. Audio keeps flowing meanwhile.")
+                icon.name: "view-refresh"
+                onClicked: App.restart(false)
+            }
         }
 
         FormCard.FormHeader {

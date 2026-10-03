@@ -13,7 +13,7 @@ namespace rostrum::app {
 class AppController;
 
 // The StatusNotifierItem Plasma hosts: show/hide, mute mic and stream, previous and next scene, a
-// scene submenu, Quit. Middle-click mutes the mic and the wheel moves the Stream master.
+// scene submenu, Restart, Quit. Middle-click mutes the mic and the wheel moves the Stream master.
 // The muted icon is a separate drawing with a badge, so the state does not rely on color.
 class Tray : public QObject
 {

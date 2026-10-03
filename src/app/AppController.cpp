@@ -528,4 +528,11 @@ void AppController::quit()
     QGuiApplication::quit();
 }
 
+void AppController::restart(bool hidden)
+{
+    m_scenes.flush();
+    saveSettingsNow();
+    Q_EMIT restartRequested(hidden);
+}
+
 } // namespace rostrum::app

@@ -504,7 +504,14 @@ with OBS closed, edits OBS's scene collection after backing it up.
 
 - Tray: a StatusNotifierItem, shown only when a tray host is registered
   (`org.kde.StatusNotifierWatcher`). Without a tray, closing the window quits instead of hiding.
-  The menu has Mute Mic, Mute Stream, Previous Scene, Next Scene and a Scenes submenu.
+  The menu has Mute Mic, Mute Stream, Previous Scene, Next Scene, a Scenes submenu, Restart Rostrum
+  and Quit.
+- Restart (tray, or Settings → General): quits as Quit does, then starts the same program again
+  with `--restart-after=<pid>`. The new copy waits up to 10 s for the old process to exit before
+  it takes the D-Bus name or touches PipeWire, so the two never overlap. A copy restarted from
+  the tray while the window was hidden gets `--start-hidden` and stays in the tray. An AppImage
+  restarts as `$APPIMAGE`; a binary replaced by a reinstall restarts as the new one. Self-updates
+  restart the same way.
   Middle-click toggles the mic; scrolling moves the Stream master 2 % per wheel step. The tooltip
   adds "Stream muted" while it is. Tray scene changes go through the same confirm dialog as the
   window.

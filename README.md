@@ -139,7 +139,8 @@ bring both back), sidetone on or off, mute headphones, Stream volume up and down
 When the Rostrum window is not in front, a hotkey that mutes, unmutes or switches scenes shows a
 short on-screen message (Settings → General → "Show hotkey changes on screen").
 
-The tray menu has Mute Mic, Mute Stream, Previous and Next Scene and a Scenes submenu.
+The tray menu has Mute Mic, Mute Stream, Previous and Next Scene, a Scenes submenu, Restart Rostrum
+(handy after installing a new build) and Quit.
 Middle-click the tray icon to mute or unmute the mic, scroll on it to change the Stream master.
 
 With a fader focused: Up/Down 1 %, Page Up/Down 10 %, M mute, S solo, 1/2/3 Headphones/Stream/Both.

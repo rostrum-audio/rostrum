@@ -50,5 +50,17 @@ int answerOffline(const Request &request);
 // Applies the control options in this process, which is the running instance.
 void apply(const Request &request, DBusControl &control);
 
+// Hidden options a restart gives the new copy: wait for the old process to exit first, and stay in
+// the tray if the window was hidden.
+inline constexpr char kRestartAfter[] = "restart-after";
+inline constexpr char kStartHidden[] = "start-hidden";
+// The program to start again: the AppImage itself rather than its mount, and the installed path
+// even after a reinstall replaced the running binary.
+QString restartProgram();
+// Arguments for the new copy of this process.
+QStringList restartArguments(bool hidden);
+// Waits until `pid` has exited, at most `timeoutMs`. False if it is still running.
+bool waitForExit(qint64 pid, int timeoutMs);
+
 } // namespace cli
 } // namespace rostrum::app

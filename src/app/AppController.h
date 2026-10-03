@@ -194,8 +194,12 @@ public:
     Q_INVOKABLE void copyToClipboard(const QString &text, const QString &toastText = QString());
     Q_INVOKABLE void saveSettingsNow();
     Q_INVOKABLE void quit();
+    // Quits as quit() does, then starts a new copy once this one has gone. `hidden` keeps the
+    // new copy in the tray.
+    Q_INVOKABLE void restart(bool hidden = false);
 
 Q_SIGNALS:
+    void restartRequested(bool hidden);
     void statusChanged();
     void devicesChanged();
     void levelsChanged();

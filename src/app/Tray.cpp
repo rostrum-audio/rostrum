@@ -67,6 +67,10 @@ Tray::Tray(AppController *app, QObject *parent) : QObject(parent), m_app(app)
     m_scenesMenu = m_menu->addMenu(QIcon::fromTheme(QStringLiteral("view-media-playlist")),
                                    i18nc("@title:menu", "Scenes"));
     m_menu->addSeparator();
+    QAction *restart = m_menu->addAction(QIcon::fromTheme(QStringLiteral("view-refresh")),
+                                         i18nc("@action:inmenu", "Restart Rostrum"));
+    connect(restart, &QAction::triggered, this,
+            [this] { m_app->restart(!(m_window && m_window->isVisible())); });
     QAction *quit = m_menu->addAction(QIcon::fromTheme(QStringLiteral("application-exit")),
                                       i18nc("@action:inmenu", "Quit"));
     connect(quit, &QAction::triggered, m_app, &AppController::quit);

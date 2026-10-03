@@ -56,6 +56,13 @@ int main(int argc, char *argv[])
     if (!request.errors.isEmpty()) {
         return rostrum::app::cli::kExitRefused;
     }
+    // A restart: the old copy still holds the single-instance name and its PipeWire links until it
+    // has exited.
+    if (const QString pid = parser.value(QString::fromLatin1(rostrum::app::cli::kRestartAfter)); !pid.isEmpty()) {
+        if (!rostrum::app::cli::waitForExit(pid.toLongLong(), 10000)) {
+            qWarning("Rostrum %s is still running", qPrintable(pid));
+        }
+    }
     if (request.hasControls() || request.hasQueries()) {
         if (rostrum::app::cli::instanceRunning()) {
             return rostrum::app::cli::forward(request);
@@ -125,16 +132,20 @@ int main(int argc, char *argv[])
     crashReports.start();
     rostrum::app::Updater updater(&controller, nullptr);
     updater.start();
-    // The new copy must not find this one still holding the single-instance name.
+    // A restart quits normally and starts the new copy at the very end; the new copy also waits for
+    // this process to exit, so the two never hold the name or the graph at once.
+    QString restartProgram;
+    QStringList restartArguments;
+    const auto restartLater = [&](const QString &program, bool hidden) {
+        controller.saveSettingsNow();
+        restartProgram = program;
+        restartArguments = rostrum::app::cli::restartArguments(hidden);
+        QCoreApplication::quit();
+    };
     QObject::connect(&updater, &rostrum::app::Updater::restartRequested, app.get(),
-                     [&](const QString &program) {
-                         controller.saveSettingsNow();
-                         service.unregister();
-                         if (!QProcess::startDetached(program, {})) {
-                             qWarning("Could not start %s", qPrintable(program));
-                         }
-                         QCoreApplication::quit();
-                     });
+                     [&](const QString &program) { restartLater(program, false); });
+    QObject::connect(&controller, &rostrum::app::AppController::restartRequested, app.get(),
+                     [&](bool hidden) { restartLater(rostrum::app::cli::restartProgram(), hidden); });
 
     QQmlApplicationEngine engine;
     KLocalization::setupLocalizedContext(&engine);
@@ -155,5 +166,12 @@ int main(int argc, char *argv[])
             QCoreApplication::quit();
         });
     }
-    return app->exec();
+    const int status = app->exec();
+    if (!restartProgram.isEmpty()) {
+        service.unregister();
+        if (!QProcess::startDetached(restartProgram, restartArguments)) {
+            qWarning("Could not start %s", qPrintable(restartProgram));
+        }
+    }
+    return status;
 }

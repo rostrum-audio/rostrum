@@ -1,6 +1,7 @@
 #include "app/Desktop.h"
 
 #include "app/AppController.h"
+#include "app/Cli.h"
 #include "app/Hotkeys.h"
 #include "app/Preferences.h"
 #include "app/Tray.h"
@@ -111,8 +112,10 @@ Desktop::Desktop(AppController *app, QObject *parent) : QObject(parent), m_app(a
                                               SLOT(checkTray()));
         checkTray();
     }
-    m_startHidden = m_tray && m_app->settings().startInTray && m_app->settings().wizardDone &&
-                    QCoreApplication::arguments().contains(QStringLiteral("--autostart"));
+    const QStringList args = QCoreApplication::arguments();
+    m_startHidden = m_tray && m_app->settings().wizardDone &&
+                    (args.contains(QStringLiteral("--") + QLatin1String(cli::kStartHidden)) ||
+                     (m_app->settings().startInTray && args.contains(QStringLiteral("--autostart"))));
 
     const QString oldAutostart = QFileInfo(paths::autostartFile()).dir().filePath(kOldAppId + QStringLiteral(".desktop"));
     if (m_enabled && QFileInfo::exists(oldAutostart) && QFile::remove(oldAutostart)) {

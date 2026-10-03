@@ -8,13 +8,18 @@
 
 #include <KLocalizedString>
 #include <QCommandLineParser>
+#include <QCoreApplication>
 #include <QDBusArgument>
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
 #include <QDBusMessage>
+#include <QElapsedTimer>
 #include <QLoggingCategory>
+#include <QThread>
 #include <algorithm>
+#include <cerrno>
 #include <cstdio>
+#include <signal.h>
 
 Q_DECLARE_LOGGING_CATEGORY(lcDBus)
 
@@ -110,6 +115,51 @@ void addOptions(QCommandLineParser &parser)
         {QStringLiteral("list-buses"),
          i18n("Print id, level, muted or unmuted, and name of each fader, separated by tabs.")},
     });
+    QCommandLineOption restartAfter(QString::fromLatin1(kRestartAfter), QString(), QStringLiteral("pid"));
+    restartAfter.setFlags(QCommandLineOption::HiddenFromHelp);
+    QCommandLineOption startHidden(QString::fromLatin1(kStartHidden));
+    startHidden.setFlags(QCommandLineOption::HiddenFromHelp);
+    parser.addOption(restartAfter);
+    parser.addOption(startHidden);
+}
+
+QString restartProgram()
+{
+    if (const QString appImage = qEnvironmentVariable("APPIMAGE"); !appImage.isEmpty()) {
+        return appImage;
+    }
+    QString program = QCoreApplication::applicationFilePath();
+    const QLatin1String deleted(" (deleted)");
+    if (program.endsWith(deleted)) {
+        program.chop(deleted.size());
+    }
+    return program;
+}
+
+QStringList restartArguments(bool hidden)
+{
+    QStringList args{QStringLiteral("--%1=%2").arg(QLatin1String(kRestartAfter)).arg(QCoreApplication::applicationPid())};
+    if (hidden) {
+        args << QStringLiteral("--%1").arg(QLatin1String(kStartHidden));
+    }
+    return args;
+}
+
+bool waitForExit(qint64 pid, int timeoutMs)
+{
+    if (pid <= 0) {
+        return true;
+    }
+    QElapsedTimer timer;
+    timer.start();
+    // kill(pid, 0) only asks whether the process exists; EPERM means it does, under another user.
+    while (::kill(pid_t(pid), 0) == 0 || errno == EPERM) {
+        if (timer.elapsed() >= timeoutMs) {
+            return false;
+        }
+        QThread::msleep(50);
+    }
+    return true;
 }
 
 Request parse(const QCommandLineParser &parser)

@@ -243,6 +243,11 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
    tooltip adds "Stream muted". Previous Scene and Next Scene step through the scenes.
    Middle-click the tray icon: the mic toggles. Scroll on the tray icon: the Stream master moves
    a little per wheel step, and the headphones level does not.
+9. With the window hidden, Tray menu → Restart Rostrum: the tray icon goes away and comes back
+   within a few seconds, the window stays hidden, and music playing through a bus never stops.
+   Open the window and restart from Settings → General → Restart Rostrum: the window comes back.
+   `pgrep -c rostrum` is 1 afterwards. Reinstall a new build while Rostrum runs and restart: the
+   change in the new build is there.
 
 Tray, hotkeys, start in tray and close to tray were checked with a script that runs Rostrum in a
 private D-Bus session with a headless nested KWin and a fake tray host, so nothing reaches the
