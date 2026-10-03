@@ -199,3 +199,26 @@ Tray, hotkeys, start in tray and close to tray were checked with a script that r
 private D-Bus session with a headless nested KWin and a fake tray host, so nothing reaches the
 real desktop. On GNOME, or anywhere without `org.kde.kglobalaccel`, hotkeys go through the XDG
 GlobalShortcuts portal instead. That path is untested so far.
+
+## Smoke test log
+
+Kubuntu 26.04, Plasma 6.6 Wayland, PipeWire 1.6.2, WirePlumber 0.5.13, build 0.1.0. The checks
+were scripted so that no test window, tray icon, shortcut or tone reached the real desktop: a
+private D-Bus session, a temp `XDG_CONFIG_HOME`, and either a private Xvfb display, a headless
+nested KWin with a fake tray host, or offscreen rendering. Fake devices were null sinks.
+
+| Check | Result |
+| --- | --- |
+| Keyboard only: F6 to the page, Tab to Game, Page Down ×2, M, 2, Ctrl+S | Saved scene has Game at 0.8, muted, destination Stream |
+| First-run wizard by mouse: Start, Next, Next, Create Mix (Test not pressed) | Mixer opens with the six default buses; `wizard_done = true`, `scenes/live.toml` written |
+| 200 % scale (`QT_SCALE_FACTOR=2`), window 1280×720 | All six strips fit, no overlapping controls |
+| Unplug the saved headset (fake), then plug it back | Banner and "PipeWire degraded"; Phones fall back to the default sink; app keeps running; routes come back and the banner clears |
+| Tray | Tooltip and menu follow the mic state and scene; Mute Mic from the tray mutes the header too; Show/Hide works |
+| Close the window (KWin closes it) | App keeps running in the tray |
+| Start in tray (`--autostart`) | No window until Show |
+| Global shortcuts through KGlobalAccel | All eight registered as `io.github.rostrum_audio.Rostrum`; invoking Mute mic toggles the mic; a shortcut KWin owns (Meta+D) is reported in Settings and stays in-window |
+| Unit tests | 7 of 7 pass |
+
+Still manual (needs hardware or a real session): tests 4 (mic path), 6 and 7 (quit and reboot
+routing with Discord), OBS capture, the real headset unplug, and the GlobalShortcuts portal on a
+non-Plasma desktop.

@@ -161,8 +161,10 @@ Scene sceneFrom(const toml::table &t)
 
 QString toText(const toml::table &t)
 {
+    // Fader levels are written as 0.8, not 0.80000000000000004; 15 digits is plenty for a fader.
     std::ostringstream out;
-    out << t << '\n';
+    out << toml::toml_formatter{t, toml::toml_formatter::default_flags | toml::format_flags::relaxed_float_precision}
+        << '\n';
     return QString::fromStdString(out.str());
 }
 

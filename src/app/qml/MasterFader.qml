@@ -75,8 +75,8 @@ RowLayout {
 
     QQC2.Label {
         text: Mixer.formatDb(master.value)
-        opacity: 0.7
-        visible: Mixer.showDb || slider.hovered || slider.activeFocus
+        // Fades rather than hides, so the slider does not change width under the pointer.
+        opacity: Mixer.showDb || slider.hovered || slider.activeFocus ? 0.7 : 0
         Layout.preferredWidth: Kirigami.Units.gridUnit * 3.5
         horizontalAlignment: Text.AlignRight
     }

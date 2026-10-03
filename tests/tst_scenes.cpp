@@ -62,6 +62,15 @@ private Q_SLOTS:
         QCOMPARE(toml_io::serializeScene(*back), text);
     }
 
+    void levelsAreWrittenShort()
+    {
+        Scene s = defaults::scene();
+        s.bus(QStringLiteral("game"))->volume = 0.8;
+        const QString text = toml_io::serializeScene(s);
+        QVERIFY2(text.contains(QStringLiteral("volume = 0.8\n")), qPrintable(text));
+        QCOMPARE(toml_io::parseScene(text)->bus(QStringLiteral("game"))->volume, 0.8);
+    }
+
     void neverWritesSolo()
     {
         const QString text = toml_io::serializeScene(sample());
