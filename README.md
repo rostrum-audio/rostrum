@@ -1,4 +1,9 @@
-# Rostrum
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/lockup-on-dark.svg">
+    <img alt="Rostrum" src="docs/brand/lockup.svg" height="72">
+  </picture>
+</h1>
 
 A stream mix console for Linux, not a patchbay.
 
