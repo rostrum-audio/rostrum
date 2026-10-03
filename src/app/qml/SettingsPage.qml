@@ -6,7 +6,7 @@ import org.kde.kirigamiaddons.formcard as FormCard
 import org.kde.kquickcontrols as KQuickControls
 import Rostrum
 
-// Plasma-style settings groups: General, Hotkeys, Mixer, Apps, Advanced, About.
+// Plasma-style settings groups: General, Hotkeys, Mixer, Apps, Privacy, Updates, Advanced, About.
 QQC2.ScrollView {
     id: page
 
@@ -182,6 +182,97 @@ QQC2.ScrollView {
         }
 
         FormCard.FormHeader {
+            title: i18nc("@title:group", "Privacy")
+        }
+        FormCard.FormCard {
+            FormCard.FormComboBoxDelegate {
+                text: i18nc("@label:listbox", "Crash reports")
+                description: i18n("A crash report shows where in Rostrum's code it crashed, and which versions of Rostrum, Linux, Qt and PipeWire were running. It never includes personal information, names, files or logs.")
+                readonly property var modes: ["send", "ask", "never"]
+                model: [i18nc("@item:inlistbox crash reports", "Send automatically"),
+                        i18nc("@item:inlistbox crash reports", "Ask after a crash"),
+                        i18nc("@item:inlistbox crash reports", "Never send")]
+                currentIndex: Math.max(0, modes.indexOf(CrashReports.mode))
+                onActivated: index => CrashReports.mode = modes[index]
+            }
+            FormCard.FormDelegateSeparator {}
+            FormCard.FormButtonDelegate {
+                text: i18nc("@action:button", "What a crash report contains")
+                description: i18n("See a complete example built from this computer.")
+                icon.name: "document-preview"
+                onClicked: exampleDialog.openExample()
+            }
+            FormCard.FormDelegateSeparator {
+                visible: CrashReports.pendingCount > 0
+            }
+            FormCard.FormButtonDelegate {
+                visible: CrashReports.pendingCount > 0
+                text: i18ncp("@action:button", "Review the unsent crash report", "Review %1 unsent crash reports", CrashReports.pendingCount)
+                description: i18n("Most recent crash: %1", CrashReports.lastCrashDate)
+                icon.name: "tools-report-bug"
+                onClicked: pendingDialog.openPending()
+            }
+        }
+
+        FormCard.FormHeader {
+            title: i18nc("@title:group", "Updates")
+        }
+        FormCard.FormCard {
+            FormCard.FormSwitchDelegate {
+                visible: Updates.canCheck
+                text: i18nc("@option:check", "Check for updates")
+                description: i18n("Once a day, Rostrum asks %1 for the newest version number. Nothing about you is sent.", Updates.feedHost)
+                checked: Updates.checkEnabled
+                onToggled: Updates.checkEnabled = checked
+            }
+            FormCard.FormDelegateSeparator {
+                visible: Updates.canCheck
+            }
+            FormCard.FormSwitchDelegate {
+                visible: Updates.canCheck
+                text: i18nc("@option:check", "Install updates automatically")
+                enabled: Updates.canInstall && Updates.checkEnabled
+                checked: Updates.canInstall && Updates.autoInstall
+                onToggled: Updates.autoInstall = checked
+                description: Updates.installKind === "appimage"
+                             ? (Updates.canInstall ? i18n("New versions download in the background, are checked against the release checksum, and start the next time you open Rostrum.")
+                                                   : i18n("Rostrum cannot write to the folder its AppImage is in, so it only tells you about new versions."))
+                             : Updates.installKind === "package"
+                               ? i18n("Your package manager installs Rostrum's updates. Rostrum tells you when one is out.")
+                               : i18n("This copy was built from source, so Rostrum tells you when a new version is out and links to what changed.")
+            }
+            FormCard.FormDelegateSeparator {
+                visible: Updates.canCheck
+            }
+            FormCard.FormButtonDelegate {
+                visible: Updates.canCheck
+                text: i18nc("@action:button", "Check now")
+                icon.name: "view-refresh"
+                enabled: Updates.state !== "checking" && Updates.state !== "downloading"
+                description: {
+                    const last = Updates.lastChecked ? i18nc("@info", "Last checked %1.", Updates.lastChecked) : i18nc("@info", "Not checked yet.")
+                    switch (Updates.state) {
+                    case "checking": return i18nc("@info", "Checking…")
+                    case "upToDate": return i18nc("@info", "Rostrum %1 is the newest version. %2", App.version, last)
+                    case "available": return Updates.errorText
+                                             ? i18nc("@info", "Rostrum %1 is available, but it could not be installed: %2", Updates.latestVersion, Updates.errorText)
+                                             : i18nc("@info", "Rostrum %1 is available. %2", Updates.latestVersion, last)
+                    case "downloading": return i18nc("@info", "Downloading Rostrum %1…", Updates.latestVersion)
+                    case "ready": return i18nc("@info", "Rostrum %1 is installed and starts the next time you open Rostrum.", Updates.latestVersion)
+                    case "error": return i18nc("@info", "Could not check: %1 %2", Updates.errorText, last)
+                    default: return i18nc("@info", "You have Rostrum %1. %2", App.version, last)
+                    }
+                }
+                onClicked: Updates.checkNow()
+            }
+            FormCard.FormTextDelegate {
+                visible: !Updates.canCheck
+                text: i18n("Flatpak keeps Rostrum up to date through Discover or your software center.")
+                textItem.wrapMode: Text.WordWrap
+            }
+        }
+
+        FormCard.FormHeader {
             title: i18nc("@title:group", "Advanced")
         }
         FormCard.FormCard {
@@ -259,6 +350,13 @@ QQC2.ScrollView {
                 onClicked: Qt.openUrlExternally(Preferences.readmeUrl)
             }
         }
+    }
+
+    CrashReportDialog {
+        id: exampleDialog
+    }
+    CrashReportDialog {
+        id: pendingDialog
     }
 
     Kirigami.PromptDialog {

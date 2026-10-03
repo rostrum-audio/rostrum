@@ -34,6 +34,11 @@
   before Rostrum starts at your next login.
 - 🛟 **Safe by design.** The virtual devices live in PipeWire, so audio keeps flowing if Rostrum
   quits or crashes.
+- 🔒 **Private crash reports, your call.** After a crash Rostrum asks before sending anything, and a
+  report holds only the crash location and software versions: no names, paths or device names.
+  You can read the exact report first. See [docs/privacy.md](docs/privacy.md).
+- ⬆️ **Stays up to date.** A daily check announces new versions. The AppImage updates itself after
+  checking the release checksum, and package installs are left to the package manager.
 
 
 ## ℹ️ Overview
@@ -62,10 +67,17 @@ Rostrum is made by [Rostrum Audio](https://github.com/rostrum-audio). More at
 Five minutes to a split stream:
 
 1. **Start Rostrum** from the app menu (after installing, see below) or run `./build/src/app/rostrum`.
-2. **Run the wizard.** Welcome → Headphones (press Test: a short chime plays only there) → Mic (speak
-   and watch its meter) → Buses → **Create Mix**. Skip creates the same mix with the defaults.
+2. **Run first-time setup.** Seven short steps, with a summary at the end:
+   - **Headphones:** press Test and a short chime plays only there.
+   - **Mic:** speak and watch its meter.
+   - **Apps and Buses:** whether apps go to their bus automatically, and which kind of app each bus receives.
+   - **Startup:** launch at login (recommended) and start hidden in the tray.
+   - **Privacy and Updates:** crash reports (send, ask, or never) and update checks.
+   - **Ready:** each choice in one list. Click one to change it, then press **Create Mix**.
 
-   ![First-run wizard, step 1 of 4: apps go to buses, buses go to your headphones and to OBS](docs/screenshots/wizard.png)
+   Skip Setup creates the same mix with the defaults. Everything can be changed later in Settings.
+
+   ![First-time setup, step 1 of 7: a step list on the left, and how apps go to buses and buses go to your headphones and to OBS](docs/screenshots/wizard.png)
 
 3. **Put apps on buses.** Start Discord, your game and Spotify. Rostrum recognises most apps and
    puts them on the matching bus by itself; the Apps page marks those **Auto** and says why ("Steam
@@ -116,11 +128,16 @@ F6 moves focus between the header, the sidebar and the page.
   of app; Desktop gets everything else that is recognised. The Mic bus receives nothing.
 - Solo is not saved in the scene.
 - Close window hides to tray (when the desktop has one). Quit from the tray or Settings.
-- Scroll-to-adjust faders: on. Confirm scene switch: off. Launch at login: off.
+- Scroll-to-adjust faders: on. Confirm scene switch: off. Launch at login: off until you turn it
+  on (setup recommends it).
+- Crash reports: ask after a crash. Update checks: once a day. Automatic install: on, for the
+  AppImage only.
 
 ### 🗂️ Where things live
 
 - Settings and scenes: `~/.config/rostrum/` (TOML). Log: `~/.local/state/rostrum/rostrum.log`.
+- Crash files waiting to be sent or discarded: `~/.local/state/rostrum/crashes/` (at most 10,
+  none older than 30 days).
 - App rules for the next login: `~/.config/pipewire/pipewire-pulse.conf.d/50-rostrum.conf` and
   `~/.config/pipewire/client.conf.d/50-rostrum.conf`. Nothing is written to `~/.config/wireplumber/`.
 - Autostart, when on: `~/.config/autostart/dev.getrostrum.Rostrum.desktop`.
@@ -187,12 +204,16 @@ ctest --test-dir build
 ```
 
 Configure with `-DROSTRUM_BUILD_APP=OFF` to build only the engine, tools and tests (CI does this).
-Logs go to `~/.local/state/rostrum/rostrum.log`; a crash appends a backtrace there.
+Logs go to `~/.local/state/rostrum/rostrum.log`; a crash appends a backtrace there and writes a
+crash file for the report. `-DROSTRUM_UPDATE_URL=…` and `-DROSTRUM_CRASH_URL=…` point updates and
+crash reports at your own servers. Development runs talk to a local server through the
+environment variables of the same names; see [docs/privacy.md](docs/privacy.md).
 
 
 ## 📖 Further reading
 
 - [How the audio side works, and why](docs/audio.md)
+- [Crash reports and updates: what is sent, and when](docs/privacy.md)
 - [Manual test plan](docs/manual-tests.md)
 - [Security policy](SECURITY.md)
 - [getrostrum.dev](https://getrostrum.dev)

@@ -95,6 +95,7 @@ QString serializeSettings(const Settings &s)
         {"general",
          toml::table{
              {"wizard_done", s.wizardDone},
+             {"setup_version", s.setupVersion},
              {"launch_at_login", s.launchAtLogin},
              {"start_in_tray", s.startInTray},
              {"confirm_scene_switch", s.confirmSceneSwitch},
@@ -102,6 +103,14 @@ QString serializeSettings(const Settings &s)
          }},
         {"mixer", toml::table{{"meter_speed", s.meterSpeed.toStdString()}, {"show_db", s.showDb}}},
         {"apps", toml::table{{"auto_assign", s.autoAssign}, {"auto_skip", skip}}},
+        {"privacy", toml::table{{"crash_reports", s.crashReports.toStdString()}}},
+        {"updates",
+         toml::table{
+             {"check", s.checkUpdates},
+             {"install", s.installUpdates},
+             {"skipped_version", s.skippedVersion.toStdString()},
+             {"last_check", int64_t(s.lastUpdateCheck)},
+         }},
         {"advanced", toml::table{{"show_node_ids", s.showNodeIds}}},
         {"scenes", toml::table{{"default", s.defaultScene.toStdString()}}},
         {"devices", toml::table{{"headphones", s.headphones.toStdString()}, {"mic", s.mic.toStdString()}}},
@@ -132,6 +141,8 @@ Settings parseSettings(const QString &text, QString *error)
         return s;
     }
     s.wizardDone = get(t, "general", "wizard_done", s.wizardDone);
+    // Files from before setup was versioned saw only the device steps.
+    s.setupVersion = int(get<int64_t>(t, "general", "setup_version", s.wizardDone ? 1 : 0));
     s.launchAtLogin = get(t, "general", "launch_at_login", s.launchAtLogin);
     s.startInTray = get(t, "general", "start_in_tray", s.startInTray);
     s.confirmSceneSwitch = get(t, "general", "confirm_scene_switch", s.confirmSceneSwitch);
@@ -150,6 +161,14 @@ Settings parseSettings(const QString &text, QString *error)
         }
         s.autoSkip.removeDuplicates();
     }
+    s.crashReports = getStr(t, "privacy", "crash_reports", s.crashReports);
+    if (s.crashReports != QLatin1String(crashmode::kSend) && s.crashReports != QLatin1String(crashmode::kNever)) {
+        s.crashReports = QString::fromLatin1(crashmode::kAsk);
+    }
+    s.checkUpdates = get(t, "updates", "check", s.checkUpdates);
+    s.installUpdates = get(t, "updates", "install", s.installUpdates);
+    s.skippedVersion = getStr(t, "updates", "skipped_version", s.skippedVersion);
+    s.lastUpdateCheck = get<int64_t>(t, "updates", "last_check", s.lastUpdateCheck);
     s.showNodeIds = get(t, "advanced", "show_node_ids", s.showNodeIds);
     s.defaultScene = getStr(t, "scenes", "default", s.defaultScene);
     s.headphones = getStr(t, "devices", "headphones", s.headphones);

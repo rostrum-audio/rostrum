@@ -4,6 +4,8 @@ add_library(rostrum_core STATIC
     Requirements.cpp Requirements.h
     Model.cpp Model.h
     AppIdentity.cpp AppIdentity.h
+    CrashReport.cpp CrashReport.h
+    UpdateFeed.cpp UpdateFeed.h
     AppClassifier.cpp AppClassifier.h
     AppFacts.cpp AppFacts.h
     DesktopEntries.cpp DesktopEntries.h

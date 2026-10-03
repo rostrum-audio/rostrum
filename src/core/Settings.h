@@ -22,10 +22,21 @@ QString label(const QString &id);
 QString defaultShortcut(const QString &id);
 } // namespace actions
 
+// Bumped when first-run setup gains a step that existing users should see once. 1 = devices and
+// buses, 2 = startup, crash reports and updates.
+inline constexpr int kSetupVersion = 2;
+
+namespace crashmode {
+inline constexpr const char *kSend = "send";
+inline constexpr const char *kAsk = "ask";
+inline constexpr const char *kNever = "never";
+} // namespace crashmode
+
 struct Settings
 {
     // General
     bool wizardDone = false;
+    int setupVersion = 0;
     bool launchAtLogin = false;
     bool startInTray = false;
     bool confirmSceneSwitch = false;
@@ -36,6 +47,13 @@ struct Settings
     // Apps
     bool autoAssign = true;  // place recognised apps on the bus for their kind
     QStringList autoSkip;    // app keys the user took off their automatic bus
+    // Privacy: what happens to a crash report on the next start
+    QString crashReports = QString::fromLatin1(crashmode::kAsk);
+    // Updates
+    bool checkUpdates = true;
+    bool installUpdates = true; // only where Rostrum can replace itself (AppImage)
+    QString skippedVersion;
+    qint64 lastUpdateCheck = 0; // seconds since the epoch
     // Advanced
     bool showNodeIds = false;
     // Scenes

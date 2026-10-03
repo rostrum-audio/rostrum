@@ -38,6 +38,7 @@ Kirigami.ApplicationWindow {
     Component.onCompleted: {
         width = App.windowWidth
         height = App.windowHeight
+        offerTimer.start()
     }
     onWidthChanged: if (visibility === Window.Windowed) App.windowWidth = width
     onHeightChanged: if (visibility === Window.Windowed) App.windowHeight = height
@@ -117,6 +118,44 @@ Kirigami.ApplicationWindow {
     Shortcut {
         sequences: ["Ctrl+M"]
         onActivated: App.toggleMicMute()
+    }
+
+    // One-time and after-crash questions wait until the window is actually on screen.
+    property bool crashAsked: false
+    function offerDialogs() {
+        if (!root.visible || App.pipewireState === "missing" || setupUpdateDialog.opened || crashDialog.opened) {
+            return
+        }
+        if (App.setupUpdateNeeded) {
+            setupUpdateDialog.open()
+        } else if (CrashReports.askNow && !root.crashAsked) {
+            root.crashAsked = true
+            crashDialog.openPending()
+        }
+    }
+    Timer {
+        id: offerTimer
+        interval: 800
+        onTriggered: root.offerDialogs()
+    }
+    onVisibleChanged: if (visible) offerTimer.restart()
+    Connections {
+        target: CrashReports
+        function onChanged() {
+            offerTimer.restart()
+        }
+    }
+
+    CrashReportDialog {
+        id: crashDialog
+    }
+    SetupUpdateDialog {
+        id: setupUpdateDialog
+        onExampleRequested: exampleDialog.openExample()
+        onClosed: offerTimer.restart()
+    }
+    CrashReportDialog {
+        id: exampleDialog
     }
 
     Kirigami.PromptDialog {

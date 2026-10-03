@@ -60,6 +60,8 @@ class AppController : public QObject
     Q_PROPERTY(int windowHeight READ windowHeight WRITE setWindowHeight NOTIFY windowStateChanged)
     Q_PROPERTY(bool confirmSceneSwitch READ confirmSceneSwitch NOTIFY settingsChanged)
     Q_PROPERTY(bool wizardDone READ wizardDone NOTIFY settingsChanged)
+    // Setup steps added since this user finished setup (startup, privacy, updates); shown once.
+    Q_PROPERTY(bool setupUpdateNeeded READ setupUpdateNeeded NOTIFY settingsChanged)
     // Bus id the Apps page filters to when opened from a strip's "+N"; empty = all.
     Q_PROPERTY(QString appsFilter READ appsFilter WRITE setAppsFilter NOTIFY appsFilterChanged)
 
@@ -125,6 +127,8 @@ public:
     void setWindowHeight(int h);
     bool confirmSceneSwitch() const { return m_settings.confirmSceneSwitch; }
     bool wizardDone() const { return m_settings.wizardDone; }
+    bool setupUpdateNeeded() const { return m_settings.wizardDone && m_settings.setupVersion < kSetupVersion; }
+    bool setupComplete() const { return m_settings.wizardDone && m_settings.setupVersion >= kSetupVersion; }
     QString appsFilter() const { return m_appsFilter; }
     void setAppsFilter(const QString &busId)
     {
@@ -147,6 +151,8 @@ public:
     // Wizard: finish once the mix exists; skip creates the mix with defaults and finishes too.
     Q_INVOKABLE void finishWizard();
     Q_INVOKABLE void skipWizard();
+    // Existing users: the new setup choices were made (or the dialog was closed with defaults).
+    Q_INVOKABLE void finishSetupUpdate();
     Q_INVOKABLE void copyToClipboard(const QString &text, const QString &toastText = QString());
     Q_INVOKABLE void saveSettingsNow();
     Q_INVOKABLE void quit();

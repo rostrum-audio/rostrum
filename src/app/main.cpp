@@ -1,5 +1,6 @@
 #include "app/AppController.h"
 #include "app/Apps.h"
+#include "app/CrashReports.h"
 #include "app/Desktop.h"
 #include "app/Devices.h"
 #include "app/Logging.h"
@@ -7,6 +8,7 @@
 #include "app/Obs.h"
 #include "app/Preferences.h"
 #include "app/Scenes.h"
+#include "app/Updater.h"
 #include "core/Paths.h"
 
 #include <KAboutData>
@@ -16,6 +18,7 @@
 
 #include <QApplication>
 #include <QIcon>
+#include <QProcess>
 #include <QQmlApplicationEngine>
 #include <QQuickStyle>
 #include <QQuickWindow>
@@ -24,7 +27,7 @@
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
-    rostrum::logging::install(rostrum::paths::logFile());
+    rostrum::logging::install(rostrum::paths::logFile(), rostrum::paths::crashDir());
 
     KLocalizedString::setApplicationDomain("rostrum");
     KAboutData about(QStringLiteral("Rostrum"), i18n("Rostrum"), QStringLiteral(ROSTRUM_VERSION),
@@ -63,6 +66,19 @@ int main(int argc, char *argv[])
     rostrum::app::Desktop desktop(&controller, nullptr);
     rostrum::app::Preferences preferences(&controller, nullptr);
     rostrum::app::Obs obs(&controller, nullptr);
+    rostrum::app::CrashReports crashReports(&controller, nullptr);
+    crashReports.start();
+    rostrum::app::Updater updater(&controller, nullptr);
+    updater.start();
+    // The new copy must not find this one still holding the single-instance name.
+    QObject::connect(&updater, &rostrum::app::Updater::restartRequested, &app, [&](const QString &program) {
+        controller.saveSettingsNow();
+        service.unregister();
+        if (!QProcess::startDetached(program, {})) {
+            qWarning("Could not start %s", qPrintable(program));
+        }
+        QCoreApplication::quit();
+    });
 
     QQmlApplicationEngine engine;
     KLocalization::setupLocalizedContext(&engine);

@@ -139,18 +139,34 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
 6. Using only the keyboard, tab to a fader and press Page Up, M, S, 1, 2 and 3. Each key does what
    its tooltip says, and the focus ring is always visible.
 
-## 9. First-run wizard
+## 9. First-time setup
 
 1. Move `~/.config/rostrum` aside and tear the buses down (`$B --teardown`). Start Rostrum.
-2. The wizard shows Welcome with the diagram. `wpctl status` shows no Rostrum nodes yet.
-3. Start. On Headphones, press Test on your headset: you hear a short chime there and nowhere
-   else, the first note on the left, the second on the right. Pick it. The star moves to it.
+2. Setup opens on Welcome, with the seven steps listed on the left and the diagram. `wpctl status`
+   shows no Rostrum nodes yet.
+3. Get Started. On Headphones, press Test on your headset: you hear a short chime there and
+   nowhere else, the first note on the left, the second on the right. Pick it. The star moves to it.
 4. Next. On Mic, speak: only your mic's meter moves. Press Mute Mic: the header button turns
    red too. Unmute.
-5. Next. The six buses show their destinations (Music → Stream, the rest Both, Mic → Stream).
-   Press Create Mix: a spinner shows, then the Mixer opens. `~/.config/rostrum/scenes/live.toml`
-   exists and `settings.toml` has `wizard_done = true`.
-6. Repeat from step 1, but press Skip on Welcome: the Mixer opens and the nodes exist anyway.
+5. Next. Apps and Buses lists the six buses with what each receives (Game receives Games, Desktop
+   receives Everything else, Mic says Your mic) and where each goes. Turn "Put apps on buses
+   automatically" off: every line changes to "Apps you drag here". Turn it back on.
+6. Next. On Startup, turn on "Launch Rostrum at login":
+   `~/.config/autostart/dev.getrostrum.Rostrum.desktop` appears at once.
+7. Next. On Privacy and Updates, "Ask me after a crash" is selected. Press See an Example Report:
+   it shows your distribution, desktop and versions, and no user name, path or device name.
+   Pick Never send. The update switches match how this copy was installed (test 14).
+8. Next. Ready lists each choice. Click Crash reports: setup goes back to Privacy and Updates. The
+   finished steps on the left show check marks and can be clicked; later steps cannot.
+9. Go to Ready and press Create Mix: a spinner shows, then the Mixer opens.
+   `~/.config/rostrum/scenes/live.toml` exists, and `settings.toml` has `wizard_done = true`,
+   `setup_version = 2` and `crash_reports = 'never'`.
+10. Repeat from step 1, but press Skip Setup on Welcome: the Mixer opens and the nodes exist
+    anyway. Crash reports stay on Ask.
+11. People who set Rostrum up before 0.1.0 got these choices: in `settings.toml`, delete the
+    `setup_version` line and the `[privacy]` and `[updates]` tables, and start Rostrum. The Mixer
+    opens with a one-time "Crash Reports and Updates" dialog. Done closes it and writes
+    `setup_version = 2`, and it does not come back.
 
 ## 10. Apps, Scenes, Devices, OBS and Settings pages
 
@@ -239,6 +255,56 @@ Start from a scene with no rules and "Assign automatically" on.
 6. Turn "Assign automatically" off: every Auto row goes back to the default sink; rule-based apps
    do not move.
 
+## 13. Crash reports
+
+Use a copy of Rostrum started from a terminal, not one that holds your real session's audio.
+`kill -SEGV` makes it crash. The buses stay up, as in test 6.
+
+1. With crash reports on Ask, start Rostrum and run `kill -SEGV $(pgrep -x rostrum)`. A file
+   `~/.local/state/rostrum/crashes/crash-<time>.txt` appears (mode 0600), and `rostrum.log`
+   ends with a backtrace.
+2. Start Rostrum again. After a moment it asks to send a report. Press Show the Report: the JSON
+   has the signal, the frames as `library symbol+offset`, and the versions. It contains no user
+   name, no `/home` path, no device name and no `[0x…]` address.
+3. Press Don't Send: the crash file is deleted, and the next start does not ask again.
+4. Crash again and answer Send Report. Without a network connection the file stays and is sent at
+   a later start. With one, it is deleted. To see exactly what goes over the wire, run a local
+   server and start Rostrum with `ROSTRUM_CRASH_URL=http://127.0.0.1:8765/crash`.
+5. Tick "Send reports without asking from now on" in the dialog: Settings → Privacy now says
+   Send automatically, and the next crash is sent at start without a dialog.
+6. Set Never send and crash again. At the next start the crash file is deleted, nothing is sent,
+   and nothing is asked.
+
+## 14. Updates
+
+Serve a feed from a local folder (`python3 -m http.server 8765`) with a `latest.json` in the
+format from [privacy.md](privacy.md), and start Rostrum with
+`ROSTRUM_UPDATE_URL=http://127.0.0.1:8765/latest.json`. With the variable set, the first check runs
+at once instead of after 20 seconds.
+
+1. Source build, feed version 0.2.0: a banner says 0.2.0 is out and to pull and rebuild, with
+   What's New and Skip This Version. What's New opens the feed's notes. Skip This Version hides
+   the banner, and it stays hidden after a restart. Settings → Updates → Check now still says
+   whether you are up to date.
+2. Installed into `/usr` (or with `$SNAP` set): the banner says to update from the software center
+   or package manager, and the automatic install switch is off and disabled.
+3. AppImage: start Rostrum with `APPIMAGE=/tmp/rt/Rostrum.AppImage` pointing at a writable copy,
+   and give the feed the SHA-256 and size of a different file as the new AppImage. The banner
+   shows the download progress, then "Rostrum 0.2.0 is installed" with Restart Now. The file at
+   `$APPIMAGE` is now the new one, with mode 755, and no `.part` file is left.
+4. Same, with a wrong `sha256` in the feed: the old AppImage is untouched and the `.part` file is
+   gone. The banner falls back to "Rostrum 0.2.0 is available" with Install, and Settings →
+   Updates says it could not be installed because the download does not match the release
+   checksum.
+5. Turn off "Install updates automatically": the next new version shows a banner with Install
+   instead of downloading on its own.
+6. Turn off "Check for updates": no request reaches the server for the rest of the run, even
+   with Settings → Updates open.
+7. A feed with `"version": "0.3.0-rc1"`, or a GitHub release with `"prerelease": true`, is never
+   offered.
+8. Run with `FLATPAK_ID=dev.getrostrum.Rostrum`: Settings → Updates says Flatpak keeps Rostrum up
+   to date, and there are no switches.
+
 ## Smoke test log
 
 Kubuntu 26.04, Plasma 6.6 Wayland, PipeWire 1.6.2, WirePlumber 0.5.13, build 0.1.0. The checks
@@ -257,8 +323,13 @@ nested KWin with a fake tray host, or offscreen rendering. Fake devices were nul
 | Start in tray (`--autostart`) | No window until Show |
 | Global shortcuts through KGlobalAccel | All eight registered as `dev.getrostrum.Rostrum`; invoking Mute mic toggles the mic; a shortcut KWin owns (Meta+D) is reported in Settings and stays in-window |
 | Automatic assignment with stand-in streams (Discord, Spotify, Streamer.bot, Firefox, an unknown game with `media.role = "Game"`) and the real OBS | Each lands on Voice, Music, Alerts, Desktop and Game with the reason shown; OBS is recognised and left alone; no fragment file changes |
-| Unit tests | 10 of 10 pass |
+| First-time setup, each step rendered in a headless nested KWin and offscreen at 1280×720 | Step list marks finished steps; no layout overlap; no QML warnings |
+| Existing settings with `wizard_done = true` and no `setup_version` | The one-time Crash Reports and Updates dialog opens over the Mixer, with no binding loops |
+| `kill -SEGV` on a test instance, crash reports on Send, local test server | Crash file written; at the next start one report is posted and the file deleted; the report has no user name, path, device name or absolute address; `addr2line` resolves its frames |
+| Update feed 0.2.0 from a local server, as an AppImage | Download checked against SHA-256, AppImage replaced with mode 755, Restart Now offered; no cookies sent; `User-Agent: Rostrum/0.1.0` |
+| Same, with a wrong checksum | Refused; the old AppImage kept; no `.part` file left |
+| Unit tests | 11 of 11 pass |
 
 Still manual (needs hardware or a real session): tests 4 (mic path), 6 and 7 (quit and reboot
-routing with Discord), OBS capture, the real headset unplug, and the GlobalShortcuts portal on a
-non-Plasma desktop.
+routing with Discord), OBS capture, the real headset unplug, the GlobalShortcuts portal on a
+non-Plasma desktop, and crash reports and updates against the real getrostrum.dev endpoints.

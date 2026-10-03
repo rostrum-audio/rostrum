@@ -323,6 +323,7 @@ void AppController::finishWizard()
         return;
     }
     m_settings.wizardDone = true;
+    m_settings.setupVersion = kSetupVersion;
     m_settings.lastPage = QStringLiteral("mixer");
     if (m_scenes.dirty()) {
         m_scenes.save();
@@ -336,6 +337,16 @@ void AppController::skipWizard()
 {
     m_engine.createMix();
     finishWizard();
+}
+
+void AppController::finishSetupUpdate()
+{
+    if (!setupUpdateNeeded()) {
+        return;
+    }
+    m_settings.setupVersion = kSetupVersion;
+    saveSettingsNow();
+    Q_EMIT settingsChanged();
 }
 
 void AppController::copyToClipboard(const QString &text, const QString &toastText)

@@ -269,6 +269,30 @@ bus = "game"
         // Window size never drops below the minimum.
         QCOMPARE(parseSettings(QStringLiteral("[window]\nwidth = 100\nheight = 100\n")).windowWidth, 960);
     }
+
+    void settingsPrivacyAndUpdates()
+    {
+        const Settings d = defaultSettings();
+        QCOMPARE(d.crashReports, QStringLiteral("ask"));
+        QVERIFY(d.checkUpdates);
+        QCOMPARE(d.setupVersion, 0);
+
+        Settings s = d;
+        s.wizardDone = true;
+        s.setupVersion = kSetupVersion;
+        s.crashReports = QStringLiteral("never");
+        s.checkUpdates = false;
+        s.installUpdates = false;
+        s.skippedVersion = QStringLiteral("0.2.0");
+        s.lastUpdateCheck = 1791000000;
+        QCOMPARE(parseSettings(serializeSettings(s)), s);
+
+        // Anything but the three modes means "ask", never "send".
+        QCOMPARE(parseSettings(QStringLiteral("[privacy]\ncrash_reports = 'yes'\n")).crashReports, QStringLiteral("ask"));
+        // A file from before setup was versioned saw only the device steps.
+        QCOMPARE(parseSettings(QStringLiteral("[general]\nwizard_done = true\n")).setupVersion, 1);
+        QCOMPARE(parseSettings(QStringLiteral("[general]\nwizard_done = false\n")).setupVersion, 0);
+    }
 };
 
 QTEST_GUILESS_MAIN(TestScenes)

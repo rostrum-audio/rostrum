@@ -25,6 +25,7 @@ QString scenesDir() { return configDir() + QStringLiteral("/scenes"); }
 QString settingsFile() { return configDir() + QStringLiteral("/settings.toml"); }
 QString stateDir() { return stateHome() + QStringLiteral("/rostrum"); }
 QString logFile() { return stateDir() + QStringLiteral("/rostrum.log"); }
+QString crashDir() { return stateDir() + QStringLiteral("/crashes"); }
 
 QString autostartFile()
 {

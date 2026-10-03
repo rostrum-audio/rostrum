@@ -54,4 +54,46 @@ ColumnLayout {
             onTriggered: App.createMix()
         }
     }
+
+    Kirigami.InlineMessage {
+        Layout.fillWidth: true
+        position: Kirigami.InlineMessage.Position.Header
+        type: Updates.state === "ready" ? Kirigami.MessageType.Positive : Kirigami.MessageType.Information
+        visible: Updates.showBanner || Updates.state === "downloading"
+        text: Updates.state === "ready"
+              ? i18n("Rostrum %1 is installed. Restart Rostrum to start using it; your mix keeps playing meanwhile.", Updates.latestVersion)
+              : Updates.state === "downloading"
+                ? i18n("Downloading Rostrum %1… %2%", Updates.latestVersion, Math.round(Updates.progress * 100))
+                : Updates.installKind === "appimage" && Updates.canInstall
+                  ? i18n("Rostrum %1 is available.", Updates.latestVersion)
+                  : Updates.installKind === "package"
+                    ? i18n("Rostrum %1 is available. Update it from your software center or package manager.", Updates.latestVersion)
+                    : i18n("Rostrum %1 is available. Pull and rebuild the source to update.", Updates.latestVersion)
+        actions: [
+            Kirigami.Action {
+                visible: Updates.state === "ready"
+                text: i18nc("@action:button", "Restart Now")
+                icon.name: "view-refresh"
+                onTriggered: Updates.restart()
+            },
+            Kirigami.Action {
+                visible: Updates.state === "available" && Updates.canInstall
+                text: i18nc("@action:button", "Install")
+                icon.name: "download"
+                onTriggered: Updates.install()
+            },
+            Kirigami.Action {
+                visible: Updates.state === "available" && Updates.releaseUrl.toString() !== ""
+                text: i18nc("@action:button", "What's New")
+                icon.name: "documentinfo"
+                onTriggered: Qt.openUrlExternally(Updates.releaseUrl)
+            },
+            Kirigami.Action {
+                visible: Updates.state === "available"
+                text: i18nc("@action:button", "Skip This Version")
+                icon.name: "dialog-cancel"
+                onTriggered: Updates.skipThisVersion()
+            }
+        ]
+    }
 }

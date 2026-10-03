@@ -15,6 +15,7 @@ qt_add_qml_module(rostrum
     SOURCES
         AppController.cpp AppController.h
         Apps.cpp Apps.h
+        CrashReports.cpp CrashReports.h
         Desktop.cpp Desktop.h
         Devices.cpp Devices.h
         Hotkeys.cpp Hotkeys.h
@@ -25,6 +26,7 @@ qt_add_qml_module(rostrum
         RowsModel.cpp RowsModel.h
         Scenes.cpp Scenes.h
         Tray.cpp Tray.h
+        Updater.cpp Updater.h
     QML_FILES
         qml/Main.qml
         qml/Shell.qml
@@ -59,6 +61,9 @@ qt_add_qml_module(rostrum
         qml/SettingsPage.qml
         qml/Wizard.qml
         qml/MixDiagram.qml
+        qml/PrivacyChoices.qml
+        qml/CrashReportDialog.qml
+        qml/SetupUpdateDialog.qml
 )
 
 # The tray draws these by pixmap so the muted variant works without an installed icon theme.
@@ -77,10 +82,13 @@ target_include_directories(rostrum PRIVATE ${PROJECT_SOURCE_DIR}/src)
 target_compile_definitions(rostrum PRIVATE
     ROSTRUM_DOC_DIR="${CMAKE_INSTALL_FULL_DOCDIR}"
     ROSTRUM_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+    ROSTRUM_UPDATE_URL="${ROSTRUM_UPDATE_URL}"
+    ROSTRUM_CRASH_URL="${ROSTRUM_CRASH_URL}"
 )
 target_link_libraries(rostrum PRIVATE
     rostrum_engine
     rostrum_obs
+    Qt6::Network
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Widgets

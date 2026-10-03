@@ -12,13 +12,17 @@ set(CMAKE_AUTOMOC ON)
 
 option(ROSTRUM_BUILD_TESTS "Build unit tests" ON)
 option(ROSTRUM_BUILD_APP "Build the Kirigami app" ON)
+set(ROSTRUM_UPDATE_URL "https://getrostrum.dev/releases/latest.json" CACHE STRING
+    "Release feed the update check reads (Rostrum feed or a GitHub latest-release URL)")
+set(ROSTRUM_CRASH_URL "https://getrostrum.dev/api/v1/crash-reports" CACHE STRING
+    "Endpoint crash reports are POSTed to")
 
 include(GNUInstallDirs)
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core WebSockets)
 if(ROSTRUM_BUILD_APP)
     # Found here so the imported QML plugin targets are visible to Qt's deferred finalizers.
-    find_package(Qt6 6.5 REQUIRED COMPONENTS Quick QuickControls2 Widgets DBus)
+    find_package(Qt6 6.5 REQUIRED COMPONENTS Quick QuickControls2 Widgets DBus Network)
 endif()
 find_package(PkgConfig REQUIRED)
 find_package(tomlplusplus 3 REQUIRED)
