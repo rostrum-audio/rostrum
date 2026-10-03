@@ -27,6 +27,7 @@ AppController::AppController(QObject *parent)
     : QObject(parent)
     , m_engine(&m_pw)
     , m_scenes(&m_engine, paths::scenesDir())
+    , m_controls(&m_engine, &m_scenes)
 {
     Q_ASSERT(!s_instance);
     s_instance = this;
@@ -66,6 +67,9 @@ AppController::AppController(QObject *parent)
         Q_EMIT scenesChanged();
     });
     connect(&m_scenes, &engine::SceneManager::errorOccurred, this, &AppController::toast);
+    connect(&m_engine, &engine::Engine::structureChanged, this, &AppController::updateBusActions);
+    connect(&m_scenes, &engine::SceneManager::scenesChanged, this, &AppController::updateBusActions);
+    connect(&m_scenes, &engine::SceneManager::currentChanged, this, &AppController::updateBusActions);
     connect(&m_engine, &engine::Engine::autoSkipChanged, this, [this] {
         m_settings.autoSkip = m_engine.autoSkip();
         saveSettingsSoon();
@@ -97,6 +101,7 @@ void AppController::start()
     m_engine.setAutoSkip(m_settings.autoSkip);
     m_scenes.setAutoSave(m_settings.autoSaveScenes);
     m_scenes.load(m_settings.defaultScene);
+    updateBusActions();
     if (m_settings.wizardDone) {
         m_engine.createMix();
     }
@@ -262,9 +267,9 @@ bool AppController::headphonesMissing() const { return connected() && m_engine.h
 bool AppController::micMissing() const { return connected() && m_engine.micMissing(); }
 bool AppController::hasMic() const { return connected() && m_engine.hasMic(); }
 
-bool AppController::micMuted() const { return m_engine.micMuted(); }
+bool AppController::micMuted() const { return m_engine.effectiveMicMuted(); }
 void AppController::setMicMuted(bool muted) { m_engine.setMicMuted(muted); }
-void AppController::toggleMicMute() { m_engine.setMicMuted(!m_engine.micMuted()); }
+void AppController::toggleMicMute() { m_engine.setMicMuted(!m_engine.effectiveMicMuted()); }
 
 double AppController::micGain() const
 {
@@ -300,35 +305,72 @@ void AppController::requestSceneSwitch(const QString &name)
 
 void AppController::triggerAction(const QString &id)
 {
-    if (id == QLatin1String(actions::kMuteMic)) {
-        toggleMicMute();
-        return;
+    if (actions::isHold(id) && m_controls.isHeld(id)) {
+        releaseAction(id, Origin::Window);
+    } else {
+        runAction(id, Origin::Window);
     }
-    if (id == QLatin1String(actions::kMuteStream)) {
-        m_engine.setMasterStreamMuted(!m_engine.scene().masterStreamMuted);
-        return;
+}
+
+engine::Controls::Outcome AppController::runAction(const QString &id, Origin origin)
+{
+    using Result = engine::Controls::Result;
+    const bool remote = origin == Origin::Remote;
+    const bool sceneAction = id == QLatin1String(actions::kNextScene) ||
+                             id == QLatin1String(actions::kPrevScene) || actions::sceneSlot(id) > 0;
+    // Scene keys do nothing while PipeWire is away; a remote caller still gets its switch.
+    if (sceneAction && !remote && !connected()) {
+        return {Result::Done, {}};
     }
-    const QStringList names = m_scenes.names();
-    if (names.isEmpty() || !connected()) {
-        return;
+    const auto out = m_controls.press(id);
+    switch (out.result) {
+    case Result::SwitchScene:
+        if (remote) {
+            if (out.scene != m_scenes.currentName()) {
+                m_scenes.switchTo(out.scene);
+            }
+        } else {
+            requestSceneSwitch(out.scene);
+        }
+        break;
+    case Result::NoSuchScene:
+        if (!remote) {
+            Q_EMIT toast(i18n("There is no scene %1", actions::sceneSlot(id)));
+        }
+        break;
+    case Result::NoSuchBus:
+        if (!remote) {
+            Q_EMIT toast(i18n("This scene has no bus “%1”", busName(actions::busOfAction(id))));
+        }
+        break;
+    case Result::Done:
+    case Result::UnknownAction:
+        break;
     }
-    const int current = names.indexOf(m_scenes.currentName());
-    int target = -1;
-    if (id == QLatin1String(actions::kNextScene)) {
-        target = (current + 1) % names.size();
-    } else if (id == QLatin1String(actions::kPrevScene)) {
-        target = (current - 1 + names.size()) % names.size();
-    } else if (id.startsWith(QLatin1String("scene_"))) {
-        bool ok = false;
-        const int n = id.mid(6).toInt(&ok);
-        if (ok && n >= 1 && n <= names.size()) {
-            target = n - 1;
-        } else if (ok) {
-            Q_EMIT toast(i18n("There is no scene %1", n));
+    return out;
+}
+
+void AppController::releaseAction(const QString &id, Origin)
+{
+    m_controls.release(id);
+}
+
+QString AppController::busName(const QString &busId) const
+{
+    for (const auto &[id, name] : m_controls.buses()) {
+        if (id == busId) {
+            return name;
         }
     }
-    if (target >= 0) {
-        requestSceneSwitch(names.at(target));
+    return busId;
+}
+
+void AppController::updateBusActions()
+{
+    const auto buses = m_controls.buses();
+    if (buses != m_busActions) {
+        m_busActions = buses;
+        Q_EMIT actionsChanged();
     }
 }
 

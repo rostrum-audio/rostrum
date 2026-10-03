@@ -1,5 +1,7 @@
 #include "app/Hotkeys.h"
 
+#include "core/Settings.h"
+
 #include <KGlobalAccel>
 #include <KGlobalShortcutInfo>
 #include <KLocalizedString>
@@ -119,6 +121,9 @@ Hotkeys::Hotkeys(QObject *parent) : QObject(parent)
         QDBusConnection::sessionBus().connect(
             kPortalService, kPortalPath, kPortalInterface, QStringLiteral("Activated"), this,
             SLOT(onPortalActivated(QDBusObjectPath, QString, qulonglong, QVariantMap)));
+        QDBusConnection::sessionBus().connect(
+            kPortalService, kPortalPath, kPortalInterface, QStringLiteral("Deactivated"), this,
+            SLOT(onPortalDeactivated(QDBusObjectPath, QString, qulonglong, QVariantMap)));
     }
     qCInfo(lcHotkeys) << "global shortcut backend:"
                       << (m_backend == Backend::KGlobalAccel ? "KGlobalAccel"
@@ -127,6 +132,31 @@ Hotkeys::Hotkeys(QObject *parent) : QObject(parent)
 }
 
 Hotkeys::~Hotkeys() = default;
+
+// A hold pressed again while held is a key repeat when the desktop reports releases. When it
+// never has, the second press is the release, so push to talk degrades to a toggle and can't stick.
+void Hotkeys::keyDown(const QString &id)
+{
+    if (!actions::isHold(id)) {
+        Q_EMIT triggered(id);
+        return;
+    }
+    if (!m_held.contains(id)) {
+        m_held.insert(id);
+        Q_EMIT triggered(id);
+    } else if (!m_releaseSeen) {
+        m_held.remove(id);
+        Q_EMIT released(id);
+    }
+}
+
+void Hotkeys::keyUp(const QString &id)
+{
+    m_releaseSeen = true;
+    if (m_held.remove(id)) {
+        Q_EMIT released(id);
+    }
+}
 
 void Hotkeys::setStatus(const QString &id, bool global, const QString &problem)
 {
@@ -167,6 +197,17 @@ void Hotkeys::applyKGlobalAccel()
 {
     m_applying = true;
     auto *kga = KGlobalAccel::self();
+    // Bus mute actions go when their bus is gone from every scene.
+    for (auto it = m_actions.begin(); it != m_actions.end();) {
+        if (m_bindings.contains(it.key())) {
+            ++it;
+            continue;
+        }
+        kga->removeAllShortcuts(it.value());
+        m_held.remove(it.key());
+        delete it.value();
+        it = m_actions.erase(it);
+    }
     for (auto it = m_bindings.cbegin(); it != m_bindings.cend(); ++it) {
         const QString &id = it.key();
         QAction *action = m_actions.value(id);
@@ -175,7 +216,10 @@ void Hotkeys::applyKGlobalAccel()
             action->setObjectName(id);
             action->setProperty("componentName", kComponent);
             action->setProperty("componentDisplayName", QStringLiteral("Rostrum"));
-            connect(action, &QAction::triggered, this, [this, id] { Q_EMIT triggered(id); });
+            // A held mute key must not flip the mic back and forth; only volume steps repeat.
+            action->setAutoRepeat(id == QLatin1String(actions::kStreamVolumeUp) ||
+                                  id == QLatin1String(actions::kStreamVolumeDown));
+            connect(action, &QAction::triggered, this, [this, id] { keyDown(id); });
             m_actions.insert(id, action);
         }
         action->setText(m_labels.value(id, id));
@@ -237,6 +281,14 @@ void Hotkeys::applyKGlobalAccel()
                         Q_EMIT statusChanged();
                     }
                 });
+        // Presses come from QAction::triggered, which fires on every press; this signal reports a
+        // press only once until the matching release.
+        connect(kga, &KGlobalAccel::globalShortcutActiveChanged, this, [this](QAction *action, bool active) {
+            const QString id = m_actions.key(action);
+            if (!active && !id.isEmpty()) {
+                keyUp(id);
+            }
+        });
     }
     Q_EMIT statusChanged();
 }
@@ -356,7 +408,15 @@ void Hotkeys::onPortalActivated(const QDBusObjectPath &session, const QString &i
                                 const QVariantMap &)
 {
     if (session.path() == m_portalSession) {
-        Q_EMIT triggered(id);
+        keyDown(id);
+    }
+}
+
+void Hotkeys::onPortalDeactivated(const QDBusObjectPath &session, const QString &id, qulonglong,
+                                  const QVariantMap &)
+{
+    if (session.path() == m_portalSession) {
+        keyUp(id);
     }
 }
 

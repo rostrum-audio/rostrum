@@ -75,6 +75,19 @@ public:
     bool dimmedBySolo(const QString &id) const;
     void clearSolo();
 
+    // Holds from hotkeys and remote control are session-only too: they change what is sent to
+    // PipeWire, never the scene. An explicit mic or Stream choice ends a hold that contradicts it.
+    void setPushToTalk(bool held); // mic live while held
+    void setPushToMute(bool held); // mic muted while held; wins over push to talk
+    void setPanic(bool on);        // mic and Stream master muted until turned off, across scene switches
+    bool pushToTalk() const { return m_pushToTalk; }
+    bool pushToMute() const { return m_pushToMute; }
+    bool panic() const { return m_panicMic || m_panicStream; }
+    bool effectiveMicMuted() const;
+    bool effectiveStreamMuted() const;
+    // Drops every hold and sends the scene's own mutes now, so quitting leaves the mix as saved.
+    void releaseHolds();
+
     // Structure: persisted right away by the app without saving fader moves.
     QString addBus(const QString &name, const QString &color = QString());
     bool removeBus(const QString &id);
@@ -178,6 +191,11 @@ protected:
     mutable DesktopIndex m_desktop;
 
     QSet<QString> m_soloed;
+    bool m_pushToTalk = false;
+    bool m_pushToMute = false;
+    bool m_panicMic = false;
+    bool m_panicStream = false;
+    void holdsChanged();
     QString m_headphones;
     QString m_micDevice;
     QString m_lastSinkDescription;

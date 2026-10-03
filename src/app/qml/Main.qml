@@ -68,7 +68,8 @@ Kirigami.ApplicationWindow {
         }
     }
 
-    // In-window fallback for actions the desktop did not take as global shortcuts.
+    // In-window fallback for actions the desktop did not take as global shortcuts. A Shortcut does
+    // not report the key going up, so push to talk and push to mute toggle here.
     Repeater {
         model: Preferences.hotkeys
         delegate: Item {
@@ -76,6 +77,7 @@ Kirigami.ApplicationWindow {
             Shortcut {
                 sequences: [modelData.shortcut]
                 enabled: !modelData.global && modelData.shortcut.length > 0
+                autoRepeat: modelData.id === "stream_volume_up" || modelData.id === "stream_volume_down"
                 onActivated: App.triggerAction(modelData.id)
             }
         }

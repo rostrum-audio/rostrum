@@ -55,6 +55,7 @@ int main(int argc, char *argv[])
     QObject::connect(&service, &KDBusService::activateRequested, &controller,
                      &rostrum::app::AppController::raiseRequested);
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &controller, [&controller] {
+        controller.engine()->releaseHolds();
         controller.scenes()->flush();
         controller.saveSettingsNow();
     });

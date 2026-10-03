@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/Settings.h"
+#include "engine/Controls.h"
 #include "engine/Engine.h"
 #include "engine/SceneManager.h"
 #include "pw/PwContext.h"
@@ -69,6 +70,16 @@ class AppController : public QObject
     Q_PROPERTY(QString appsFilter READ appsFilter WRITE setAppsFilter NOTIFY appsFilterChanged)
 
 public:
+    // Where an action came from. Remote (D-Bus, command line) never opens a dialog; Hotkey and
+    // Remote changes are shown on screen when the window is not in front.
+    enum class Origin
+    {
+        Window,
+        Tray,
+        Hotkey,
+        Remote
+    };
+
     // No default argument: QML must get the one instance through create(), never construct it.
     explicit AppController(QObject *parent);
     ~AppController() override;
@@ -82,6 +93,7 @@ public:
     pw::PwContext *pw() { return &m_pw; }
     engine::Engine *engine() { return &m_engine; }
     engine::SceneManager *scenes() { return &m_scenes; }
+    engine::Controls *controls() { return &m_controls; }
     Settings &settings() { return m_settings; }
     void saveSettingsSoon();
 
@@ -149,8 +161,15 @@ public:
     // Switches now, or raises the window and asks first when "confirm scene switch" is on and
     // faders have moved. For the tray and hotkeys; the window has its own dialog.
     Q_INVOKABLE void requestSceneSwitch(const QString &name);
-    // A hotkey or tray action by id (see core/Settings.h actions).
+    // An in-window shortcut by id (see core/Settings.h actions). Hold actions toggle here, because
+    // a window shortcut does not report the key going up.
     Q_INVOKABLE void triggerAction(const QString &id);
+    engine::Controls::Outcome runAction(const QString &id, Origin origin);
+    void releaseAction(const QString &id, Origin origin);
+    // Fixed actions plus one mute action per bus in any scene.
+    QStringList actionIds() const { return m_controls.actionIds(); }
+    // The name of a bus in the live scene or a saved one; empty if none has it.
+    QString busName(const QString &busId) const;
     Q_INVOKABLE bool saveScene();
     Q_INVOKABLE void createMix();
     // Wizard: finish once the mix exists; skip creates the mix with defaults and finishes too.
@@ -175,9 +194,12 @@ Q_SIGNALS:
     void raiseRequested();
     void sceneSwitchConfirmRequested(const QString &name);
     void headphonesLost(const QString &description);
+    // The list from actionIds() or a bus name in it changed.
+    void actionsChanged();
 
 private:
     void updateStatus();
+    void updateBusActions();
     void onConnectionChanged();
     QString describeNode(const QString &nodeName) const;
     QString connectFailureText() const;
@@ -187,6 +209,8 @@ private:
     pw::PwContext m_pw;
     engine::Engine m_engine;
     engine::SceneManager m_scenes;
+    engine::Controls m_controls;
+    QList<QPair<QString, QString>> m_busActions;
     Settings m_settings;
     QString m_status = QStringLiteral("connecting");
     QString m_detail;

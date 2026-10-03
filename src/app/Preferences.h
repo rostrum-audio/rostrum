@@ -29,8 +29,10 @@ class Preferences : public QObject
     Q_PROPERTY(bool autoAssign READ autoAssign WRITE setAutoAssign NOTIFY changed)
     // Apps the user took off their automatic bus
     Q_PROPERTY(int skippedApps READ skippedApps NOTIFY changed)
-    // Rows: {id, label, shortcut, defaultShortcut, global, problem}. global: the desktop delivers the
-    // shortcut while Rostrum is not focused. problem: why a bound shortcut is not global.
+    // Rows: {id, label, description, group, hold, shortcut, defaultShortcut, global, problem}.
+    // group: "mic", "stream", "scenes" or "buses". hold: acts while the key is held. global: the
+    // desktop delivers the shortcut while Rostrum is not focused. problem: why a bound shortcut is
+    // not global.
     Q_PROPERTY(QVariantList hotkeys READ hotkeys NOTIFY changed)
     Q_PROPERTY(QString configFolder READ configFolder CONSTANT)
     Q_PROPERTY(QString logFile READ logFile CONSTANT)
@@ -43,7 +45,9 @@ public:
     ~Preferences() override;
 
     static Preferences *create(QQmlEngine *, QJSEngine *);
-    static QString actionLabel(const QString &id);
+    // busName: for a bus mute action, the name to show; empty looks it up in the running app.
+    static QString actionLabel(const QString &id, const QString &busName = QString());
+    static QString actionDescription(const QString &id);
 
     bool autoSaveScenes() const;
     void setAutoSaveScenes(bool on);

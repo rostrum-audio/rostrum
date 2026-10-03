@@ -88,13 +88,17 @@ Desktop::Desktop(AppController *app, QObject *parent) : QObject(parent), m_app(a
         dropOldShortcuts();
     }
     m_hotkeys = new Hotkeys(this);
-    connect(m_hotkeys, &Hotkeys::triggered, m_app, &AppController::triggerAction);
+    connect(m_hotkeys, &Hotkeys::triggered, m_app,
+            [this](const QString &id) { m_app->runAction(id, AppController::Origin::Hotkey); });
+    connect(m_hotkeys, &Hotkeys::released, m_app,
+            [this](const QString &id) { m_app->releaseAction(id, AppController::Origin::Hotkey); });
     connect(m_hotkeys, &Hotkeys::changedExternally, this, [this](const QString &id, const QString &portable) {
         m_app->settings().hotkeys.insert(id, portable);
         m_app->saveSettingsSoon();
         Q_EMIT m_app->settingsChanged();
     });
     connect(m_app, &AppController::settingsChanged, this, &Desktop::applyHotkeys);
+    connect(m_app, &AppController::actionsChanged, this, &Desktop::applyHotkeys);
     connect(m_app, &AppController::headphonesLost, this, &Desktop::notifyHeadphonesLost);
     applyHotkeys();
 
@@ -216,7 +220,7 @@ void Desktop::applyHotkeys()
     QMap<QString, QString> bindings;
     QMap<QString, QString> labels;
     const auto &keys = m_app->settings().hotkeys;
-    for (const QString &id : actions::all()) {
+    for (const QString &id : m_app->actionIds()) {
         bindings.insert(id, keys.value(id, actions::defaultShortcut(id)));
         labels.insert(id, Preferences::actionLabel(id));
     }

@@ -17,9 +17,43 @@ inline constexpr const char *kScene1 = "scene_1";
 inline constexpr const char *kScene2 = "scene_2";
 inline constexpr const char *kScene3 = "scene_3";
 inline constexpr const char *kScene4 = "scene_4";
+inline constexpr const char *kPushToTalk = "push_to_talk";
+inline constexpr const char *kPushToMute = "push_to_mute";
+inline constexpr const char *kPanicMute = "panic_mute";
+inline constexpr const char *kToggleSidetone = "toggle_sidetone";
+inline constexpr const char *kMuteHeadphones = "mute_headphones";
+inline constexpr const char *kStreamVolumeUp = "stream_volume_up";
+inline constexpr const char *kStreamVolumeDown = "stream_volume_down";
+inline constexpr const char *kScene5 = "scene_5";
+inline constexpr const char *kScene6 = "scene_6";
+inline constexpr const char *kScene7 = "scene_7";
+inline constexpr const char *kScene8 = "scene_8";
+// "mute_bus_<bus id>" toggles one playback bus. There is one per bus id found in any scene, so
+// these are not in all().
+inline constexpr const char *kMuteBusPrefix = "mute_bus_";
+
+enum class Group
+{
+    Mic,
+    Stream,
+    Scenes,
+    Buses
+};
+
+// The fixed actions, in the order Settings lists them. The first three are shown in the wizard.
 QStringList all();
 QString label(const QString &id);
 QString defaultShortcut(const QString &id);
+// Acts while the key is held (push to talk, push to mute) instead of on each press.
+bool isHold(const QString &id);
+Group group(const QString &id);
+QString muteBusAction(const QString &busId);
+// The bus a "mute_bus_<id>" action toggles; empty for any other id.
+QString busOfAction(const QString &id);
+// 1-based slot of a "scene_<n>" action; 0 for any other id.
+int sceneSlot(const QString &id);
+// A fixed action or a well-formed bus mute action.
+bool isKnown(const QString &id);
 } // namespace actions
 
 // Bumped when first-run setup gains a step that existing users should see once. 1 = devices and

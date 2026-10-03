@@ -24,6 +24,7 @@ Preferences::Preferences(AppController *app, QObject *parent)
     Q_ASSERT(!s_instance);
     s_instance = this;
     connect(app, &AppController::settingsChanged, this, &Preferences::changed);
+    connect(app, &AppController::actionsChanged, this, &Preferences::changed);
     if (Desktop::instance()) {
         connect(Desktop::instance()->hotkeys(), &Hotkeys::statusChanged, this, &Preferences::changed);
     }
@@ -85,7 +86,7 @@ void Preferences::setAutoAssign(bool on)
 int Preferences::skippedApps() const { return int(m_app->settings().autoSkip.size()); }
 void Preferences::forgetSkippedApps() { m_app->engine()->forgetAutoSkip(); }
 
-QString Preferences::actionLabel(const QString &id)
+QString Preferences::actionLabel(const QString &id, const QString &busName)
 {
     // Labels come from core in English; translate them here.
     static const QMap<QString, KLocalizedString> labels = {
@@ -93,23 +94,94 @@ QString Preferences::actionLabel(const QString &id)
         {QString::fromLatin1(actions::kMuteStream), ki18nc("@label shortcut action", "Mute all playback to stream")},
         {QString::fromLatin1(actions::kPrevScene), ki18nc("@label shortcut action", "Previous scene")},
         {QString::fromLatin1(actions::kNextScene), ki18nc("@label shortcut action", "Next scene")},
-        {QString::fromLatin1(actions::kScene1), ki18nc("@label shortcut action", "Load scene 1")},
-        {QString::fromLatin1(actions::kScene2), ki18nc("@label shortcut action", "Load scene 2")},
-        {QString::fromLatin1(actions::kScene3), ki18nc("@label shortcut action", "Load scene 3")},
-        {QString::fromLatin1(actions::kScene4), ki18nc("@label shortcut action", "Load scene 4")},
+        {QString::fromLatin1(actions::kPushToTalk), ki18nc("@label shortcut action", "Push to talk")},
+        {QString::fromLatin1(actions::kPushToMute), ki18nc("@label shortcut action", "Push to mute")},
+        {QString::fromLatin1(actions::kPanicMute), ki18nc("@label shortcut action", "Panic mute")},
+        {QString::fromLatin1(actions::kToggleSidetone),
+         ki18nc("@label shortcut action", "Sidetone on or off")},
+        {QString::fromLatin1(actions::kMuteHeadphones), ki18nc("@label shortcut action", "Mute headphones")},
+        {QString::fromLatin1(actions::kStreamVolumeUp), ki18nc("@label shortcut action", "Stream volume up")},
+        {QString::fromLatin1(actions::kStreamVolumeDown),
+         ki18nc("@label shortcut action", "Stream volume down")},
     };
-    return labels.contains(id) ? labels.value(id).toString() : actions::label(id);
+    if (labels.contains(id)) {
+        return labels.value(id).toString();
+    }
+    if (const int slot = actions::sceneSlot(id)) {
+        return i18nc("@label shortcut action", "Load scene %1", slot);
+    }
+    if (const QString bus = actions::busOfAction(id); !bus.isEmpty()) {
+        const auto *app = AppController::instance();
+        const QString name = !busName.isEmpty() ? busName : app ? app->busName(bus) : bus;
+        return i18nc("@label shortcut action, bus name", "Mute %1 bus", name);
+    }
+    return actions::label(id);
+}
+
+QString Preferences::actionDescription(const QString &id)
+{
+    static const QMap<QString, KLocalizedString> descriptions = {
+        {QString::fromLatin1(actions::kMuteMic),
+         ki18nc("@info shortcut action", "Mutes or unmutes the mic.")},
+        {QString::fromLatin1(actions::kPushToTalk),
+         ki18nc("@info shortcut action", "Hold to talk while the mic is muted. Letting go mutes it again.")},
+        {QString::fromLatin1(actions::kPushToMute),
+         ki18nc("@info shortcut action",
+                "Hold to mute the mic, for a cough or a sip. Letting go brings it back.")},
+        {QString::fromLatin1(actions::kPanicMute),
+         ki18nc("@info shortcut action", "Mutes the mic and everything going to stream at once. Press again "
+                                         "to bring both back as they were.")},
+        {QString::fromLatin1(actions::kToggleSidetone),
+         ki18nc("@info shortcut action", "Turns hearing your own mic in the headphones on or off.")},
+        {QString::fromLatin1(actions::kMuteStream),
+         ki18nc("@info shortcut action",
+                "Mutes or unmutes the Stream master. Your headphones are not affected.")},
+        {QString::fromLatin1(actions::kMuteHeadphones),
+         ki18nc("@info shortcut action",
+                "Mutes or unmutes the Headphones master. The stream is not affected.")},
+        {QString::fromLatin1(actions::kStreamVolumeUp),
+         ki18nc("@info shortcut action", "Raises the Stream master by 5 %.")},
+        {QString::fromLatin1(actions::kStreamVolumeDown),
+         ki18nc("@info shortcut action", "Lowers the Stream master by 5 %.")},
+    };
+    if (descriptions.contains(id)) {
+        return descriptions.value(id).toString();
+    }
+    if (actions::sceneSlot(id) > 0) {
+        return i18nc("@info shortcut action", "Counted in the order of the Scenes page.");
+    }
+    if (!actions::busOfAction(id).isEmpty()) {
+        return i18nc("@info shortcut action",
+                     "Mutes or unmutes this bus in the live scene, where it has one.");
+    }
+    return {};
 }
 
 QVariantList Preferences::hotkeys() const
 {
+    auto groupName = [](actions::Group g) {
+        switch (g) {
+        case actions::Group::Mic:
+            return QStringLiteral("mic");
+        case actions::Group::Stream:
+            return QStringLiteral("stream");
+        case actions::Group::Scenes:
+            return QStringLiteral("scenes");
+        case actions::Group::Buses:
+            break;
+        }
+        return QStringLiteral("buses");
+    };
     QVariantList rows;
     const auto &keys = m_app->settings().hotkeys;
     const Hotkeys *global = Desktop::instance() ? Desktop::instance()->hotkeys() : nullptr;
-    for (const QString &id : actions::all()) {
+    for (const QString &id : m_app->actionIds()) {
         rows << QVariantMap{
             {QStringLiteral("id"), id},
             {QStringLiteral("label"), actionLabel(id)},
+            {QStringLiteral("description"), actionDescription(id)},
+            {QStringLiteral("group"), groupName(actions::group(id))},
+            {QStringLiteral("hold"), actions::isHold(id)},
             {QStringLiteral("shortcut"), keys.value(id, actions::defaultShortcut(id))},
             {QStringLiteral("defaultShortcut"), actions::defaultShortcut(id)},
             {QStringLiteral("global"), global && global->isGlobal(id)},
@@ -121,7 +193,7 @@ QVariantList Preferences::hotkeys() const
 
 void Preferences::setHotkey(const QString &actionId, const QString &sequence)
 {
-    if (!actions::all().contains(actionId)) {
+    if (!actions::isKnown(actionId)) {
         return;
     }
     const QString portable =

@@ -1,9 +1,11 @@
 #include "core/Settings.h"
 
+#include "core/Model.h"
 #include "core/SceneStore.h"
 
 #include <QFileInfo>
-
+#include <QRegularExpression>
+#include <cstring>
 #include <sstream>
 #include <toml++/toml.hpp>
 
@@ -13,9 +15,17 @@ namespace actions {
 
 QStringList all()
 {
-    return {QString::fromLatin1(kMuteMic),  QString::fromLatin1(kMuteStream), QString::fromLatin1(kPrevScene),
-            QString::fromLatin1(kNextScene), QString::fromLatin1(kScene1),     QString::fromLatin1(kScene2),
-            QString::fromLatin1(kScene3),    QString::fromLatin1(kScene4)};
+    static const QStringList ids = [] {
+        QStringList out;
+        for (const char *id :
+             {kMuteMic, kMuteStream, kPrevScene, kNextScene, kScene1, kScene2, kScene3, kScene4, kPushToTalk,
+              kPushToMute, kPanicMute, kToggleSidetone, kMuteHeadphones, kStreamVolumeUp, kStreamVolumeDown,
+              kScene5, kScene6, kScene7, kScene8}) {
+            out << QString::fromLatin1(id);
+        }
+        return out;
+    }();
+    return ids;
 }
 
 QString label(const QString &id)
@@ -25,12 +35,73 @@ QString label(const QString &id)
         {QString::fromLatin1(kMuteStream), QStringLiteral("Mute all playback to stream")},
         {QString::fromLatin1(kPrevScene), QStringLiteral("Previous scene")},
         {QString::fromLatin1(kNextScene), QStringLiteral("Next scene")},
-        {QString::fromLatin1(kScene1), QStringLiteral("Load scene 1")},
-        {QString::fromLatin1(kScene2), QStringLiteral("Load scene 2")},
-        {QString::fromLatin1(kScene3), QStringLiteral("Load scene 3")},
-        {QString::fromLatin1(kScene4), QStringLiteral("Load scene 4")},
+        {QString::fromLatin1(kPushToTalk), QStringLiteral("Push to talk")},
+        {QString::fromLatin1(kPushToMute), QStringLiteral("Push to mute")},
+        {QString::fromLatin1(kPanicMute), QStringLiteral("Panic mute")},
+        {QString::fromLatin1(kToggleSidetone), QStringLiteral("Sidetone on or off")},
+        {QString::fromLatin1(kMuteHeadphones), QStringLiteral("Mute headphones")},
+        {QString::fromLatin1(kStreamVolumeUp), QStringLiteral("Stream volume up")},
+        {QString::fromLatin1(kStreamVolumeDown), QStringLiteral("Stream volume down")},
     };
-    return labels.value(id, id);
+    if (labels.contains(id)) {
+        return labels.value(id);
+    }
+    if (const int slot = sceneSlot(id)) {
+        return QStringLiteral("Load scene %1").arg(slot);
+    }
+    if (const QString bus = busOfAction(id); !bus.isEmpty()) {
+        return QStringLiteral("Mute bus %1").arg(bus);
+    }
+    return id;
+}
+
+bool isHold(const QString &id)
+{
+    return id == QLatin1String(kPushToTalk) || id == QLatin1String(kPushToMute);
+}
+
+Group group(const QString &id)
+{
+    if (id == QLatin1String(kMuteMic) || id == QLatin1String(kPushToTalk) ||
+        id == QLatin1String(kPushToMute) || id == QLatin1String(kPanicMute) ||
+        id == QLatin1String(kToggleSidetone)) {
+        return Group::Mic;
+    }
+    if (id == QLatin1String(kPrevScene) || id == QLatin1String(kNextScene) || sceneSlot(id) > 0) {
+        return Group::Scenes;
+    }
+    if (!busOfAction(id).isEmpty()) {
+        return Group::Buses;
+    }
+    return Group::Stream;
+}
+
+QString muteBusAction(const QString &busId)
+{
+    return QString::fromLatin1(kMuteBusPrefix) + busId;
+}
+
+QString busOfAction(const QString &id)
+{
+    // Same shape SceneToml accepts for a bus id.
+    static const QRegularExpression busId(QStringLiteral("^[a-z0-9][a-z0-9-]{0,31}$"));
+    if (!id.startsWith(QLatin1String(kMuteBusPrefix))) {
+        return {};
+    }
+    const QString bus = id.mid(int(std::strlen(kMuteBusPrefix)));
+    return busId.match(bus).hasMatch() && bus != QLatin1String(kMicBusId) ? bus : QString();
+}
+
+int sceneSlot(const QString &id)
+{
+    static const QRegularExpression slot(QStringLiteral("^scene_([1-9][0-9]?)$"));
+    const auto m = slot.match(id);
+    return m.hasMatch() ? m.captured(1).toInt() : 0;
+}
+
+bool isKnown(const QString &id)
+{
+    return all().contains(id) || !busOfAction(id).isEmpty();
 }
 
 QString defaultShortcut(const QString &id)
@@ -178,7 +249,7 @@ Settings parseSettings(const QString &text, QString *error)
     if (const auto *hk = t["hotkeys"].as_table()) {
         for (auto &&[k, v] : *hk) {
             const QString id = QString::fromStdString(std::string(k.str()));
-            if (actions::all().contains(id)) {
+            if (actions::isKnown(id)) {
                 s.hotkeys.insert(id, QString::fromStdString(v.value_or(std::string())));
             }
         }
