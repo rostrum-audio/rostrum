@@ -1,6 +1,8 @@
 #include "app/Preferences.h"
 
 #include "app/AppController.h"
+#include "app/Desktop.h"
+#include "app/Hotkeys.h"
 #include "core/Paths.h"
 
 #include <KLocalizedString>
@@ -22,6 +24,9 @@ Preferences::Preferences(AppController *app, QObject *parent)
     Q_ASSERT(!s_instance);
     s_instance = this;
     connect(app, &AppController::settingsChanged, this, &Preferences::changed);
+    if (Desktop::instance()) {
+        connect(Desktop::instance()->hotkeys(), &Hotkeys::statusChanged, this, &Preferences::changed);
+    }
 }
 
 Preferences::~Preferences()
@@ -62,7 +67,7 @@ void Preferences::setShowDb(bool on) { update(m_app->settings().showDb, on); }
 bool Preferences::showNodeIds() const { return m_app->settings().showNodeIds; }
 void Preferences::setShowNodeIds(bool on) { update(m_app->settings().showNodeIds, on); }
 
-QVariantList Preferences::hotkeys() const
+QString Preferences::actionLabel(const QString &id)
 {
     // Labels come from core in English; translate them here.
     static const QMap<QString, KLocalizedString> labels = {
@@ -75,14 +80,22 @@ QVariantList Preferences::hotkeys() const
         {QString::fromLatin1(actions::kScene3), ki18nc("@label shortcut action", "Load scene 3")},
         {QString::fromLatin1(actions::kScene4), ki18nc("@label shortcut action", "Load scene 4")},
     };
+    return labels.contains(id) ? labels.value(id).toString() : actions::label(id);
+}
+
+QVariantList Preferences::hotkeys() const
+{
     QVariantList rows;
     const auto &keys = m_app->settings().hotkeys;
+    const Hotkeys *global = Desktop::instance() ? Desktop::instance()->hotkeys() : nullptr;
     for (const QString &id : actions::all()) {
         rows << QVariantMap{
             {QStringLiteral("id"), id},
-            {QStringLiteral("label"), labels.contains(id) ? labels.value(id).toString() : actions::label(id)},
+            {QStringLiteral("label"), actionLabel(id)},
             {QStringLiteral("shortcut"), keys.value(id, actions::defaultShortcut(id))},
             {QStringLiteral("defaultShortcut"), actions::defaultShortcut(id)},
+            {QStringLiteral("global"), global && global->isGlobal(id)},
+            {QStringLiteral("problem"), global ? global->problem(id) : QString()},
         };
     }
     return rows;

@@ -25,7 +25,8 @@ class Preferences : public QObject
     Q_PROPERTY(bool lowMeterSpeed READ lowMeterSpeed WRITE setLowMeterSpeed NOTIFY changed)
     Q_PROPERTY(bool showDb READ showDb WRITE setShowDb NOTIFY changed)
     Q_PROPERTY(bool showNodeIds READ showNodeIds WRITE setShowNodeIds NOTIFY changed)
-    // Rows: {id, label, shortcut, defaultShortcut}
+    // Rows: {id, label, shortcut, defaultShortcut, global, problem}. global: the desktop delivers the
+    // shortcut while Rostrum is not focused. problem: why a bound shortcut is not global.
     Q_PROPERTY(QVariantList hotkeys READ hotkeys NOTIFY changed)
     Q_PROPERTY(QString configFolder READ configFolder CONSTANT)
     Q_PROPERTY(QString logFile READ logFile CONSTANT)
@@ -38,6 +39,7 @@ public:
     ~Preferences() override;
 
     static Preferences *create(QQmlEngine *, QJSEngine *);
+    static QString actionLabel(const QString &id);
 
     bool confirmSceneSwitch() const;
     void setConfirmSceneSwitch(bool on);

@@ -22,6 +22,22 @@ QQC2.ScrollView {
         }
         FormCard.FormCard {
             FormCard.FormSwitchDelegate {
+                text: i18nc("@option:check", "Launch at login")
+                description: i18n("Start Rostrum when you log in, so the mix is ready before Discord or OBS.")
+                checked: Desktop.launchAtLogin
+                onToggled: Desktop.launchAtLogin = checked
+            }
+            FormCard.FormDelegateSeparator {}
+            FormCard.FormSwitchDelegate {
+                text: i18nc("@option:check", "Start in tray")
+                description: Desktop.trayAvailable ? i18n("At login, start with the window hidden. Click the tray icon to show it.")
+                                                   : i18n("Needs a system tray, and this desktop does not show one.")
+                enabled: Desktop.launchAtLogin && Desktop.trayAvailable
+                checked: Desktop.startInTray
+                onToggled: Desktop.startInTray = checked
+            }
+            FormCard.FormDelegateSeparator {}
+            FormCard.FormSwitchDelegate {
                 text: i18nc("@option:check", "Confirm before switching scenes")
                 description: i18n("Ask before a scene switch discards fader moves you have not saved.")
                 checked: Preferences.confirmSceneSwitch
@@ -34,6 +50,14 @@ QQC2.ScrollView {
                 checked: Preferences.scrollToAdjust
                 onToggled: Preferences.scrollToAdjust = checked
             }
+            FormCard.FormDelegateSeparator {}
+            FormCard.FormButtonDelegate {
+                text: i18nc("@action:button", "Quit Rostrum")
+                description: Desktop.trayAvailable ? i18n("Closing the window keeps Rostrum in the tray. After quitting, audio keeps flowing through the mix, but hotkeys and the tray stop.")
+                                                   : i18n("Audio keeps flowing through the mix, but hotkeys stop.")
+                icon.name: "application-exit"
+                onClicked: App.quit()
+            }
         }
 
         FormCard.FormHeader {
@@ -41,7 +65,12 @@ QQC2.ScrollView {
         }
         FormCard.FormCard {
             FormCard.FormTextDelegate {
-                text: i18n("Click a shortcut, then press the keys. The clear button removes it.")
+                text: i18n("Click a shortcut, then press the keys. Backspace or the clear button removes it.")
+                description: Desktop.shortcutBackend === "kglobalaccel"
+                             ? i18n("They work in any app and also appear in System Settings → Shortcuts.")
+                             : Desktop.shortcutBackend === "portal"
+                               ? i18n("They work in any app once the desktop allows them. It may ask you to confirm.")
+                               : ""
                 textItem.wrapMode: Text.WordWrap
             }
             Repeater {
@@ -71,12 +100,26 @@ QQC2.ScrollView {
                                 Layout.fillWidth: true
                                 wrapMode: Text.WordWrap
                             }
+                            QQC2.Label {
+                                visible: hotkeyRow.conflict === "" && hotkeyRow.modelData.problem !== ""
+                                text: hotkeyRow.modelData.problem
+                                color: Kirigami.Theme.neutralTextColor
+                                font: Kirigami.Theme.smallFont
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                            }
                         }
                         KQuickControls.KeySequenceItem {
                             keySequence: hotkeyRow.modelData.shortcut
                             modifierlessAllowed: false
                             multiKeyShortcutsAllowed: false
                             onKeySequenceModified: Preferences.setHotkeySequence(hotkeyRow.modelData.id, keySequence)
+                            Keys.onPressed: event => {
+                                if (event.key === Qt.Key_Backspace && event.modifiers === Qt.NoModifier) {
+                                    Preferences.setHotkey(hotkeyRow.modelData.id, "")
+                                    event.accepted = true
+                                }
+                            }
                             Accessible.name: i18nc("@label accessible", "Shortcut for %1", hotkeyRow.modelData.label)
                         }
                         QQC2.ToolButton {

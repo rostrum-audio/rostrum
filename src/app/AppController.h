@@ -137,6 +137,11 @@ public:
     Q_INVOKABLE void retry();
     Q_INVOKABLE void toggleMicMute();
     Q_INVOKABLE bool switchScene(const QString &name);
+    // Switches now, or raises the window and asks first when "confirm scene switch" is on and
+    // faders have moved. For the tray and hotkeys; the window has its own dialog.
+    Q_INVOKABLE void requestSceneSwitch(const QString &name);
+    // A hotkey or tray action by id (see core/Settings.h actions).
+    Q_INVOKABLE void triggerAction(const QString &id);
     Q_INVOKABLE bool saveScene();
     Q_INVOKABLE void createMix();
     // Wizard: finish once the mix exists; skip creates the mix with defaults and finishes too.
@@ -157,6 +162,7 @@ Q_SIGNALS:
     void appsFilterChanged();
     void toast(const QString &message);
     void raiseRequested();
+    void sceneSwitchConfirmRequested(const QString &name);
     void headphonesLost(const QString &description);
 
 private:

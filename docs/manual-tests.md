@@ -170,3 +170,32 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
 7. Settings: turn off "Scroll to adjust faders": the wheel no longer moves faders. Turn on
    "Show dB readouts": every strip prints its level. Rebind "Mute mic" and restart: the new
    binding is kept in `settings.toml`.
+
+## 11. Tray, close to tray, autostart and hotkeys
+
+1. Install (`cmake --install build --prefix ~/.local`) and start Rostrum from the app menu. The
+   launcher shows the Rostrum icon, and so does the tray.
+2. The tray tooltip reads "Mic live · Scene: Live". Press the header mic button: the tray icon
+   gains the red slashed-mic badge and the tooltip says "Mic muted". Unmute from the tray menu:
+   the header button turns back too. The tray, the header and the hotkey drive the same state.
+3. Close the window with the title bar button. Rostrum stays in the tray (`pgrep rostrum`), and
+   audio keeps flowing. Left-click the tray icon: the window comes back. Tray menu → Quit exits.
+4. Settings → Hotkeys: each row is plain (no warning). System Settings → Keyboard → Shortcuts
+   lists Rostrum with the same eight actions. Press Meta+Alt+M with another app focused: the mic
+   mutes. Rebind "Mute mic" to Meta+D (Peek at Desktop): the row warns that KWin already uses it,
+   and Meta+D still works inside Rostrum's window only. Press Backspace on a focused shortcut
+   button: the binding clears.
+5. Make a second scene. Meta+Alt+PgDown switches to it from any app; the tray's Scenes submenu
+   checks it. With "Confirm before switching scenes" on and a fader moved, the hotkey raises the
+   window and asks first.
+6. Turn on "Launch at login": `~/.config/autostart/io.github.rostrum_audio.Rostrum.desktop` exists
+   and `desktop-file-validate` passes on it. Turn on "Start in tray", log out and in: Rostrum is
+   in the tray with no window. Starting it from the app menu while it runs raises the window.
+   Turn "Launch at login" off: the file is gone.
+7. Unplug the headset while Rostrum runs: one notification, "Headphones disconnected, scene
+   held." Mute and unmute never notify.
+
+Tray, hotkeys, start in tray and close to tray were checked with a script that runs Rostrum in a
+private D-Bus session with a headless nested KWin and a fake tray host, so nothing reaches the
+real desktop. On GNOME, or anywhere without `org.kde.kglobalaccel`, hotkeys go through the XDG
+GlobalShortcuts portal instead. That path is untested so far.

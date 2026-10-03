@@ -20,7 +20,7 @@ Qt 6.10, KDE Frameworks 6.24.
 
 - PipeWire 1.0 or newer and WirePlumber 0.5 or newer. PulseAudio is not used or required.
 - Qt 6.5+, KDE Frameworks 6 (Kirigami, Kirigami Addons, GlobalAccel, StatusNotifierItem,
-  Config, CoreAddons, I18n, DBusAddons, IconThemes), toml++ 3.
+  CoreAddons, I18n, DBusAddons), toml++ 3.
 
 Packages to install before building:
 
@@ -42,7 +42,7 @@ On Kubuntu 26.04:
 sudo apt install build-essential cmake ninja-build pkg-config extra-cmake-modules \
   libpipewire-0.3-dev libtomlplusplus-dev qt6-base-dev qt6-declarative-dev \
   libkirigami-dev kirigami-addons-dev libkf6coreaddons-dev libkf6dbusaddons-dev \
-  libkf6i18n-dev libkf6globalaccel-dev libkf6statusnotifieritem-dev libkf6notifications-dev \
+  libkf6i18n-dev libkf6globalaccel-dev libkf6statusnotifieritem-dev \
   qml6-module-org-kde-kirigami qml6-module-org-kde-kquickcontrols qml6-module-org-kde-desktop \
   qml6-module-org-kde-kirigamiaddons-formcard qml6-module-org-kde-kitemmodels \
   qml6-module-qtquick-dialogs qml6-module-qtcore
@@ -51,6 +51,9 @@ cmake --build build
 ctest --test-dir build
 ./build/src/app/rostrum
 ```
+
+To get the app menu entry, icon and System Settings shortcut page, install into your home:
+`cmake --install build --prefix ~/.local`.
 
 Logs go to `~/.local/state/rostrum/rostrum.log`; a crash appends a backtrace there.
 

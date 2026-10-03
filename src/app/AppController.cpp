@@ -248,6 +248,53 @@ bool AppController::sceneDirty() const { return m_scenes.dirty(); }
 
 bool AppController::switchScene(const QString &name) { return m_scenes.switchTo(name); }
 
+void AppController::requestSceneSwitch(const QString &name)
+{
+    if (name.isEmpty() || name == m_scenes.currentName()) {
+        return;
+    }
+    if (m_settings.confirmSceneSwitch && m_scenes.dirty()) {
+        Q_EMIT raiseRequested();
+        Q_EMIT sceneSwitchConfirmRequested(name);
+        return;
+    }
+    m_scenes.switchTo(name);
+}
+
+void AppController::triggerAction(const QString &id)
+{
+    if (id == QLatin1String(actions::kMuteMic)) {
+        toggleMicMute();
+        return;
+    }
+    if (id == QLatin1String(actions::kMuteStream)) {
+        m_engine.setMasterStreamMuted(!m_engine.scene().masterStreamMuted);
+        return;
+    }
+    const QStringList names = m_scenes.names();
+    if (names.isEmpty() || !connected()) {
+        return;
+    }
+    const int current = names.indexOf(m_scenes.currentName());
+    int target = -1;
+    if (id == QLatin1String(actions::kNextScene)) {
+        target = (current + 1) % names.size();
+    } else if (id == QLatin1String(actions::kPrevScene)) {
+        target = (current - 1 + names.size()) % names.size();
+    } else if (id.startsWith(QLatin1String("scene_"))) {
+        bool ok = false;
+        const int n = id.mid(6).toInt(&ok);
+        if (ok && n >= 1 && n <= names.size()) {
+            target = n - 1;
+        } else if (ok) {
+            Q_EMIT toast(i18n("There is no scene %1", n));
+        }
+    }
+    if (target >= 0) {
+        requestSceneSwitch(names.at(target));
+    }
+}
+
 bool AppController::saveScene()
 {
     if (!m_scenes.save()) {

@@ -18,7 +18,7 @@ include(GNUInstallDirs)
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core)
 if(ROSTRUM_BUILD_APP)
     # Found here so the imported QML plugin targets are visible to Qt's deferred finalizers.
-    find_package(Qt6 6.5 REQUIRED COMPONENTS Quick QuickControls2 Widgets)
+    find_package(Qt6 6.5 REQUIRED COMPONENTS Quick QuickControls2 Widgets DBus)
 endif()
 find_package(PkgConfig REQUIRED)
 find_package(tomlplusplus 3 REQUIRED)

@@ -1,4 +1,5 @@
 add_library(rostrum_core STATIC
+    Autostart.cpp Autostart.h
     Paths.cpp Paths.h
     Requirements.cpp Requirements.h
     Model.cpp Model.h

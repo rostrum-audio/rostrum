@@ -10,6 +10,7 @@ Kirigami.ApplicationWindow {
                                        : i18nc("@title:window", "Rostrum")
     minimumWidth: 960
     minimumHeight: 600
+    visible: !Desktop.startHidden
 
     pageStack.globalToolBar.style: Kirigami.ApplicationHeaderStyle.None
     pageStack.columnView.columnResizeMode: Kirigami.ColumnView.SingleColumn
@@ -29,17 +30,9 @@ Kirigami.ApplicationWindow {
         }
     }
 
-    // Shared by the header switcher, the menu and later the hotkeys.
+    // Shared by the header switcher, the Scenes page, the tray and the hotkeys.
     function requestSceneSwitch(name) {
-        if (name === App.currentScene) {
-            return
-        }
-        if (App.confirmSceneSwitch && App.sceneDirty) {
-            switchDialog.target = name
-            switchDialog.open()
-            return
-        }
-        App.switchScene(name)
+        App.requestSceneSwitch(name)
     }
 
     Component.onCompleted: {
@@ -48,7 +41,15 @@ Kirigami.ApplicationWindow {
     }
     onWidthChanged: if (visibility === Window.Windowed) App.windowWidth = width
     onHeightChanged: if (visibility === Window.Windowed) App.windowHeight = height
-    onClosing: App.saveSettingsNow()
+    onClosing: close => {
+        App.saveSettingsNow()
+        if (Desktop.trayAvailable) {
+            close.accepted = false
+            root.hide()
+        } else {
+            App.quit()
+        }
+    }
 
     Connections {
         target: App
@@ -59,6 +60,23 @@ Kirigami.ApplicationWindow {
             root.show()
             root.raise()
             root.requestActivate()
+        }
+        function onSceneSwitchConfirmRequested(name) {
+            switchDialog.target = name
+            switchDialog.open()
+        }
+    }
+
+    // In-window fallback for actions the desktop did not take as global shortcuts.
+    Repeater {
+        model: Preferences.hotkeys
+        delegate: Item {
+            required property var modelData
+            Shortcut {
+                sequences: [modelData.shortcut]
+                enabled: !modelData.global && modelData.shortcut.length > 0
+                onActivated: App.triggerAction(modelData.id)
+            }
         }
     }
 

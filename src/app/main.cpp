@@ -1,5 +1,6 @@
 #include "app/AppController.h"
 #include "app/Apps.h"
+#include "app/Desktop.h"
 #include "app/Devices.h"
 #include "app/Logging.h"
 #include "app/Mixer.h"
@@ -32,7 +33,9 @@ int main(int argc, char *argv[])
     about.setBugAddress("https://github.com/rostrum-audio/rostrum/issues");
     KAboutData::setApplicationData(about);
     QApplication::setWindowIcon(QIcon::fromTheme(QStringLiteral(ROSTRUM_APP_ID),
-                                                 QIcon::fromTheme(QStringLiteral("audio-card"))));
+                                                 QIcon(QStringLiteral(":/icons/" ROSTRUM_APP_ID ".svg"))));
+    // Closing the window hides to the tray when there is one; Main.qml decides.
+    QApplication::setQuitOnLastWindowClosed(false);
 
     // One instance only: a second launch raises the running window and exits.
     KDBusService service(KDBusService::Unique);
@@ -55,6 +58,7 @@ int main(int argc, char *argv[])
     rostrum::app::Apps apps(&controller, nullptr);
     rostrum::app::Scenes scenes(&controller, nullptr);
     rostrum::app::Devices devices(&controller, nullptr);
+    rostrum::app::Desktop desktop(&controller, nullptr);
     rostrum::app::Preferences preferences(&controller, nullptr);
 
     QQmlApplicationEngine engine;
@@ -63,6 +67,7 @@ int main(int argc, char *argv[])
     if (engine.rootObjects().isEmpty()) {
         return 1;
     }
+    desktop.setWindow(qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst()));
 
     // Developer aid for docs: ROSTRUM_SCREENSHOT=out.png renders only Rostrum's own window
     // (works with QT_QPA_PLATFORM=offscreen) and quits.

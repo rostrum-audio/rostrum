@@ -220,6 +220,25 @@ survive a quit without saving faders. Switching scenes discards unsaved fader mo
 
 The log is `$XDG_STATE_HOME/rostrum/rostrum.log`.
 
+Outside `~/.config/rostrum/`, Rostrum writes only the two PipeWire rule fragments above and,
+while "Launch at login" is on, `$XDG_CONFIG_HOME/autostart/io.github.rostrum_audio.Rostrum.desktop`
+(`Exec=… --autostart`; "Start in tray" only applies to that launch). That file is the source of
+truth: removing it in System Settings → Autostart turns the switch off.
+
+## Desktop integration
+
+- Tray: a StatusNotifierItem, shown only when a tray host is registered
+  (`org.kde.StatusNotifierWatcher`). Without a tray, closing the window quits instead of hiding.
+- Global shortcuts: through KGlobalAccel when `org.kde.kglobalaccel` is running (Plasma), as the
+  component `io.github.rostrum_audio.Rostrum`, so they show up in System Settings → Shortcuts and
+  can be rebound there too. Otherwise through the XDG GlobalShortcuts portal. A shortcut the
+  desktop refuses, or one another component already owns, stays active inside the window and
+  Settings says why. There is no X11 key grab.
+- The one notification is "Headphones disconnected, scene held.", sent straight to
+  `org.freedesktop.Notifications`. Mute changes never notify.
+- Offscreen runs (`QT_QPA_PLATFORM=offscreen` or `ROSTRUM_SCREENSHOT`) skip the tray, shortcuts
+  and notifications. `ROSTRUM_NO_GLOBAL_SHORTCUTS=1` skips only the shortcuts.
+
 ## Solo is never persisted
 
 Solo is session-only state owned by the engine. It is never a field of `Bus` or `Scene` and never
