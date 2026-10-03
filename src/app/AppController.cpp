@@ -96,6 +96,7 @@ void AppController::start()
     m_engine.setMicDevice(m_settings.mic);
     m_engine.setMicFallback(m_settings.micFallback);
     m_engine.setMonoHeadphones(m_settings.monoHeadphones);
+    m_engine.setSceneFadeMs(m_settings.sceneFadeMs);
     m_engine.setAutoAssign(m_settings.autoAssign);
     m_engine.setAutoSkip(m_settings.autoSkip);
     m_scenes.setAutoSave(m_settings.autoSaveScenes);

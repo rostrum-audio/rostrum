@@ -30,7 +30,7 @@ public:
     bool dirty() const { return m_dirty; }
     QString lastError() const { return m_error; }
 
-    bool switchTo(const QString &name);
+    bool switchTo(const QString &name); // fades when the engine has a scene fade set
     bool switchToIndex(int index);
     bool next();
     bool previous();
@@ -68,6 +68,7 @@ Q_SIGNALS:
     void errorOccurred(const QString &message);
 
 private:
+    bool activate(const QString &name, bool fade);
     void onEngineSceneChanged();
     void onStructureChanged();
     bool write(const Scene &scene);

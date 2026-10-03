@@ -31,6 +31,7 @@ void Engine::setBusVolume(const QString &id, double volume)
     if (!b) {
         return;
     }
+    cancelFade(b->nodeName());
     const double v = std::clamp(volume, 0.0, b->isInput() ? kMicMaxGain : 1.0);
     if (qFuzzyCompare(b->volume + 1.0, v + 1.0)) {
         return;
@@ -42,7 +43,11 @@ void Engine::setBusVolume(const QString &id, double volume)
 void Engine::setBusMuted(const QString &id, bool muted)
 {
     Bus *b = m_scene.bus(id);
-    if (!b || b->muted == muted) {
+    if (!b) {
+        return;
+    }
+    cancelFade(b->nodeName());
+    if (b->muted == muted) {
         return;
     }
     b->muted = muted;
@@ -55,6 +60,7 @@ void Engine::setBusBalance(const QString &id, double balance)
     if (!b || b->isInput()) {
         return;
     }
+    cancelFade(b->nodeName());
     const double v = volume::clampBalance(balance);
     if (qFuzzyCompare(b->balance + 1.0, v + 1.0)) {
         return;
@@ -75,24 +81,28 @@ void Engine::setBusDestination(const QString &id, Destination d)
 
 void Engine::setMasterPhones(double volume)
 {
+    cancelFade(QString::fromLatin1(kPhonesNode));
     m_scene.masterPhones = std::clamp(volume, 0.0, 1.0);
     levelChanged();
 }
 
 void Engine::setMasterPhonesMuted(bool muted)
 {
+    cancelFade(QString::fromLatin1(kPhonesNode));
     m_scene.masterPhonesMuted = muted;
     levelChanged();
 }
 
 void Engine::setMasterStream(double volume)
 {
+    cancelFade(QString::fromLatin1(kStreamNode));
     m_scene.masterStream = std::clamp(volume, 0.0, 1.0);
     levelChanged();
 }
 
 void Engine::setMasterStreamMuted(bool muted)
 {
+    cancelFade(QString::fromLatin1(kStreamNode));
     m_scene.masterStreamMuted = muted;
     levelChanged();
 }
@@ -144,6 +154,9 @@ void Engine::setSolo(const QString &id, bool soloed)
     } else {
         m_soloed.remove(id);
     }
+    // A fade would hold dimmed buses unmuted until it ends.
+    m_fades.clear();
+    m_fadeTimer.stop();
     // Solo changes the live mix only; it never dirties or alters the saved scene.
     Q_EMIT soloChanged();
     Q_EMIT levelsChanged();
@@ -162,6 +175,8 @@ void Engine::clearSolo()
         return;
     }
     m_soloed.clear();
+    m_fades.clear();
+    m_fadeTimer.stop();
     Q_EMIT soloChanged();
     Q_EMIT levelsChanged();
     scheduleReconcile();
@@ -609,17 +624,27 @@ void Engine::reconcileVolumes()
         m_pw->setNodeVolumes(n->id, want, mute);
     };
 
+    // Mid-fade a node is unmuted and ramps from its old level; a target mute lands when it ends.
+    auto level = [&](const QString &nodeName, double fader, bool mute, double balance = 0.0,
+                     double gain = 1.0) {
+        if (const auto f = fadingLevel(nodeName)) {
+            apply(nodeName, f->position, false, f->balance, gain);
+        } else {
+            apply(nodeName, fader, mute, balance, gain);
+        }
+    };
+
     for (const auto &b : m_scene.buses) {
         if (b.isInput()) {
             continue;
         }
-        apply(b.nodeName(), b.volume, b.muted || dimmedBySolo(b.id), b.balance);
+        level(b.nodeName(), b.volume, b.muted || dimmedBySolo(b.id), b.balance);
     }
     // Halve while mono is wanted or any cross-link is still up, so links and volume changing at
     // slightly different moments can only make it briefly quieter, never 6 dB louder.
     const double phonesGain = (m_phonesCrossLinkWanted || phonesCrossLinked()) ? 0.5 : 1.0;
-    apply(QString::fromLatin1(kPhonesNode), m_scene.masterPhones, m_scene.masterPhonesMuted, 0.0, phonesGain);
-    apply(QString::fromLatin1(kStreamNode), m_scene.masterStream, m_scene.masterStreamMuted);
+    level(QString::fromLatin1(kPhonesNode), m_scene.masterPhones, m_scene.masterPhonesMuted, 0.0, phonesGain);
+    level(QString::fromLatin1(kStreamNode), m_scene.masterStream, m_scene.masterStreamMuted);
     if (const Bus *mic = m_scene.micBus()) {
         const bool silenced = micSilenced();
         apply(QString::fromLatin1(kMicNode), mic->volume,

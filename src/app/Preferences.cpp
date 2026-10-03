@@ -13,6 +13,9 @@
 #include <QJSEngine>
 #include <QKeySequence>
 
+#include <algorithm>
+#include <iterator>
+
 namespace rostrum::app {
 
 Preferences *Preferences::s_instance = nullptr;
@@ -63,6 +66,18 @@ bool Preferences::confirmSceneSwitch() const { return m_app->settings().confirmS
 void Preferences::setConfirmSceneSwitch(bool on) { update(m_app->settings().confirmSceneSwitch, on); }
 bool Preferences::scrollToAdjust() const { return m_app->settings().scrollToAdjust; }
 void Preferences::setScrollToAdjust(bool on) { update(m_app->settings().scrollToAdjust, on); }
+int Preferences::sceneFadeMs() const { return m_app->settings().sceneFadeMs; }
+
+void Preferences::setSceneFadeMs(int ms)
+{
+    if (std::find(std::begin(kSceneFadeChoicesMs), std::end(kSceneFadeChoicesMs), ms) ==
+        std::end(kSceneFadeChoicesMs)) {
+        return;
+    }
+    update(m_app->settings().sceneFadeMs, ms);
+    m_app->engine()->setSceneFadeMs(ms);
+}
+
 bool Preferences::lowMeterSpeed() const { return m_app->settings().meterSpeed == QLatin1String("low"); }
 
 void Preferences::setLowMeterSpeed(bool on)

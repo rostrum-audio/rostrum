@@ -170,6 +170,17 @@ private Q_SLOTS:
         QCOMPARE(volume::balancedPosition(0.8, -7.0, true), 0.0);
     }
 
+    void fadeInterpolation()
+    {
+        QCOMPARE(volume::fadePosition(0.2, 0.8, 0.0), 0.2);
+        QCOMPARE(volume::fadePosition(0.2, 0.8, 1.0), 0.8);
+        QVERIFY(qAbs(volume::fadePosition(0.2, 0.8, 0.5) - 0.5) < 1e-9);
+        QVERIFY(qAbs(volume::fadePosition(1.0, 0.0, 0.25) - 0.75) < 1e-9);
+        // Late timer ticks never overshoot, early ones never undershoot.
+        QCOMPARE(volume::fadePosition(0.2, 0.8, 1.7), 0.8);
+        QCOMPARE(volume::fadePosition(0.2, 0.8, -0.3), 0.2);
+    }
+
     void mergeKeepsSavedBalance()
     {
         Scene saved = defaults::scene();

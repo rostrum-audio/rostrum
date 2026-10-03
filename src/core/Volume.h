@@ -44,6 +44,12 @@ inline double balancedPosition(double position, double balance, bool right)
     return position * (right ? 1.0 + std::min(b, 0.0) : 1.0 - std::max(b, 0.0));
 }
 
+// A scene fade at progress t (0..1), linear in fader space, which is already perceptual.
+inline double fadePosition(double from, double to, double t)
+{
+    return from + (to - from) * std::clamp(t, 0.0, 1.0);
+}
+
 // Meter scale: -60 dB .. 0 dB mapped to 0..1.
 inline constexpr double kMeterFloorDb = -60.0;
 inline constexpr double kMeterAmberDb = -12.0;

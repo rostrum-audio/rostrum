@@ -53,6 +53,19 @@ QQC2.ScrollView {
                 onToggled: Preferences.confirmSceneSwitch = checked
             }
             FormCard.FormDelegateSeparator {}
+            FormCard.FormComboBoxDelegate {
+                text: i18nc("@label:listbox", "Scene fade")
+                description: i18n("Bus and master levels glide to the new scene instead of jumping. The mic always switches at once.")
+                readonly property var lengths: [0, 150, 300, 600, 1000]
+                model: [i18nc("@item:inlistbox scene fade", "Off (switch at once)"),
+                        i18nc("@item:inlistbox scene fade", "150 ms"),
+                        i18nc("@item:inlistbox scene fade", "300 ms"),
+                        i18nc("@item:inlistbox scene fade", "600 ms"),
+                        i18nc("@item:inlistbox scene fade", "1 second")]
+                currentIndex: Math.max(0, lengths.indexOf(Preferences.sceneFadeMs))
+                onActivated: index => Preferences.sceneFadeMs = lengths[index]
+            }
+            FormCard.FormDelegateSeparator {}
             FormCard.FormSwitchDelegate {
                 text: i18nc("@option:check", "Scroll to adjust faders")
                 description: i18n("Turn off if you scroll the page and move faders by accident.")

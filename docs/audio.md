@@ -104,6 +104,25 @@ cross-link is gone, so the change can only be briefly quieter, never 6 dB louder
 already sum, and sinks without FL and FR ports keep the normal links. The stream mix stays stereo.
 Like every Rostrum link, the cross-links linger, so headphones stay mono if Rostrum quits.
 
+### Scene fades
+
+Settings → General → Scene fade (`[general] scene_fade_ms`: 0 = off, the default, or 150, 300, 600,
+1000; other values snap to the nearest) makes a scene switch glide instead of jump. Only bus and
+master nodes fade; `rostrum.mic` and `rostrum.sidetone` switch at once, so a scene that mutes the mic
+never leaves it live for a moment.
+
+- The engine's scene takes the new values at once, so the faders show the target, the scene is
+  never dirty because of a fade, and a save mid-fade saves the target. The ramp is a session-only
+  overlay per node, never stored.
+- Every 16 ms the overlay sends `from + (to − from) × t` in fader space (already perceptual), for
+  the level and the balance. A muted bus counts as level 0: a bus being unmuted is unmuted at the
+  start and ramps up from silence, and a bus being muted ramps down and is muted at the end. Solo
+  is part of the starting level.
+- A switch mid-fade starts from wherever the running fade got to. Moving a fader, mute or balance
+  takes that node out of the fade at once; toggling solo ends the whole fade.
+- Loading the default scene at startup never fades: the nodes may still be playing at their
+  lingering levels, and the scene applies at once as before.
+
 ### Mic channel handling
 
 `rostrum.mic` and `rostrum.sidetone` are mono. Every channel of the hardware mic is summed into
@@ -376,10 +395,10 @@ The mic bus is always present and first, ids must be unique slugs, there are at 
 colors are replaced from the palette, levels are clamped, and rules for unknown buses are dropped.
 
 Bus renames, colors, adding or removing a bus and app rules are written to the current scene file
-right away, merged onto its saved levels. Levels (faders, mutes, balance, destinations, masters, sidetone)
-are saved to the live scene one second after the last change, before a scene switch and on quit,
-while "Save scene changes automatically" is on (the default; `[general] auto_save_scenes`). With
-it off, level changes make the scene dirty until Save, and switching scenes discards them.
+right away, merged onto its saved levels. Levels (faders, mutes, balance, destinations, masters,
+sidetone) are saved to the live scene one second after the last change, before a scene switch and
+on quit, while "Save scene changes automatically" is on (the default; `[general] auto_save_scenes`).
+With it off, level changes make the scene dirty until Save, and switching scenes discards them.
 
 New → From a Preset makes a scene from the live one: same buses, names, colors and app rules,
 with the preset's levels for buses that have an automatic category (Game, Voice, Music, Alerts,

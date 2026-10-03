@@ -26,6 +26,9 @@ QString defaultShortcut(const QString &id);
 // buses, 2 = startup, crash reports and updates.
 inline constexpr int kSetupVersion = 2;
 
+// Scene fade lengths offered in Settings; 0 = switch instantly.
+inline constexpr int kSceneFadeChoicesMs[] = {0, 150, 300, 600, 1000};
+
 namespace crashmode {
 inline constexpr const char *kSend = "send";
 inline constexpr const char *kAsk = "ask";
@@ -42,6 +45,7 @@ struct Settings
     bool autoSaveScenes = true; // level changes save to the live scene by themselves
     bool confirmSceneSwitch = false; // only asked while auto-save is off
     bool scrollToAdjust = true;
+    int sceneFadeMs = 0; // one of kSceneFadeChoicesMs
     // Mixer
     QString meterSpeed = QStringLiteral("normal"); // "low" or "normal"
     bool showDb = false;

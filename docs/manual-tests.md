@@ -381,6 +381,26 @@ audio.position=[MONO] }'` set as default with `wpctl set-default`.
    the front left and right get the downmix.
 5. Quit Rostrum: headphones keep playing, still mono. Start it with the switch off: back to stereo.
 
+## 19. Scene fades
+
+1. With Settings → Scene fade at Off, switch between two scenes with different Music levels: the
+   level jumps, as before.
+2. Set it to 1 second. Play music and switch from a scene with Music at 0 dB to one with Music
+   muted: the M button lights at once, the music fades out over about a second, and only then
+   does `pw-dump` show `rostrum.music` muted. Switch back: the node is unmuted at once and fades
+   in from silence.
+3. Switch to a scene that mutes the mic while talking: the mic cuts at once (OBS meter drops
+   immediately), even though buses are still fading.
+4. Start a 1 second fade and switch again halfway: the level turns around from where it was, no
+   jump to either end.
+5. During a fade, grab a fader: it follows your hand at once, the other buses keep fading.
+6. With auto-save off, switch scenes with a fade: the scene is not marked as changed during or
+   after the fade, and Save writes the target levels. With auto-save on, the scene file never
+   contains an in-between level.
+7. Quit and start Rostrum with a fade set: the default scene applies at once (no ramp from 0 dB).
+8. Press the Next scene shortcut several times quickly: no clicks, and every bus ends at the last
+   scene's level.
+
 ## Smoke test log
 
 Kubuntu 26.04, Plasma 6.6 Wayland, PipeWire 1.6.2, WirePlumber 0.5.13, build 0.1.0. The checks

@@ -211,6 +211,125 @@ private Q_SLOTS:
         QVERIFY(!toml_io::serializeScene(engine.scene()).contains(QStringLiteral("mono")));
     }
 
+    void sceneFadeRampsWithoutTouchingTheScene()
+    {
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        const QString music = QStringLiteral("rostrum.music");
+        Scene a = defaults::scene();
+        a.bus(QStringLiteral("music"))->volume = 0.8;
+        a.bus(QStringLiteral("game"))->muted = true;
+        a.bus(QStringLiteral("voice"))->volume = 0.5;
+        engine.setScene(a);
+        QVERIFY(!engine.fading());
+
+        Scene b = a;
+        b.name = QStringLiteral("Chatting");
+        b.bus(QStringLiteral("music"))->volume = 0.2;
+        b.bus(QStringLiteral("game"))->muted = false;
+        b.bus(QStringLiteral("game"))->volume = 0.6;
+        b.bus(QStringLiteral("voice"))->muted = true;
+        b.micBus()->muted = true;
+        b.masterStream = 0.5;
+
+        // Off by default: the switch is instant.
+        engine.setScene(b, true);
+        QVERIFY(!engine.fading());
+        engine.setScene(a);
+
+        engine.setSceneFadeMs(300);
+        engine.setScene(b, true);
+        // The scene holds the target at once, so saving mid-fade saves the target.
+        QCOMPARE(engine.scene(), b);
+        QVERIFY(engine.fading());
+        QVERIFY(qAbs(*engine.fadingPosition(music) - 0.8) < 0.1);
+        // A muted bus starts from silence; a bus being muted ramps down to it.
+        QVERIFY(*engine.fadingPosition(QStringLiteral("rostrum.game")) < 0.1);
+        QVERIFY(qAbs(*engine.fadingPosition(QStringLiteral("rostrum.voice")) - 0.5) < 0.1);
+        QVERIFY(engine.fadingPosition(QStringLiteral("rostrum.stream")).has_value());
+        // Unchanged buses and the mic never fade.
+        QVERIFY(!engine.fadingPosition(QStringLiteral("rostrum.alerts")).has_value());
+        QVERIFY(!engine.fadingPosition(QStringLiteral("rostrum.mic")).has_value());
+        QVERIFY(!engine.fadingPosition(QStringLiteral("rostrum.sidetone")).has_value());
+
+        QTRY_VERIFY_WITH_TIMEOUT(!engine.fading(), 2000);
+        QVERIFY(!engine.fadingPosition(music).has_value());
+        QCOMPARE(engine.scene(), b);
+    }
+
+    void switchMidFadeContinuesFromTheCurrentLevel()
+    {
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        const QString music = QStringLiteral("rostrum.music");
+        Scene loud = defaults::scene();
+        Scene quiet = loud;
+        quiet.bus(QStringLiteral("music"))->volume = 0.0;
+        engine.setScene(loud);
+        engine.setSceneFadeMs(1000);
+        engine.setScene(quiet, true);
+        QTest::qWait(400);
+        const double reached = *engine.fadingPosition(music);
+        QVERIFY2(reached < 0.9 && reached > 0.1, qPrintable(QString::number(reached)));
+        engine.setScene(loud, true);
+        QVERIFY(qAbs(*engine.fadingPosition(music) - reached) < 0.1);
+
+        // Moving a fader takes that bus out of the fade; the rest carry on.
+        Scene other = quiet;
+        other.bus(QStringLiteral("game"))->volume = 0.1;
+        engine.setScene(other, true);
+        engine.setBusVolume(QStringLiteral("music"), 0.7);
+        QVERIFY(!engine.fadingPosition(music).has_value());
+        QVERIFY(engine.fadingPosition(QStringLiteral("rostrum.game")).has_value());
+        // Solo mutes at once, so it ends the fade.
+        engine.setSolo(QStringLiteral("game"), true);
+        QVERIFY(!engine.fading());
+    }
+
+    void fadesNeverDirtyTheSceneOrRunOnLoad()
+    {
+        QTemporaryDir dir;
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        engine.setSceneFadeMs(600);
+        engine::SceneManager scenes(&engine, dir.path());
+        scenes.load(QStringLiteral("Live"));
+        QVERIFY(!engine.fading());
+        Scene brb = defaults::scene(QStringLiteral("BRB"));
+        brb.bus(QStringLiteral("game"))->volume = 0.1;
+        QVERIFY(scenes.create(brb));
+
+        QVERIFY(scenes.switchTo(QStringLiteral("BRB")));
+        QVERIFY(engine.fading());
+        QVERIFY(!scenes.dirty());
+        QTRY_VERIFY_WITH_TIMEOUT(!engine.fading(), 2000);
+        QVERIFY(!scenes.dirty());
+
+        // Loading at startup applies the saved scene at once.
+        engine::Engine fresh(&pw);
+        fresh.setSceneFadeMs(600);
+        engine::SceneManager again(&fresh, dir.path());
+        again.load(QStringLiteral("BRB"));
+        QVERIFY(!fresh.fading());
+    }
+
+    void sceneFadeSettingSnapsToAChoice()
+    {
+        QCOMPARE(defaultSettings().sceneFadeMs, 0);
+        Settings s = defaultSettings();
+        s.sceneFadeMs = 300;
+        QCOMPARE(parseSettings(serializeSettings(s)), s);
+        auto parsed = [](const char *v) {
+            return parseSettings(QStringLiteral("[general]\nscene_fade_ms = %1\n").arg(QLatin1String(v)))
+                .sceneFadeMs;
+        };
+        QCOMPARE(parsed("600"), 600);
+        QCOMPARE(parsed("450"), 300);
+        QCOMPARE(parsed("-20"), 0);
+        QCOMPARE(parsed("99999"), 1000);
+        QCOMPARE(parsed("'slow'"), 0);
+    }
+
     void micFallbackIsOffByDefault()
     {
         QVERIFY(!defaultSettings().micFallback);

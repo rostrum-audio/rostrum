@@ -23,6 +23,7 @@ class Preferences : public QObject
     Q_PROPERTY(bool autoSaveScenes READ autoSaveScenes WRITE setAutoSaveScenes NOTIFY changed)
     Q_PROPERTY(bool confirmSceneSwitch READ confirmSceneSwitch WRITE setConfirmSceneSwitch NOTIFY changed)
     Q_PROPERTY(bool scrollToAdjust READ scrollToAdjust WRITE setScrollToAdjust NOTIFY changed)
+    Q_PROPERTY(int sceneFadeMs READ sceneFadeMs WRITE setSceneFadeMs NOTIFY changed)
     Q_PROPERTY(bool lowMeterSpeed READ lowMeterSpeed WRITE setLowMeterSpeed NOTIFY changed)
     Q_PROPERTY(bool showDb READ showDb WRITE setShowDb NOTIFY changed)
     Q_PROPERTY(bool showNodeIds READ showNodeIds WRITE setShowNodeIds NOTIFY changed)
@@ -51,6 +52,8 @@ public:
     void setConfirmSceneSwitch(bool on);
     bool scrollToAdjust() const;
     void setScrollToAdjust(bool on);
+    int sceneFadeMs() const;
+    void setSceneFadeMs(int ms);
     bool lowMeterSpeed() const;
     void setLowMeterSpeed(bool on);
     bool showDb() const;

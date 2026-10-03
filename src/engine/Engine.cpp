@@ -16,6 +16,7 @@ namespace {
 constexpr int kCreateRetryMs = 3000;
 constexpr int kCreateTimeoutMs = 5000;
 constexpr qint64 kSessionGraceMs = 30000;
+constexpr int kFadeStepMs = 16;
 } // namespace
 
 Engine::Engine(pw::PwContext *pw, QObject *parent)
@@ -30,16 +31,96 @@ Engine::Engine(pw::PwContext *pw, QObject *parent)
         m_mixError = msg;
         Q_EMIT mixStateChanged();
     });
+    m_fadeTimer.setInterval(kFadeStepMs);
+    m_fadeTimer.setTimerType(Qt::PreciseTimer);
+    connect(&m_fadeTimer, &QTimer::timeout, this, &Engine::fadeTick);
 }
 
-void Engine::setScene(const Scene &scene)
+void Engine::setScene(const Scene &scene, bool fade)
 {
+    QHash<QString, Fade> fades;
+    if (fade && m_sceneFadeMs > 0) {
+        // A switch mid-fade continues from where the last one got to.
+        const auto from = fadeLevels(m_scene, true);
+        const auto to = fadeLevels(scene, false);
+        for (auto it = to.cbegin(); it != to.cend(); ++it) {
+            Level start = fadingLevel(it.key()).value_or(from.value(it.key(), Level{0.0, it->balance}));
+            if (start != *it) {
+                fades.insert(it.key(), {start, *it});
+            }
+        }
+    }
+    m_fades = fades;
+    if (m_fades.isEmpty()) {
+        m_fadeTimer.stop();
+    } else {
+        m_fadeLength = m_sceneFadeMs;
+        m_fadeClock.start();
+        m_fadeTimer.start();
+    }
     m_scene = scene;
     m_soloed.clear();
     Q_EMIT soloChanged();
     Q_EMIT levelsChanged();
     Q_EMIT sceneChanged();
     scheduleReconcile();
+}
+
+void Engine::setSceneFadeMs(int ms)
+{
+    m_sceneFadeMs = std::clamp(ms, 0, 5000);
+}
+
+QHash<QString, Engine::Level> Engine::fadeLevels(const Scene &scene, bool withSolo) const
+{
+    QHash<QString, Level> levels;
+    for (const auto &b : scene.buses) {
+        if (b.isInput()) {
+            continue;
+        }
+        const bool off = b.muted || (withSolo && dimmedBySolo(b.id));
+        levels.insert(b.nodeName(), {off ? 0.0 : b.volume, b.balance});
+    }
+    levels.insert(QString::fromLatin1(kPhonesNode),
+                  {scene.masterPhonesMuted ? 0.0 : scene.masterPhones, 0.0});
+    levels.insert(QString::fromLatin1(kStreamNode),
+                  {scene.masterStreamMuted ? 0.0 : scene.masterStream, 0.0});
+    return levels;
+}
+
+std::optional<Engine::Level> Engine::fadingLevel(const QString &nodeName) const
+{
+    const auto it = m_fades.constFind(nodeName);
+    if (it == m_fades.cend()) {
+        return std::nullopt;
+    }
+    const double t = m_fadeLength > 0 ? double(m_fadeClock.elapsed()) / m_fadeLength : 1.0;
+    return Level{volume::fadePosition(it->from.position, it->to.position, t),
+                 volume::fadePosition(it->from.balance, it->to.balance, t)};
+}
+
+std::optional<double> Engine::fadingPosition(const QString &nodeName) const
+{
+    const auto level = fadingLevel(nodeName);
+    return level ? std::optional<double>(level->position) : std::nullopt;
+}
+
+void Engine::cancelFade(const QString &nodeName)
+{
+    if (m_fades.remove(nodeName) && m_fades.isEmpty()) {
+        m_fadeTimer.stop();
+    }
+}
+
+void Engine::fadeTick()
+{
+    if (m_fadeClock.elapsed() >= m_fadeLength) {
+        m_fades.clear();
+        m_fadeTimer.stop();
+    }
+    if (m_pw->state() == pw::PwContext::State::Ready) {
+        reconcileVolumes();
+    }
 }
 
 void Engine::createMix()

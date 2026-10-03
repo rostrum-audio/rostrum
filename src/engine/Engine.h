@@ -10,6 +10,9 @@
 #include <QHash>
 #include <QObject>
 #include <QSet>
+#include <QTimer>
+
+#include <optional>
 
 namespace rostrum::pw {
 class PwContext;
@@ -53,7 +56,14 @@ public:
     pw::PwContext *pw() const { return m_pw; }
 
     const Scene &scene() const { return m_scene; }
-    void setScene(const Scene &scene);
+    // fade: ramp bus and master levels over sceneFadeMs() instead of jumping. The scene takes the
+    // new values at once; the ramp is session-only and never saved. The mic is never faded.
+    void setScene(const Scene &scene, bool fade = false);
+    void setSceneFadeMs(int ms);
+    int sceneFadeMs() const { return m_sceneFadeMs; }
+    bool fading() const { return !m_fades.isEmpty(); }
+    // The fader position being sent to a bus or master node mid-fade, if it is fading.
+    std::optional<double> fadingPosition(const QString &nodeName) const;
 
     // Node creation is opt-in: the wizard (or a completed first run) turns it on.
     bool mixEnabled() const { return m_mixEnabled; }
@@ -164,6 +174,16 @@ protected:
     void reconcileVolumes();
     void reconcileDevices();
     bool phonesCrossLinked() const; // headphone links that carry one side into the other
+    struct Level
+    {
+        double position = 0.0; // 0 when muted
+        double balance = 0.0;
+        bool operator==(const Level &) const = default;
+    };
+    QHash<QString, Level> fadeLevels(const Scene &scene, bool withSolo) const; // by node name
+    std::optional<Level> fadingLevel(const QString &nodeName) const;
+    void cancelFade(const QString &nodeName);
+    void fadeTick();
     void levelChanged();
     const pw::Node *resolveSink() const;
     const pw::Node *resolveSource() const;
@@ -226,6 +246,16 @@ protected:
         QElapsedTimer when;
     };
     QHash<uint32_t, SentVolume> m_sentVolume;
+    struct Fade
+    {
+        Level from;
+        Level to;
+    };
+    QHash<QString, Fade> m_fades; // node name -> ramp; all share one clock
+    QElapsedTimer m_fadeClock;
+    int m_fadeLength = 0;
+    int m_sceneFadeMs = 0;
+    QTimer m_fadeTimer;
     bool isOwnedNode(const pw::Node &n) const;
     void destroyOnce(uint32_t id);
 

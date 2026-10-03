@@ -4,6 +4,7 @@
 
 #include <QFileInfo>
 
+#include <cstdlib>
 #include <sstream>
 #include <toml++/toml.hpp>
 
@@ -101,6 +102,7 @@ QString serializeSettings(const Settings &s)
              {"auto_save_scenes", s.autoSaveScenes},
              {"confirm_scene_switch", s.confirmSceneSwitch},
              {"scroll_to_adjust", s.scrollToAdjust},
+             {"scene_fade_ms", s.sceneFadeMs},
          }},
         {"mixer", toml::table{{"meter_speed", s.meterSpeed.toStdString()}, {"show_db", s.showDb}}},
         {"apps", toml::table{{"auto_assign", s.autoAssign}, {"auto_skip", skip}}},
@@ -155,6 +157,13 @@ Settings parseSettings(const QString &text, QString *error)
     s.autoSaveScenes = get(t, "general", "auto_save_scenes", s.autoSaveScenes);
     s.confirmSceneSwitch = get(t, "general", "confirm_scene_switch", s.confirmSceneSwitch);
     s.scrollToAdjust = get(t, "general", "scroll_to_adjust", s.scrollToAdjust);
+    // Hand-edited lengths snap to the nearest offered one.
+    const auto fade = get<int64_t>(t, "general", "scene_fade_ms", s.sceneFadeMs);
+    for (const int choice : kSceneFadeChoicesMs) {
+        if (std::abs(fade - choice) < std::abs(fade - s.sceneFadeMs)) {
+            s.sceneFadeMs = choice;
+        }
+    }
     s.meterSpeed = getStr(t, "mixer", "meter_speed", s.meterSpeed);
     if (s.meterSpeed != QLatin1String("low")) {
         s.meterSpeed = QStringLiteral("normal");
