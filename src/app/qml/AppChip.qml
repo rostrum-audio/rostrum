@@ -30,8 +30,10 @@ QQC2.Control {
     Accessible.name: appName
     Accessible.description: automatic ? i18nc("@info accessible", "Placed automatically. %1", reason) : ""
 
-    QQC2.ToolTip.text: i18nc("@info:tooltip %1 is why", "Placed automatically: %1", reason)
-    QQC2.ToolTip.visible: automatic && hovered
+    QQC2.ToolTip.text: [nameLabel.truncated ? appName : "",
+                        automatic ? i18nc("@info:tooltip %1 is why", "Placed automatically: %1", reason) : ""]
+        .filter(line => line.length > 0).join("\n")
+    QQC2.ToolTip.visible: hovered && (automatic || nameLabel.truncated)
     QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
 
     background: Rectangle {
@@ -51,6 +53,7 @@ QQC2.Control {
             Accessible.ignored: true
         }
         QQC2.Label {
+            id: nameLabel
             text: chip.appName
             elide: Text.ElideRight
             font: Kirigami.Theme.smallFont
@@ -92,19 +95,6 @@ QQC2.Control {
                     onTriggered: Mixer.unassignApp(chip.appKey)
                 }
             }
-        }
-        QQC2.ToolButton {
-            icon.name: "window-close"
-            icon.width: Kirigami.Units.iconSizes.small
-            icon.height: Kirigami.Units.iconSizes.small
-            implicitWidth: implicitHeight
-            implicitHeight: chip.implicitHeight
-            display: QQC2.AbstractButton.IconOnly
-            text: i18nc("@action:button accessible", "Unassign %1", chip.appName)
-            onClicked: Mixer.unassignApp(chip.appKey)
-            QQC2.ToolTip.text: i18nc("@info:tooltip", "Unassign")
-            QQC2.ToolTip.visible: hovered
-            QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
         }
     }
 
