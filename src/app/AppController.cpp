@@ -2,6 +2,7 @@
 
 #include "core/Paths.h"
 #include "core/Requirements.h"
+#include "core/SettingsBackup.h"
 
 #include <KLocalizedString>
 
@@ -67,6 +68,12 @@ AppController::AppController(QObject *parent)
         saveSettingsSoon();
         Q_EMIT scenesChanged();
     });
+    connect(&m_scenes, &engine::SceneManager::scenesChanged, this, [this] {
+        if (const QStringList order = m_scenes.names(); order != m_settings.sceneOrder) {
+            m_settings.sceneOrder = order;
+            saveSettingsSoon();
+        }
+    });
     connect(&m_scenes, &engine::SceneManager::errorOccurred, this, &AppController::toast);
     connect(&m_engine, &engine::Engine::structureChanged, this, &AppController::updateBusActions);
     connect(&m_scenes, &engine::SceneManager::scenesChanged, this, &AppController::updateBusActions);
@@ -105,6 +112,8 @@ void AppController::start()
     m_engine.setAutoAssign(m_settings.autoAssign);
     m_engine.setAutoSkip(m_settings.autoSkip);
     m_scenes.setAutoSave(m_settings.autoSaveScenes);
+    m_scenes.setOrder(m_settings.sceneOrder);
+    m_scenes.setTrashDir(paths::trashDir());
     m_scenes.load(m_settings.defaultScene);
     updateBusActions();
     if (m_settings.wizardDone) {
@@ -508,7 +517,107 @@ void AppController::setWindowHeight(int h)
     Q_EMIT windowStateChanged();
 }
 
+void AppController::setCompactWindow(bool on)
+{
+    if (on == m_settings.compactWindow) {
+        return;
+    }
+    m_settings.compactWindow = on;
+    saveSettingsSoon();
+    Q_EMIT windowStateChanged();
+}
+
+void AppController::setCompactWidth(int w)
+{
+    w = std::max(kCompactMinWidth, w);
+    if (w == m_settings.compactWidth) {
+        return;
+    }
+    m_settings.compactWidth = w;
+    saveSettingsSoon();
+    Q_EMIT windowStateChanged();
+}
+
+void AppController::setCompactHeight(int h)
+{
+    h = std::max(kCompactMinHeight, h);
+    if (h == m_settings.compactHeight) {
+        return;
+    }
+    m_settings.compactHeight = h;
+    saveSettingsSoon();
+    Q_EMIT windowStateChanged();
+}
+
+void AppController::setKeepOnTop(bool on)
+{
+    if (on == m_settings.keepOnTop) {
+        return;
+    }
+    m_settings.keepOnTop = on;
+    saveSettingsSoon();
+    Q_EMIT windowStateChanged();
+}
+
 void AppController::saveSettingsSoon() { m_saveTimer.start(); }
+
+bool AppController::writeBackup(const QString &path, QString *error)
+{
+    m_scenes.flush();
+    m_settings.headphones = m_engine.headphoneDevice();
+    m_settings.mic = m_engine.micDevice();
+    const QString text = backup::serialize(m_settings, m_scenes.scenes(), QDateTime::currentDateTimeUtc());
+    return SceneStore::writeFile(path, text, error);
+}
+
+bool AppController::restoreBackup(const QString &path, QString *safetyCopy, QString *error,
+                                  bool *launchAtLogin)
+{
+    QString readError;
+    const QString text = SceneStore::readFile(path, &readError);
+    if (!readError.isEmpty()) {
+        if (error) {
+            *error = readError;
+        }
+        return false;
+    }
+    const auto bundle = backup::parse(text, error);
+    if (!bundle) {
+        return false;
+    }
+    const QString safety = paths::backupsDir() + QStringLiteral("/before-restore-") +
+                           QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss")) +
+                           QStringLiteral(".toml");
+    if (!writeBackup(safety, error)) {
+        return false;
+    }
+    if (safetyCopy) {
+        *safetyCopy = safety;
+    }
+    if (launchAtLogin) {
+        *launchAtLogin = bundle->settings.launchAtLogin;
+    }
+
+    m_scenes.restoreScenes(bundle->scenes);
+    m_settings = backup::restoredSettings(m_settings, bundle->settings);
+    m_engine.setHeadphoneDevice(m_settings.headphones);
+    m_engine.setMicDevice(m_settings.mic);
+    m_engine.setMicFallback(m_settings.micFallback);
+    m_engine.setMonoHeadphones(m_settings.monoHeadphones);
+    m_engine.setSceneFadeMs(m_settings.sceneFadeMs);
+    m_engine.setDucking(m_settings.ducking);
+    m_engine.setAutoAssign(m_settings.autoAssign);
+    m_engine.setAutoSkip(m_settings.autoSkip);
+    m_scenes.setAutoSave(m_settings.autoSaveScenes);
+    const QString defaultScene = m_settings.defaultScene;
+    m_scenes.setOrder(m_settings.sceneOrder);
+    m_scenes.setDefault(defaultScene);
+    m_settings.defaultScene = m_scenes.defaultName();
+    saveSettingsNow();
+    Q_EMIT settingsChanged();
+    Q_EMIT devicesChanged();
+    return true;
+}
 
 void AppController::saveSettingsNow()
 {

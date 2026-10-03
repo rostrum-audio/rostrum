@@ -1,6 +1,8 @@
 import QtQuick
 import QtQuick.Controls as QQC2
+import QtQuick.Dialogs as Dialogs
 import QtQuick.Layouts
+import QtCore
 import org.kde.kirigami as Kirigami
 import org.kde.kirigamiaddons.formcard as FormCard
 import org.kde.kquickcontrols as KQuickControls
@@ -466,6 +468,23 @@ QQC2.ScrollView {
             }
             FormCard.FormDelegateSeparator {}
             FormCard.FormButtonDelegate {
+                text: i18nc("@action:button", "Back Up Settings…")
+                description: i18n("Saves settings, hotkeys, devices and every scene to one file. Crash report and update choices are left out.")
+                icon.name: "document-save-as"
+                onClicked: {
+                    backupDialog.selectedFile = backupDialog.currentFolder + "/" + Preferences.backupFileName()
+                    backupDialog.open()
+                }
+            }
+            FormCard.FormDelegateSeparator {}
+            FormCard.FormButtonDelegate {
+                text: i18nc("@action:button", "Restore…")
+                description: i18n("Replaces settings and same-named scenes with those from a backup. The current setup is backed up first.")
+                icon.name: "document-revert"
+                onClicked: restoreFileDialog.open()
+            }
+            FormCard.FormDelegateSeparator {}
+            FormCard.FormButtonDelegate {
                 text: i18nc("@action:button", "Rebuild virtual devices")
                 description: i18n("Removes and recreates Rostrum's PipeWire nodes. Audio drops for a moment.")
                 icon.name: "view-refresh"
@@ -532,6 +551,52 @@ QQC2.ScrollView {
     }
     CrashReportDialog {
         id: pendingDialog
+    }
+
+    Dialogs.FileDialog {
+        id: backupDialog
+        title: i18nc("@title:window", "Back Up Settings")
+        fileMode: Dialogs.FileDialog.SaveFile
+        defaultSuffix: "toml"
+        nameFilters: [i18nc("file filter", "Rostrum backups (*.toml)")]
+        currentFolder: StandardPaths.writableLocation(StandardPaths.DocumentsLocation)
+        onAccepted: Preferences.backUpTo(selectedFile)
+    }
+
+    Dialogs.FileDialog {
+        id: restoreFileDialog
+        title: i18nc("@title:window", "Restore Settings")
+        fileMode: Dialogs.FileDialog.OpenFile
+        nameFilters: [i18nc("file filter", "Rostrum backups (*.toml)"), i18nc("file filter", "All files (*)")]
+        currentFolder: StandardPaths.writableLocation(StandardPaths.DocumentsLocation)
+        onAccepted: {
+            restoreDialog.file = selectedFile
+            restoreDialog.open()
+        }
+    }
+
+    Kirigami.PromptDialog {
+        id: restoreDialog
+        property url file
+        title: i18nc("@title:dialog", "Restore Settings?")
+        subtitle: i18n("Settings, hotkeys and devices are replaced, and scenes with the same name are overwritten (the old versions go to Recently Deleted). Other scenes stay. Your current setup is saved in %1 first.",
+                       Preferences.configFolder + "/backups")
+        standardButtons: Kirigami.Dialog.NoButton
+        customFooterActions: [
+            Kirigami.Action {
+                text: i18nc("@action:button", "Restore")
+                icon.name: "document-revert"
+                onTriggered: {
+                    restoreDialog.close()
+                    Preferences.restoreFrom(restoreDialog.file)
+                }
+            },
+            Kirigami.Action {
+                text: i18nc("@action:button", "Cancel")
+                icon.name: "dialog-cancel"
+                onTriggered: restoreDialog.close()
+            }
+        ]
     }
 
     Kirigami.PromptDialog {

@@ -518,6 +518,102 @@ audio.position=[MONO] }'` set as default with `wpctl set-default`.
 9. With a scene fade set, switch scenes while ducked: the fade and the ducking combine, and once
    speech stops, every bus ends at the new scene's level.
 
+## 23. Scene order and hotkey slots
+
+1. Make nine scenes. On the Scenes page the first eight show badges 1–8; hovering badges 1–4
+   names their shortcuts (Meta+Alt+1 …), and 5–8 say no shortcut is set until one is bound in
+   Settings → Hotkeys. The ninth has no badge.
+2. Select the fourth scene and press Move Up (or Alt+Up): it becomes third and takes badge 3.
+   The header scene menu and the tray's Scenes submenu list the same order, and Meta+Alt+3 now
+   loads it from any app. Meta+Alt+PgDown and the tray's Next Scene walk the scenes in this order;
+   Meta+Alt+PgUp and Previous Scene walk it backwards. Bind Load scene 6 and press it: the sixth
+   scene in the list loads.
+3. `rostrum --list-scenes` and `gdbus call --session --dest dev.getrostrum.Rostrum --object-path
+   /dev/getrostrum/Rostrum/Control --method dev.getrostrum.Rostrum1.ListScenes` print the same
+   order, and `rostrum --scene` by name still works. Quit Rostrum: `rostrum --list-scenes` still
+   prints that order.
+4. `settings.toml` has `scene_order` under `[scenes]` with the new order. Restart: the order is
+   kept.
+5. Rename a scene: it keeps its place. Delete one: the rest close up. Import a bundle or make a
+   new scene: it goes to the end. Delete `scene_order` from `settings.toml` and restart: scenes
+   fall back to file-name order.
+
+## 24. Undo, redo and deleted scenes
+
+1. Drag the Game fader, let go, and wait a second. The app menu shows "Undo Game Volume". Ctrl+Z
+   puts the fader back in one step, even after a long drag; Ctrl+Shift+Z (or Redo in the menu)
+   moves it again.
+2. Mute Voice, rename the Music bus, add a bus, then press Ctrl+Z four times: each edit is
+   undone in reverse order, and the menu names each one ("Undo Add Bus “Bus”", "Undo Rename Bus
+   to …", "Undo Voice Mute"). The bus list and names on disk follow (the scene file is rewritten).
+3. Move Music's balance, then mute Firefox on the Apps page with Always on: the menu says "Undo
+   App Mute", then "Undo Music Balance". Both come back with Ctrl+Z, and the scene file's
+   `muted = true` and `balance` lines go with them.
+4. Solo Game, change Music's level, and press Ctrl+Z: Music goes back and Game stays soloed. Mute
+   the mic, move a fader, and press Ctrl+Z twice: the fader goes back and the mic stays muted.
+   Hold Push to talk, or turn on Panic mute, and undo a fader move: the hold or panic stays as it
+   was, and nothing about it reaches the scene file.
+5. With Settings → Scene fade at 1 second, switch scenes, grab the Game fader halfway through the
+   fade and press Ctrl+Z at once: every bus stops fading and sits at the new scene's level. With
+   ducking on, undo while ducked: the ducking stays applied on top.
+6. Load another scene: Undo is empty again. Type in the scene rename field and press Ctrl+Z: the
+   text field undoes, not the mixer.
+7. Delete a scene that is not live: the toast says "Deleted “…”" with Undo. Press Undo within the
+   toast's time: the scene is back at the same place in the list (and as default, if it was).
+   `~/.config/rostrum/trash/` is empty again.
+8. Delete two scenes, then open Scenes → ⋮ → Recently Deleted…: both are listed newest first with
+   the time. Restore one: it comes back at the end of the list, with " 2" added if the name is
+   taken. Set a trash file's name to a date more than 30 days ago and restart: it is gone.
+
+## 25. Compact window
+
+1. App menu → Compact View: the window shrinks to the mic button, the scene switcher, Headphones
+   and Stream, and one slim fader with a mute button per bus. It can be resized down to about
+   420×220; the bus list scrolls.
+2. Move a bus fader and mute a bus in the compact window: the full Mixer shows the same state.
+   Double-click a slim fader: it goes back to 0 dB. The mic button and scene switcher work as in
+   the header; Manage Scenes… in the scene menu opens the full window on the Scenes page.
+3. With the mic muted, hold Push to talk: the compact mic button and the Mic row say live while
+   held, muted after. Press Panic mute: the mic button says muted and the Stream row shows muted
+   until panic is turned off.
+4. Resize the compact window, press Full View, then Compact View again: each mode comes back at
+   its own size. Quit in compact mode and start again: Rostrum opens compact. `settings.toml`
+   has `compact`, `compact_width`, `compact_height` and `keep_on_top` under `[window]`.
+5. Turn on Keep on Top. On X11 the window stays above others; on Plasma Wayland the hint may be
+   ignored (the tooltip says so; the window menu's Keep Above Others works). Full View drops the
+   hint, and it comes back with the compact window. Closing or minimizing the compact window
+   hides it to the tray as the tray settings say.
+6. Before setup is finished, Compact View is disabled and a saved `compact = true` is ignored.
+
+## 26. Settings backup and restore
+
+1. Settings → Advanced → Back Up Settings…: the save dialog suggests
+   `rostrum-backup-<date>.toml` in Documents. The file has `kind = "rostrum-backup"`, a
+   `[settings]` table with general, mixer, ducking, apps, obs, scenes, devices, hotkeys and
+   advanced, and one `[[scene]]` per scene. It has no `privacy`, `updates`, `window`,
+   `wizard_done`, `setup_version` or `last_seen`.
+2. Change a hotkey, turn off auto-save, edit the live scene's levels and delete a scene. Restore…
+   the backup and confirm: a toast names the safety copy, which is in
+   `~/.config/rostrum/backups/before-restore-<time>.toml`. The hotkey and auto-save are back, the
+   deleted scene is back, the live scene plays the backed-up levels, and the replaced version is
+   in Scenes → Recently Deleted. Scenes made after the backup are still there.
+3. Before restoring, also change the ducking settings, the scene fade, "Follow OBS while it runs",
+   an OBS scene mapping, "Use another mic while mine is unplugged", Mono headphones and the two
+   hide-to-tray switches. After the restore each is back as backed up and takes effect at once
+   (ducking and mono headphones apply without a restart; the OBS page shows the restored map).
+4. Crash report and update choices, window size and compact mode are unchanged by the restore.
+   Launch at login follows the backup (the autostart file appears or goes).
+5. Restore a scene export or a random TOML file: the toast says nothing was restored, and no
+   safety copy is written.
+
+## 27. Translations
+
+1. `cmake --build build --target rostrum-pot` rewrites `po/rostrum.pot` with no diff other than
+   the creation date, unless strings changed.
+2. With a stub `po/de/rostrum.po` that translates one string, a build and install puts
+   `share/locale/de/LC_MESSAGES/rostrum.mo` in the prefix, and `LANGUAGE=de` shows that string in
+   German while the rest stays English.
+
 ## Smoke test log
 
 Kubuntu 26.04, Plasma 6.6 Wayland, PipeWire 1.6.2, WirePlumber 0.5.13, build 0.1.0. The checks
@@ -552,4 +648,5 @@ nested KWin with a fake tray host, or offscreen rendering. Fake devices were nul
 Still manual (needs hardware or a real session): tests 4 (mic path), 6 and 7 (quit and reboot
 routing with Discord), OBS capture, OBS while live (test 15) against a real OBS, the real headset
 unplug, the GlobalShortcuts portal on a non-Plasma desktop, updates against the real
-getrostrum.dev feed, and test 16 (holds, panic and the OSD in a real session).
+getrostrum.dev feed, test 16 (holds, panic and the OSD in a real session), and Keep on Top for
+the compact window on Plasma Wayland (test 25).

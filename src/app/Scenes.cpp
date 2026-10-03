@@ -6,6 +6,8 @@
 #include <KLocalizedString>
 
 #include <QJSEngine>
+#include <QKeySequence>
+#include <QLocale>
 
 namespace rostrum::app {
 
@@ -26,6 +28,8 @@ Scenes::Scenes(AppController *app, QObject *parent)
                      &engine::SceneManager::defaultChanged}) {
         connect(sm, sig, this, &Scenes::rebuild);
     }
+    connect(app, &AppController::settingsChanged, this, &Scenes::rebuild);
+    connect(sm, &engine::SceneManager::trashChanged, this, &Scenes::trashChanged);
     rebuild();
 }
 
@@ -66,13 +70,21 @@ QString Scenes::summary(const Scene &scene)
 void Scenes::rebuild()
 {
     const engine::SceneManager *sm = m_app->scenes();
+    const int slots = actions::sceneSlotCount();
     QVariantList rows;
-    for (const auto &s : sm->scenes()) {
+    for (int i = 0; i < sm->scenes().size(); ++i) {
+        const Scene &s = sm->scenes().at(i);
+        const int slot = i < slots ? i + 1 : 0;
+        const QString key =
+            slot > 0 ? m_app->settings().hotkeys.value(actions::sceneSlotAction(slot)) : QString();
         rows << QVariantMap{
             {QStringLiteral("name"), s.name},
             {QStringLiteral("summary"), summary(s)},
             {QStringLiteral("isDefault"), s.name == sm->defaultName()},
             {QStringLiteral("isCurrent"), s.name == sm->currentName()},
+            {QStringLiteral("slot"), slot},
+            {QStringLiteral("shortcut"),
+             QKeySequence(key, QKeySequence::PortableText).toString(QKeySequence::NativeText)},
         };
     }
     if (rows != m_rows) {
@@ -187,6 +199,37 @@ QString Scenes::saveAs(const QString &name)
 bool Scenes::remove(const QString &name) { return m_app->scenes()->remove(name); }
 void Scenes::setDefault(const QString &name) { m_app->scenes()->setDefault(name); }
 
+QVariantList Scenes::trash() const
+{
+    QVariantList rows;
+    const QLocale locale;
+    for (const auto &e : m_app->scenes()->trash()) {
+        rows << QVariantMap{
+            {QStringLiteral("file"), e.file},
+            {QStringLiteral("name"), e.name},
+            {QStringLiteral("deleted"), locale.toString(e.deleted.toLocalTime(), QLocale::ShortFormat)},
+        };
+    }
+    return rows;
+}
+
+int Scenes::trashKeepDays() const { return SceneTrash::kKeepDays; }
+
+QString Scenes::restore(const QString &trashFile)
+{
+    const QString name = m_app->scenes()->restore(trashFile);
+    if (!name.isEmpty()) {
+        Q_EMIT m_app->toast(i18n("Restored “%1”", name));
+    }
+    return name;
+}
+
+QString Scenes::restoreLast()
+{
+    const QString file = m_app->scenes()->lastTrashed();
+    return file.isEmpty() ? QString() : restore(file);
+}
+
 bool Scenes::exportTo(const QUrl &file)
 {
     if (!file.isLocalFile()) {
@@ -198,6 +241,17 @@ bool Scenes::exportTo(const QUrl &file)
     }
     Q_EMIT m_app->toast(i18np("Exported %1 scene", "Exported %1 scenes", m_app->scenes()->scenes().size()));
     return true;
+}
+
+bool Scenes::move(const QString &name, int toIndex)
+{
+    return m_app->scenes()->move(name, toIndex);
+}
+
+bool Scenes::moveBy(const QString &name, int delta)
+{
+    const int from = m_app->scenes()->names().indexOf(name);
+    return from >= 0 && move(name, from + delta);
 }
 
 int Scenes::importFrom(const QUrl &file)

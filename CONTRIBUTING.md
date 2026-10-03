@@ -32,7 +32,8 @@ ctest --test-dir build
 Useful options:
 
 - `-DROSTRUM_BUILD_APP=OFF` builds only the engine, the command-line tools and the tests, without
-  Kirigami. CI builds this way, so it only needs Qt Base, Qt WebSockets, libpipewire and toml++.
+  Kirigami. Most CI jobs build this way, so they only need Qt Base, Qt WebSockets, libpipewire
+  and toml++.
 - `-DROSTRUM_BUILD_TESTS=OFF` skips the unit tests.
 - `-DROSTRUM_UPDATE_URL=…` points the update check at your own feed. See
   [docs/privacy.md](docs/privacy.md) for testing it against a local server.
@@ -125,6 +126,34 @@ text shown when PipeWire is missing.
 - **Words:** UI text and docs use short, plain sentences and name things the way the app does
   (bus, scene, Headphones, Stream). Avoid PipeWire jargon in the UI.
 
+## Translating
+
+Rostrum uses KDE's ki18n with gettext. The template [`po/rostrum.pot`](po/rostrum.pot) holds every
+string from the C++ and QML sources; each language lives in `po/<lang>/rostrum.po` and is installed
+as `share/locale/<lang>/LC_MESSAGES/rostrum.mo`.
+
+To start or update a translation:
+
+1. Refresh the template: `cmake --build build --target rostrum-pot` (or run `po/Messages.sh`,
+   which needs `xgettext`).
+2. Start a new language with `msginit -i po/rostrum.pot -o po/de/rostrum.po -l de`, or bring an
+   existing one up to date with `msgmerge -U po/de/rostrum.po po/rostrum.pot`.
+3. Translate it in Lokalize, Poedit or a text editor. `msgfmt --check -o /dev/null
+   po/de/rostrum.po` catches broken placeholders and plural forms.
+4. Rebuild, install to a staging prefix and try it:
+
+   ```sh
+   cmake --build build && DESTDIR=/tmp/rostrum-stage cmake --install build --prefix /usr
+   LANGUAGE=de XDG_DATA_DIRS=/tmp/rostrum-stage/usr/share:/usr/share ./build/src/app/rostrum
+   ```
+
+The `msgctxt` of each string says where it appears (`@action:button`, `@title:window`,
+`@info:tooltip` and so on), and placeholders like `%1` must stay. Use the names the app uses for
+its own concepts (bus, scene, Headphones, Stream) consistently within a language.
+
+When you add UI strings, use `i18nc()` with one of those contexts, `i18ncp()` for anything that
+counts, and refresh `po/rostrum.pot` in the same pull request.
+
 ## Commits
 
 Look at `git log` for examples. A commit message has:
@@ -145,8 +174,11 @@ it can merge:
 - **Ubuntu unit tests:** builds the engine, tools and tests on Ubuntu 26.04 and runs `ctest`.
 - **Fedora build:** builds the engine and tools on the latest Fedora.
 
-An Arch build also runs and is allowed to fail. CI does not build the Kirigami app, so build and
-start it locally if you change anything in `src/app/`.
+An Arch build also runs and is allowed to fail. **Ubuntu app build** builds the whole Kirigami
+app on Ubuntu 26.04, runs the tests, validates the desktop entry and the AppStream metainfo with
+`desktop-file-validate` and `appstreamcli validate`, and starts the app offscreen once so a QML
+error fails the job. It cannot click through the pages, so still start the app locally if you
+change anything in `src/app/`.
 
 1. Fork the repository and create a branch from `main`.
 2. Make the change, with tests where they fit.

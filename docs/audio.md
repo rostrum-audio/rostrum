@@ -496,7 +496,8 @@ The log is `$XDG_STATE_HOME/rostrum/rostrum.log`.
 
 Outside `~/.config/rostrum/`, Rostrum writes only the two PipeWire rule fragments above and,
 while "Launch at login" is on, `$XDG_CONFIG_HOME/autostart/dev.getrostrum.Rostrum.desktop`
-(`Exec=… --autostart`; "Start in tray" only applies to that launch). That file is the source of
+(`Exec=… --autostart`, pointing at `$APPIMAGE` when running from an AppImage, as Restart does;
+"Start in tray" only applies to that launch). That file is the source of
 truth: removing it in System Settings → Autostart turns the switch off. Set Up OBS, when pressed
 with OBS closed, edits OBS's scene collection after backing it up.
 
@@ -530,8 +531,9 @@ with OBS closed, edits OBS's scene collection after backing it up.
   `previous_scene`, `next_scene`, `scene_1` … `scene_8`, `push_to_talk`, `push_to_mute`,
   `panic_mute`, `toggle_sidetone`, `mute_headphones`, `stream_volume_up`, `stream_volume_down`
   (±5 % on the Stream master), and `mute_bus_<bus id>` for every playback bus of the saved scenes.
-  Only the first eight have default shortcuts. A bus action whose bus is not in the live scene
-  says so and does nothing.
+  Only the first eight have default shortcuts. `scene_<n>` loads the n-th scene in the Scenes page
+  order (`[scenes] scene_order`), which the header, the tray, Previous/Next and `ListScenes` share.
+  A bus action whose bus is not in the live scene says so and does nothing.
 - Push to talk, push to mute and panic are holds in the engine, like solo: session-only, never in
   TOML, never make the scene dirty. They change what reaches PipeWire, not the scene's mute
   flags. Push to talk unmutes a muted mic while held; push to mute mutes it while held. Panic mutes
@@ -594,3 +596,7 @@ session.
 Solo is session-only state owned by the engine. It is never a field of `Bus` or `Scene` and never
 written to TOML. Saving while soloed writes the user's own mute flags. A unit test enforces this.
 Do not "fix" this by persisting solo.
+
+The same holds for undo (`SceneHistory`): each step is a whole `Scene`, so solo, holds, ducking
+and scene fades are never in it, and the mic mute is taken from the live scene on every undo and
+redo. Restoring a step cancels a running scene fade and leaves holds and ducking as they are.

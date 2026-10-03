@@ -80,6 +80,22 @@ QList<Scene> SceneStore::loadAll(QStringList *errors) const
     return out;
 }
 
+QList<Scene> SceneStore::applyOrder(QList<Scene> scenes, const QStringList &order)
+{
+    QList<Scene> out;
+    for (const QString &name : order) {
+        const auto it = std::find_if(scenes.begin(), scenes.end(), [&](const Scene &s) {
+            return s.name.compare(name, Qt::CaseInsensitive) == 0;
+        });
+        if (it != scenes.end()) {
+            out.append(*it);
+            scenes.erase(it);
+        }
+    }
+    out.append(scenes);
+    return out;
+}
+
 bool SceneStore::save(const Scene &scene, QString *error) const
 {
     return writeFile(fileFor(scene.name), toml_io::serializeScene(scene), error);

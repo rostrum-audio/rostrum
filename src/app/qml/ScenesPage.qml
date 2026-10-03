@@ -16,6 +16,7 @@ QQC2.Pane {
 
     property string selectedName: App.currentScene
     readonly property var selected: Scenes.rows.find(r => r.name === selectedName) ?? null
+    readonly property int selectedIndex: Scenes.rows.findIndex(r => r.name === selectedName)
 
     Component {
         id: presetActionComponent
@@ -95,6 +96,22 @@ QQC2.Pane {
                     }
                 },
                 Kirigami.Action {
+                    text: i18nc("@action:button", "Move Up")
+                    icon.name: "go-up"
+                    tooltip: i18n("Scenes keep this order in the header, the tray and the Load scene hotkeys. Alt+Up also moves the selected scene.")
+                    displayHint: Kirigami.DisplayHint.IconOnly
+                    enabled: page.selectedIndex > 0
+                    onTriggered: Scenes.moveBy(page.selectedName, -1)
+                },
+                Kirigami.Action {
+                    text: i18nc("@action:button", "Move Down")
+                    icon.name: "go-down"
+                    tooltip: i18n("Scenes keep this order in the header, the tray and the Load scene hotkeys. Alt+Down also moves the selected scene.")
+                    displayHint: Kirigami.DisplayHint.IconOnly
+                    enabled: page.selectedIndex >= 0 && page.selectedIndex < Scenes.rows.length - 1
+                    onTriggered: Scenes.moveBy(page.selectedName, 1)
+                },
+                Kirigami.Action {
                     text: i18nc("@action:button", "Set as Default")
                     icon.name: "favorite"
                     enabled: page.selected !== null && !page.selected.isDefault
@@ -120,6 +137,12 @@ QQC2.Pane {
                     icon.name: "document-import"
                     displayHint: Kirigami.DisplayHint.AlwaysHide
                     onTriggered: importDialog.open()
+                },
+                Kirigami.Action {
+                    text: i18nc("@action:button", "Recently Deleted…")
+                    icon.name: "user-trash"
+                    displayHint: Kirigami.DisplayHint.AlwaysHide
+                    onTriggered: trashDialog.open()
                 }
             ]
         }
@@ -150,7 +173,11 @@ QQC2.Pane {
                     Accessible.name: modelData.name
                     Accessible.description: [modelData.isCurrent ? i18n("Live now") : "",
                                              modelData.isDefault ? i18n("Default on launch") : "",
+                                             row.slotText,
                                              modelData.summary].filter(s => s).join(", ")
+                    readonly property string slotText: modelData.slot <= 0 ? ""
+                        : modelData.shortcut ? i18nc("@info:tooltip scene hotkey slot", "Load scene %1: %2", modelData.slot, modelData.shortcut)
+                        : i18nc("@info:tooltip scene hotkey slot", "Load scene %1 (no shortcut set)", modelData.slot)
 
                     contentItem: RowLayout {
                         spacing: Kirigami.Units.largeSpacing
@@ -165,6 +192,28 @@ QQC2.Pane {
                             Layout.fillWidth: true
                             spacing: 0
                             RowLayout {
+                                Rectangle {
+                                    opacity: row.modelData.slot > 0 ? 1 : 0
+                                    implicitWidth: Math.max(implicitHeight, slotLabel.implicitWidth + Kirigami.Units.smallSpacing * 2)
+                                    implicitHeight: slotLabel.implicitHeight + 2
+                                    radius: height / 2
+                                    color: "transparent"
+                                    border.width: 1
+                                    border.color: Qt.alpha(row.textColor, 0.5)
+                                    QQC2.Label {
+                                        id: slotLabel
+                                        anchors.centerIn: parent
+                                        text: row.modelData.slot > 0 ? row.modelData.slot : "0"
+                                        color: row.textColor
+                                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                                    }
+                                    HoverHandler {
+                                        id: slotHover
+                                    }
+                                    QQC2.ToolTip.text: row.slotText
+                                    QQC2.ToolTip.visible: slotHover.hovered && row.modelData.slot > 0
+                                    QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                                }
                                 QQC2.Label {
                                     text: row.modelData.name
                                     color: row.textColor
@@ -202,6 +251,12 @@ QQC2.Pane {
                 }
 
                 Keys.onReturnPressed: applicationWindow().requestSceneSwitch(page.selectedName)
+                Keys.onPressed: event => {
+                    if ((event.modifiers & Qt.AltModifier) && (event.key === Qt.Key_Up || event.key === Qt.Key_Down)) {
+                        Scenes.moveBy(page.selectedName, event.key === Qt.Key_Up ? -1 : 1)
+                        event.accepted = true
+                    }
+                }
                 onCurrentIndexChanged: if (currentIndex >= 0 && currentIndex < Scenes.rows.length) {
                     page.selectedName = Scenes.rows[currentIndex].name
                 }
@@ -270,15 +325,24 @@ QQC2.Pane {
         title: i18nc("@title:dialog", "Delete “%1”?", page.selectedName)
         subtitle: page.selected && page.selected.isCurrent
                   ? i18n("This is the live scene. Rostrum switches to the default scene after deleting it.")
-                  : i18n("The scene file is removed. Export first if you want a backup.")
+                  : i18np("It stays in Recently Deleted for %1 day.", "It stays in Recently Deleted for %1 days.", Scenes.trashKeepDays)
         standardButtons: Kirigami.Dialog.NoButton
         customFooterActions: [
             Kirigami.Action {
                 text: i18nc("@action:button", "Delete")
                 icon.name: "edit-delete"
                 onTriggered: {
-                    Scenes.remove(page.selectedName)
+                    const name = page.selectedName
                     deleteDialog.close()
+                    if (Scenes.remove(name)) {
+                        applicationWindow().showPassiveNotification(
+                            i18n("Deleted “%1”", name), "long", i18nc("@action:button", "Undo"), () => {
+                                const restored = Scenes.restoreLast()
+                                if (restored) {
+                                    page.selectedName = restored
+                                }
+                            })
+                    }
                 }
             },
             Kirigami.Action {
@@ -287,6 +351,74 @@ QQC2.Pane {
                 onTriggered: deleteDialog.close()
             }
         ]
+    }
+
+    Kirigami.Dialog {
+        id: trashDialog
+        title: i18nc("@title:dialog", "Recently Deleted Scenes")
+        standardButtons: Kirigami.Dialog.Close
+        preferredWidth: Kirigami.Units.gridUnit * 24
+        padding: 0
+
+        ColumnLayout {
+            spacing: 0
+            Kirigami.PlaceholderMessage {
+                visible: Scenes.trash.length === 0
+                Layout.fillWidth: true
+                Layout.margins: Kirigami.Units.largeSpacing * 2
+                icon.name: "user-trash"
+                text: i18n("No deleted scenes")
+            }
+            Repeater {
+                model: Scenes.trash
+                delegate: QQC2.ItemDelegate {
+                    id: trashRow
+                    required property var modelData
+                    Layout.fillWidth: true
+                    hoverEnabled: false
+                    down: false
+                    Accessible.name: modelData.name
+                    contentItem: RowLayout {
+                        spacing: Kirigami.Units.largeSpacing
+                        ColumnLayout {
+                            spacing: 0
+                            Layout.fillWidth: true
+                            QQC2.Label {
+                                text: trashRow.modelData.name
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                            }
+                            QQC2.Label {
+                                text: i18nc("@info deletion time", "Deleted %1", trashRow.modelData.deleted)
+                                font: Kirigami.Theme.smallFont
+                                opacity: 0.7
+                                Layout.fillWidth: true
+                            }
+                        }
+                        QQC2.Button {
+                            text: i18nc("@action:button", "Restore")
+                            icon.name: "edit-undo"
+                            Accessible.description: trashRow.modelData.name
+                            onClicked: {
+                                const restored = Scenes.restore(trashRow.modelData.file)
+                                if (restored) {
+                                    page.selectedName = restored
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            QQC2.Label {
+                Layout.fillWidth: true
+                Layout.margins: Kirigami.Units.largeSpacing
+                wrapMode: Text.WordWrap
+                font: Kirigami.Theme.smallFont
+                opacity: 0.7
+                text: i18np("Deleted scenes are removed for good after %1 day.",
+                            "Deleted scenes are removed for good after %1 days.", Scenes.trashKeepDays)
+            }
+        }
     }
 
     Dialogs.FileDialog {

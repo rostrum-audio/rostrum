@@ -1,0 +1,166 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to build and publish (for example v0.2.0). Leave empty for a test build that publishes nothing.
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  appimage:
+    name: AppImage
+    runs-on: ubuntu-24.04
+    # The AppImage runs on systems with this image's glibc or newer; see docs/releasing.md.
+    container: ubuntu:26.04
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+      PUBLISH: ${{ github.event_name == 'push' || inputs.tag != '' }}
+    steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates build-essential cmake ninja-build pkg-config extra-cmake-modules gettext git \
+            libpipewire-0.3-dev libtomlplusplus-dev qt6-base-dev qt6-declarative-dev qt6-websockets-dev \
+            libkirigami-dev kirigami-addons-dev libkf6coreaddons-dev libkf6dbusaddons-dev \
+            libkf6i18n-dev libkf6globalaccel-dev libkf6statusnotifieritem-dev \
+            qml6-module-org-kde-kirigami qml6-module-org-kde-kquickcontrols qml6-module-org-kde-desktop \
+            qml6-module-org-kde-kirigamiaddons-formcard qml6-module-org-kde-kitemmodels \
+            qml6-module-qtquick-dialogs qml6-module-qtcore qt6-svg-plugins qt6-wayland \
+            qmake6 qt6-declarative-dev-tools curl file patchelf python3 appstream desktop-file-utils dbus
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG || github.ref }}
+          fetch-depth: 0
+      - name: Check the version
+        id: version
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          project="$(sed -n 's/^project(rostrum VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          if [ -n "$TAG" ]; then
+            version="${TAG#v}"
+          else
+            version="$project"
+          fi
+          if [ "${version%%-*}" != "$project" ]; then
+            echo "::error::Tag $TAG does not match the version in CMakeLists.txt ($project)."
+            exit 1
+          fi
+          if ! grep -q "<release version=\"${version%%-*}\"" data/dev.getrostrum.Rostrum.metainfo.xml; then
+            echo "::error::data/dev.getrostrum.Rostrum.metainfo.xml has no <release version=\"${version%%-*}\"> entry."
+            exit 1
+          fi
+          case "$version" in
+            *-*) prerelease=true ;;
+            *) prerelease=false ;;
+          esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+      - name: Write the release notes
+        run: |
+          if [ -n "$TAG" ]; then
+            git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+            git tag -l --format='%(contents)' "$TAG" | sed '/-----BEGIN PGP SIGNATURE-----/,$d' > notes.txt
+          fi
+          if ! grep -q '[^[:space:]]' notes.txt 2>/dev/null; then
+            echo "Rostrum ${{ steps.version.outputs.version }}" > notes.txt
+          fi
+          cat notes.txt
+      - name: Configure
+        run: cmake --preset official
+      - name: Build
+        run: cmake --build --preset official
+      - name: Test
+        run: QT_QPA_PLATFORM=offscreen ctest --test-dir build-official --output-on-failure
+      - name: Check for a Sentry token
+        id: sentry
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: |
+          if [ -n "$SENTRY_AUTH_TOKEN" ] && [ "$PUBLISH" = "true" ]; then
+            echo "upload=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No SENTRY_AUTH_TOKEN secret, or a test build: debug symbols are not uploaded."
+          fi
+      # Optional. Runs only when the repository has a SENTRY_AUTH_TOKEN secret. It uploads the
+      # unstripped binary; the stripped copy in the AppImage keeps the same debug_id.
+      - name: Upload debug symbols to Sentry
+        if: steps.sentry.outputs.upload == 'true'
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: rostrum
+          SENTRY_PROJECT: rostrum
+        run: |
+          curl -fsSL --retry 3 -o /usr/local/bin/sentry-cli \
+            https://github.com/getsentry/sentry-cli/releases/download/3.8.0/sentry-cli-Linux-x86_64
+          echo "13f8cb34ae01a6a272d7d7c22e277a105286615b4020de900ea95a8de47cdbb6  /usr/local/bin/sentry-cli" | sha256sum -c -
+          chmod +x /usr/local/bin/sentry-cli
+          sentry-cli debug-files upload --wait build-official/src/app/rostrum
+      - name: Package the AppImage
+        run: tools/appimage/build-appimage.sh build-official "${{ steps.version.outputs.version }}" dist
+      # Starts the packaged app offscreen with no PipeWire, so a missing library or QML module
+      # fails the release before anything is published.
+      - name: Check the AppImage
+        shell: bash
+        run: |
+          set -o pipefail
+          check="$RUNNER_TEMP/appimage-check"
+          mkdir -p "$check/config" "$check/state" "$check/runtime" && chmod 700 "$check/runtime"
+          cd "$check"
+          "$GITHUB_WORKSPACE/dist/Rostrum-${{ steps.version.outputs.version }}-x86_64.AppImage" --appimage-extract >/dev/null
+          appstreamcli validate --no-net squashfs-root/usr/share/metainfo/dev.getrostrum.Rostrum.metainfo.xml
+          test -d squashfs-root/usr/qml/org/kde/kirigami
+          test -d squashfs-root/usr/qml/org/kde/desktop
+          test -d squashfs-root/usr/plugins/wayland-shell-integration
+          XDG_CONFIG_HOME="$check/config" XDG_STATE_HOME="$check/state" XDG_RUNTIME_DIR="$check/runtime" \
+            QT_QPA_PLATFORM=offscreen PIPEWIRE_REMOTE=rostrum-test-none ROSTRUM_SCREENSHOT="$check/screenshot.png" \
+            timeout 60 dbus-run-session -- ./squashfs-root/AppRun 2>&1 | tee app.log
+          test -s screenshot.png
+          if grep -E 'qrc:/.*\.qml:[0-9]+.*(Error|error|is not a type|is not installed|not found)' app.log; then
+            exit 1
+          fi
+      - name: Write the update feed
+        if: steps.version.outputs.prerelease == 'false'
+        run: |
+          repo="https://github.com/${GITHUB_REPOSITORY}"
+          tag="${TAG:-v${{ steps.version.outputs.version }}}"
+          python3 tools/appimage/make-feed.py \
+            --version "${{ steps.version.outputs.version }}" \
+            --page "$repo/releases/tag/$tag" \
+            --download-base "$repo/releases/download/$tag" \
+            --notes-file notes.txt \
+            dist/Rostrum-*-x86_64.AppImage > dist/latest.json
+          cat dist/latest.json
+      - name: Write checksums
+        run: |
+          cd dist
+          sha256sum Rostrum-*.AppImage > SHA256SUMS
+          cat SHA256SUMS
+      - uses: actions/upload-artifact@v5
+        with:
+          name: rostrum-${{ steps.version.outputs.version }}-appimage
+          path: dist/
+      - name: Publish the GitHub release
+        if: env.PUBLISH == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: Rostrum ${{ steps.version.outputs.version }}
+          body_path: notes.txt
+          prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
+          fail_on_unmatched_files: true
+          # The AppImage, SHA256SUMS and, except for pre-releases, latest.json.
+          files: dist/*

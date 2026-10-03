@@ -21,6 +21,7 @@ qt_add_qml_module(rostrum
         CrashReports.cpp CrashReports.h
         Desktop.cpp Desktop.h
         Devices.cpp Devices.h
+        History.cpp History.h
         Hotkeys.cpp Hotkeys.h
         MeterBallistics.h
         Mixer.cpp Mixer.h
@@ -36,6 +37,7 @@ qt_add_qml_module(rostrum
         qml/HeaderBar.qml
         qml/SceneSwitcher.qml
         qml/MicButton.qml
+        qml/CompactView.qml
         qml/Sidebar.qml
         qml/StatusBar.qml
         qml/Banners.qml
@@ -132,6 +134,7 @@ endif()
 install(TARGETS rostrum RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES ${PROJECT_SOURCE_DIR}/data/${ROSTRUM_APP_ID}.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(FILES ${PROJECT_SOURCE_DIR}/data/dev.getrostrum.Rostrum1.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/dbus-1/interfaces)
+install(FILES ${PROJECT_SOURCE_DIR}/data/${ROSTRUM_APP_ID}.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
 install(FILES ${PROJECT_SOURCE_DIR}/data/icons/${ROSTRUM_APP_ID}.svg
     DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
 foreach(size 16x16 22x22)
@@ -139,3 +142,11 @@ foreach(size 16x16 22x22)
         DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/${size}/apps)
 endforeach()
 install(FILES ${PROJECT_SOURCE_DIR}/README.md ${PROJECT_SOURCE_DIR}/LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR})
+
+# Translations: po/<lang>/rostrum.po becomes share/locale/<lang>/LC_MESSAGES/rostrum.mo.
+ki18n_install(${PROJECT_SOURCE_DIR}/po)
+add_custom_target(rostrum-pot
+    COMMAND ${CMAKE_COMMAND} -E env podir=${PROJECT_SOURCE_DIR}/po bash ${PROJECT_SOURCE_DIR}/po/Messages.sh
+    COMMENT "Extracting messages into po/rostrum.pot"
+    VERBATIM
+)

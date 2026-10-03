@@ -67,6 +67,10 @@ public:
     bool fading() const { return !m_fades.isEmpty(); }
     // The fader position being sent to a bus or master node mid-fade, if it is fading.
     std::optional<double> fadingPosition(const QString &nodeName) const;
+    // An undo or redo step on the live scene: unlike setScene, solo stays on buses that remain,
+    // structure changes are announced so they persist, and it never fades. Holds and ducking
+    // carry on untouched.
+    void restoreScene(const Scene &scene);
 
     // Node creation is opt-in: the wizard (or a completed first run) turns it on.
     bool mixEnabled() const { return m_mixEnabled; }

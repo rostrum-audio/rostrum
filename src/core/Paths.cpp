@@ -23,6 +23,8 @@ QString stateHome() { return fromEnv("XDG_STATE_HOME", QStringLiteral(".local/st
 QString configDir() { return configHome() + QStringLiteral("/rostrum"); }
 QString scenesDir() { return configDir() + QStringLiteral("/scenes"); }
 QString settingsFile() { return configDir() + QStringLiteral("/settings.toml"); }
+QString trashDir() { return configDir() + QStringLiteral("/trash"); }
+QString backupsDir() { return configDir() + QStringLiteral("/backups"); }
 QString stateDir() { return stateHome() + QStringLiteral("/rostrum"); }
 QString logFile() { return stateDir() + QStringLiteral("/rostrum.log"); }
 QString crashDir() { return stateDir() + QStringLiteral("/crashes"); }

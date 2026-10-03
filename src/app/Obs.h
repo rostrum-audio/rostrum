@@ -98,6 +98,8 @@ public:
     void setBackground(bool on);
     bool goLiveWarnings() const;
     void setGoLiveWarnings(bool on);
+    // The OBS settings were replaced as a whole, by restoring a backup.
+    void settingsRestored();
 
     bool streaming() const { return m_live.streaming(); }
     bool recording() const { return m_live.recording(); }
@@ -132,6 +134,7 @@ Q_SIGNALS:
 private:
     void updateActive();
     void updatePolling();
+    void applyBackground();
     bool backgroundAllowed() const;
     void poll();
     void openClient();

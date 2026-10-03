@@ -96,9 +96,28 @@ QQC2.ToolBar {
                     onTriggered: App.saveScene()
                 }
                 QQC2.MenuItem {
+                    text: History.undoText
+                    icon.name: "edit-undo"
+                    enabled: App.connected && History.canUndo
+                    onTriggered: History.undo()
+                }
+                QQC2.MenuItem {
+                    text: History.redoText
+                    icon.name: "edit-redo"
+                    enabled: App.connected && History.canRedo
+                    onTriggered: History.redo()
+                }
+                QQC2.MenuSeparator {}
+                QQC2.MenuItem {
                     text: i18nc("@action:inmenu", "Manage Scenes…")
                     icon.name: "view-media-playlist"
                     onTriggered: bar.window.showPage("scenes")
+                }
+                QQC2.MenuItem {
+                    text: i18nc("@action:inmenu", "Compact View")
+                    icon.name: "window-minimize-pip"
+                    enabled: App.wizardDone
+                    onTriggered: bar.window.setCompact(true)
                 }
                 QQC2.MenuItem {
                     text: i18nc("@action:inmenu", "Settings")

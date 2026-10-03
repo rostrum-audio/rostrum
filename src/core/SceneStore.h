@@ -22,6 +22,10 @@ public:
     static bool writeFile(const QString &path, const QString &text, QString *error);
     static QString readFile(const QString &path, QString *error);
 
+    // Scenes named in `order` first, in that order (names compare case-insensitively); the rest
+    // keep their current relative order after them.
+    static QList<Scene> applyOrder(QList<Scene> scenes, const QStringList &order);
+
 private:
     QString m_dir;
 };

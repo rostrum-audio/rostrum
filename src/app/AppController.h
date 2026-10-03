@@ -62,6 +62,12 @@ class AppController : public QObject
     Q_PROPERTY(bool sidebarCollapsed READ sidebarCollapsed WRITE setSidebarCollapsed NOTIFY windowStateChanged)
     Q_PROPERTY(int windowWidth READ windowWidth WRITE setWindowWidth NOTIFY windowStateChanged)
     Q_PROPERTY(int windowHeight READ windowHeight WRITE setWindowHeight NOTIFY windowStateChanged)
+    Q_PROPERTY(bool compactWindow READ compactWindow WRITE setCompactWindow NOTIFY windowStateChanged)
+    Q_PROPERTY(int compactWidth READ compactWidth WRITE setCompactWidth NOTIFY windowStateChanged)
+    Q_PROPERTY(int compactHeight READ compactHeight WRITE setCompactHeight NOTIFY windowStateChanged)
+    Q_PROPERTY(int compactMinWidth READ compactMinWidth CONSTANT)
+    Q_PROPERTY(int compactMinHeight READ compactMinHeight CONSTANT)
+    Q_PROPERTY(bool keepOnTop READ keepOnTop WRITE setKeepOnTop NOTIFY windowStateChanged)
     Q_PROPERTY(bool confirmSceneSwitch READ confirmSceneSwitch NOTIFY settingsChanged)
     Q_PROPERTY(bool wizardDone READ wizardDone NOTIFY settingsChanged)
     // Setup steps added since this user finished setup (startup, privacy, updates, OBS); shown once.
@@ -106,6 +112,12 @@ public:
     engine::Controls *controls() { return &m_controls; }
     Settings &settings() { return m_settings; }
     void saveSettingsSoon();
+    // Settings backups (see core/SettingsBackup.h). Restoring first writes a backup of the
+    // current setup to paths::backupsDir() and returns its path in *safetyCopy; nothing changes
+    // if that fails. Launch at login is only reported back: the autostart file is Desktop's.
+    bool writeBackup(const QString &path, QString *error);
+    bool restoreBackup(const QString &path, QString *safetyCopy, QString *error,
+                       bool *launchAtLogin = nullptr);
 
     QString pipewireState() const { return m_status; }
     QString pipewireStatusText() const;
@@ -152,6 +164,16 @@ public:
     void setWindowWidth(int w);
     int windowHeight() const { return m_settings.windowHeight; }
     void setWindowHeight(int h);
+    bool compactWindow() const { return m_settings.compactWindow; }
+    void setCompactWindow(bool on);
+    int compactWidth() const { return m_settings.compactWidth; }
+    void setCompactWidth(int w);
+    int compactHeight() const { return m_settings.compactHeight; }
+    void setCompactHeight(int h);
+    int compactMinWidth() const { return kCompactMinWidth; }
+    int compactMinHeight() const { return kCompactMinHeight; }
+    bool keepOnTop() const { return m_settings.keepOnTop; }
+    void setKeepOnTop(bool on);
     bool confirmSceneSwitch() const { return m_settings.confirmSceneSwitch; }
     bool wizardDone() const { return m_settings.wizardDone; }
     bool setupUpdateNeeded() const { return m_settings.wizardDone && m_settings.setupVersion < kSetupVersion; }

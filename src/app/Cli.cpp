@@ -14,6 +14,7 @@
 #include <QDBusConnectionInterface>
 #include <QDBusMessage>
 #include <QElapsedTimer>
+#include <QFileInfo>
 #include <QLoggingCategory>
 #include <QThread>
 #include <algorithm>
@@ -125,7 +126,8 @@ void addOptions(QCommandLineParser &parser)
 
 QString restartProgram()
 {
-    if (const QString appImage = qEnvironmentVariable("APPIMAGE"); !appImage.isEmpty()) {
+    if (const QString appImage = qEnvironmentVariable("APPIMAGE");
+        !appImage.isEmpty() && QFileInfo(appImage).isExecutable()) {
         return appImage;
     }
     QString program = QCoreApplication::applicationFilePath();
@@ -267,11 +269,12 @@ int forward(const Request &r)
 
 int answerOffline(const Request &r)
 {
-    QList<Scene> scenes = SceneStore(paths::scenesDir()).loadAll();
+    const Settings settings = loadSettings(paths::settingsFile());
+    QList<Scene> scenes = SceneStore::applyOrder(SceneStore(paths::scenesDir()).loadAll(), settings.sceneOrder);
     if (scenes.isEmpty()) {
         scenes << defaults::scene(); // what Rostrum creates on its first start
     }
-    const QString defaultName = loadSettings(paths::settingsFile()).defaultScene;
+    const QString &defaultName = settings.defaultScene;
     const auto def = std::find_if(scenes.cbegin(), scenes.cend(), [&](const Scene &s) {
         return s.name.compare(defaultName, Qt::CaseInsensitive) == 0;
     });

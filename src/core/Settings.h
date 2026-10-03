@@ -52,8 +52,11 @@ Group group(const QString &id);
 QString muteBusAction(const QString &busId);
 // The bus a "mute_bus_<id>" action toggles; empty for any other id.
 QString busOfAction(const QString &id);
-// 1-based slot of a "scene_<n>" action; 0 for any other id.
+// "scene_3" -> 3, the 1-based position in the scene order it loads; 0 for any other id.
 int sceneSlot(const QString &id);
+// How many scene_<n> actions all() has.
+int sceneSlotCount();
+QString sceneSlotAction(int slot); // 3 -> "scene_3"
 // A fixed action or a well-formed bus mute action.
 bool isKnown(const QString &id);
 } // namespace actions
@@ -64,6 +67,8 @@ inline constexpr int kSetupVersion = 3;
 
 // Scene fade lengths offered in Settings; 0 = switch instantly.
 inline constexpr int kSceneFadeChoicesMs[] = {0, 150, 300, 600, 1000};
+inline constexpr int kCompactMinWidth = 420;
+inline constexpr int kCompactMinHeight = 220;
 
 namespace crashmode {
 inline constexpr const char *kSend = "send";
@@ -107,6 +112,7 @@ struct Settings
     bool showNodeIds = false;
     // Scenes
     QString defaultScene = QStringLiteral("Live");
+    QStringList sceneOrder; // scene names in the user's order; scenes not listed follow by file name
     // Devices (PipeWire node.name; empty = system default)
     QString headphones;
     QString mic;
@@ -119,6 +125,10 @@ struct Settings
     int windowHeight = 680;
     QString lastPage = QStringLiteral("mixer");
     bool sidebarCollapsed = false;
+    bool compactWindow = false; // the small always-handy mixer instead of the full window
+    int compactWidth = 460;
+    int compactHeight = 320;
+    bool keepOnTop = false; // compact window only
 
     bool operator==(const Settings &) const = default;
 };

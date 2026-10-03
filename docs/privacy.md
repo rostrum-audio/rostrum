@@ -182,6 +182,11 @@ these:
 }
 ```
 
+The release workflow generates this file and attaches it to each GitHub release, and the default
+URL is meant to redirect to the newest one
+([releasing.md](releasing.md#where-the-updater-finds-the-feed)). The check then talks to
+getrostrum.dev and GitHub, and AppImage downloads come from GitHub.
+
 Or a GitHub "latest release" response
 (`https://api.github.com/repos/<owner>/<repo>/releases/latest`). Rostrum reads `tag_name`,
 `html_url`, `body` and `published_at`, skips drafts and pre-releases, and picks the asset whose

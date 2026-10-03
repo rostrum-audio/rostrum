@@ -4,6 +4,7 @@
 #include "core/SceneToml.h"
 #include "engine/Engine.h"
 
+#include <QFile>
 #include <QLoggingCategory>
 
 Q_DECLARE_LOGGING_CATEGORY(lcEngine)
@@ -100,7 +101,7 @@ bool SceneManager::write(const Scene &scene)
 void SceneManager::load(const QString &defaultName)
 {
     QStringList errors;
-    m_saved = m_store.loadAll(&errors);
+    m_saved = SceneStore::applyOrder(m_store.loadAll(&errors), m_order);
     for (const auto &e : errors) {
         fail(QStringLiteral("Skipped a scene file that could not be read. %1").arg(e));
     }
@@ -114,6 +115,32 @@ void SceneManager::load(const QString &defaultName)
     Q_EMIT defaultChanged();
     // The nodes may already be playing at their lingering levels; a fade would start from defaults.
     activate(m_default, false);
+}
+
+void SceneManager::setOrder(const QStringList &names)
+{
+    m_order = names;
+    const QList<Scene> ordered = SceneStore::applyOrder(m_saved, names);
+    if (ordered != m_saved) {
+        m_saved = ordered;
+        Q_EMIT scenesChanged();
+    }
+}
+
+bool SceneManager::move(const QString &name, int toIndex)
+{
+    const int from = indexOf(name);
+    if (from < 0 || m_saved.isEmpty()) {
+        return false;
+    }
+    const int to = std::clamp(toIndex, 0, int(m_saved.size()) - 1);
+    if (to == from) {
+        return false;
+    }
+    m_saved.move(from, to);
+    m_order = names();
+    Q_EMIT scenesChanged();
+    return true;
 }
 
 bool SceneManager::switchTo(const QString &name) { return activate(name, true); }
@@ -283,7 +310,9 @@ bool SceneManager::rename(const QString &oldName, const QString &newName)
     if (m_store.fileFor(n) != oldFile) {
         m_store.remove(oldName);
     }
+    const QString was = m_saved.at(i).name;
     m_saved[i] = s;
+    Q_EMIT renamed(was, n);
     const bool wasCurrent = m_current.compare(oldName, Qt::CaseInsensitive) == 0;
     if (wasCurrent) {
         m_current = n;
@@ -312,13 +341,28 @@ bool SceneManager::remove(const QString &name)
         return false;
     }
     QString err;
+    QString trashFile;
+    if (m_trash) {
+        trashFile = m_trash->put(m_saved.at(i), QDateTime::currentDateTimeUtc(), &err);
+        if (trashFile.isEmpty()) {
+            fail(err);
+            return false;
+        }
+    }
     if (!m_store.remove(m_saved.at(i).name, &err)) {
+        if (!trashFile.isEmpty()) {
+            QFile::remove(trashFile);
+        }
         fail(err);
         return false;
     }
     const bool wasCurrent = m_saved.at(i).name == m_current;
     const bool wasDefault = m_saved.at(i).name == m_default;
     m_saved.removeAt(i);
+    if (!trashFile.isEmpty()) {
+        m_lastTrashed = {trashFile, i, wasDefault};
+        Q_EMIT trashChanged();
+    }
     if (wasDefault) {
         m_default = m_saved.first().name;
         Q_EMIT defaultChanged();
@@ -338,6 +382,55 @@ void SceneManager::setDefault(const QString &name)
     }
     m_default = m_saved.at(i).name;
     Q_EMIT defaultChanged();
+}
+
+void SceneManager::setTrashDir(const QString &dir)
+{
+    m_trash.emplace(dir);
+    m_lastTrashed = {};
+    if (m_trash->purge(QDateTime::currentDateTimeUtc()) > 0) {
+        Q_EMIT trashChanged();
+    }
+}
+
+QList<SceneTrash::Entry> SceneManager::trash() const
+{
+    return m_trash ? m_trash->entries() : QList<SceneTrash::Entry>{};
+}
+
+QString SceneManager::restore(const QString &trashFile)
+{
+    if (!m_trash) {
+        return {};
+    }
+    QString err;
+    auto scene = m_trash->take(trashFile, &err);
+    if (!scene) {
+        fail(err);
+        return {};
+    }
+    Scene s = *scene;
+    s.name = uniqueName(s.name);
+    if (!write(s)) {
+        m_trash->put(*scene, QDateTime::currentDateTimeUtc());
+        return {};
+    }
+    const bool wasLast = trashFile == m_lastTrashed.file;
+    if (wasLast && m_lastTrashed.index >= 0 && m_lastTrashed.index <= m_saved.size()) {
+        m_saved.insert(m_lastTrashed.index, s);
+    } else {
+        m_saved.append(s);
+    }
+    m_order = names();
+    Q_EMIT scenesChanged();
+    if (wasLast && m_lastTrashed.wasDefault) {
+        setDefault(s.name);
+    }
+    if (wasLast) {
+        m_lastTrashed = {};
+    }
+    Q_EMIT trashChanged();
+    return s.name;
 }
 
 void SceneManager::enableRuleExport(const QString &pulseFragment, const QString &clientFragment)
@@ -397,6 +490,55 @@ int SceneManager::importFrom(const QString &path)
         }
     }
     Q_EMIT scenesChanged();
+    return count;
+}
+
+int SceneManager::restoreScenes(const QList<Scene> &scenes)
+{
+    flush();
+    int count = 0;
+    bool trashed = false;
+    bool liveReplaced = false;
+    for (Scene s : scenes) {
+        s.name = s.name.trimmed();
+        if (s.name.isEmpty()) {
+            continue;
+        }
+        const int i = indexOf(s.name);
+        if (i >= 0 && m_saved.at(i) == s) {
+            ++count;
+            continue;
+        }
+        if (i >= 0 && m_trash) {
+            trashed = !m_trash->put(m_saved.at(i), QDateTime::currentDateTimeUtc()).isEmpty() || trashed;
+        }
+        if (i >= 0 && m_store.fileFor(m_saved.at(i).name) != m_store.fileFor(s.name)) {
+            m_store.remove(m_saved.at(i).name);
+        }
+        if (!write(s)) {
+            continue;
+        }
+        if (i >= 0) {
+            liveReplaced = liveReplaced || m_saved.at(i).name == m_current;
+            if (m_saved.at(i).name == m_current) {
+                m_current = s.name;
+            }
+            if (m_saved.at(i).name == m_default) {
+                m_default = s.name;
+            }
+            m_saved[i] = s;
+        } else {
+            m_saved.append(s);
+        }
+        ++count;
+    }
+    if (trashed) {
+        Q_EMIT trashChanged();
+    }
+    Q_EMIT scenesChanged();
+    if (liveReplaced) {
+        switchTo(m_current);
+    }
     return count;
 }
 

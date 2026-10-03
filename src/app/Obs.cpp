@@ -728,12 +728,25 @@ void Obs::setBackground(bool on)
     }
     m_app->settings().obsBackground = on;
     m_app->saveSettingsSoon();
-    if (!on && !m_active && !m_busy) {
+    applyBackground();
+    Q_EMIT preferencesChanged();
+}
+
+void Obs::applyBackground()
+{
+    if (!m_app->settings().obsBackground && !m_active && !m_busy) {
         m_client.close();
         m_stateName.clear();
     }
     updatePolling();
+}
+
+void Obs::settingsRestored()
+{
+    applyBackground();
+    refreshWarnings();
     Q_EMIT preferencesChanged();
+    Q_EMIT sceneMapChanged();
 }
 
 bool Obs::goLiveWarnings() const

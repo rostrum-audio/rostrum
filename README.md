@@ -119,7 +119,9 @@ Five minutes to a split stream:
 6. **Make more scenes.** Scenes recall every level, mute and destination, and changes save to the
    live scene by themselves. On the Scenes page, **New** starts an empty scene or one from a preset
    (Gaming, Just Chatting, Music Stream, Podcast, Be Right Back) that keeps your buses and app
-   rules. Switch with Meta+Alt+PgDown or the scene menu in the header.
+   rules. Switch with Meta+Alt+PgDown or the scene menu in the header. Move Up and Move Down set
+   the order that the header, the tray and the scene hotkeys follow; the badge shows each scene's
+   hotkey number.
 
 ### ⌨️ Shortcuts
 
@@ -130,7 +132,7 @@ Default global shortcuts, rebindable in Settings or in System Settings → Keybo
 | Mute mic | Meta+Alt+M |
 | Mute all playback to stream | Meta+Alt+S |
 | Previous / next scene | Meta+Alt+PgUp / Meta+Alt+PgDown |
-| Load scene 1–4 | Meta+Alt+1 … Meta+Alt+4 |
+| Load scene 1–4 (in Scenes page order) | Meta+Alt+1 … Meta+Alt+4 |
 
 More actions are there to bind in Settings → Hotkeys, with no shortcut by default: push to talk
 and push to mute (act while the keys are held), panic mute (mic and stream at once; press again to
@@ -144,6 +146,10 @@ The tray menu has Mute Mic, Mute Stream, Previous and Next Scene, a Scenes subme
 Middle-click the tray icon to mute or unmute the mic, scroll on it to change the Stream master.
 
 With a fader focused: Up/Down 1 %, Page Up/Down 10 %, M mute, S solo, 1/2/3 Headphones/Stream/Both.
+App menu → Compact View shrinks Rostrum to a small mixer (mic, scene, masters and a slim fader per
+bus) that can stay on top of a game or OBS; it remembers its own size and comes back that way.
+Ctrl+Z and Ctrl+Shift+Z undo and redo level and bus edits in the live scene (not solo, and never
+the mic mute). Deleted scenes stay in Scenes → Recently Deleted for 30 days.
 F6 moves focus between the header, the sidebar and the page.
 
 ### 🎛️ Command line and D-Bus
@@ -190,6 +196,10 @@ listener.
 ### 🗂️ Where things live
 
 - Settings and scenes: `~/.config/rostrum/` (TOML). Log: `~/.local/state/rostrum/rostrum.log`.
+- Deleted scenes: `~/.config/rostrum/trash/`, kept 30 days. The setup from before a restore:
+  `~/.config/rostrum/backups/`. Settings → Advanced → Back Up Settings… writes settings, hotkeys,
+  devices and scenes to one file, without crash report and update choices, window state or when
+  apps were last seen.
 - Crash reports waiting to be sent or discarded: `~/.local/state/rostrum/crashes/` (at most 10,
   none older than 30 days), and sentry-native's own database in `~/.local/state/rostrum/sentry/`.
 - App rules for the next login: `~/.config/pipewire/pipewire-pulse.conf.d/50-rostrum.conf` and
@@ -212,7 +222,7 @@ sudo apt install build-essential cmake ninja-build pkg-config extra-cmake-module
   libkf6i18n-dev libkf6globalaccel-dev libkf6statusnotifieritem-dev \
   qml6-module-org-kde-kirigami qml6-module-org-kde-kquickcontrols qml6-module-org-kde-desktop \
   qml6-module-org-kde-kirigamiaddons-formcard qml6-module-org-kde-kitemmodels \
-  qml6-module-qtquick-dialogs qml6-module-qtcore
+  qml6-module-qtquick-dialogs qml6-module-qtcore qt6-svg-plugins
 cmake -S . -B build -G Ninja
 cmake --build build
 cmake --install build --prefix ~/.local
@@ -247,7 +257,8 @@ Qt 6.10, KDE Frameworks 6.24.
 Contributions are welcome: start with [CONTRIBUTING.md](CONTRIBUTING.md), and please follow the
 [Code of Conduct](CODE_OF_CONDUCT.md). Run `ctest --test-dir build` before sending a change.
 Headset, OBS and reboot checks stay manual: walk through [docs/manual-tests.md](docs/manual-tests.md)
-for anything that touches audio routing.
+for anything that touches audio routing. Rostrum ships in English only so far; to add a language,
+see [Translating](CONTRIBUTING.md#translating).
 
 ### 🛠️ Development
 
@@ -258,7 +269,7 @@ ctest --test-dir build
 ./build/src/app/rostrum
 ```
 
-Configure with `-DROSTRUM_BUILD_APP=OFF` to build only the engine, tools and tests (CI does this).
+Configure with `-DROSTRUM_BUILD_APP=OFF` to build only the engine, tools and tests.
 Logs go to `~/.local/state/rostrum/rostrum.log`; a crash appends a backtrace there. Official
 builds use `cmake --preset official`, which turns on crash reports to Rostrum's Sentry project and
 fetches a pinned sentry-native release at configure time; other builds have no crash reporting.
@@ -271,6 +282,7 @@ for both, and for testing against a local server.
 - [How the audio side works, and why](docs/audio.md)
 - [Crash reports and updates: what is sent, and when](docs/privacy.md)
 - [Manual test plan](docs/manual-tests.md)
+- [Releasing](docs/releasing.md)
 - [Security policy](SECURITY.md)
 - [Contributing](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Accessibility](ACCESSIBILITY.md)

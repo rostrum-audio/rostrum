@@ -50,6 +50,11 @@ bool statusNotifierHostRegistered()
 
 QString autostartExec()
 {
+    // Inside an AppImage the binary lives in a mount that is gone after a reboot.
+    const QString appImage = qEnvironmentVariable("APPIMAGE");
+    if (!appImage.isEmpty() && QFileInfo(appImage).isExecutable()) {
+        return autostart::execQuote(appImage) + QStringLiteral(" --autostart");
+    }
     const QString self = QCoreApplication::applicationFilePath();
     const QString onPath = QStandardPaths::findExecutable(QStringLiteral("rostrum"));
     const QString program =

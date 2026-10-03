@@ -100,7 +100,21 @@ int sceneSlot(const QString &id)
 {
     static const QRegularExpression slot(QStringLiteral("^scene_([1-9][0-9]?)$"));
     const auto m = slot.match(id);
-    return m.hasMatch() ? m.captured(1).toInt() : 0;
+    return m.hasMatch() && all().contains(id) ? m.captured(1).toInt() : 0;
+}
+
+int sceneSlotCount()
+{
+    int count = 0;
+    for (const auto &id : all()) {
+        count = std::max(count, sceneSlot(id));
+    }
+    return count;
+}
+
+QString sceneSlotAction(int slot)
+{
+    return QStringLiteral("scene_%1").arg(slot);
 }
 
 bool isKnown(const QString &id)
@@ -173,6 +187,10 @@ QString serializeSettings(const Settings &s)
     for (const auto &id : s.ducking.buses) {
         duckBuses.push_back(id.toStdString());
     }
+    toml::array order;
+    for (const auto &name : s.sceneOrder) {
+        order.push_back(name.toStdString());
+    }
     toml::table t{
         {"format", 1},
         {"general",
@@ -215,7 +233,7 @@ QString serializeSettings(const Settings &s)
              {"scene_map", sceneMap},
          }},
         {"advanced", toml::table{{"show_node_ids", s.showNodeIds}}},
-        {"scenes", toml::table{{"default", s.defaultScene.toStdString()}}},
+        {"scenes", toml::table{{"default", s.defaultScene.toStdString()}, {"scene_order", order}}},
         {"devices",
          toml::table{
              {"headphones", s.headphones.toStdString()},
@@ -230,6 +248,10 @@ QString serializeSettings(const Settings &s)
              {"height", s.windowHeight},
              {"page", s.lastPage.toStdString()},
              {"sidebar_collapsed", s.sidebarCollapsed},
+             {"compact", s.compactWindow},
+             {"compact_width", s.compactWidth},
+             {"compact_height", s.compactHeight},
+             {"keep_on_top", s.keepOnTop},
          }},
     };
     std::ostringstream out;
@@ -322,6 +344,14 @@ Settings parseSettings(const QString &text, QString *error)
     }
     s.showNodeIds = get(t, "advanced", "show_node_ids", s.showNodeIds);
     s.defaultScene = getStr(t, "scenes", "default", s.defaultScene);
+    if (const auto *order = t["scenes"]["scene_order"].as_array()) {
+        for (const auto &v : *order) {
+            if (auto name = v.value<std::string>(); name && !name->empty()) {
+                s.sceneOrder << QString::fromStdString(*name);
+            }
+        }
+        s.sceneOrder.removeDuplicates();
+    }
     s.headphones = getStr(t, "devices", "headphones", s.headphones);
     s.mic = getStr(t, "devices", "mic", s.mic);
     s.micFallback = get(t, "devices", "mic_fallback", s.micFallback);
@@ -338,6 +368,12 @@ Settings parseSettings(const QString &text, QString *error)
     s.windowHeight = std::max(600, int(get<int64_t>(t, "window", "height", s.windowHeight)));
     s.lastPage = getStr(t, "window", "page", s.lastPage);
     s.sidebarCollapsed = get(t, "window", "sidebar_collapsed", s.sidebarCollapsed);
+    s.compactWindow = get(t, "window", "compact", s.compactWindow);
+    s.compactWidth =
+        std::max(kCompactMinWidth, int(get<int64_t>(t, "window", "compact_width", s.compactWidth)));
+    s.compactHeight =
+        std::max(kCompactMinHeight, int(get<int64_t>(t, "window", "compact_height", s.compactHeight)));
+    s.keepOnTop = get(t, "window", "keep_on_top", s.keepOnTop);
     return s;
 }
 

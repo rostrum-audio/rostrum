@@ -17,6 +17,8 @@ rostrum_add_test(tst_privacy)
 rostrum_add_test(tst_scenes)
 rostrum_add_test(tst_controls)
 rostrum_add_test(tst_engine)
+rostrum_add_test(tst_history)
+rostrum_add_test(tst_backup)
 rostrum_add_test(tst_ruleexport)
 rostrum_add_test(tst_autostart)
 rostrum_add_test(tst_testtone)
@@ -36,4 +38,23 @@ find_program(GDBUS gdbus)
 if(TARGET rostrum AND DBUS_RUN_SESSION AND GDBUS)
     add_test(NAME dbus_control COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/dbus-control.sh $<TARGET_FILE:rostrum>)
     set_tests_properties(dbus_control PROPERTIES TIMEOUT 120)
+endif()
+
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_Interpreter_FOUND)
+    rostrum_add_test(tst_releasefeed)
+    target_compile_definitions(tst_releasefeed PRIVATE
+        ROSTRUM_PYTHON="${Python3_EXECUTABLE}" ROSTRUM_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+endif()
+
+# Desktop metadata checks run where the validators are installed (CI's app build has both).
+find_program(APPSTREAMCLI_EXECUTABLE appstreamcli)
+if(APPSTREAMCLI_EXECUTABLE)
+    add_test(NAME metainfo_valid
+        COMMAND ${APPSTREAMCLI_EXECUTABLE} validate --no-net ${PROJECT_SOURCE_DIR}/data/${ROSTRUM_APP_ID}.metainfo.xml)
+endif()
+find_program(DESKTOP_FILE_VALIDATE_EXECUTABLE desktop-file-validate)
+if(DESKTOP_FILE_VALIDATE_EXECUTABLE)
+    add_test(NAME desktop_file_valid
+        COMMAND ${DESKTOP_FILE_VALIDATE_EXECUTABLE} ${PROJECT_SOURCE_DIR}/data/${ROSTRUM_APP_ID}.desktop)
 endif()

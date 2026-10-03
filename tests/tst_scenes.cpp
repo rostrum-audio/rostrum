@@ -253,6 +253,62 @@ bus = "game"
         QCOMPARE(again.names().size(), 4);
     }
 
+    void sceneOrder()
+    {
+        QTemporaryDir dir;
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        engine::SceneManager scenes(&engine, dir.path());
+        scenes.load(QStringLiteral("Live"));
+        for (const auto &name : {QStringLiteral("Zed"), QStringLiteral("BRB"), QStringLiteral("Chat")}) {
+            QVERIFY(scenes.create(name));
+        }
+        // New scenes go to the end, in the order they were made.
+        QCOMPARE(scenes.names(), (QStringList{"Live", "Zed", "BRB", "Chat"}));
+
+        QVERIFY(scenes.move(QStringLiteral("Chat"), 0));
+        QVERIFY(!scenes.move(QStringLiteral("Chat"), -5)); // clamped to where it already is
+        QVERIFY(scenes.move(QStringLiteral("Live"), 99));
+        QCOMPARE(scenes.names(), (QStringList{"Chat", "Zed", "BRB", "Live"}));
+        QVERIFY(!scenes.move(QStringLiteral("Nope"), 0));
+
+        // Rename keeps the place; delete closes the gap; import appends.
+        QVERIFY(scenes.rename(QStringLiteral("Zed"), QStringLiteral("Ranked")));
+        QVERIFY(scenes.remove(QStringLiteral("BRB")));
+        QCOMPARE(scenes.names(), (QStringList{"Chat", "Ranked", "Live"}));
+        const QString bundle = dir.path() + QStringLiteral("/one.toml");
+        QVERIFY(SceneStore::writeFile(
+            bundle, toml_io::serializeBundle({defaults::scene(QStringLiteral("Aaa"))}), nullptr));
+        QCOMPARE(scenes.importFrom(bundle), 1);
+        QCOMPARE(scenes.names(), (QStringList{"Chat", "Ranked", "Live", "Aaa"}));
+        QVERIFY(scenes.switchToIndex(0));
+        QCOMPARE(scenes.currentName(), QStringLiteral("Chat"));
+        QVERIFY(scenes.next());
+        QCOMPARE(scenes.currentName(), QStringLiteral("Ranked"));
+
+        // A fresh load follows the saved order; names it does not list keep file order after it,
+        // stale names are ignored and case does not matter.
+        engine::Engine engine2(&pw);
+        engine::SceneManager again(&engine2, dir.path());
+        again.setOrder({QStringLiteral("live"), QStringLiteral("Gone"), QStringLiteral("Ranked")});
+        again.load(QStringLiteral("Live"));
+        QCOMPARE(again.names(), (QStringList{"Live", "Ranked", "Aaa", "Chat"}));
+        again.setOrder({QStringLiteral("Chat")});
+        QCOMPARE(again.names(), (QStringList{"Chat", "Live", "Ranked", "Aaa"}));
+    }
+
+    void sceneSlots()
+    {
+        QCOMPARE(actions::sceneSlot(QStringLiteral("scene_1")), 1);
+        QCOMPARE(actions::sceneSlot(QStringLiteral("scene_4")), 4);
+        QCOMPARE(actions::sceneSlot(QStringLiteral("next_scene")), 0);
+        QCOMPARE(actions::sceneSlot(QStringLiteral("scene_99")), 0); // not an action
+        QVERIFY(actions::sceneSlotCount() >= 4);
+        for (int n = 1; n <= actions::sceneSlotCount(); ++n) {
+            QVERIFY(actions::all().contains(actions::sceneSlotAction(n)));
+        }
+    }
+
     void presetsKeepStructure()
     {
         Scene base = sample();
@@ -349,12 +405,26 @@ bus = "game"
         s.hotkeys[QStringLiteral("next_scene")] = QString();
         s.meterSpeed = QStringLiteral("low");
         s.lastPage = QStringLiteral("apps");
+        s.sceneOrder = {QStringLiteral("Just Chatting"), QStringLiteral("Live \"main\"")};
         QCOMPARE(parseSettings(serializeSettings(s)), s);
+        QVERIFY(serializeSettings(s).contains(QStringLiteral("scene_order")));
         QString err;
         QCOMPARE(parseSettings(QStringLiteral("[[["), &err), defaultSettings());
         QVERIFY(!err.isEmpty());
         // Window size never drops below the minimum.
         QCOMPARE(parseSettings(QStringLiteral("[window]\nwidth = 100\nheight = 100\n")).windowWidth, 960);
+
+        // The compact window keeps its own size and minimum.
+        s.compactWindow = true;
+        s.compactWidth = 500;
+        s.compactHeight = 240;
+        s.keepOnTop = true;
+        QCOMPARE(parseSettings(serializeSettings(s)), s);
+        const Settings tiny =
+            parseSettings(QStringLiteral("[window]\ncompact_width = 10\ncompact_height = 10\n"));
+        QCOMPARE(tiny.compactWidth, kCompactMinWidth);
+        QCOMPARE(tiny.compactHeight, kCompactMinHeight);
+        QVERIFY(!tiny.compactWindow);
     }
 
     void settingsPrivacyAndUpdates()
