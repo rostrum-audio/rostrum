@@ -442,6 +442,10 @@ void Engine::reconcileLinks()
         if (!out || !in) {
             return false;
         }
+        // PipeWire drops a node's links with it; destroying them as well only produces errors.
+        if (m_pendingDestroy.contains(out->id) || m_pendingDestroy.contains(in->id)) {
+            return false;
+        }
         if (in == mic || in == sidetone) {
             return true;
         }

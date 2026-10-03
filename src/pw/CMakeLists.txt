@@ -1,5 +1,6 @@
 add_library(rostrum_pw STATIC
     Graph.cpp Graph.h
+    MeterBank.cpp MeterBank.h
     PwContext.cpp PwContext.h
 )
 

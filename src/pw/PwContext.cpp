@@ -556,6 +556,7 @@ void PwContext::stop()
     if (!d->loop) {
         return;
     }
+    Q_EMIT aboutToStop();
     pw_thread_loop_lock(d->loop);
     d->teardownLocked();
     pw_thread_loop_unlock(d->loop);

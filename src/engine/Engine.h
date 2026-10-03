@@ -158,6 +158,7 @@ protected:
     pw::PwContext *m_pw = nullptr;
     Scene m_scene;
     bool m_mixEnabled = false;
+    bool m_reportedReady = false;
     QString m_mixError;
     bool m_reconcilePending = false;
     QHash<QString, QElapsedTimer> m_pendingCreate;

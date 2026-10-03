@@ -14,6 +14,7 @@ qt_add_qml_module(rostrum
     VERSION 1.0
     SOURCES
         AppController.cpp AppController.h
+        Mixer.cpp Mixer.h
     QML_FILES
         qml/Main.qml
         qml/Shell.qml
@@ -26,6 +27,14 @@ qt_add_qml_module(rostrum
         qml/PipeWireMissingPage.qml
         qml/PlaceholderPage.qml
         qml/MixerPage.qml
+        qml/MasterFader.qml
+        qml/BusStrip.qml
+        qml/Fader.qml
+        qml/PlainSlider.qml
+        qml/PeakMeter.qml
+        qml/DestinationControl.qml
+        qml/AppChip.qml
+        qml/ColorPopup.qml
         qml/AppsPage.qml
         qml/ScenesPage.qml
         qml/DevicesPage.qml

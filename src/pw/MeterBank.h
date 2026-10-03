@@ -1,0 +1,44 @@
+#pragma once
+
+#include <QHash>
+#include <QObject>
+#include <QStringList>
+
+#include <memory>
+
+namespace rostrum::pw {
+
+class PwContext;
+
+// Peak meters: one passive capture stream per target node. Sinks are read from their monitor,
+// sources directly. Meter streams set node.dont-fallback and node.dont-reconnect so they never
+// wander onto another device; that is allowed for meters only, never for app rules.
+class MeterBank : public QObject
+{
+    Q_OBJECT
+public:
+    explicit MeterBank(PwContext *pw, QObject *parent = nullptr);
+    ~MeterBank() override;
+
+    // Node names to meter. Streams exist only while active and the node is in the graph.
+    void setTargets(const QStringList &nodeNames);
+    void setActive(bool active);
+    bool isActive() const { return m_active; }
+
+    // Highest absolute sample since the previous call, linear 0..1+, then resets.
+    float takePeak(const QString &nodeName);
+
+    struct Meter;
+
+private:
+    void sync();
+    void destroyAll();
+    void destroyMeter(const QString &name);
+
+    PwContext *m_pw = nullptr;
+    QStringList m_targets;
+    bool m_active = false;
+    QHash<QString, Meter *> m_meters;
+};
+
+} // namespace rostrum::pw

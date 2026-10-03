@@ -60,6 +60,8 @@ class AppController : public QObject
     Q_PROPERTY(int windowHeight READ windowHeight WRITE setWindowHeight NOTIFY windowStateChanged)
     Q_PROPERTY(bool confirmSceneSwitch READ confirmSceneSwitch NOTIFY settingsChanged)
     Q_PROPERTY(bool wizardDone READ wizardDone NOTIFY settingsChanged)
+    // Bus id the Apps page filters to when opened from a strip's "+N"; empty = all.
+    Q_PROPERTY(QString appsFilter READ appsFilter WRITE setAppsFilter NOTIFY appsFilterChanged)
 
 public:
     // No default argument: QML must get the one instance through create(), never construct it.
@@ -123,6 +125,14 @@ public:
     void setWindowHeight(int h);
     bool confirmSceneSwitch() const { return m_settings.confirmSceneSwitch; }
     bool wizardDone() const { return m_settings.wizardDone; }
+    QString appsFilter() const { return m_appsFilter; }
+    void setAppsFilter(const QString &busId)
+    {
+        if (busId != m_appsFilter) {
+            m_appsFilter = busId;
+            Q_EMIT appsFilterChanged();
+        }
+    }
 
     Q_INVOKABLE void retry();
     Q_INVOKABLE void toggleMicMute();
@@ -140,6 +150,7 @@ Q_SIGNALS:
     void mixChanged();
     void windowStateChanged();
     void settingsChanged();
+    void appsFilterChanged();
     void toast(const QString &message);
     void raiseRequested();
     void headphonesLost(const QString &description);
@@ -159,6 +170,7 @@ private:
     QString m_detail;
     bool m_versionRefused = false;
     bool m_ruleExportOn = false;
+    QString m_appsFilter;
     QTimer m_saveTimer;
     QTimer m_retryTimer;
 };

@@ -130,9 +130,12 @@ void Engine::scheduleReconcile()
 void Engine::reconcile()
 {
     if (m_pw->state() != pw::PwContext::State::Ready) {
+        if (m_reportedReady) {
+            m_reportedReady = false;
+            Q_EMIT mixStateChanged();
+        }
         return;
     }
-    const bool wasReady = mixReady();
     const auto &g = m_pw->graph();
     for (auto it = m_pendingDestroy.begin(); it != m_pendingDestroy.end();) {
         it = (g.nodes.contains(*it) || g.links.contains(*it)) ? std::next(it) : m_pendingDestroy.erase(it);
@@ -142,8 +145,11 @@ void Engine::reconcile()
     reconcileLinks();
     reconcileVolumes();
     reconcileRoutes();
-    if (wasReady != mixReady()) {
-        if (mixReady()) {
+    // Compare with the last reported state: the graph changes before this pass runs.
+    const bool ready = mixReady();
+    if (ready != m_reportedReady) {
+        m_reportedReady = ready;
+        if (ready) {
             m_mixError.clear();
         }
         Q_EMIT mixStateChanged();

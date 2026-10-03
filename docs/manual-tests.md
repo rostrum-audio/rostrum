@@ -121,3 +121,18 @@ The fragment matching itself can be checked without logging out. Point `XDG_CONF
 directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
 `pw-play -P '{ application.name = "firefox" }' file.wav`. The stream's `target.object` (shown by
 `pw-dump`) is the bus from the rule.
+
+## 8. Mixer page
+
+1. Start Rostrum and play something from Firefox. Its chip appears on the bus its rule names,
+   or on none if it has no rule.
+2. Drag the chip onto Music. The chip moves, `pw-link -l | rg -A2 -i firefox` shows the stream
+   linked to `rostrum.music`, and the scene file gains a `[[rule]]` for it.
+3. Drag the chip onto the empty space between the strips. The chip disappears and the stream goes
+   back to the default sink.
+4. The Music meter moves with the audio and falls off smoothly after you pause. The Mic meter
+   moves while you speak. Mute Music: its meter drops to zero and the strip says "Muted".
+5. Solo Game: every other playback strip dims and says "Dimmed by solo". Quit and restart:
+   nothing is soloed, and `rg -i solo ~/.config/rostrum` finds nothing.
+6. Using only the keyboard, tab to a fader and press Page Up, M, S, 1, 2 and 3. Each key does what
+   its tooltip says, and the focus ring is always visible.

@@ -1,5 +1,6 @@
 #include "app/AppController.h"
 #include "app/Logging.h"
+#include "app/Mixer.h"
 #include "core/Paths.h"
 
 #include <KAboutData>
@@ -44,6 +45,9 @@ int main(int argc, char *argv[])
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &controller,
                      &rostrum::app::AppController::saveSettingsNow);
     controller.start();
+    rostrum::app::Mixer mixer(&controller, nullptr);
+    QObject::connect(&controller, &rostrum::app::AppController::settingsChanged, &mixer,
+                     &rostrum::app::Mixer::notifySettingsChanged);
 
     QQmlApplicationEngine engine;
     KLocalization::setupLocalizedContext(&engine);

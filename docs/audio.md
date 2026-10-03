@@ -173,6 +173,19 @@ After a reboot or re-login, the order is as follows:
 
 If Discord stays on the default sink until it is restarted, that is a router bug.
 
+## Meters
+
+Each strip's meter is a passive `pw_stream` capture named `rostrum-meter.<node>`, targeted at the
+node's serial. Playback buses and the masters are read from their monitor
+(`stream.capture.sink`), the mic from the source itself. The realtime callback only keeps the
+peak sample in an atomic. The UI takes it every 40 ms (80 ms with low meter speed), falls off at
+20 dB/s and holds a clip mark for 1.5 s.
+
+Meter streams exist only while the Mixer page is visible and the window is shown. They carry
+`node.dont-fallback`, `node.dont-move` and `node.dont-reconnect` so a meter never wanders onto
+another device. These keys are allowed here because meters are Rostrum's own internal streams
+(`rostrum.internal = true`). They never appear in app rules.
+
 ## Files
 
 All configuration is TOML under `$XDG_CONFIG_HOME/rostrum/` (default `~/.config/rostrum/`):

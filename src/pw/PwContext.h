@@ -54,6 +54,7 @@ public:
 
 Q_SIGNALS:
     void stateChanged();
+    void aboutToStop(); // the loop and core are still valid; drop streams created on them
     void graphChanged(); // coalesced, at most once per event-loop turn
     void nodeAdded(uint32_t id);
     void nodeRemoved(uint32_t id, const QString &name);

@@ -101,12 +101,11 @@ QQC2.AbstractButton {
                 text: i18nc("@label", "Gain")
                 Layout.topMargin: Kirigami.Units.smallSpacing
             }
-            QQC2.Slider {
+            PlainSlider {
                 id: gain
                 from: 0
                 to: 1.5
                 value: App.micGain
-                stepSize: 0.01
                 Layout.fillWidth: true
                 focus: true
                 Accessible.name: i18nc("@label", "Mic gain")
@@ -124,10 +123,9 @@ QQC2.AbstractButton {
                 onToggled: App.sidetoneEnabled = checked
                 Layout.topMargin: Kirigami.Units.smallSpacing
             }
-            QQC2.Slider {
+            PlainSlider {
                 from: 0
                 to: 1
-                stepSize: 0.01
                 value: App.sidetoneVolume
                 enabled: App.sidetoneEnabled
                 Layout.fillWidth: true
