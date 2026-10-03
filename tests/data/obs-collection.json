@@ -1,0 +1,98 @@
+{
+    "name": "Test",
+    "current_scene": "Game",
+    "current_program_scene": "Game",
+    "scene_order": [
+        {"name": "Game"},
+        {"name": "Desktop"},
+        {"name": "BRB"},
+        {"name": "Overlays"}
+    ],
+    "AuxAudioDevice1": {
+        "id": "pulse_input_capture",
+        "versioned_id": "pulse_input_capture",
+        "name": "Mic/Aux",
+        "settings": {"device_id": "alsa_input.usb-test_mic.analog-stereo"},
+        "mixers": 3,
+        "muted": false
+    },
+    "sources": [
+        {
+            "id": "scene",
+            "name": "Game",
+            "settings": {"items": [{"name": "Game Capture"}, {"name": "Overlays"}, {"name": "Game Audio"}]}
+        },
+        {
+            "id": "scene",
+            "name": "Desktop",
+            "settings": {"items": [{"name": "Display Capture"}, {"name": "Overlays"}, {"name": "Browser Audio"}]}
+        },
+        {
+            "id": "scene",
+            "name": "BRB",
+            "settings": {"items": [{"name": "Overlays"}]}
+        },
+        {
+            "id": "scene",
+            "name": "Overlays",
+            "settings": {"items": [{"name": "Alerts"}, {"name": "Discord Audio"}, {"name": "Spotify"},
+                                   {"name": "Application Audio Capture (PipeWire)"}]}
+        },
+        {
+            "id": "pulse_output_capture",
+            "name": "Game Audio",
+            "settings": {"device_id": "default"},
+            "mixers": 5,
+            "muted": false
+        },
+        {
+            "id": "pipewire_audio_application_capture",
+            "name": "Browser Audio",
+            "settings": {"TargetName": "brave", "CaptureMode": 0},
+            "mixers": 8,
+            "muted": true
+        },
+        {
+            "id": "pipewire_audio_application_capture",
+            "name": "Discord Audio",
+            "settings": {"TargetName": "Discord", "CaptureMode": 0},
+            "mixers": 16,
+            "muted": false
+        },
+        {
+            "id": "pipewire_audio_application_capture",
+            "name": "Spotify",
+            "settings": {"TargetName": "spotify", "CaptureMode": 0},
+            "mixers": 8,
+            "muted": false
+        },
+        {
+            "id": "pipewire_audio_application_capture",
+            "name": "Application Audio Capture (PipeWire)",
+            "settings": {},
+            "mixers": 1,
+            "muted": false
+        },
+        {
+            "id": "browser_source",
+            "name": "Alerts",
+            "settings": {"url": "https://example.invalid/alerts"},
+            "mixers": 1,
+            "muted": false
+        },
+        {
+            "id": "pipewire-screen-capture-source",
+            "name": "Display Capture",
+            "settings": {"capture_audio": true},
+            "mixers": 0,
+            "muted": false
+        },
+        {
+            "id": "pipewire-screen-capture-source",
+            "name": "Game Capture",
+            "settings": {"capture_audio": true, "capture_mode": "window"},
+            "mixers": 0,
+            "muted": false
+        }
+    ]
+}

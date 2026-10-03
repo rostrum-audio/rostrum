@@ -33,9 +33,13 @@ machine, not the only supported system. Plasma, GNOME, and other desktops are in
 
 4. **Pick destinations.** Each bus goes to Phones, Stream or Both. Defaults: Music → Stream (your
    viewers hear it, you don't), the other playback buses → Both, Mic → Stream with sidetone off.
-5. **Add Rostrum to OBS.** Open the OBS page and follow it: add an Audio Capture (PipeWire)
-   source on **Rostrum Stream Mix** and another on **Rostrum Mic**. Copy buttons put the exact
-   names on the clipboard. Remove OBS's own desktop-audio and mic captures, or audio is doubled.
+5. **Add Rostrum to OBS.** Open the OBS page and press **Set Up OBS**. A preview lists every
+   change: your mic source switches to **Rostrum Mic**, a **Rostrum Stream Mix** source joins
+   every scene, and sources that would double audio (desktop audio, single-app captures) are
+   muted, never deleted. With OBS running this goes through obs-websocket (on by default since
+   OBS 28; Rostrum reads its password from OBS's own settings). With OBS closed, Rostrum edits the
+   scene collection after backing it up. **Undo OBS Changes** puts everything back. The page also
+   shows what OBS really records, from the PipeWire graph. "Set it up by hand" has the manual steps.
 
    ![The OBS page with the two device names and copy buttons](docs/screenshots/obs.png)
 
@@ -85,16 +89,16 @@ Qt 6.10, KDE Frameworks 6.24.
 ## Requirements
 
 - PipeWire 1.0 or newer and WirePlumber 0.5 or newer. PulseAudio is not used or required.
-- Qt 6.5+, KDE Frameworks 6 (Kirigami, Kirigami Addons, GlobalAccel, StatusNotifierItem,
+- Qt 6.5+ (with Qt WebSockets), KDE Frameworks 6 (Kirigami, Kirigami Addons, GlobalAccel, StatusNotifierItem,
   CoreAddons, I18n, DBusAddons), toml++ 3.
 
 Packages to install before building:
 
 | Distro | Packages |
 | --- | --- |
-| Debian, Ubuntu, Kubuntu | `pipewire` `pipewire-pulse` `wireplumber` `qt6-base-dev` `libpipewire-0.3-dev` `libtomlplusplus-dev` `cmake` `ninja-build` `pkg-config` |
-| Fedora | `pipewire` `pipewire-pulseaudio` `wireplumber` `qt6-qtbase-devel` `pipewire-devel` `tomlplusplus-devel` `cmake` `ninja-build` `pkgconf-pkg-config` |
-| Arch | `pipewire` `pipewire-pulse` `wireplumber` `qt6-base` `pipewire` `tomlplusplus` `cmake` `ninja` `pkgconf` |
+| Debian, Ubuntu, Kubuntu | `pipewire` `pipewire-pulse` `wireplumber` `qt6-base-dev` `qt6-websockets-dev` `libpipewire-0.3-dev` `libtomlplusplus-dev` `cmake` `ninja-build` `pkg-config` |
+| Fedora | `pipewire` `pipewire-pulseaudio` `wireplumber` `qt6-qtbase-devel` `qt6-qtwebsockets-devel` `pipewire-devel` `tomlplusplus-devel` `cmake` `ninja-build` `pkgconf-pkg-config` |
+| Arch | `pipewire` `pipewire-pulse` `wireplumber` `qt6-base` `qt6-websockets` `pipewire` `tomlplusplus` `cmake` `ninja` `pkgconf` |
 
 The app itself also needs Kirigami and the KDE Frameworks packages listed under Build. Configure
 with `-DROSTRUM_BUILD_APP=OFF` to build only the engine, tools, and tests (CI does this).
@@ -106,7 +110,7 @@ On Kubuntu 26.04:
 
 ```sh
 sudo apt install build-essential cmake ninja-build pkg-config extra-cmake-modules \
-  libpipewire-0.3-dev libtomlplusplus-dev qt6-base-dev qt6-declarative-dev \
+  libpipewire-0.3-dev libtomlplusplus-dev qt6-base-dev qt6-declarative-dev qt6-websockets-dev \
   libkirigami-dev kirigami-addons-dev libkf6coreaddons-dev libkf6dbusaddons-dev \
   libkf6i18n-dev libkf6globalaccel-dev libkf6statusnotifieritem-dev \
   qml6-module-org-kde-kirigami qml6-module-org-kde-kquickcontrols qml6-module-org-kde-desktop \

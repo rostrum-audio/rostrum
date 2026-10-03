@@ -209,6 +209,54 @@ leans right, so one press also shows that both ear cups work. It plays through a
 `pw_stream` (`rostrum-test-tone`, `rostrum.internal = true`), so the router never moves it onto a
 bus. `rostrum-graphtest --tone <sink>` plays the same chime from a terminal.
 
+## OBS
+
+OBS should record exactly two things: `Rostrum Mic` (`rostrum.mic`) and `Rostrum Stream Mix`
+(PulseAudio name `rostrum.stream.monitor`). Any OBS audio source type works, PulseAudio or the
+PipeWire plugin, as long as it records one of those. The failures come from sources that record
+something else: "Default" or the headphones (everything you hear, including buses you keep off
+stream), the hardware mic (a doubled voice), or one app (that app doubled, its bus ignored).
+
+### Status
+
+The OBS page reads what OBS records from the PipeWire graph, with no help from OBS: capture streams
+owned by OBS, and the node at the other end of each one's links. This works without obs-websocket.
+It only shows sources that are running, which is also how it catches a mismatch. If OBS's settings
+say `Rostrum Mic` but PipeWire links the source to the hardware mic, something moved it. Easy
+Effects does this to every recording app unless OBS is on its excluded list.
+
+### One-click setup
+
+The plan is the same whether OBS is running or not (`makePlan` in `src/obs/ObsPlan.cpp`):
+
+1. Mic: if an unmuted source already records `rostrum.mic`, keep it. If only a muted one does,
+   unmute it. Otherwise point the source that records the hardware mic at `rostrum.mic`, which
+   keeps its filters, tracks and scenes. Global Mic/Aux comes first. Failing that, add one.
+2. Stream mix: the same, preferring the global Desktop Audio source. A new source gets the audio
+   tracks of the desktop or app source it replaces.
+3. Every other unmuted source that records audio Rostrum handles (hardware mic, headphones,
+   Default, one app, a Rostrum bus) is muted. These steps are optional in the preview. Nothing is
+   ever deleted.
+
+With OBS running, Rostrum talks obs-websocket 5 on `127.0.0.1`. The port and password come from
+OBS's own config (`plugin_config/obs-websocket/config.json`). Native, Flatpak and Snap installs
+are found, newest first. A new source is added to every scene, because OBS has no API to turn on a
+global Desktop Audio device. If OBS refuses a step, the steps already done stay undoable.
+
+With OBS closed, Rostrum edits the active scene collection JSON directly (global Desktop Audio and
+Mic/Aux channels included). First it writes a timestamped `.rostrum-….bak` copy next to the file.
+It checks again that OBS is not running just before writing, because OBS overwrites the file when
+it quits.
+
+Each applied step records its inverse in `$XDG_STATE_HOME/rostrum/obs-undo.json`, so Undo restores
+the previous device, mute state, and removes what was added. That works live or offline,
+whichever OBS state applies at the time.
+
+Trade-off: OBS now gets a single stream mix, so per-scene audio in OBS (a source muted in one scene)
+moves to Rostrum scenes.
+
+`rostrum-obs` prints the same status and, with `--plan`, the plan, without changing anything.
+
 ## Files
 
 All configuration is TOML under `$XDG_CONFIG_HOME/rostrum/` (default `~/.config/rostrum/`):
@@ -235,7 +283,8 @@ The log is `$XDG_STATE_HOME/rostrum/rostrum.log`.
 Outside `~/.config/rostrum/`, Rostrum writes only the two PipeWire rule fragments above and,
 while "Launch at login" is on, `$XDG_CONFIG_HOME/autostart/io.github.rostrum_audio.Rostrum.desktop`
 (`Exec=… --autostart`; "Start in tray" only applies to that launch). That file is the source of
-truth: removing it in System Settings → Autostart turns the switch off.
+truth: removing it in System Settings → Autostart turns the switch off. Set Up OBS, when pressed
+with OBS closed, edits OBS's scene collection after backing it up.
 
 ## Desktop integration
 

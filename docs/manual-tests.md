@@ -84,6 +84,8 @@ also captures `Rostrum Mic`. Run this with the real mic and OBS.
       on the hardware device, and no desktop-wide capture).
    4. Speak with no playback: exactly one mic-driven meter moves in the OBS Audio Mixer. If two
       move, the voice will be doubled on stream. Remove the extra capture.
+   5. Repeat sub-step 4 after Set Up OBS on the OBS page (test 10) instead of the manual setup.
+      The result must be the same: one mic meter, and it belongs to a source on Rostrum Mic.
 5. **Sidetone.** Turn sidetone on and raise its fader: you hear yourself in the headphones. The
    stream-mix capture from step 3 is still silent.
 
@@ -165,9 +167,21 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
    " 2" added if the name is taken.
 5. Devices: the input meters move only while the page is open (`pw-cli ls Node | rg rostrum-meter`
    lists them only then). Picking another output moves Rostrum's headphone mix there.
-6. OBS: both node names show a check mark. Copy puts "Rostrum Stream Mix" on the clipboard.
-   With the nodes torn down, the page offers Create Mix.
-7. Settings: turn off "Scroll to adjust faders": the wheel no longer moves faders. Turn on
+6. OBS, live: with OBS running and obs-websocket on, the page says "Connected to OBS …" and lists
+   what OBS records, with warnings for desktop audio and a direct mic. Press Set Up OBS: the
+   preview lists the mic switch, the Stream Mix source and the mutes. Untick one mute and Apply.
+   In OBS, the mic source records Rostrum Mic, "Rostrum Stream Mix" is in every scene, the ticked
+   sources are muted and the unticked one is not. The page now shows a check mark. Press Undo OBS
+   Changes: OBS is back as it was, and the Stream Mix source is gone.
+7. OBS, closed: quit OBS and press Set Up OBS, then Apply. A `.rostrum-….bak` file appears next to
+   the scene collection. Start OBS: Settings → Audio has Desktop Audio on Rostrum Stream Mix and
+   Mic/Aux on Rostrum Mic. Quit OBS and press Undo OBS Changes: the next start is as before.
+8. OBS, wrong password: change the obs-websocket password in OBS without restarting Rostrum. The
+   page says the password was refused, and recovers on its own after OBS saves the new one.
+9. OBS, by hand: open "Set it up by hand". Both node names show a check mark, and Copy puts
+   "Rostrum Stream Mix" on the clipboard. With the nodes torn down, the page offers Create Mix and
+   Set Up OBS is disabled.
+10. Settings: turn off "Scroll to adjust faders": the wheel no longer moves faders. Turn on
    "Show dB readouts": every strip prints its level. Rebind "Mute mic" and restart: the new
    binding is kept in `settings.toml`.
 

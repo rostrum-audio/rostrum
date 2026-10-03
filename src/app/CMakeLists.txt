@@ -20,6 +20,7 @@ qt_add_qml_module(rostrum
         Hotkeys.cpp Hotkeys.h
         MeterBallistics.h
         Mixer.cpp Mixer.h
+        Obs.cpp Obs.h
         Preferences.cpp Preferences.h
         RowsModel.cpp RowsModel.h
         Scenes.cpp Scenes.h
@@ -75,6 +76,7 @@ target_compile_definitions(rostrum PRIVATE
 )
 target_link_libraries(rostrum PRIVATE
     rostrum_engine
+    rostrum_obs
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Widgets

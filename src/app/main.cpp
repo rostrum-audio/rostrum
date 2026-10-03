@@ -4,6 +4,7 @@
 #include "app/Devices.h"
 #include "app/Logging.h"
 #include "app/Mixer.h"
+#include "app/Obs.h"
 #include "app/Preferences.h"
 #include "app/Scenes.h"
 #include "core/Paths.h"
@@ -60,6 +61,7 @@ int main(int argc, char *argv[])
     rostrum::app::Devices devices(&controller, nullptr);
     rostrum::app::Desktop desktop(&controller, nullptr);
     rostrum::app::Preferences preferences(&controller, nullptr);
+    rostrum::app::Obs obs(&controller, nullptr);
 
     QQmlApplicationEngine engine;
     KLocalization::setupLocalizedContext(&engine);

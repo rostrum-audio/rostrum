@@ -15,7 +15,7 @@ option(ROSTRUM_BUILD_APP "Build the Kirigami app" ON)
 
 include(GNUInstallDirs)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core WebSockets)
 if(ROSTRUM_BUILD_APP)
     # Found here so the imported QML plugin targets are visible to Qt's deferred finalizers.
     find_package(Qt6 6.5 REQUIRED COMPONENTS Quick QuickControls2 Widgets DBus)
@@ -33,8 +33,10 @@ add_compile_definitions(
 add_subdirectory(src/core)
 add_subdirectory(src/pw)
 add_subdirectory(src/engine)
+add_subdirectory(src/obs)
 add_subdirectory(tools/rostrum-probe)
 add_subdirectory(tools/rostrum-graphtest)
+add_subdirectory(tools/rostrum-obs)
 if(ROSTRUM_BUILD_APP)
     add_subdirectory(src/app)
 endif()
