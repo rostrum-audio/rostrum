@@ -35,11 +35,21 @@ Headset, OBS, and reboot checks stay manual. See [docs/manual-tests.md](docs/man
 
 ## Build
 
+On Kubuntu 26.04:
+
 ```sh
+sudo apt install build-essential cmake ninja-build pkg-config extra-cmake-modules \
+  libpipewire-0.3-dev libtomlplusplus-dev qt6-base-dev qt6-declarative-dev \
+  libkirigami-dev kirigami-addons-dev libkf6coreaddons-dev libkf6dbusaddons-dev \
+  libkf6i18n-dev libkf6globalaccel-dev libkf6statusnotifieritem-dev libkf6notifications-dev \
+  qml6-module-org-kde-kirigami qml6-module-org-kde-kquickcontrols qml6-module-org-kde-desktop
 cmake -S . -B build -G Ninja
 cmake --build build
 ctest --test-dir build
+./build/src/app/rostrum
 ```
+
+Logs go to `~/.local/state/rostrum/rostrum.log`; a crash appends a backtrace there.
 
 ## License
 
