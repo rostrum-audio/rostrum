@@ -56,7 +56,7 @@ Rostrum creates links port by port with `link-factory` (`object.linger = true`),
 |------|----|------|
 | `rostrum.<bus>` monitor | `rostrum.phones` | bus destination is Headphones or Both |
 | `rostrum.<bus>` monitor | `rostrum.stream` | bus destination is Stream or Both |
-| `rostrum.phones` monitor | headphone device | always |
+| `rostrum.phones` monitor | headphone device | always; with mono headphones each side also goes into the other front channel |
 | hardware mic | `rostrum.mic` | always (mute/destination act on the node, not the link) |
 | hardware mic | `rostrum.sidetone` | always |
 | `rostrum.sidetone` monitor | `rostrum.phones` | always (muted unless sidetone is on) |
@@ -74,7 +74,9 @@ channel count. Otherwise a half-enumerated stereo device would briefly look mono
 Fader positions are perceptual: linear gain = position³, as in pavucontrol. They are sent as
 `SPA_PROP_channelVolumes` and `SPA_PROP_mute` on the node's `Props` param.
 
-- Bus node: fader, muted if the bus is muted or dimmed by solo.
+- Bus node: fader, muted if the bus is muted or dimmed by solo. A playback bus with a balance gets
+  one volume per channel (FL, FR): like PulseAudio's balance, the far side is turned down in fader
+  space (position × (1 − |balance|)) and the near side stays at the fader.
 - `rostrum.phones` / `rostrum.stream`: Master Headphones / Master Stream. These multiply every bus send.
   "Mute all playback to stream" mutes `rostrum.stream`.
 - `rostrum.mic`: mic gain (0 to 150%, 100% = 0 dB), muted if the mic is muted or the mic
@@ -84,6 +86,83 @@ Fader positions are perceptual: linear gain = position³, as in pavucontrol. The
 
 If something else changes a Rostrum node's volume (WirePlumber's state restore, another mixer),
 Rostrum re-applies the scene value at most once a second, so two tools cannot get into a loop.
+Every channel is compared, so a balance changed elsewhere comes back too.
+
+Balance is per bus (`balance` in the scene's `[[bus]]`, -1 left to 1 right, 0 = centre and not
+written). It is a level like the fader: saved with the scene, and it makes the scene dirty. Values
+outside -1..1 are clamped, anything that is not a number is centre, and the mono mic bus never has
+one. Set it with the small slider under each playback fader; double-click it or use "Centre
+Balance" in the strip's menu to reset.
+
+### Mono headphones
+
+Devices → "Mono headphones" (`[devices] mono_headphones`, off by default) gives both ears the whole
+mix. It is done with links only, so the downmix happens in the PipeWire daemon like every other
+mix: each `rostrum.phones` monitor port is linked into both front inputs (FL and FR) of the
+headphone device, which PipeWire sums, and `rostrum.phones` is set to half volume (-6 dB) so a
+centred sound stays at the same level. Master Headphones and the scene are unchanged; the halving is
+applied at send time and never saved. While turning it on or off, the halving stays until the last
+cross-link is gone, so the change can only be briefly quieter, never 6 dB louder. Mono sinks
+already sum, and sinks without FL and FR ports keep the normal links. The stream mix stays stereo.
+Like every Rostrum link, the cross-links linger, so headphones stay mono if Rostrum quits.
+
+### Scene fades
+
+Settings → General → Scene fade (`[general] scene_fade_ms`: 0 = off, the default, or 150, 300, 600,
+1000; other values snap to the nearest) makes a scene switch glide instead of jump. Only bus and
+master nodes fade; `rostrum.mic` and `rostrum.sidetone` switch at once, so a scene that mutes the mic
+never leaves it live for a moment.
+
+- The engine's scene takes the new values at once, so the faders show the target, the scene is
+  never dirty because of a fade, and a save mid-fade saves the target. The ramp is a session-only
+  overlay per node, never stored.
+- Every 16 ms the overlay sends `from + (to − from) × t` in fader space (already perceptual), for
+  the level and the balance. A muted bus counts as level 0: a bus being unmuted is unmuted at the
+  start and ramps up from silence, and a bus being muted ramps down and is muted at the end. Solo
+  is part of the starting level.
+- A switch mid-fade starts from wherever the running fade got to. Moving a fader, mute or balance
+  takes that node out of the fade at once; toggling solo ends the whole fade.
+- Loading the default scene at startup never fades: the nodes may still be playing at their
+  lingering levels, and the scene applies at once as before.
+- Quitting mid-fade sends every node its scene level first, so nothing is left halfway.
+
+### Auto-ducking
+
+Settings → Ducking turns chosen playback buses down while someone speaks. Like solo, it is
+session behaviour: the scene never changes, it never makes the scene dirty, and the ducked level is
+never written anywhere. The settings live in `settings.toml`:
+
+| Key | Default | Values |
+|-----|---------|--------|
+| `[ducking] enabled` | `false` | |
+| `[ducking] trigger` | `"mic"` | `"mic"`, `"voice"` (the bus that receives voice chat) or `"either"` |
+| `[ducking] buses` | `["music"]` | playback bus ids; the mic and unknown ids are ignored |
+| `[ducking] amount_db` | `-12` | -6, -9, -12, -18, -24 |
+| `[ducking] attack_ms` | `100` | 20, 50, 100, 250, 500 |
+| `[ducking] release_ms` | `800` | 250, 500, 800, 1500, 3000 |
+
+Hand-edited numbers snap to the nearest offered value. The amount stops at -24 dB on purpose: a
+ducked bus is quieter, never silent.
+
+- Detection: while ducking is on, the engine runs its own meter streams (the same `MeterBank` as
+  the strips, independent of what is on screen). With the mic trigger it meters the hardware mic
+  summed to mono, times the mic gain, and only while the mic can be heard on stream (not muted,
+  destination includes Stream, not unplugged). With the voice trigger it meters the voice bus's
+  monitor, which is after its fader and mute. A peak above -40 dBFS counts as speech. Turning
+  ducking off removes the meter streams.
+- The mic meter is an active source stream, like every mic meter, so while ducking listens to the
+  mic, Plasma's microphone indicator stays lit, even with Rostrum in the tray. Muting the mic stops
+  the meter and the indicator. The Settings switch says so.
+- Envelope (`ducking::Envelope`, unit tested): every 20 ms the gain moves toward the amount at
+  amount/attack dB per ms while speech is heard, and stays there until 500 ms after the last
+  speech, so it does not pump between words. Then it returns to 0 dB at amount/release dB per ms.
+- Applying: the gain multiplies the linear volume of each target bus when volumes are sent, on
+  top of fader, balance and any scene fade. The value sent changes, the scene does not, and the
+  once-a-second re-apply compares against the ducked value, so ducking never fights it. The bus
+  that receives voice chat is never ducked when it is the trigger.
+- The strip of a ducked bus says "Ducked" in its status line.
+- Quitting while ducked sends the scene levels first and waits for PipeWire to confirm. After a
+  crash a ducked bus stays down (by at most 24 dB) until Rostrum starts again.
 
 ### Mic channel handling
 
@@ -97,12 +176,24 @@ Rostrum accepts those ports when a non-sink node has no other outputs.
 
 The headphone target is the saved `node.name` if present, otherwise the system default sink
 (`default.audio.sink` metadata), otherwise the highest `priority.session` sink. Rostrum nodes are
-never candidates. The mic works the same way with sources.
+never candidates. The mic works the same way with sources, except when a saved mic goes missing
+(below). With no saved mic, Rostrum follows the system default source. The choice is a pure
+function of the graph (`engine::resolveDevice`), covered by `tests/tst_engine.cpp`.
 
 If the saved headphones disappear, the scene is held unchanged. `rostrum.phones` is relinked to the
 fallback, the UI shows a banner, and one desktop notification is sent ("Headphones disconnected,
 scene held"). When a node with the saved `node.name` returns, Rostrum relinks to it. The saved
 device is never rewritten by a fallback.
+
+If the saved mic disappears, the stream mic goes silent instead of falling back. Nothing is linked
+into `rostrum.mic` or `rostrum.sidetone`, and both nodes are muted, so a webcam or laptop mic never
+goes live on stream by surprise. The UI shows a banner ("Your stream mic is silent until it comes
+back", with Choose Mic), the header mic button says No mic, and one desktop notification is sent
+("Mic disconnected, stream mic silent"). The log says `mic missing: … stream mic silent until it
+returns`. When the saved mic returns, it is relinked and its mute and gain come back from the
+scene. Devices → "Use another mic while mine is unplugged" (`[devices] mic_fallback`, off by
+default) brings back the fallback to the default source, the way headphones work. Either way the
+saved mic is never rewritten.
 
 ## Moving app streams
 
@@ -122,6 +213,24 @@ stream. No `pactl`, no `module-move`.
 - Once Rostrum has asked for a target, it does not re-send it unless the bus serial changes. If the
   user moves the stream in another mixer afterwards, Rostrum leaves it there.
 - Streams from Rostrum's own process (meters, test tones) and any `rostrum.*` node are ignored.
+
+### Per-app volume and mute
+
+The Apps page sets a volume and a mute per app. Both go to the app's own stream node
+(`SPA_PROP_channelVolumes` and `SPA_PROP_mute`), not to a bus. A stream is only touched once the
+user has set something other than 100% or muted it, and Rostrum sends a value only when it changes,
+so it does not fight a volume or mute set in another mixer.
+
+Both are stored the same way: in the app's rule (`volume`, and `muted = true`, omitted when not
+muted) when the app has one, so they belong to the scene and save with it; otherwise only until
+Rostrum quits. Turning on Always carries the current volume and mute into the new rule. Rule
+fragments never carry either: they only set `target.object`.
+
+When Rostrum quits normally it unmutes every stream it muted and waits for PipeWire to confirm,
+so quitting never leaves an app silent (and WirePlumber does not remember the app as muted). A
+saved mute applies again when Rostrum starts. After a crash, a stream Rostrum muted stays muted
+until it is unmuted in any mixer; WirePlumber may also restore that mute when the app restarts,
+exactly as it does for a mute set in Plasma's volume applet.
 
 ### App identity
 
@@ -248,7 +357,9 @@ The Apps page meters each running app the same way, by capturing the app's own p
 playback stream's output ports without moving the app, so the app keeps playing where it was.
 The Devices page and the wizard meter every input.
 
-Meter streams exist only while the page that shows them is visible and the window is shown. They carry
+Auto-ducking has its own meters (below), which run whenever ducking is on, whatever is on screen.
+Otherwise, meter streams exist only while the page that shows them is visible and the window is
+shown. They carry
 `node.dont-fallback`, `node.dont-move` and `node.dont-reconnect` so a meter never wanders onto
 another device. These keys are allowed here because meters are Rostrum's own internal streams
 (`rostrum.internal = true`). They never appear in app rules.
@@ -351,13 +462,13 @@ outlives OBS.
 
 All configuration is TOML under `$XDG_CONFIG_HOME/rostrum/` (default `~/.config/rostrum/`):
 
-- `settings.toml`: general options, mixer options, default scene, saved headphone and mic
-  `node.name`, shortcuts, window size, last page, OBS options and the OBS scene map
+- `settings.toml`: general options, mixer options, ducking, default scene, saved headphone and
+  mic `node.name`, shortcuts, window size, last page, OBS options and the OBS scene map
   (`[obs.scene_map]`).
 - `scenes/<slug>.toml`: one scene per file. The `name` inside the file wins over the file name.
   A scene holds master levels, sidetone level, the bus list (id, name, color, kind, volume, mute,
-  destination) and app rules (match, key, bus, per-app volume, an optional label for apps that
-  report no name, last seen).
+  balance, destination) and app rules (match, key, bus, per-app volume and mute, an optional label for apps
+  that report no name, last seen).
 - Export writes every scene into one TOML file with a `[[scene]]` array. Import never overwrites:
   clashing names get a numeric suffix.
 
@@ -366,10 +477,10 @@ The mic bus is always present and first, ids must be unique slugs, there are at 
 colors are replaced from the palette, levels are clamped, and rules for unknown buses are dropped.
 
 Bus renames, colors, adding or removing a bus and app rules are written to the current scene file
-right away, merged onto its saved levels. Levels (faders, mutes, destinations, masters, sidetone)
-are saved to the live scene one second after the last change, before a scene switch and on quit,
-while "Save scene changes automatically" is on (the default; `[general] auto_save_scenes`). With
-it off, level changes make the scene dirty until Save, and switching scenes discards them.
+right away, merged onto its saved levels. Levels (faders, mutes, balance, destinations, masters,
+sidetone) are saved to the live scene one second after the last change, before a scene switch and
+on quit, while "Save scene changes automatically" is on (the default; `[general] auto_save_scenes`).
+With it off, level changes make the scene dirty until Save, and switching scenes discards them.
 
 New → From a Preset makes a scene from the live one: same buses, names, colors and app rules,
 with the preset's levels for buses that have an automatic category (Game, Voice, Music, Alerts,
@@ -419,8 +530,9 @@ with OBS closed, edits OBS's scene collection after backing it up.
   showText`). Without plasmashell, a transient notification (`org.freedesktop.Notifications`,
   urgency low, 2 s, replacing the previous one). Holds show nothing. Off with `[general]
   osd_feedback = false` (Settings → General → "Show hotkey changes on screen").
-- Two other notifications, sent straight to `org.freedesktop.Notifications`: "Headphones
-  disconnected, scene held.", and "Check your stream audio" when a stream starts with a problem
+- Other notifications, sent straight to `org.freedesktop.Notifications`: "Headphones
+  disconnected, scene held.", "Mic disconnected, stream mic silent." (or "Mic disconnected." when
+  another mic stands in), and "Check your stream audio" when a stream starts with a problem
   (critical urgency; see OBS above). Changes made in the window never notify.
 - Offscreen runs (`QT_QPA_PLATFORM=offscreen` or `ROSTRUM_SCREENSHOT`) skip the tray, shortcuts,
   notifications and on-screen feedback. `ROSTRUM_NO_GLOBAL_SHORTCUTS=1` skips only the shortcuts.

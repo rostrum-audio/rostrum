@@ -5,6 +5,10 @@
 
 #include <QFileInfo>
 #include <QRegularExpression>
+
+#include <algorithm>
+#include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <sstream>
 #include <toml++/toml.hpp>
@@ -165,6 +169,10 @@ QString serializeSettings(const Settings &s)
     for (auto it = s.obsSceneMap.cbegin(); it != s.obsSceneMap.cend(); ++it) {
         sceneMap.insert(it.key().toStdString(), it.value().toStdString());
     }
+    toml::array duckBuses;
+    for (const auto &id : s.ducking.buses) {
+        duckBuses.push_back(id.toStdString());
+    }
     toml::table t{
         {"format", 1},
         {"general",
@@ -177,8 +185,18 @@ QString serializeSettings(const Settings &s)
              {"confirm_scene_switch", s.confirmSceneSwitch},
              {"scroll_to_adjust", s.scrollToAdjust},
              {"osd_feedback", s.osdFeedback},
+             {"scene_fade_ms", s.sceneFadeMs},
          }},
         {"mixer", toml::table{{"meter_speed", s.meterSpeed.toStdString()}, {"show_db", s.showDb}}},
+        {"ducking",
+         toml::table{
+             {"enabled", s.ducking.enabled},
+             {"trigger", ducking::triggerName(s.ducking.trigger).toStdString()},
+             {"buses", duckBuses},
+             {"amount_db", s.ducking.amountDb},
+             {"attack_ms", s.ducking.attackMs},
+             {"release_ms", s.ducking.releaseMs},
+         }},
         {"apps", toml::table{{"auto_assign", s.autoAssign}, {"auto_skip", skip}}},
         {"privacy", toml::table{{"crash_reports", s.crashReports.toStdString()}}},
         {"updates",
@@ -196,7 +214,13 @@ QString serializeSettings(const Settings &s)
          }},
         {"advanced", toml::table{{"show_node_ids", s.showNodeIds}}},
         {"scenes", toml::table{{"default", s.defaultScene.toStdString()}}},
-        {"devices", toml::table{{"headphones", s.headphones.toStdString()}, {"mic", s.mic.toStdString()}}},
+        {"devices",
+         toml::table{
+             {"headphones", s.headphones.toStdString()},
+             {"mic", s.mic.toStdString()},
+             {"mic_fallback", s.micFallback},
+             {"mono_headphones", s.monoHeadphones},
+         }},
         {"hotkeys", hotkeys},
         {"window",
          toml::table{
@@ -232,11 +256,38 @@ Settings parseSettings(const QString &text, QString *error)
     s.confirmSceneSwitch = get(t, "general", "confirm_scene_switch", s.confirmSceneSwitch);
     s.scrollToAdjust = get(t, "general", "scroll_to_adjust", s.scrollToAdjust);
     s.osdFeedback = get(t, "general", "osd_feedback", s.osdFeedback);
+    // Hand-edited lengths snap to the nearest offered one.
+    const auto fade = get<int64_t>(t, "general", "scene_fade_ms", s.sceneFadeMs);
+    for (const int choice : kSceneFadeChoicesMs) {
+        if (std::abs(fade - choice) < std::abs(fade - s.sceneFadeMs)) {
+            s.sceneFadeMs = choice;
+        }
+    }
     s.meterSpeed = getStr(t, "mixer", "meter_speed", s.meterSpeed);
     if (s.meterSpeed != QLatin1String("low")) {
         s.meterSpeed = QStringLiteral("normal");
     }
     s.showDb = get(t, "mixer", "show_db", s.showDb);
+    s.ducking.enabled = get(t, "ducking", "enabled", s.ducking.enabled);
+    s.ducking.trigger = ducking::triggerFromString(getStr(t, "ducking", "trigger", QString()))
+                            .value_or(s.ducking.trigger);
+    if (const auto *buses = t["ducking"]["buses"].as_array()) {
+        s.ducking.buses.clear();
+        for (const auto &v : *buses) {
+            if (auto id = v.value<std::string>()) {
+                s.ducking.buses << QString::fromStdString(*id);
+            }
+        }
+    }
+    // Clamped before the int cast; sanitize() then snaps to an offered value.
+    auto number = [&t](std::string_view key, int fallback) {
+        const double v = get<double>(t, "ducking", key, fallback);
+        return std::isfinite(v) ? int(std::clamp(v, -60000.0, 60000.0)) : fallback;
+    };
+    s.ducking.amountDb = number("amount_db", s.ducking.amountDb);
+    s.ducking.attackMs = number("attack_ms", s.ducking.attackMs);
+    s.ducking.releaseMs = number("release_ms", s.ducking.releaseMs);
+    s.ducking = ducking::sanitize(s.ducking);
     s.autoAssign = get(t, "apps", "auto_assign", s.autoAssign);
     if (const auto *skip = t["apps"]["auto_skip"].as_array()) {
         for (const auto &v : *skip) {
@@ -269,6 +320,8 @@ Settings parseSettings(const QString &text, QString *error)
     s.defaultScene = getStr(t, "scenes", "default", s.defaultScene);
     s.headphones = getStr(t, "devices", "headphones", s.headphones);
     s.mic = getStr(t, "devices", "mic", s.mic);
+    s.micFallback = get(t, "devices", "mic_fallback", s.micFallback);
+    s.monoHeadphones = get(t, "devices", "mono_headphones", s.monoHeadphones);
     if (const auto *hk = t["hotkeys"].as_table()) {
         for (auto &&[k, v] : *hk) {
             const QString id = QString::fromStdString(std::string(k.str()));

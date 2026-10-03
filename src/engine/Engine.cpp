@@ -16,10 +16,13 @@ namespace {
 constexpr int kCreateRetryMs = 3000;
 constexpr int kCreateTimeoutMs = 5000;
 constexpr qint64 kSessionGraceMs = 30000;
+constexpr int kFadeStepMs = 16;
+constexpr int kDuckStepMs = 20;
 } // namespace
 
 Engine::Engine(pw::PwContext *pw, QObject *parent)
     : QObject(parent)
+    , m_duckMeters(pw)
     , m_pw(pw)
     , m_scene(defaults::scene())
 {
@@ -30,16 +33,99 @@ Engine::Engine(pw::PwContext *pw, QObject *parent)
         m_mixError = msg;
         Q_EMIT mixStateChanged();
     });
+    m_fadeTimer.setInterval(kFadeStepMs);
+    m_fadeTimer.setTimerType(Qt::PreciseTimer);
+    connect(&m_fadeTimer, &QTimer::timeout, this, &Engine::fadeTick);
+    m_duckTimer.setInterval(kDuckStepMs);
+    m_duckTimer.setTimerType(Qt::PreciseTimer);
+    connect(&m_duckTimer, &QTimer::timeout, this, &Engine::duckTick);
 }
 
-void Engine::setScene(const Scene &scene)
+void Engine::setScene(const Scene &scene, bool fade)
 {
+    QHash<QString, Fade> fades;
+    if (fade && m_sceneFadeMs > 0) {
+        // A switch mid-fade continues from where the last one got to.
+        const auto from = fadeLevels(m_scene, true);
+        const auto to = fadeLevels(scene, false);
+        for (auto it = to.cbegin(); it != to.cend(); ++it) {
+            Level start = fadingLevel(it.key()).value_or(from.value(it.key(), Level{0.0, it->balance}));
+            if (start != *it) {
+                fades.insert(it.key(), {start, *it});
+            }
+        }
+    }
+    m_fades = fades;
+    if (m_fades.isEmpty()) {
+        m_fadeTimer.stop();
+    } else {
+        m_fadeLength = m_sceneFadeMs;
+        m_fadeClock.start();
+        m_fadeTimer.start();
+    }
     m_scene = scene;
     m_soloed.clear();
     Q_EMIT soloChanged();
     Q_EMIT levelsChanged();
     Q_EMIT sceneChanged();
     scheduleReconcile();
+}
+
+void Engine::setSceneFadeMs(int ms)
+{
+    m_sceneFadeMs = std::clamp(ms, 0, 5000);
+}
+
+QHash<QString, Engine::Level> Engine::fadeLevels(const Scene &scene, bool withSolo) const
+{
+    QHash<QString, Level> levels;
+    for (const auto &b : scene.buses) {
+        if (b.isInput()) {
+            continue;
+        }
+        const bool off = b.muted || (withSolo && dimmedBySolo(b.id));
+        levels.insert(b.nodeName(), {off ? 0.0 : b.volume, b.balance});
+    }
+    levels.insert(QString::fromLatin1(kPhonesNode),
+                  {scene.masterPhonesMuted ? 0.0 : scene.masterPhones, 0.0});
+    levels.insert(QString::fromLatin1(kStreamNode),
+                  {scene.masterStreamMuted ? 0.0 : scene.masterStream, 0.0});
+    return levels;
+}
+
+std::optional<Engine::Level> Engine::fadingLevel(const QString &nodeName) const
+{
+    const auto it = m_fades.constFind(nodeName);
+    if (it == m_fades.cend()) {
+        return std::nullopt;
+    }
+    const double t = m_fadeLength > 0 ? double(m_fadeClock.elapsed()) / m_fadeLength : 1.0;
+    return Level{volume::fadePosition(it->from.position, it->to.position, t),
+                 volume::fadePosition(it->from.balance, it->to.balance, t)};
+}
+
+std::optional<double> Engine::fadingPosition(const QString &nodeName) const
+{
+    const auto level = fadingLevel(nodeName);
+    return level ? std::optional<double>(level->position) : std::nullopt;
+}
+
+void Engine::cancelFade(const QString &nodeName)
+{
+    if (m_fades.remove(nodeName) && m_fades.isEmpty()) {
+        m_fadeTimer.stop();
+    }
+}
+
+void Engine::fadeTick()
+{
+    if (m_fadeClock.elapsed() >= m_fadeLength) {
+        m_fades.clear();
+        m_fadeTimer.stop();
+    }
+    if (m_pw->state() == pw::PwContext::State::Ready) {
+        reconcileVolumes();
+    }
 }
 
 void Engine::createMix()
@@ -144,6 +230,7 @@ void Engine::reconcile()
     reconcileNodes();
     reconcileDevices();
     reconcileLinks();
+    reconcileDucking();
     reconcileVolumes();
     reconcileRoutes();
     // Compare with the last reported state: the graph changes before this pass runs.
@@ -308,6 +395,7 @@ QList<AppStream> Engine::appStreams() const
             s.identity.unnamed = false;
         }
         s.volume = s.ruleKey.isValid() ? appVolume(s.ruleKey) : appVolume(s.identity.key);
+        s.muted = s.ruleKey.isValid() ? appMuted(s.ruleKey) : appMuted(s.identity.key);
         if (s.ruleKey.isValid()) {
             if (const AppRule *r = m_scene.rule(s.ruleKey.key, s.ruleKey.match); r && !r->label.isEmpty()) {
                 s.identity.displayName = r->label;
@@ -343,6 +431,7 @@ void Engine::assignApp(const AppKey &key, const QString &busId, bool always)
             if (rule.volume <= 0.0) {
                 rule.volume = 1.0;
             }
+            rule.muted = m_sessionMuted.take(key.toString());
             rule.lastSeen = QDateTime::currentDateTimeUtc();
             m_scene.rules.append(rule);
         }
@@ -549,6 +638,44 @@ double Engine::appVolume(const AppKey &key) const
     return m_sessionVolume.value(key.toString(), 1.0);
 }
 
+void Engine::setAppMuted(const AppKey &key, bool muted)
+{
+    if (AppRule *r = m_scene.rule(key.key, key.match)) {
+        if (r->muted == muted) {
+            return;
+        }
+        r->muted = muted;
+        Q_EMIT sceneChanged();
+    } else if (muted) {
+        m_sessionMuted.insert(key.toString(), true);
+    } else {
+        m_sessionMuted.remove(key.toString());
+    }
+    Q_EMIT appsChanged();
+    scheduleReconcile();
+}
+
+bool Engine::appMuted(const AppKey &key) const
+{
+    if (const AppRule *r = m_scene.rule(key.key, key.match)) {
+        return r->muted;
+    }
+    return m_sessionMuted.value(key.toString(), false);
+}
+
+bool Engine::releaseAppMutes()
+{
+    bool sent = false;
+    for (auto it = m_appliedStreamMute.cbegin(); it != m_appliedStreamMute.cend(); ++it) {
+        if (it.value() && m_pw->graph().node(it.key())) {
+            m_pw->setNodeMute(it.key(), false);
+            sent = true;
+        }
+    }
+    m_appliedStreamMute.clear();
+    return sent;
+}
+
 void Engine::reconcileRoutes()
 {
     const auto &graph = m_pw->graph();
@@ -620,6 +747,15 @@ void Engine::reconcileRoutes()
             m_pw->setNodeVolume(n.id, float(volume::faderToLinear(vol)));
             m_appliedStreamVolume.insert(n.id, vol);
         }
+        // Per-app mute, the same way: a stream is only touched once the user has muted the app.
+        const bool muted = ruleKey.isValid() ? appMuted(ruleKey) : appMuted(id.key);
+        const auto appliedMute = m_appliedStreamMute.constFind(n.id);
+        if ((appliedMute == m_appliedStreamMute.cend() && muted) ||
+            (appliedMute != m_appliedStreamMute.cend() && appliedMute.value() != muted)) {
+            qCInfo(lcEngine) << (muted ? "mute" : "unmute") << id.displayName << n.id;
+            m_pw->setNodeMute(n.id, muted);
+            m_appliedStreamMute.insert(n.id, muted);
+        }
     }
 
     for (auto it = m_routed.begin(); it != m_routed.end();) {
@@ -627,6 +763,9 @@ void Engine::reconcileRoutes()
     }
     for (auto it = m_appliedStreamVolume.begin(); it != m_appliedStreamVolume.end();) {
         it = present.contains(it.key()) ? std::next(it) : m_appliedStreamVolume.erase(it);
+    }
+    for (auto it = m_appliedStreamMute.begin(); it != m_appliedStreamMute.end();) {
+        it = present.contains(it.key()) ? std::next(it) : m_appliedStreamMute.erase(it);
     }
     for (auto it = m_recognised.begin(); it != m_recognised.end();) {
         it = present.contains(it.key()) ? std::next(it) : m_recognised.erase(it);

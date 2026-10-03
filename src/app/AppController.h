@@ -212,6 +212,7 @@ Q_SIGNALS:
     void actionsChanged();
     // A hotkey or remote change the user may not have seen; Desktop decides whether to show it.
     void feedbackRequested(const QString &iconName, const QString &text);
+    void micLost(const QString &description);
 
 private:
     void updateStatus();

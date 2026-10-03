@@ -1,5 +1,7 @@
 #include "core/SceneToml.h"
 
+#include "core/Volume.h"
+
 #include <QRegularExpression>
 #include <QSet>
 #include <QTimeZone>
@@ -75,7 +77,7 @@ toml::table sceneTable(const Scene &scene)
 
     toml::array buses;
     for (const auto &b : scene.buses) {
-        buses.push_back(toml::table{
+        toml::table bt{
             {"id", s(b.id)},
             {"name", s(b.name)},
             {"kind", b.isInput() ? "input" : "playback"},
@@ -84,7 +86,11 @@ toml::table sceneTable(const Scene &scene)
             {"muted", b.muted},
             {"destination", s(destinationName(b.destination))},
             {"auto", s(categoryName(b.autoCategory))},
-        });
+        };
+        if (b.balance != 0.0) {
+            bt.insert("balance", b.balance);
+        }
+        buses.push_back(std::move(bt));
     }
     t.insert("bus", std::move(buses));
 
@@ -96,6 +102,9 @@ toml::table sceneTable(const Scene &scene)
             {"bus", s(r.busId)},
             {"volume", r.volume},
         };
+        if (r.muted) {
+            rt.insert("muted", true);
+        }
         if (!r.label.isEmpty()) {
             rt.insert("label", s(r.label));
         }
@@ -136,6 +145,7 @@ Scene sceneFrom(const toml::table &t)
             b.color = qs(bv["color"]);
             b.volume = num(bv["volume"], 1.0);
             b.muted = flag(bv["muted"], false);
+            b.balance = num(bv["balance"], 0.0);
             b.destination = destinationFromString(qs(bv["destination"])).value_or(defaults::destinationFor(b.id));
             // Scenes saved before automatic assignment existed: the default buses keep their job.
             b.autoCategory = categoryFromString(qs(bv["auto"])).value_or(defaults::autoCategoryFor(b.id));
@@ -154,6 +164,7 @@ Scene sceneFrom(const toml::table &t)
             r.key = matchKeyFromString(qs(rv["key"])).value_or(MatchKey::Name);
             r.busId = qs(rv["bus"]);
             r.volume = num(rv["volume"], 1.0);
+            r.muted = flag(rv["muted"], false);
             r.label = qs(rv["label"]).trimmed().left(64);
             r.lastSeen = fromToml(rv["last_seen"]);
             scene.rules.append(r);
@@ -217,6 +228,7 @@ Scene sanitize(Scene scene)
             b.color = QString::fromLatin1(defaults::palette().at(k % defaults::palette().size()).hex);
         }
         b.volume = std::clamp(b.volume, 0.0, b.isInput() ? 1.5 : 1.0);
+        b.balance = b.isInput() ? 0.0 : volume::clampBalance(b.balance);
     }
     QSet<int> claimed;
     for (Bus &b : out) {

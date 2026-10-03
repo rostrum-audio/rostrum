@@ -13,6 +13,9 @@
 #include <QJSEngine>
 #include <QKeySequence>
 
+#include <algorithm>
+#include <iterator>
+
 namespace rostrum::app {
 
 Preferences *Preferences::s_instance = nullptr;
@@ -66,6 +69,18 @@ bool Preferences::scrollToAdjust() const { return m_app->settings().scrollToAdju
 void Preferences::setScrollToAdjust(bool on) { update(m_app->settings().scrollToAdjust, on); }
 bool Preferences::osdFeedback() const { return m_app->settings().osdFeedback; }
 void Preferences::setOsdFeedback(bool on) { update(m_app->settings().osdFeedback, on); }
+int Preferences::sceneFadeMs() const { return m_app->settings().sceneFadeMs; }
+
+void Preferences::setSceneFadeMs(int ms)
+{
+    if (std::find(std::begin(kSceneFadeChoicesMs), std::end(kSceneFadeChoicesMs), ms) ==
+        std::end(kSceneFadeChoicesMs)) {
+        return;
+    }
+    update(m_app->settings().sceneFadeMs, ms);
+    m_app->engine()->setSceneFadeMs(ms);
+}
+
 bool Preferences::lowMeterSpeed() const { return m_app->settings().meterSpeed == QLatin1String("low"); }
 
 void Preferences::setLowMeterSpeed(bool on)
@@ -83,6 +98,61 @@ void Preferences::setAutoAssign(bool on)
 {
     update(m_app->settings().autoAssign, on);
     m_app->engine()->setAutoAssign(on);
+}
+
+void Preferences::updateDucking(const std::function<void(ducking::Settings &)> &change)
+{
+    ducking::Settings d = m_app->settings().ducking;
+    change(d);
+    update(m_app->settings().ducking, ducking::sanitize(d));
+    m_app->engine()->setDucking(m_app->settings().ducking);
+}
+
+bool Preferences::duckingEnabled() const { return m_app->settings().ducking.enabled; }
+void Preferences::setDuckingEnabled(bool on)
+{
+    updateDucking([on](ducking::Settings &d) { d.enabled = on; });
+}
+
+QString Preferences::duckingTrigger() const
+{
+    return ducking::triggerName(m_app->settings().ducking.trigger);
+}
+
+void Preferences::setDuckingTrigger(const QString &trigger)
+{
+    if (const auto t = ducking::triggerFromString(trigger)) {
+        updateDucking([t](ducking::Settings &d) { d.trigger = *t; });
+    }
+}
+
+QStringList Preferences::duckingBuses() const { return m_app->settings().ducking.buses; }
+void Preferences::setDuckingBus(const QString &busId, bool ducked)
+{
+    updateDucking([&](ducking::Settings &d) {
+        d.buses.removeAll(busId);
+        if (ducked) {
+            d.buses << busId;
+        }
+    });
+}
+
+int Preferences::duckingAmountDb() const { return m_app->settings().ducking.amountDb; }
+void Preferences::setDuckingAmountDb(int db)
+{
+    updateDucking([db](ducking::Settings &d) { d.amountDb = db; });
+}
+
+int Preferences::duckingAttackMs() const { return m_app->settings().ducking.attackMs; }
+void Preferences::setDuckingAttackMs(int ms)
+{
+    updateDucking([ms](ducking::Settings &d) { d.attackMs = ms; });
+}
+
+int Preferences::duckingReleaseMs() const { return m_app->settings().ducking.releaseMs; }
+void Preferences::setDuckingReleaseMs(int ms)
+{
+    updateDucking([ms](ducking::Settings &d) { d.releaseMs = ms; });
 }
 
 int Preferences::skippedApps() const { return int(m_app->settings().autoSkip.size()); }

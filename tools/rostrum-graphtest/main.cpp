@@ -60,6 +60,8 @@ int main(int argc, char **argv)
                                   QStringLiteral("node"));
     QCommandLineOption mic(QStringLiteral("mic"), QStringLiteral("Mic source node.name."), QStringLiteral("node"));
     QCommandLineOption micMuted(QStringLiteral("mic-muted"), QStringLiteral("Start with the mic muted."));
+    QCommandLineOption micFallback(QStringLiteral("mic-fallback"),
+                                   QStringLiteral("Use another mic while the chosen one is missing."));
     QCommandLineOption sidetone(QStringLiteral("sidetone"), QStringLiteral("Sidetone volume 0..1 (turns it on)."),
                                 QStringLiteral("v"));
     QCommandLineOption solo(QStringLiteral("solo"), QStringLiteral("Solo a bus (session only)."),
@@ -73,7 +75,7 @@ int main(int argc, char **argv)
                              QStringLiteral("Print the peak level of a node (node.name) four times a second."),
                              QStringLiteral("node"));
     parser.addOptions({seconds, teardown, rule, session, unassignAfter, listApps, dest, headphones, mic, micMuted,
-                       sidetone, solo, config, tone, meter});
+                       micFallback, sidetone, solo, config, tone, meter});
     parser.process(app);
 
     pw::PwContext pw;
@@ -93,6 +95,13 @@ int main(int argc, char **argv)
         if (!parser.isSet(mic)) {
             engine.setMicDevice(settings.mic);
         }
+        engine.setMicFallback(settings.micFallback);
+        engine.setMonoHeadphones(settings.monoHeadphones);
+        engine.setSceneFadeMs(settings.sceneFadeMs);
+        engine.setDucking(settings.ducking);
+    }
+    if (parser.isSet(micFallback)) {
+        engine.setMicFallback(true);
     }
 
     std::signal(SIGINT, [](int) { QCoreApplication::quit(); });
@@ -223,6 +232,17 @@ int main(int argc, char **argv)
     });
     QObject::connect(&engine, &engine::Engine::headphonesRestored, &app, [&] {
         QTextStream(stdout) << "Headphones back: " << engine.resolvedSinkName() << "\n";
+    });
+    QObject::connect(&engine, &engine::Engine::micLost, &app, [&](const QString &desc) {
+        if (engine.micSilenced()) {
+            QTextStream(stdout) << "Mic disconnected (" << desc << "), stream mic silent.\n";
+        } else {
+            QTextStream(stdout) << "Mic disconnected (" << desc << "). Falling back to "
+                                << engine.resolvedSourceName() << "\n";
+        }
+    });
+    QObject::connect(&engine, &engine::Engine::micRestored, &app, [&] {
+        QTextStream(stdout) << "Mic back: " << engine.resolvedSourceName() << "\n";
     });
 
     if (const int s = parser.value(seconds).toInt(); s > 0) {

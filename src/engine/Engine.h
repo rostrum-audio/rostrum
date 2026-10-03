@@ -3,16 +3,22 @@
 #include "core/AppClassifier.h"
 #include "core/AppIdentity.h"
 #include "core/DesktopEntries.h"
+#include "core/Ducking.h"
 #include "core/Model.h"
 #include "engine/NodeSpecs.h"
+#include "pw/MeterBank.h"
 
 #include <QElapsedTimer>
 #include <QHash>
 #include <QObject>
 #include <QSet>
+#include <QTimer>
+
+#include <optional>
 
 namespace rostrum::pw {
 class PwContext;
+struct Graph;
 struct Node;
 }
 
@@ -31,7 +37,15 @@ struct AppStream
     QString detectedName;     // e.g. the Steam game's name, empty if none
     bool skipped = false;     // the user took it off its automatic bus
     double volume = 1.0;
+    bool muted = false;
 };
+
+// The device Rostrum links for headphones (sink) or the mic: the saved node.name if present,
+// otherwise the system default, otherwise the highest priority.session. With `fallback` off, a
+// saved device that is missing resolves to nothing. An empty `saved` always follows the default.
+// Rostrum nodes are never candidates.
+const pw::Node *resolveDevice(const pw::Graph &graph, const QString &saved, const QString &systemDefault,
+                              bool sink, bool fallback);
 
 // Owns the desired Rostrum graph for the current scene and reconciles PipeWire toward it
 // whenever either side changes. The engine never deletes the scene because a device vanished.
@@ -44,7 +58,14 @@ public:
     pw::PwContext *pw() const { return m_pw; }
 
     const Scene &scene() const { return m_scene; }
-    void setScene(const Scene &scene);
+    // fade: ramp bus and master levels over sceneFadeMs() instead of jumping. The scene takes the
+    // new values at once; the ramp is session-only and never saved. The mic is never faded.
+    void setScene(const Scene &scene, bool fade = false);
+    void setSceneFadeMs(int ms);
+    int sceneFadeMs() const { return m_sceneFadeMs; }
+    bool fading() const { return !m_fades.isEmpty(); }
+    // The fader position being sent to a bus or master node mid-fade, if it is fading.
+    std::optional<double> fadingPosition(const QString &nodeName) const;
 
     // Node creation is opt-in: the wizard (or a completed first run) turns it on.
     bool mixEnabled() const { return m_mixEnabled; }
@@ -57,6 +78,7 @@ public:
     // Levels: these change the live scene and make it dirty until saved.
     void setBusVolume(const QString &id, double volume);
     void setBusMuted(const QString &id, bool muted);
+    void setBusBalance(const QString &id, double balance); // playback buses; -1 left .. 1 right
     void setBusDestination(const QString &id, Destination d);
     void setMasterPhones(double volume);
     void setMasterPhonesMuted(bool muted);
@@ -106,6 +128,26 @@ public:
     bool headphonesMissing() const;
     bool micMissing() const;
     bool hasMic() const { return !resolvedSourceName().isEmpty(); }
+    // Off by default: while the saved mic is unplugged, rostrum.mic stays unlinked and muted.
+    // On: another mic stands in, the way headphones fall back. Never rewrites the saved mic.
+    void setMicFallback(bool on);
+    bool micFallback() const { return m_micFallback; }
+    bool micSilenced() const;        // the saved mic is missing and nothing stands in for it
+    QString missingMicLabel() const; // its description from when it was last seen, or its node.name
+    // Both headphone channels carry L+R at half level, by linking each side into both. Off by default.
+    void setMonoHeadphones(bool on);
+    bool monoHeadphones() const { return m_monoHeadphones; }
+
+    // Auto-ducking: while the trigger is heard, the target buses are turned down. Applied as a
+    // multiplier when volumes are sent; the scene never changes. Its meter streams exist only
+    // while ducking is on (a mic trigger keeps the desktop's mic indicator lit).
+    void setDucking(const ducking::Settings &settings);
+    const ducking::Settings &ducking() const { return m_ducking; }
+    bool isDucked(const QString &busId) const; // a target bus, turned down right now
+    bool isDuckTarget(const QString &busId) const;
+    // On quit: ends ducking and any scene fade, sending every bus its scene level, so nothing is
+    // left turned down. Returns whether anything was sent.
+    bool releaseTransientLevels();
 
     // Apps
     QList<AppStream> appStreams() const;
@@ -115,6 +157,12 @@ public:
     void unassignStream(uint32_t nodeId);
     void setAppVolume(const AppKey &key, double volume);
     double appVolume(const AppKey &key) const;
+    // Saved in the app's rule like its volume; for apps without a rule, until Rostrum quits.
+    void setAppMuted(const AppKey &key, bool muted);
+    bool appMuted(const AppKey &key) const;
+    // On quit: unmutes the streams Rostrum muted, so quitting never leaves an app silent. Saved
+    // mutes apply again at the next start. Returns whether anything was sent.
+    bool releaseAppMutes();
     void removeRule(const AppKey &key);
     void editRule(const AppKey &oldKey, const AppKey &newKey);
     void setRuleLabel(const AppKey &key, const QString &label);
@@ -139,7 +187,10 @@ Q_SIGNALS:
     void devicesChanged();
     void headphonesLost(const QString &description);
     void headphonesRestored();
+    void micLost(const QString &description);
+    void micRestored();
     void autoSkipChanged();
+    void duckedChanged();
 
 protected:
     void scheduleReconcile();
@@ -149,6 +200,20 @@ protected:
     void reconcileLinks();
     void reconcileVolumes();
     void reconcileDevices();
+    bool phonesCrossLinked() const; // headphone links that carry one side into the other
+    struct Level
+    {
+        double position = 0.0; // 0 when muted
+        double balance = 0.0;
+        bool operator==(const Level &) const = default;
+    };
+    QHash<QString, Level> fadeLevels(const Scene &scene, bool withSolo) const; // by node name
+    std::optional<Level> fadingLevel(const QString &nodeName) const;
+    void cancelFade(const QString &nodeName);
+    void fadeTick();
+    void reconcileDucking();
+    void duckTick();
+    QString duckTriggerBus() const; // the voice bus that triggers, if the trigger includes it
     void levelChanged();
     const pw::Node *resolveSink() const;
     const pw::Node *resolveSource() const;
@@ -182,8 +247,10 @@ protected:
     QHash<uint32_t, Routed> m_routed;
     QHash<QString, QString> m_sessionAssign;    // AppKey string -> bus id
     QHash<QString, double> m_sessionVolume;      // AppKey string -> volume for apps without a rule
+    QHash<QString, bool> m_sessionMuted;         // AppKey string -> mute for apps without a rule
     QHash<QString, QElapsedTimer> m_sessionSeen; // AppKey string -> last time a stream was present
     QHash<uint32_t, double> m_appliedStreamVolume;
+    QHash<uint32_t, bool> m_appliedStreamMute;
     QSet<QString> m_seenThisSession;
     bool m_autoAssign = true;
     QSet<QString> m_autoSkip; // lower-case skip keys
@@ -200,15 +267,38 @@ protected:
     QString m_micDevice;
     QString m_lastSinkDescription;
     bool m_headphonesWereMissing = false;
+    QString m_lastSourceDescription;
+    bool m_micWasMissing = false;
+    bool m_micFallback = false;
+    bool m_monoHeadphones = false;
+    bool m_phonesCrossLinkWanted = false;
     QString m_devicesSignature;
     QHash<QString, QElapsedTimer> m_pendingLinks; // "out:in" port pairs being created
     struct SentVolume
     {
-        float linear = -1.0f;
+        QList<float> volumes; // linear, one per channel or one for all
         bool mute = false;
         QElapsedTimer when;
     };
     QHash<uint32_t, SentVolume> m_sentVolume;
+    struct Fade
+    {
+        Level from;
+        Level to;
+    };
+    QHash<QString, Fade> m_fades; // node name -> ramp; all share one clock
+    QElapsedTimer m_fadeClock;
+    int m_fadeLength = 0;
+    int m_sceneFadeMs = 0;
+    QTimer m_fadeTimer;
+    ducking::Settings m_ducking;
+    ducking::Envelope m_duckEnvelope;
+    pw::MeterBank m_duckMeters;
+    QTimer m_duckTimer;
+    QElapsedTimer m_duckClock;
+    QString m_duckMicNode;   // hardware mic being metered, empty when the mic is not live
+    QString m_duckVoiceNode; // voice bus being metered
+    double m_duckGainSent = 1.0;
     bool isOwnedNode(const pw::Node &n) const;
     void destroyOnce(uint32_t id);
 

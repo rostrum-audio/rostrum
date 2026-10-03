@@ -65,6 +65,7 @@ private:
     void notify(const QString &summary, const QString &body, uchar urgency, uint *id);
     void showFeedback(const QString &iconName, const QString &text);
     void notifyFeedback(const QString &iconName, const QString &text);
+    void notifyMicLost(const QString &description);
 
     static Desktop *s_instance;
     AppController *m_app = nullptr;
@@ -76,6 +77,7 @@ private:
     uint m_notificationId = 0;
     uint m_goLiveNotificationId = 0;
     uint m_feedbackNotificationId = 0;
+    uint m_micNotificationId = 0;
 };
 
 } // namespace rostrum::app

@@ -181,6 +181,7 @@ void Apps::rebuild()
             {QStringLiteral("busName"), bus ? bus->name : QString()},
             {QStringLiteral("busColor"), bus ? bus->color : QString()},
             {QStringLiteral("volume"), a.volume},
+            {QStringLiteral("muted"), a.muted},
             {QStringLiteral("always"), a.ruleKey.isValid() && !a.sessionOnly},
             {QStringLiteral("unnamed"), a.identity.unnamed},
             {QStringLiteral("nodeIds"), QVariantList{a.nodeId}},
@@ -302,13 +303,19 @@ void Apps::setAlways(const QString &key, bool always)
         return;
     }
     const double volume = e->appVolume(k);
+    const bool muted = e->appMuted(k);
     e->unassignApp(k);
     e->assignApp(k, busId, false);
     e->setAppVolume(k, volume);
+    e->setAppMuted(k, muted);
 }
 
 void Apps::unassign(const QString &key) { m_app->engine()->unassignApp(AppKey::fromString(key)); }
 void Apps::setVolume(const QString &key, double volume) { m_app->engine()->setAppVolume(AppKey::fromString(key), volume); }
+void Apps::setMuted(const QString &key, bool muted)
+{
+    m_app->engine()->setAppMuted(AppKey::fromString(key), muted);
+}
 void Apps::removeRule(const QString &key) { m_app->engine()->removeRule(AppKey::fromString(key)); }
 
 bool Apps::editMatch(const QString &key, const QString &match, const QString &matchKey)

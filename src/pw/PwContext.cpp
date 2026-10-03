@@ -100,6 +100,8 @@ struct PwContext::Impl
     std::unordered_map<uint32_t, std::unique_ptr<BoundNode>> boundNodes;
     std::list<std::unique_ptr<CreatedProxy>> created;
     int initialSeq = -1;
+    int roundtripSeq = -1;
+    bool roundtripDone = false;
 
     // Qt-thread state.
     State state = State::Idle;
@@ -421,6 +423,10 @@ void onCoreInfo(void *data, const pw_core_info *info)
 void onCoreDone(void *data, uint32_t id, int seq)
 {
     auto *impl = static_cast<PwContext::Impl *>(data);
+    if (id == PW_ID_CORE && seq == impl->roundtripSeq) {
+        impl->roundtripDone = true;
+        pw_thread_loop_signal(impl->loop, false);
+    }
     if (id == PW_ID_CORE && seq == impl->initialSeq) {
         impl->post([impl] {
             impl->state = PwContext::State::Ready;
@@ -629,6 +635,27 @@ void PwContext::createNullNode(const QMap<QString, QString> &props)
     pw_thread_loop_unlock(d->loop);
 }
 
+bool PwContext::roundtrip(int timeoutMs)
+{
+    if (!d->core || !d->loop) {
+        return false;
+    }
+    pw_thread_loop_lock(d->loop);
+    d->roundtripDone = false;
+    d->roundtripSeq = pw_core_sync(d->core, PW_ID_CORE, 0);
+    timespec deadline{};
+    pw_thread_loop_get_time(d->loop, &deadline, int64_t(timeoutMs) * SPA_NSEC_PER_MSEC);
+    while (!d->roundtripDone) {
+        if (pw_thread_loop_timed_wait_full(d->loop, &deadline) != 0) {
+            break;
+        }
+    }
+    const bool done = d->roundtripDone;
+    d->roundtripSeq = -1;
+    pw_thread_loop_unlock(d->loop);
+    return done;
+}
+
 void PwContext::destroyObject(uint32_t id)
 {
     if (!d->registry) {
@@ -662,18 +689,28 @@ void PwContext::createLink(uint32_t outPort, uint32_t inPort)
 
 void PwContext::setNodeVolume(uint32_t nodeId, float linear, bool mute)
 {
-    sendProps(nodeId, linear, mute ? 1 : 0);
+    sendProps(nodeId, {linear}, mute ? 1 : 0);
+}
+
+void PwContext::setNodeVolumes(uint32_t nodeId, const QList<float> &perChannel, bool mute)
+{
+    sendProps(nodeId, perChannel, mute ? 1 : 0);
 }
 
 void PwContext::setNodeVolume(uint32_t nodeId, float linear)
 {
-    sendProps(nodeId, linear, -1);
+    sendProps(nodeId, {linear}, -1);
 }
 
-void PwContext::sendProps(uint32_t nodeId, float linear, int mute)
+void PwContext::setNodeMute(uint32_t nodeId, bool mute)
+{
+    sendProps(nodeId, {}, mute ? 1 : 0);
+}
+
+void PwContext::sendProps(uint32_t nodeId, const QList<float> &volumes, int mute)
 {
     const Node *n = d->graph.node(nodeId);
-    if (!n || !d->loop) {
+    if (!n || !d->loop || (volumes.isEmpty() && mute < 0)) {
         return;
     }
     int channels = n->channels;
@@ -685,8 +722,8 @@ void PwContext::sendProps(uint32_t nodeId, float linear, int mute)
     }
     channels = std::min(channels, int(SPA_AUDIO_MAX_CHANNELS));
     float vols[SPA_AUDIO_MAX_CHANNELS];
-    for (int i = 0; i < channels; ++i) {
-        vols[i] = linear;
+    for (int i = 0; i < channels && !volumes.isEmpty(); ++i) {
+        vols[i] = volumes.value(i, volumes.last());
     }
 
     pw_thread_loop_lock(d->loop);
@@ -696,8 +733,10 @@ void PwContext::sendProps(uint32_t nodeId, float linear, int mute)
         spa_pod_builder b = SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
         spa_pod_frame f;
         spa_pod_builder_push_object(&b, &f, SPA_TYPE_OBJECT_Props, SPA_PARAM_Props);
-        spa_pod_builder_prop(&b, SPA_PROP_channelVolumes, 0);
-        spa_pod_builder_array(&b, sizeof(float), SPA_TYPE_Float, uint32_t(channels), vols);
+        if (!volumes.isEmpty()) {
+            spa_pod_builder_prop(&b, SPA_PROP_channelVolumes, 0);
+            spa_pod_builder_array(&b, sizeof(float), SPA_TYPE_Float, uint32_t(channels), vols);
+        }
         if (mute >= 0) {
             spa_pod_builder_prop(&b, SPA_PROP_mute, 0);
             spa_pod_builder_bool(&b, mute == 1);

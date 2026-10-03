@@ -6,7 +6,8 @@ import org.kde.kirigamiaddons.formcard as FormCard
 import org.kde.kquickcontrols as KQuickControls
 import Rostrum
 
-// Plasma-style settings groups: General, Hotkeys, Mixer, Apps, OBS, Privacy, Updates, Advanced, About.
+// Plasma-style settings groups: General, Hotkeys, Mixer, Ducking, Apps, OBS, Privacy, Updates,
+// Advanced, About.
 QQC2.ScrollView {
     id: page
 
@@ -51,6 +52,19 @@ QQC2.ScrollView {
                 enabled: !Preferences.autoSaveScenes
                 checked: Preferences.confirmSceneSwitch
                 onToggled: Preferences.confirmSceneSwitch = checked
+            }
+            FormCard.FormDelegateSeparator {}
+            FormCard.FormComboBoxDelegate {
+                text: i18nc("@label:listbox", "Scene fade")
+                description: i18n("Bus and master levels glide to the new scene instead of jumping. The mic always switches at once.")
+                readonly property var lengths: [0, 150, 300, 600, 1000]
+                model: [i18nc("@item:inlistbox scene fade", "Off (switch at once)"),
+                        i18nc("@item:inlistbox scene fade", "150 ms"),
+                        i18nc("@item:inlistbox scene fade", "300 ms"),
+                        i18nc("@item:inlistbox scene fade", "600 ms"),
+                        i18nc("@item:inlistbox scene fade", "1 second")]
+                currentIndex: Math.max(0, lengths.indexOf(Preferences.sceneFadeMs))
+                onActivated: index => Preferences.sceneFadeMs = lengths[index]
             }
             FormCard.FormDelegateSeparator {}
             FormCard.FormSwitchDelegate {
@@ -208,6 +222,78 @@ QQC2.ScrollView {
                 description: i18n("Print the level under every fader. Off shows it only on hover or focus.")
                 checked: Preferences.showDb
                 onToggled: Preferences.showDb = checked
+            }
+        }
+
+        FormCard.FormHeader {
+            title: i18nc("@title:group", "Ducking")
+        }
+        FormCard.FormCard {
+            FormCard.FormSwitchDelegate {
+                text: i18nc("@option:check", "Turn music down while someone speaks")
+                description: Preferences.duckingTrigger === "voice"
+                             ? i18n("Not saved in scenes. Rostrum listens to the voice chat bus while this is on.")
+                             : i18n("Not saved in scenes. Rostrum listens to your mic while this is on, so the desktop's mic indicator stays lit whenever your mic is live, even with Rostrum in the tray.")
+                checked: Preferences.duckingEnabled
+                onToggled: Preferences.duckingEnabled = checked
+            }
+            FormCard.FormDelegateSeparator {}
+            FormCard.FormComboBoxDelegate {
+                text: i18nc("@label:listbox", "When")
+                enabled: Preferences.duckingEnabled
+                readonly property var triggers: ["mic", "voice", "either"]
+                model: [i18nc("@item:inlistbox ducking trigger", "You speak (mic)"),
+                        i18nc("@item:inlistbox ducking trigger", "Someone speaks in voice chat"),
+                        i18nc("@item:inlistbox ducking trigger", "Either")]
+                currentIndex: Math.max(0, triggers.indexOf(Preferences.duckingTrigger))
+                onActivated: index => Preferences.duckingTrigger = triggers[index]
+            }
+            FormCard.FormDelegateSeparator {}
+            FormCard.FormTextDelegate {
+                text: i18nc("@label", "Turn down")
+                description: i18n("The bus that receives voice chat is never turned down by voice chat.")
+                enabled: Preferences.duckingEnabled
+            }
+            Repeater {
+                model: Mixer.buses
+                delegate: FormCard.FormCheckDelegate {
+                    required property string busId
+                    required property string name
+                    required property bool isInput
+                    visible: !isInput
+                    enabled: Preferences.duckingEnabled
+                    text: name
+                    checked: Preferences.duckingBuses.indexOf(busId) >= 0
+                    onToggled: Preferences.setDuckingBus(busId, checked)
+                }
+            }
+            FormCard.FormDelegateSeparator {}
+            FormCard.FormComboBoxDelegate {
+                text: i18nc("@label:listbox", "By")
+                enabled: Preferences.duckingEnabled
+                readonly property var amounts: [-6, -9, -12, -18, -24]
+                model: amounts.map(db => i18nc("@item:inlistbox ducking amount in decibels", "%1 dB", db))
+                currentIndex: Math.max(0, amounts.indexOf(Preferences.duckingAmountDb))
+                onActivated: index => Preferences.duckingAmountDb = amounts[index]
+            }
+            FormCard.FormDelegateSeparator {}
+            FormCard.FormComboBoxDelegate {
+                text: i18nc("@label:listbox", "Turn down over")
+                enabled: Preferences.duckingEnabled
+                readonly property var lengths: [20, 50, 100, 250, 500]
+                model: lengths.map(ms => i18nc("@item:inlistbox ducking attack", "%1 ms", ms))
+                currentIndex: Math.max(0, lengths.indexOf(Preferences.duckingAttackMs))
+                onActivated: index => Preferences.duckingAttackMs = lengths[index]
+            }
+            FormCard.FormDelegateSeparator {}
+            FormCard.FormComboBoxDelegate {
+                text: i18nc("@label:listbox", "Come back over")
+                description: i18n("Starts half a second after the speaking stops, so music does not pump between words.")
+                enabled: Preferences.duckingEnabled
+                readonly property var lengths: [250, 500, 800, 1500, 3000]
+                model: lengths.map(ms => i18nc("@item:inlistbox ducking release", "%1 ms", ms))
+                currentIndex: Math.max(0, lengths.indexOf(Preferences.duckingReleaseMs))
+                onActivated: index => Preferences.duckingReleaseMs = lengths[index]
             }
         }
 

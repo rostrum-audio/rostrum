@@ -47,7 +47,7 @@ QHash<int, QByteArray> BusModel::roleNames() const
         {IsInputRole, "isInput"}, {VolumeRole, "volume"}, {MutedRole, "muted"},
         {SoloedRole, "soloed"}, {DimmedRole, "dimmed"},   {DestinationRole, "destination"},
         {AppsRole, "apps"},    {PeakRole, "peak"},       {ClipRole, "clip"},
-        {AutoCategoryRole, "autoCategory"},
+        {AutoCategoryRole, "autoCategory"}, {BalanceRole, "balance"}, {DuckedRole, "ducked"},
     };
 }
 
@@ -88,6 +88,10 @@ QVariant BusModel::data(const QModelIndex &index, int role) const
         return m_meters.value(id).clip;
     case AutoCategoryRole:
         return categoryName(b->autoCategory);
+    case BalanceRole:
+        return b->balance;
+    case DuckedRole:
+        return m_engine->isDucked(id);
     }
     return {};
 }
@@ -134,7 +138,7 @@ void BusModel::refresh()
     if (!m_ids.isEmpty()) {
         Q_EMIT dataChanged(index(0), index(int(m_ids.size()) - 1),
                            {NameRole, ColorRole, VolumeRole, MutedRole, SoloedRole, DimmedRole, DestinationRole,
-                            AppsRole, AutoCategoryRole});
+                            AppsRole, AutoCategoryRole, BalanceRole, DuckedRole});
     }
 }
 
@@ -184,6 +188,7 @@ Mixer::Mixer(AppController *app, QObject *parent)
     connect(m_engine, &engine::Engine::levelsChanged, this, levels);
     connect(m_engine, &engine::Engine::soloChanged, this, levels);
     connect(m_engine, &engine::Engine::appsChanged, this, [this] { m_model.refresh(); });
+    connect(m_engine, &engine::Engine::duckedChanged, this, [this] { m_model.refresh(); });
     connect(m_engine, &engine::Engine::devicesChanged, this, &Mixer::updateTargets);
 
     connect(&m_timer, &QTimer::timeout, this, &Mixer::tick);
@@ -306,6 +311,7 @@ QStringList Mixer::paletteNames() const
 
 void Mixer::setVolume(const QString &busId, double position) { m_engine->setBusVolume(busId, position); }
 void Mixer::setMuted(const QString &busId, bool muted) { m_engine->setBusMuted(busId, muted); }
+void Mixer::setBalance(const QString &busId, double balance) { m_engine->setBusBalance(busId, balance); }
 
 void Mixer::toggleMuted(const QString &busId)
 {

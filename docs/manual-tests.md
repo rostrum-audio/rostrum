@@ -237,7 +237,8 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
    in the tray with no window. Starting it from the app menu while it runs raises the window.
    Turn "Launch at login" off: the file is gone.
 7. Unplug the headset while Rostrum runs: one notification, "Headphones disconnected, scene
-   held." Mute and unmute from the window never notify.
+   held." Unplug the saved mic: one notification, "Mic disconnected, stream mic silent." (test 17).
+   Mute and unmute from the window never notify.
 8. Tray menu → Mute Stream: the Stream master strip shows Muted, the item is checked, and the
    tooltip adds "Stream muted". Previous Scene and Next Scene step through the scenes.
    Middle-click the tray icon: the mic toggles. Scroll on the tray icon: the Stream master moves
@@ -399,6 +400,114 @@ what reaches it. The mic path itself is test 4; do it first.
 7. `qdbus6 dev.getrostrum.Rostrum /dev/getrostrum/Rostrum/Control` lists the methods of
    `data/dev.getrostrum.Rostrum1.xml`. `gdbus monitor --session --dest dev.getrostrum.Rostrum`
    shows `PropertiesChanged` with `MicMuted` when the header mic button is pressed.
+
+## 17. Mic unplugged
+
+Use the fake devices from test 3 (`rostrumtest.mic` fed by a tone) and keep a second source
+around as the system default, for example a webcam or `pw-cli create-node adapter '{
+factory.name=support.null-audio-sink node.name=rostrumtest.webcam media.class=Audio/Source/Virtual
+audio.position=[MONO] }'` set as default with `wpctl set-default`.
+
+1. Run `$B --headphones rostrumtest.headset --mic rostrumtest.mic`. `pw-link -l` shows
+   `rostrumtest.mic` linked into `rostrum.mic` and `rostrum.sidetone`.
+2. Destroy `rostrumtest.mic` (`pw-cli destroy <id>`), or unplug the real mic. It prints
+   `Mic disconnected (…), stream mic silent.` Nothing is linked into `rostrum.mic` or
+   `rostrum.sidetone` (`pw-link -l | rg -B1 'rostrum\.(mic|sidetone):'` is empty), the default
+   source is not linked anywhere by Rostrum, and `pw-record --target rostrum.mic m.wav` is silent.
+   `wpctl inspect` on `rostrum.mic` shows it muted.
+3. Recreate the fake mic and feed it again. It prints `Mic back: rostrumtest.mic`, the links come
+   back and the capture from step 2 has signal again.
+4. In the app: unplug the mic. The banner reads "Mic disconnected. Your stream mic is silent until
+   it comes back." with Choose Mic, the header button says No mic, the status bar shows the mic as
+   "(unplugged)", one notification is sent, and the log has `mic missing: … stream mic silent`.
+   `settings.toml` still names the unplugged mic.
+5. Devices → turn on "Use another mic while mine is unplugged" and unplug again (or rerun step 2
+   with `--mic-fallback`): the default source is linked into `rostrum.mic`, the banner says
+   "Using … until it comes back", and `settings.toml` has `mic_fallback = true` and still names
+   the saved mic. Turn it off again: the fallback links go away at once.
+6. With no mic ever chosen (`mic = ''`), Rostrum uses the system default source as before.
+
+## 18. Per-app mute
+
+1. Play Firefox and Spotify, each on a bus. On the Apps page, press Firefox's mute button. Firefox
+   goes silent at once, its row meter drops, Spotify keeps playing, and `wpctl inspect` on
+   Firefox's stream shows `mute = true`. The log has `mute "Firefox" <id>`.
+2. With Always on for Firefox, the scene file's `[[rule]]` for it gains `muted = true`. Unmute:
+   the line goes away. Turn Always off and mute: the scene file is unchanged.
+3. Mute Firefox in Plasma's volume applet or pavucontrol instead: Rostrum leaves it muted and does
+   not unmute it back, and vice versa.
+4. With Firefox muted by Rostrum, quit Rostrum from the tray. Firefox plays again (through its bus,
+   which lingers). Start Rostrum: if the mute was saved in the rule, Firefox is muted again.
+5. Switch to a scene whose rule for Firefox is not muted: Firefox plays.
+
+## 19. Bus balance
+
+1. Play music on the Music bus with Music → Both. Drag its balance slider fully left: only the left
+   ear plays. `pw-dump` on `rostrum.music` shows `channelVolumes` with FR at 0 and FL at the fader.
+   OBS (capturing `rostrum.stream`) hears it on the left only too.
+2. Double-click the slider: back to centre. Use "Centre Balance" in the strip menu after moving it:
+   same. The menu item is disabled at centre. The mic strip has no balance slider and its fader is
+   as tall as the others.
+3. Set a balance of about Right 40%, save the scene. The scene file's `[[bus]]` for music has
+   `balance = 0.4`; the other buses have no `balance` line. Centre it: the scene is dirty, save, and
+   the line goes away.
+4. With a balance set, change the bus volume in pavucontrol: within a second Rostrum puts both
+   channels back.
+5. Hand-edit `balance = 9` into a scene and load it: the slider is fully right.
+
+## 20. Mono headphones
+
+1. Play a test file with sound only on the left. Turn on Devices → Mono headphones: both ears hear
+   it at the same level, quieter than the left ear did before (-6 dB). `pw-link -l` shows each
+   `rostrum.phones` monitor port linked to both playback_FL and playback_FR of the headphones.
+2. Play centred music: the loudness does not jump when toggling. Toggle quickly a few times: never
+   a loud blip.
+3. Master Headphones and the scene stay as they were (no dirty scene). The stream (OBS) stays
+   stereo.
+4. Switch headphones to a mono device or a 5.1 sink while on: mono sinks play normally; on 5.1 only
+   the front left and right get the downmix.
+5. Quit Rostrum: headphones keep playing, still mono. Start it with the switch off: back to stereo.
+
+## 21. Scene fades
+
+1. With Settings → Scene fade at Off, switch between two scenes with different Music levels: the
+   level jumps, as before.
+2. Set it to 1 second. Play music and switch from a scene with Music at 0 dB to one with Music
+   muted: the M button lights at once, the music fades out over about a second, and only then
+   does `pw-dump` show `rostrum.music` muted. Switch back: the node is unmuted at once and fades
+   in from silence.
+3. Switch to a scene that mutes the mic while talking: the mic cuts at once (OBS meter drops
+   immediately), even though buses are still fading.
+4. Start a 1 second fade and switch again halfway: the level turns around from where it was, no
+   jump to either end.
+5. During a fade, grab a fader: it follows your hand at once, the other buses keep fading.
+6. With auto-save off, switch scenes with a fade: the scene is not marked as changed during or
+   after the fade, and Save writes the target levels. With auto-save on, the scene file never
+   contains an in-between level.
+7. Quit and start Rostrum with a fade set: the default scene applies at once (no ramp from 0 dB).
+8. Press the Next scene shortcut several times quickly: no clicks, and every bus ends at the last
+   scene's level.
+
+## 22. Auto-ducking
+
+1. With ducking off (the default), `pw-dump | grep rostrum-meter` shows no meter streams while the
+   Mixer page is hidden, and Plasma's mic indicator is off with Rostrum in the tray.
+2. Settings → Ducking: turn it on with the defaults (your mic, Music, -12 dB). Play music on the
+   Music bus and speak: within about 0.1 s the music drops by 12 dB and the Music strip says
+   "Ducked"; its fader does not move. Stop speaking: after half a second it comes back over
+   about 0.8 s. Short pauses between words do not let it come back.
+3. While ducking listens to the mic, the mic indicator stays lit even with the window hidden.
+   Mute the mic: the indicator goes off (after the mic meter closes) and nothing ducks.
+4. The scene is never marked as changed by ducking, and the saved scene file has the Music fader
+   level, not the ducked one. `pw-dump` on `rostrum.music` shows the lower volume only while
+   ducked.
+5. Trigger "Someone speaks in voice chat": play a voice call on the Voice bus: Music ducks, and the
+   Voice bus never ducks even if it is ticked. Trigger "Either": both work.
+6. Change amount, attack and release: the effect follows at once. Tick Alerts too: both duck.
+7. Move the Music fader while ducked: it moves, and the ducking stays applied on top.
+8. Speak (ducked), and quit Rostrum from the tray mid-sentence: Music returns to its full level.
+9. With a scene fade set, switch scenes while ducked: the fade and the ducking combine, and once
+   speech stops, every bus ends at the new scene's level.
 
 ## Smoke test log
 

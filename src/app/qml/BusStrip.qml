@@ -23,6 +23,8 @@ QQC2.Control {
     required property real peak
     required property bool clip
     required property string autoCategory
+    required property real balance
+    required property bool ducked
 
     property bool editing: false
     property bool expanded: false
@@ -35,6 +37,10 @@ QQC2.Control {
         alerts: i18nc("@info bus receives automatically", "Auto: stream alerts"),
         desktop: i18nc("@info bus receives automatically", "Auto: everything else")
     })
+
+    readonly property string balanceText: balance === 0 ? i18nc("@info balance", "Centre")
+        : balance < 0 ? i18nc("@info balance", "Left %1%", Math.round(-balance * 100))
+        : i18nc("@info balance", "Right %1%", Math.round(balance * 100))
 
     signal removeRequested(string busId, string name)
     signal overflowRequested(string busId)
@@ -135,11 +141,13 @@ QQC2.Control {
                 text: strip.muted ? i18nc("@info:status", "Muted")
                     : strip.dimmed ? i18nc("@info:status", "Dimmed by solo")
                     : strip.soloed ? i18nc("@info:status", "Solo")
+                    : strip.ducked ? i18nc("@info:status turned down while someone speaks", "Ducked")
                     : strip.isInput ? i18nc("@label", "Gain")
                     : Preferences.autoAssign ? (strip.autoLabels[strip.autoCategory] ?? "")
                     : ""
                 color: strip.muted ? Kirigami.Theme.negativeTextColor
                      : strip.soloed ? Kirigami.Theme.neutralTextColor
+                     : strip.ducked ? Kirigami.Theme.activeTextColor
                      : Kirigami.Theme.disabledTextColor
             }
         }
@@ -197,6 +205,33 @@ QQC2.Control {
             text: Mixer.formatDb(strip.volume)
             font.features: { "tnum": 1 }
             opacity: (Mixer.showDb || fader.hovered || fader.activeFocus) ? 0.8 : 0
+        }
+
+        // The mic strip keeps the row empty so every fader has the same height.
+        Item {
+            Layout.fillWidth: true
+            implicitHeight: balanceSlider.implicitHeight
+            PlainSlider {
+                id: balanceSlider
+                anchors.left: parent.left
+                anchors.right: parent.right
+                visible: !strip.isInput
+                from: -1
+                to: 1
+                keyStep: 0.05
+                value: strip.balance
+                wheelEnabled: Mixer.scrollToAdjust
+                Accessible.name: i18nc("@label accessible", "%1 balance", strip.name)
+                Accessible.description: strip.balanceText
+                QQC2.ToolTip.visible: hovered || pressed
+                QQC2.ToolTip.delay: pressed ? 0 : Kirigami.Units.toolTipDelay
+                QQC2.ToolTip.text: i18nc("@info:tooltip", "Balance: %1. Double-click to centre.", strip.balanceText)
+                onMoved: Mixer.setBalance(strip.busId, value)
+                Keys.onMenuPressed: contextMenu.popup(balanceSlider, 0, 0)
+                TapHandler {
+                    onDoubleTapped: Mixer.setBalance(strip.busId, 0)
+                }
+            }
         }
 
         RowLayout {
@@ -405,6 +440,14 @@ QQC2.Control {
                 onObjectAdded: (index, object) => autoMenu.insertItem(index, object)
                 onObjectRemoved: (index, object) => autoMenu.removeItem(object)
             }
+        }
+        QQC2.MenuItem {
+            text: i18nc("@action:inmenu", "Centre Balance")
+            icon.name: "format-justify-center"
+            visible: !strip.isInput
+            enabled: strip.balance !== 0
+            height: visible ? implicitHeight : 0
+            onTriggered: Mixer.setBalance(strip.busId, 0)
         }
         QQC2.MenuItem {
             text: i18nc("@action:inmenu", "Duplicate")

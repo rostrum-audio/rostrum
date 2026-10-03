@@ -101,6 +101,7 @@ Desktop::Desktop(AppController *app, QObject *parent) : QObject(parent), m_app(a
     connect(m_app, &AppController::actionsChanged, this, &Desktop::applyHotkeys);
     connect(m_app, &AppController::headphonesLost, this, &Desktop::notifyHeadphonesLost);
     connect(m_app, &AppController::feedbackRequested, this, &Desktop::showFeedback);
+    connect(m_app, &AppController::micLost, this, &Desktop::notifyMicLost);
     applyHotkeys();
 
     if (m_enabled) {
@@ -278,6 +279,19 @@ void Desktop::notifyHeadphonesLost(const QString &description)
 void Desktop::notifyGoLive(const QString &body)
 {
     notify(i18n("Check your stream audio"), body, 2, &m_goLiveNotificationId);
+}
+
+void Desktop::notifyMicLost(const QString &description)
+{
+    if (m_app->engine()->micSilenced()) {
+        notify(i18n("Mic disconnected, stream mic silent."),
+               i18n("%1 went away. Your stream mic stays silent until it comes back.", description), 1,
+               &m_micNotificationId);
+    } else {
+        notify(i18n("Mic disconnected."),
+               i18n("%1 went away. Using %2 until it comes back.", description, m_app->micText()), 1,
+               &m_micNotificationId);
+    }
 }
 
 void Desktop::notify(const QString &summary, const QString &body, uchar urgency, uint *id)

@@ -37,6 +37,7 @@ struct Bus
     BusKind kind = BusKind::Playback;
     double volume = 1.0; // fader position, 0..1 for playback, 0..1.5 for mic gain (1.0 = unity / 0 dB)
     bool muted = false;
+    double balance = 0.0; // -1 left .. 1 right; playback buses only
     Destination destination = Destination::Both;
     AppCategory autoCategory = AppCategory::None; // at most one bus per category in a scene
 
@@ -51,12 +52,14 @@ struct AppRule
     MatchKey key = MatchKey::Name;
     QString busId;
     double volume = 1.0; // per-app offset on top of the bus fader
+    bool muted = false;  // per-app mute, saved like the volume
     QString label;       // user's name for an app that reports none; empty = use the app's own
     QDateTime lastSeen;  // bookkeeping only; ignored by operator== so it never marks a scene dirty
 
     bool operator==(const AppRule &o) const
     {
-        return match == o.match && key == o.key && busId == o.busId && volume == o.volume && label == o.label;
+        return match == o.match && key == o.key && busId == o.busId && volume == o.volume &&
+               muted == o.muted && label == o.label;
     }
 };
 

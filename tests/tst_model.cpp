@@ -5,6 +5,9 @@
 
 #include <QTest>
 
+#include <cmath>
+#include <limits>
+
 using namespace rostrum;
 
 class TestModel : public QObject
@@ -124,6 +127,78 @@ private Q_SLOTS:
         // unnamed channels fall back to index order
         pairs = pw::matchPorts({port(1, "AUX0"), port(2, "AUX1")}, {port(10, "FL"), port(11, "FR")});
         QCOMPARE(pairs, (QList<QPair<uint32_t, uint32_t>>{{1, 10}, {2, 11}}));
+    }
+
+    void monoPortMatching()
+    {
+        using pw::Port;
+        auto port = [](uint32_t id, const char *ch) {
+            Port p;
+            p.id = id;
+            p.channel = QString::fromLatin1(ch);
+            return p;
+        };
+        // stereo -> stereo: each side into both
+        auto pairs = pw::monoPorts({port(1, "FL"), port(2, "FR")}, {port(10, "FL"), port(11, "FR")});
+        QCOMPARE(pairs.size(), 4);
+        for (const auto &p :
+             {qMakePair(1u, 10u), qMakePair(1u, 11u), qMakePair(2u, 10u), qMakePair(2u, 11u)}) {
+            QVERIFY(pairs.contains(p));
+        }
+        // surround sink: only the front pair, never the centre or rears
+        pairs = pw::monoPorts({port(1, "FL"), port(2, "FR")},
+                              {port(10, "FL"), port(11, "FR"), port(12, "FC"), port(13, "RL")});
+        QCOMPARE(pairs.size(), 4);
+        QVERIFY(!pairs.contains(qMakePair(1u, 12u)));
+        QVERIFY(!pairs.contains(qMakePair(2u, 13u)));
+        // a mono sink already sums, and unnamed channels cannot be cross-linked safely
+        QCOMPARE(pw::monoPorts({port(1, "FL"), port(2, "FR")}, {port(10, "MONO")}),
+                 pw::matchPorts({port(1, "FL"), port(2, "FR")}, {port(10, "MONO")}));
+        QCOMPARE(pw::monoPorts({port(1, "AUX0"), port(2, "AUX1")}, {port(10, "AUX0"), port(11, "AUX1")}),
+                 (QList<QPair<uint32_t, uint32_t>>{{1, 10}, {2, 11}}));
+    }
+
+    void balance()
+    {
+        QCOMPARE(volume::clampBalance(0.0), 0.0);
+        QCOMPARE(volume::clampBalance(-3.0), -1.0);
+        QCOMPARE(volume::clampBalance(2.0), 1.0);
+        QCOMPARE(volume::clampBalance(0.004), 0.0);
+        QCOMPARE(volume::clampBalance(std::nan("")), 0.0);
+        QCOMPARE(volume::clampBalance(std::numeric_limits<double>::infinity()), 0.0);
+        // Centre leaves both sides at the fader.
+        QCOMPARE(volume::balancedPosition(0.8, 0.0, false), 0.8);
+        QCOMPARE(volume::balancedPosition(0.8, 0.0, true), 0.8);
+        // Right turns the left side down and keeps the right side at the fader; left mirrors it.
+        QVERIFY(qAbs(volume::balancedPosition(0.8, 0.5, false) - 0.4) < 1e-9);
+        QCOMPARE(volume::balancedPosition(0.8, 0.5, true), 0.8);
+        QCOMPARE(volume::balancedPosition(0.8, -0.5, false), 0.8);
+        QVERIFY(qAbs(volume::balancedPosition(0.8, -0.5, true) - 0.4) < 1e-9);
+        QCOMPARE(volume::balancedPosition(0.8, 1.0, false), 0.0);
+        QCOMPARE(volume::balancedPosition(0.8, -7.0, true), 0.0);
+    }
+
+    void fadeInterpolation()
+    {
+        QCOMPARE(volume::fadePosition(0.2, 0.8, 0.0), 0.2);
+        QCOMPARE(volume::fadePosition(0.2, 0.8, 1.0), 0.8);
+        QVERIFY(qAbs(volume::fadePosition(0.2, 0.8, 0.5) - 0.5) < 1e-9);
+        QVERIFY(qAbs(volume::fadePosition(1.0, 0.0, 0.25) - 0.75) < 1e-9);
+        // Late timer ticks never overshoot, early ones never undershoot.
+        QCOMPARE(volume::fadePosition(0.2, 0.8, 1.7), 0.8);
+        QCOMPARE(volume::fadePosition(0.2, 0.8, -0.3), 0.2);
+    }
+
+    void mergeKeepsSavedBalance()
+    {
+        Scene saved = defaults::scene();
+        saved.bus(QStringLiteral("music"))->balance = -0.25;
+        Scene current = saved;
+        current.bus(QStringLiteral("music"))->balance = 0.5;
+        current.bus(QStringLiteral("music"))->name = QStringLiteral("Tunes");
+        const Scene merged = mergeStructure(saved, current);
+        QCOMPARE(merged.bus(QStringLiteral("music"))->balance, -0.25);
+        QCOMPARE(merged.bus(QStringLiteral("music"))->name, QStringLiteral("Tunes"));
     }
 };
 

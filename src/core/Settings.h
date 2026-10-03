@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/Ducking.h"
+
 #include <QMap>
 #include <QString>
 #include <QStringList>
@@ -60,6 +62,9 @@ bool isKnown(const QString &id);
 // buses, 2 = startup, crash reports and updates, 3 = OBS.
 inline constexpr int kSetupVersion = 3;
 
+// Scene fade lengths offered in Settings; 0 = switch instantly.
+inline constexpr int kSceneFadeChoicesMs[] = {0, 150, 300, 600, 1000};
+
 namespace crashmode {
 inline constexpr const char *kSend = "send";
 inline constexpr const char *kAsk = "ask";
@@ -77,9 +82,11 @@ struct Settings
     bool confirmSceneSwitch = false; // only asked while auto-save is off
     bool scrollToAdjust = true;
     bool osdFeedback = true; // show mic, panic and scene changes from hotkeys on screen
+    int sceneFadeMs = 0; // one of kSceneFadeChoicesMs
     // Mixer
     QString meterSpeed = QStringLiteral("normal"); // "low" or "normal"
     bool showDb = false;
+    ducking::Settings ducking;
     // Apps
     bool autoAssign = true;  // place recognised apps on the bus for their kind
     QStringList autoSkip;    // app keys the user took off their automatic bus
@@ -101,6 +108,8 @@ struct Settings
     // Devices (PipeWire node.name; empty = system default)
     QString headphones;
     QString mic;
+    bool micFallback = false; // another mic stands in while the saved one is unplugged
+    bool monoHeadphones = false;
     // Shortcuts: action id -> portable key sequence ("Meta+Alt+M"); empty = unbound
     QMap<QString, QString> hotkeys;
     // Window

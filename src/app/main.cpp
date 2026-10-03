@@ -103,6 +103,10 @@ int main(int argc, char *argv[])
         controller.engine()->releaseHolds();
         controller.scenes()->flush();
         controller.saveSettingsNow();
+        const bool levels = controller.engine()->releaseTransientLevels();
+        if (controller.engine()->releaseAppMutes() || levels) {
+            controller.pw()->roundtrip(500);
+        }
     });
     controller.start();
     control.registerOn(QDBusConnection::sessionBus());

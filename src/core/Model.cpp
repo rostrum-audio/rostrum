@@ -259,12 +259,14 @@ Scene mergeStructure(const Scene &saved, const Scene &current)
         if (const Bus *s = saved.bus(b.id)) {
             b.volume = s->volume;
             b.muted = s->muted;
+            b.balance = s->balance;
             b.destination = s->destination;
         }
     }
     for (auto &r : out.rules) {
         if (const AppRule *s = saved.rule(r.key, r.match)) {
             r.volume = s->volume;
+            r.muted = s->muted;
         }
     }
     return out;

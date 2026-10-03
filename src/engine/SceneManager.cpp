@@ -112,10 +112,13 @@ void SceneManager::load(const QString &defaultName)
     m_default = indexOf(defaultName) >= 0 ? m_saved.at(indexOf(defaultName)).name : m_saved.first().name;
     Q_EMIT scenesChanged();
     Q_EMIT defaultChanged();
-    switchTo(m_default);
+    // The nodes may already be playing at their lingering levels; a fade would start from defaults.
+    activate(m_default, false);
 }
 
-bool SceneManager::switchTo(const QString &name)
+bool SceneManager::switchTo(const QString &name) { return activate(name, true); }
+
+bool SceneManager::activate(const QString &name, bool fade)
 {
     const int i = indexOf(name);
     if (i < 0) {
@@ -124,7 +127,7 @@ bool SceneManager::switchTo(const QString &name)
     }
     flush();
     m_current = m_saved.at(i).name;
-    m_engine->setScene(m_saved.at(i));
+    m_engine->setScene(m_saved.at(i), fade);
     m_dirty = false;
     Q_EMIT currentChanged();
     Q_EMIT dirtyChanged();
