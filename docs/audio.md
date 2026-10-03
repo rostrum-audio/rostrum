@@ -511,7 +511,7 @@ with OBS closed, edits OBS's scene collection after backing it up.
   minimize. A switch to another virtual desktop also stops showing it, but takes focus away
   first, so it is left alone. Minimizing an inactive window (from a task bar menu) just
   minimizes.
-  The menu has Mute Mic, Mute Stream, Previous Scene, Next Scene, a Scenes submenu, Restart Rostrum
+  The menu has Show or Hide Rostrum, Mute Mic, Mute Stream, Previous Scene, Next Scene, a Scenes submenu, Restart Rostrum
   and Quit.
 - Restart (tray, or Settings → General): quits as Quit does, then starts the same program again
   with `--restart-after=<pid>`. The new copy waits up to 10 s for the old process to exit before

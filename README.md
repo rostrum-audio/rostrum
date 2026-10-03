@@ -86,7 +86,7 @@ Five minutes to a split stream:
 
    Skip Setup creates the same mix with the defaults. Everything can be changed later in Settings.
 
-   ![First-time setup, step 1 of 7: a step list on the left, and how apps go to buses and buses go to your headphones and to OBS](docs/screenshots/wizard.png)
+   ![First-time setup: a step list on the left, and how apps go to buses and buses go to your headphones and to OBS](docs/screenshots/wizard.png)
 
 3. **Put apps on buses.** Start Discord, your game and Spotify. Rostrum recognises most apps and
    puts them on the matching bus by itself; the Apps page marks those **Auto** and says why ("Steam
@@ -147,7 +147,7 @@ bring both back), sidetone on or off, mute headphones, Stream volume up and down
 When the Rostrum window is not in front, a hotkey that mutes, unmutes or switches scenes shows a
 short on-screen message (Settings → General → "Show hotkey changes on screen").
 
-The tray menu has Mute Mic, Mute Stream, Previous and Next Scene, a Scenes submenu, Restart Rostrum
+The tray menu has Show or Hide Rostrum, Mute Mic, Mute Stream, Previous and Next Scene, a Scenes submenu, Restart Rostrum
 (handy after installing a new build) and Quit.
 Middle-click the tray icon to mute or unmute the mic, scroll on it to change the Stream master.
 
