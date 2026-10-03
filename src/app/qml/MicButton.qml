@@ -125,9 +125,9 @@ QQC2.AbstractButton {
                 focus: true
                 Accessible.name: i18nc("@label", "Mic gain")
                 onMoved: App.micGain = value
-                TapHandler {
-                    acceptedButtons: Qt.LeftButton
-                    onDoubleTapped: App.micGain = 1.0
+                SliderReset {
+                    target: gain
+                    onTriggered: App.micGain = 1.0
                 }
             }
 
