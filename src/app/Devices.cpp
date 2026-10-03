@@ -179,6 +179,18 @@ void Devices::setMic(const QString &nodeName)
 
 QString Devices::headphonesInUse() const { return m_app->engine()->resolvedSinkName(); }
 QString Devices::micInUse() const { return m_app->engine()->resolvedSourceName(); }
+bool Devices::micFallback() const { return m_app->settings().micFallback; }
+
+void Devices::setMicFallback(bool on)
+{
+    if (on == micFallback()) {
+        return;
+    }
+    m_app->settings().micFallback = on;
+    m_app->engine()->setMicFallback(on);
+    m_app->saveSettingsSoon();
+    Q_EMIT choiceChanged();
+}
 
 void Devices::setMetersActive(bool active)
 {

@@ -90,6 +90,25 @@ QQC2.ScrollView {
                     levels: Devices.inputLevels
                     onPicked: name => Devices.mic = name
                 }
+                QQC2.Switch {
+                    id: micFallbackSwitch
+                    Layout.fillWidth: true
+                    Layout.topMargin: Kirigami.Units.smallSpacing
+                    text: i18nc("@option:check", "Use another mic while mine is unplugged")
+                    checked: Devices.micFallback
+                    onToggled: Devices.micFallback = checked
+                    Accessible.description: micFallbackHint.text
+                }
+                QQC2.Label {
+                    id: micFallbackHint
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    font: Kirigami.Theme.smallFont
+                    text: Devices.micFallback
+                          ? i18n("If your mic is unplugged, the system default mic goes to stream until it comes back. That can be a webcam or laptop mic.")
+                          : i18n("If your mic is unplugged, the stream mic stays silent until it comes back, so no other mic goes live by surprise.")
+                }
             }
         }
 

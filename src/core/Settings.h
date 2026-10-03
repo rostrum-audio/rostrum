@@ -62,6 +62,7 @@ struct Settings
     // Devices (PipeWire node.name; empty = system default)
     QString headphones;
     QString mic;
+    bool micFallback = false; // another mic stands in while the saved one is unplugged
     // Shortcuts: action id -> portable key sequence ("Meta+Alt+M"); empty = unbound
     QMap<QString, QString> hotkeys;
     // Window

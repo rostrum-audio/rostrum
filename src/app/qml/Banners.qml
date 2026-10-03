@@ -26,7 +26,7 @@ ColumnLayout {
         type: Kirigami.MessageType.Warning
         visible: App.micMissing
         text: App.hasMic ? i18n("Mic disconnected. Using %1 until it comes back.", App.micText)
-                         : i18n("Mic disconnected. Plug it back in or choose another one.")
+                         : i18n("Mic disconnected. Your stream mic is silent until it comes back.")
         actions: Kirigami.Action {
             text: i18nc("@action:button", "Choose Mic")
             icon.name: "audio-input-microphone"

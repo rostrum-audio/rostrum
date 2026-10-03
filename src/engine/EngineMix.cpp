@@ -260,6 +260,18 @@ void Engine::setMicDevice(const QString &nodeName)
         return;
     }
     m_micDevice = nodeName;
+    m_micWasMissing = false;
+    m_lastSourceDescription.clear();
+    Q_EMIT devicesChanged();
+    scheduleReconcile();
+}
+
+void Engine::setMicFallback(bool on)
+{
+    if (m_micFallback == on) {
+        return;
+    }
+    m_micFallback = on;
     Q_EMIT devicesChanged();
     scheduleReconcile();
 }
@@ -278,41 +290,39 @@ bool usableSource(const pw::Node &n)
 
 } // namespace
 
-const pw::Node *Engine::resolveSink() const
+const pw::Node *resolveDevice(const pw::Graph &g, const QString &saved, const QString &systemDefault,
+                              bool sink, bool fallback)
 {
-    const auto &g = m_pw->graph();
-    if (const pw::Node *n = g.nodeByName(m_headphones); n && usableSink(*n)) {
+    auto usable = [sink](const pw::Node &n) { return sink ? usableSink(n) : usableSource(n); };
+    if (const pw::Node *n = g.nodeByName(saved); n && usable(*n)) {
         return n;
     }
-    if (const pw::Node *n = g.nodeByName(m_pw->defaultSinkName()); n && usableSink(*n)) {
+    if (!saved.isEmpty() && !fallback) {
+        return nullptr;
+    }
+    if (const pw::Node *n = g.nodeByName(systemDefault); n && usable(*n)) {
         return n;
     }
     const pw::Node *best = nullptr;
     for (const auto &n : g.nodes) {
-        if (usableSink(n) && (!best || n.prop("priority.session").toInt() > best->prop("priority.session").toInt())) {
+        if (usable(n) &&
+            (!best || n.prop("priority.session").toInt() > best->prop("priority.session").toInt())) {
             best = &n;
         }
     }
     return best;
 }
 
+const pw::Node *Engine::resolveSink() const
+{
+    return resolveDevice(m_pw->graph(), m_headphones, m_pw->defaultSinkName(), true, true);
+}
+
+// A missing saved mic leaves rostrum.mic unlinked unless the user opted into a fallback: a webcam
+// or laptop mic going live on stream by surprise is worse than silence.
 const pw::Node *Engine::resolveSource() const
 {
-    const auto &g = m_pw->graph();
-    if (const pw::Node *n = g.nodeByName(m_micDevice); n && usableSource(*n)) {
-        return n;
-    }
-    if (const pw::Node *n = g.nodeByName(m_pw->defaultSourceName()); n && usableSource(*n)) {
-        return n;
-    }
-    const pw::Node *best = nullptr;
-    for (const auto &n : g.nodes) {
-        if (usableSource(n) &&
-            (!best || n.prop("priority.session").toInt() > best->prop("priority.session").toInt())) {
-            best = &n;
-        }
-    }
-    return best;
+    return resolveDevice(m_pw->graph(), m_micDevice, m_pw->defaultSourceName(), false, m_micFallback);
 }
 
 QString Engine::resolvedSinkName() const
@@ -345,6 +355,16 @@ bool Engine::micMissing() const
     return !n || !usableSource(*n);
 }
 
+bool Engine::micSilenced() const
+{
+    return !m_micFallback && micMissing();
+}
+
+QString Engine::missingMicLabel() const
+{
+    return m_lastSourceDescription.isEmpty() ? m_micDevice : m_lastSourceDescription;
+}
+
 void Engine::reconcileDevices()
 {
     const bool missing = headphonesMissing();
@@ -360,8 +380,25 @@ void Engine::reconcileDevices()
         qCInfo(lcEngine) << "headphones back:" << m_headphones;
         Q_EMIT headphonesRestored();
     }
+    const bool micGone = micMissing();
+    if (const pw::Node *n = m_pw->graph().nodeByName(m_micDevice)) {
+        m_lastSourceDescription = n->label();
+    }
+    if (micGone && !m_micWasMissing) {
+        m_micWasMissing = true;
+        if (m_micFallback) {
+            qCInfo(lcEngine) << "mic missing:" << m_micDevice << "falling back to" << resolvedSourceName();
+        } else {
+            qCInfo(lcEngine) << "mic missing:" << m_micDevice << "stream mic silent until it returns";
+        }
+        Q_EMIT micLost(missingMicLabel());
+    } else if (!micGone && m_micWasMissing) {
+        m_micWasMissing = false;
+        qCInfo(lcEngine) << "mic back:" << m_micDevice;
+        Q_EMIT micRestored();
+    }
     const QString sig = QStringList{resolvedSinkName(), resolvedSourceName(), missing ? QStringLiteral("1") : QString(),
-                                    micMissing() ? QStringLiteral("1") : QString()}
+                                    micGone ? QStringLiteral("1") : QString()}
                             .join(QLatin1Char('|'));
     if (sig != m_devicesSignature) {
         m_devicesSignature = sig;
@@ -516,9 +553,11 @@ void Engine::reconcileVolumes()
     apply(QString::fromLatin1(kPhonesNode), m_scene.masterPhones, m_scene.masterPhonesMuted);
     apply(QString::fromLatin1(kStreamNode), m_scene.masterStream, m_scene.masterStreamMuted);
     if (const Bus *mic = m_scene.micBus()) {
-        apply(QString::fromLatin1(kMicNode), mic->volume, mic->muted || !feedsStream(mic->destination));
+        const bool silenced = micSilenced();
+        apply(QString::fromLatin1(kMicNode), mic->volume,
+              silenced || mic->muted || !feedsStream(mic->destination));
         apply(QString::fromLatin1(kSidetoneNode), m_scene.sidetoneVolume,
-              mic->muted || !feedsPhones(mic->destination) || m_scene.sidetoneVolume <= 0.0);
+              silenced || mic->muted || !feedsPhones(mic->destination) || m_scene.sidetoneVolume <= 0.0);
     }
     for (auto it = m_sentVolume.begin(); it != m_sentVolume.end();) {
         it = g.node(it.key()) ? std::next(it) : m_sentVolume.erase(it);

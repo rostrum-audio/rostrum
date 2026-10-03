@@ -96,6 +96,7 @@ Desktop::Desktop(AppController *app, QObject *parent) : QObject(parent), m_app(a
     });
     connect(m_app, &AppController::settingsChanged, this, &Desktop::applyHotkeys);
     connect(m_app, &AppController::headphonesLost, this, &Desktop::notifyHeadphonesLost);
+    connect(m_app, &AppController::micLost, this, &Desktop::notifyMicLost);
     applyHotkeys();
 
     if (m_enabled) {
@@ -225,24 +226,41 @@ void Desktop::applyHotkeys()
 
 void Desktop::notifyHeadphonesLost(const QString &description)
 {
+    notify(i18n("Headphones disconnected, scene held."),
+           i18n("%1 went away. Plug it back in and routes come back on their own.", description),
+           &m_notificationId);
+}
+
+void Desktop::notifyMicLost(const QString &description)
+{
+    if (m_app->engine()->micSilenced()) {
+        notify(i18n("Mic disconnected, stream mic silent."),
+               i18n("%1 went away. Your stream mic stays silent until it comes back.", description),
+               &m_micNotificationId);
+    } else {
+        notify(i18n("Mic disconnected."),
+               i18n("%1 went away. Using %2 until it comes back.", description, m_app->micText()),
+               &m_micNotificationId);
+    }
+}
+
+void Desktop::notify(const QString &summary, const QString &body, uint *id)
+{
     if (!m_enabled) {
         return;
     }
     QDBusMessage msg = QDBusMessage::createMethodCall(
         QStringLiteral("org.freedesktop.Notifications"), QStringLiteral("/org/freedesktop/Notifications"),
         QStringLiteral("org.freedesktop.Notifications"), QStringLiteral("Notify"));
-    msg << i18n("Rostrum") << m_notificationId << QStringLiteral(ROSTRUM_APP_ID)
-        << i18n("Headphones disconnected, scene held.")
-        << i18n("%1 went away. Plug it back in and routes come back on their own.", description)
-        << QStringList()
+    msg << i18n("Rostrum") << *id << QStringLiteral(ROSTRUM_APP_ID) << summary << body << QStringList()
         << QVariantMap{{QStringLiteral("desktop-entry"), QStringLiteral(ROSTRUM_APP_ID)},
                        {QStringLiteral("urgency"), QVariant::fromValue<uchar>(1)}}
         << -1;
     auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(msg), this);
-    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *w) {
+    connect(watcher, &QDBusPendingCallWatcher::finished, this, [id](QDBusPendingCallWatcher *w) {
         QDBusPendingReply<uint> reply = *w;
         if (reply.isValid()) {
-            m_notificationId = reply.value();
+            *id = reply.value();
         } else {
             qCWarning(lcDesktop) << "Notification failed:" << reply.error().message();
         }

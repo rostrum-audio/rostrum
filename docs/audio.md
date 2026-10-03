@@ -95,12 +95,24 @@ Rostrum accepts those ports when a non-sink node has no other outputs.
 
 The headphone target is the saved `node.name` if present, otherwise the system default sink
 (`default.audio.sink` metadata), otherwise the highest `priority.session` sink. Rostrum nodes are
-never candidates. The mic works the same way with sources.
+never candidates. The mic works the same way with sources, except when a saved mic goes missing
+(below). With no saved mic, Rostrum follows the system default source. The choice is a pure
+function of the graph (`engine::resolveDevice`), covered by `tests/tst_engine.cpp`.
 
 If the saved headphones disappear, the scene is held unchanged. `rostrum.phones` is relinked to the
 fallback, the UI shows a banner, and one desktop notification is sent ("Headphones disconnected,
 scene held"). When a node with the saved `node.name` returns, Rostrum relinks to it. The saved
 device is never rewritten by a fallback.
+
+If the saved mic disappears, the stream mic goes silent instead of falling back. Nothing is linked
+into `rostrum.mic` or `rostrum.sidetone`, and both nodes are muted, so a webcam or laptop mic never
+goes live on stream by surprise. The UI shows a banner ("Your stream mic is silent until it comes
+back", with Choose Mic), the header mic button says No mic, and one desktop notification is sent
+("Mic disconnected, stream mic silent"). The log says `mic missing: … stream mic silent until it
+returns`. When the saved mic returns, it is relinked and its mute and gain come back from the
+scene. Devices → "Use another mic while mine is unplugged" (`[devices] mic_fallback`, off by
+default) brings back the fallback to the default source, the way headphones work. Either way the
+saved mic is never rewritten.
 
 ## Moving app streams
 
@@ -352,7 +364,8 @@ with OBS closed, edits OBS's scene collection after backing it up.
   can be rebound there too. Otherwise through the XDG GlobalShortcuts portal. A shortcut the
   desktop refuses, or one another component already owns, stays active inside the window and
   Settings says why. There is no X11 key grab.
-- The one notification is "Headphones disconnected, scene held.", sent straight to
+- The only notifications are "Headphones disconnected, scene held." and "Mic disconnected, stream
+  mic silent." (or "Mic disconnected." when another mic stands in), sent straight to
   `org.freedesktop.Notifications`. Mute changes never notify.
 - Offscreen runs (`QT_QPA_PLATFORM=offscreen` or `ROSTRUM_SCREENSHOT`) skip the tray, shortcuts
   and notifications. `ROSTRUM_NO_GLOBAL_SHORTCUTS=1` skips only the shortcuts.

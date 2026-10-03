@@ -13,6 +13,7 @@
 
 namespace rostrum::pw {
 class PwContext;
+struct Graph;
 struct Node;
 }
 
@@ -32,6 +33,13 @@ struct AppStream
     bool skipped = false;     // the user took it off its automatic bus
     double volume = 1.0;
 };
+
+// The device Rostrum links for headphones (sink) or the mic: the saved node.name if present,
+// otherwise the system default, otherwise the highest priority.session. With `fallback` off, a
+// saved device that is missing resolves to nothing. An empty `saved` always follows the default.
+// Rostrum nodes are never candidates.
+const pw::Node *resolveDevice(const pw::Graph &graph, const QString &saved, const QString &systemDefault,
+                              bool sink, bool fallback);
 
 // Owns the desired Rostrum graph for the current scene and reconciles PipeWire toward it
 // whenever either side changes. The engine never deletes the scene because a device vanished.
@@ -93,6 +101,12 @@ public:
     bool headphonesMissing() const;
     bool micMissing() const;
     bool hasMic() const { return !resolvedSourceName().isEmpty(); }
+    // Off by default: while the saved mic is unplugged, rostrum.mic stays unlinked and muted.
+    // On: another mic stands in, the way headphones fall back. Never rewrites the saved mic.
+    void setMicFallback(bool on);
+    bool micFallback() const { return m_micFallback; }
+    bool micSilenced() const;        // the saved mic is missing and nothing stands in for it
+    QString missingMicLabel() const; // its description from when it was last seen, or its node.name
 
     // Apps
     QList<AppStream> appStreams() const;
@@ -126,6 +140,8 @@ Q_SIGNALS:
     void devicesChanged();
     void headphonesLost(const QString &description);
     void headphonesRestored();
+    void micLost(const QString &description);
+    void micRestored();
     void autoSkipChanged();
 
 protected:
@@ -182,6 +198,9 @@ protected:
     QString m_micDevice;
     QString m_lastSinkDescription;
     bool m_headphonesWereMissing = false;
+    QString m_lastSourceDescription;
+    bool m_micWasMissing = false;
+    bool m_micFallback = false;
     QString m_devicesSignature;
     QHash<QString, QElapsedTimer> m_pendingLinks; // "out:in" port pairs being created
     struct SentVolume

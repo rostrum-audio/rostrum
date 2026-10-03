@@ -227,7 +227,8 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
    in the tray with no window. Starting it from the app menu while it runs raises the window.
    Turn "Launch at login" off: the file is gone.
 7. Unplug the headset while Rostrum runs: one notification, "Headphones disconnected, scene
-   held." Mute and unmute never notify.
+   held." Unplug the saved mic: one notification, "Mic disconnected, stream mic silent." (test 15).
+   Mute and unmute never notify.
 
 Tray, hotkeys, start in tray and close to tray were checked with a script that runs Rostrum in a
 private D-Bus session with a headless nested KWin and a fake tray host, so nothing reaches the
@@ -312,6 +313,32 @@ at once instead of after 20 seconds.
    offered.
 8. Run with `FLATPAK_ID=dev.getrostrum.Rostrum`: Settings → Updates says Flatpak keeps Rostrum up
    to date, and there are no switches.
+
+## 15. Mic unplugged
+
+Use the fake devices from test 3 (`rostrumtest.mic` fed by a tone) and keep a second source
+around as the system default, for example a webcam or `pw-cli create-node adapter '{
+factory.name=support.null-audio-sink node.name=rostrumtest.webcam media.class=Audio/Source/Virtual
+audio.position=[MONO] }'` set as default with `wpctl set-default`.
+
+1. Run `$B --headphones rostrumtest.headset --mic rostrumtest.mic`. `pw-link -l` shows
+   `rostrumtest.mic` linked into `rostrum.mic` and `rostrum.sidetone`.
+2. Destroy `rostrumtest.mic` (`pw-cli destroy <id>`), or unplug the real mic. It prints
+   `Mic disconnected (…), stream mic silent.` Nothing is linked into `rostrum.mic` or
+   `rostrum.sidetone` (`pw-link -l | rg -B1 'rostrum\.(mic|sidetone):'` is empty), the default
+   source is not linked anywhere by Rostrum, and `pw-record --target rostrum.mic m.wav` is silent.
+   `wpctl inspect` on `rostrum.mic` shows it muted.
+3. Recreate the fake mic and feed it again. It prints `Mic back: rostrumtest.mic`, the links come
+   back and the capture from step 2 has signal again.
+4. In the app: unplug the mic. The banner reads "Mic disconnected. Your stream mic is silent until
+   it comes back." with Choose Mic, the header button says No mic, the status bar shows the mic as
+   "(unplugged)", one notification is sent, and the log has `mic missing: … stream mic silent`.
+   `settings.toml` still names the unplugged mic.
+5. Devices → turn on "Use another mic while mine is unplugged" and unplug again (or rerun step 2
+   with `--mic-fallback`): the default source is linked into `rostrum.mic`, the banner says
+   "Using … until it comes back", and `settings.toml` has `mic_fallback = true` and still names
+   the saved mic. Turn it off again: the fallback links go away at once.
+6. With no mic ever chosen (`mic = ''`), Rostrum uses the system default source as before.
 
 ## Smoke test log
 

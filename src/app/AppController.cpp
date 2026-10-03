@@ -55,6 +55,7 @@ AppController::AppController(QObject *parent)
     connect(&m_engine, &engine::Engine::levelsChanged, this, &AppController::levelsChanged);
     connect(&m_engine, &engine::Engine::sceneChanged, this, &AppController::levelsChanged);
     connect(&m_engine, &engine::Engine::headphonesLost, this, &AppController::headphonesLost);
+    connect(&m_engine, &engine::Engine::micLost, this, &AppController::micLost);
 
     for (auto sig : {&engine::SceneManager::scenesChanged, &engine::SceneManager::currentChanged,
                      &engine::SceneManager::dirtyChanged}) {
@@ -93,6 +94,7 @@ void AppController::start()
     }
     m_engine.setHeadphoneDevice(m_settings.headphones);
     m_engine.setMicDevice(m_settings.mic);
+    m_engine.setMicFallback(m_settings.micFallback);
     m_engine.setAutoAssign(m_settings.autoAssign);
     m_engine.setAutoSkip(m_settings.autoSkip);
     m_scenes.setAutoSave(m_settings.autoSaveScenes);
@@ -161,7 +163,9 @@ void AppController::updateStatus()
         if (m_engine.headphonesMissing()) {
             problems << i18n("The saved headphones are not connected.");
         }
-        if (m_engine.micMissing()) {
+        if (m_engine.micSilenced()) {
+            problems << i18n("The saved mic is not connected, so the stream mic is silent.");
+        } else if (m_engine.micMissing()) {
             problems << i18n("The saved mic is not connected.");
         }
         status = problems.isEmpty() ? QStringLiteral("ok") : QStringLiteral("degraded");
@@ -253,6 +257,9 @@ QString AppController::micText() const
 {
     if (!connected()) {
         return i18n("Unknown");
+    }
+    if (m_engine.micSilenced()) {
+        return i18nc("@info mic device that is not plugged in", "%1 (unplugged)", m_engine.missingMicLabel());
     }
     const QString d = describeNode(m_engine.resolvedSourceName());
     return d.isEmpty() ? i18n("None") : d;

@@ -114,7 +114,12 @@ QString serializeSettings(const Settings &s)
          }},
         {"advanced", toml::table{{"show_node_ids", s.showNodeIds}}},
         {"scenes", toml::table{{"default", s.defaultScene.toStdString()}}},
-        {"devices", toml::table{{"headphones", s.headphones.toStdString()}, {"mic", s.mic.toStdString()}}},
+        {"devices",
+         toml::table{
+             {"headphones", s.headphones.toStdString()},
+             {"mic", s.mic.toStdString()},
+             {"mic_fallback", s.micFallback},
+         }},
         {"hotkeys", hotkeys},
         {"window",
          toml::table{
@@ -175,6 +180,7 @@ Settings parseSettings(const QString &text, QString *error)
     s.defaultScene = getStr(t, "scenes", "default", s.defaultScene);
     s.headphones = getStr(t, "devices", "headphones", s.headphones);
     s.mic = getStr(t, "devices", "mic", s.mic);
+    s.micFallback = get(t, "devices", "mic_fallback", s.micFallback);
     if (const auto *hk = t["hotkeys"].as_table()) {
         for (auto &&[k, v] : *hk) {
             const QString id = QString::fromStdString(std::string(k.str()));

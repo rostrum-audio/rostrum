@@ -175,6 +175,7 @@ Q_SIGNALS:
     void raiseRequested();
     void sceneSwitchConfirmRequested(const QString &name);
     void headphonesLost(const QString &description);
+    void micLost(const QString &description);
 
 private:
     void updateStatus();
