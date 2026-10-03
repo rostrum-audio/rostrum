@@ -45,6 +45,7 @@ qt_add_qml_module(rostrum
         qml/BusStrip.qml
         qml/Fader.qml
         qml/PlainSlider.qml
+        qml/SliderReset.qml
         qml/PeakMeter.qml
         qml/DestinationControl.qml
         qml/StripToggle.qml

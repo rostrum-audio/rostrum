@@ -228,8 +228,9 @@ QQC2.Control {
                 QQC2.ToolTip.text: i18nc("@info:tooltip", "Balance: %1. Double-click to centre.", strip.balanceText)
                 onMoved: Mixer.setBalance(strip.busId, value)
                 Keys.onMenuPressed: contextMenu.popup(balanceSlider, 0, 0)
-                TapHandler {
-                    onDoubleTapped: Mixer.setBalance(strip.busId, 0)
+                SliderReset {
+                    target: balanceSlider
+                    onTriggered: Mixer.setBalance(strip.busId, 0)
                 }
             }
         }

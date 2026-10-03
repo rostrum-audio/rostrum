@@ -80,9 +80,9 @@ QQC2.Slider {
         event.accepted = true
     }
 
-    TapHandler {
-        acceptedButtons: Qt.LeftButton
-        onDoubleTapped: fader.edited(fader.resetValue)
+    readonly property SliderReset doubleClickReset: SliderReset {
+        target: fader
+        onTriggered: fader.edited(fader.resetValue)
     }
 
     background: Item {

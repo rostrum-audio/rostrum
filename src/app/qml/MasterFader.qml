@@ -118,8 +118,9 @@ QQC2.Control {
                 }
                 event.accepted = true
             }
-            TapHandler {
-                onDoubleTapped: master.edited(1.0)
+            SliderReset {
+                target: slider
+                onTriggered: master.edited(1.0)
             }
         }
         PeakMeter {
