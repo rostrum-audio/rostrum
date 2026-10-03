@@ -4,6 +4,8 @@
 
 #include <QFileInfo>
 
+#include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <sstream>
 #include <toml++/toml.hpp>
@@ -91,6 +93,10 @@ QString serializeSettings(const Settings &s)
     for (const auto &key : s.autoSkip) {
         skip.push_back(key.toStdString());
     }
+    toml::array duckBuses;
+    for (const auto &id : s.ducking.buses) {
+        duckBuses.push_back(id.toStdString());
+    }
     toml::table t{
         {"format", 1},
         {"general",
@@ -105,6 +111,15 @@ QString serializeSettings(const Settings &s)
              {"scene_fade_ms", s.sceneFadeMs},
          }},
         {"mixer", toml::table{{"meter_speed", s.meterSpeed.toStdString()}, {"show_db", s.showDb}}},
+        {"ducking",
+         toml::table{
+             {"enabled", s.ducking.enabled},
+             {"trigger", ducking::triggerName(s.ducking.trigger).toStdString()},
+             {"buses", duckBuses},
+             {"amount_db", s.ducking.amountDb},
+             {"attack_ms", s.ducking.attackMs},
+             {"release_ms", s.ducking.releaseMs},
+         }},
         {"apps", toml::table{{"auto_assign", s.autoAssign}, {"auto_skip", skip}}},
         {"privacy", toml::table{{"crash_reports", s.crashReports.toStdString()}}},
         {"updates",
@@ -169,6 +184,26 @@ Settings parseSettings(const QString &text, QString *error)
         s.meterSpeed = QStringLiteral("normal");
     }
     s.showDb = get(t, "mixer", "show_db", s.showDb);
+    s.ducking.enabled = get(t, "ducking", "enabled", s.ducking.enabled);
+    s.ducking.trigger = ducking::triggerFromString(getStr(t, "ducking", "trigger", QString()))
+                            .value_or(s.ducking.trigger);
+    if (const auto *buses = t["ducking"]["buses"].as_array()) {
+        s.ducking.buses.clear();
+        for (const auto &v : *buses) {
+            if (auto id = v.value<std::string>()) {
+                s.ducking.buses << QString::fromStdString(*id);
+            }
+        }
+    }
+    // Clamped before the int cast; sanitize() then snaps to an offered value.
+    auto number = [&t](std::string_view key, int fallback) {
+        const double v = get<double>(t, "ducking", key, fallback);
+        return std::isfinite(v) ? int(std::clamp(v, -60000.0, 60000.0)) : fallback;
+    };
+    s.ducking.amountDb = number("amount_db", s.ducking.amountDb);
+    s.ducking.attackMs = number("attack_ms", s.ducking.attackMs);
+    s.ducking.releaseMs = number("release_ms", s.ducking.releaseMs);
+    s.ducking = ducking::sanitize(s.ducking);
     s.autoAssign = get(t, "apps", "auto_assign", s.autoAssign);
     if (const auto *skip = t["apps"]["auto_skip"].as_array()) {
         for (const auto &v : *skip) {

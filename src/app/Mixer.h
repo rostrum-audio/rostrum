@@ -40,6 +40,7 @@ public:
         ClipRole,
         AutoCategoryRole, // "game", "voice", ... or "none"
         BalanceRole,
+        DuckedRole, // turned down by auto-ducking right now
     };
 
     explicit BusModel(engine::Engine *engine, QObject *parent = nullptr);

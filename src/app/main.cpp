@@ -57,7 +57,8 @@ int main(int argc, char *argv[])
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &controller, [&controller] {
         controller.scenes()->flush();
         controller.saveSettingsNow();
-        if (controller.engine()->releaseAppMutes()) {
+        const bool levels = controller.engine()->releaseTransientLevels();
+        if (controller.engine()->releaseAppMutes() || levels) {
             controller.pw()->roundtrip(500);
         }
     });

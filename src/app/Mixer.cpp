@@ -47,7 +47,7 @@ QHash<int, QByteArray> BusModel::roleNames() const
         {IsInputRole, "isInput"}, {VolumeRole, "volume"}, {MutedRole, "muted"},
         {SoloedRole, "soloed"}, {DimmedRole, "dimmed"},   {DestinationRole, "destination"},
         {AppsRole, "apps"},    {PeakRole, "peak"},       {ClipRole, "clip"},
-        {AutoCategoryRole, "autoCategory"}, {BalanceRole, "balance"},
+        {AutoCategoryRole, "autoCategory"}, {BalanceRole, "balance"}, {DuckedRole, "ducked"},
     };
 }
 
@@ -90,6 +90,8 @@ QVariant BusModel::data(const QModelIndex &index, int role) const
         return categoryName(b->autoCategory);
     case BalanceRole:
         return b->balance;
+    case DuckedRole:
+        return m_engine->isDucked(id);
     }
     return {};
 }
@@ -136,7 +138,7 @@ void BusModel::refresh()
     if (!m_ids.isEmpty()) {
         Q_EMIT dataChanged(index(0), index(int(m_ids.size()) - 1),
                            {NameRole, ColorRole, VolumeRole, MutedRole, SoloedRole, DimmedRole, DestinationRole,
-                            AppsRole, AutoCategoryRole, BalanceRole});
+                            AppsRole, AutoCategoryRole, BalanceRole, DuckedRole});
     }
 }
 
@@ -186,6 +188,7 @@ Mixer::Mixer(AppController *app, QObject *parent)
     connect(m_engine, &engine::Engine::levelsChanged, this, levels);
     connect(m_engine, &engine::Engine::soloChanged, this, levels);
     connect(m_engine, &engine::Engine::appsChanged, this, [this] { m_model.refresh(); });
+    connect(m_engine, &engine::Engine::duckedChanged, this, [this] { m_model.refresh(); });
     connect(m_engine, &engine::Engine::devicesChanged, this, &Mixer::updateTargets);
 
     connect(&m_timer, &QTimer::timeout, this, &Mixer::tick);

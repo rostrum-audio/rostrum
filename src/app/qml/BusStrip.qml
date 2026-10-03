@@ -24,6 +24,7 @@ QQC2.Control {
     required property bool clip
     required property string autoCategory
     required property real balance
+    required property bool ducked
 
     property bool editing: false
     property bool expanded: false
@@ -140,11 +141,13 @@ QQC2.Control {
                 text: strip.muted ? i18nc("@info:status", "Muted")
                     : strip.dimmed ? i18nc("@info:status", "Dimmed by solo")
                     : strip.soloed ? i18nc("@info:status", "Solo")
+                    : strip.ducked ? i18nc("@info:status turned down while someone speaks", "Ducked")
                     : strip.isInput ? i18nc("@label", "Gain")
                     : Preferences.autoAssign ? (strip.autoLabels[strip.autoCategory] ?? "")
                     : ""
                 color: strip.muted ? Kirigami.Theme.negativeTextColor
                      : strip.soloed ? Kirigami.Theme.neutralTextColor
+                     : strip.ducked ? Kirigami.Theme.activeTextColor
                      : Kirigami.Theme.disabledTextColor
             }
         }

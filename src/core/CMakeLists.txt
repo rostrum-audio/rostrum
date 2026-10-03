@@ -8,6 +8,7 @@ add_library(rostrum_core STATIC
     UpdateFeed.cpp UpdateFeed.h
     AppClassifier.cpp AppClassifier.h
     AppFacts.cpp AppFacts.h
+    Ducking.cpp Ducking.h
     DesktopEntries.cpp DesktopEntries.h
     RuleExport.cpp RuleExport.h
     ScenePresets.cpp ScenePresets.h

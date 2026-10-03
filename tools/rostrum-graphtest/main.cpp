@@ -98,6 +98,7 @@ int main(int argc, char **argv)
         engine.setMicFallback(settings.micFallback);
         engine.setMonoHeadphones(settings.monoHeadphones);
         engine.setSceneFadeMs(settings.sceneFadeMs);
+        engine.setDucking(settings.ducking);
     }
     if (parser.isSet(micFallback)) {
         engine.setMicFallback(true);

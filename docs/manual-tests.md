@@ -401,6 +401,27 @@ audio.position=[MONO] }'` set as default with `wpctl set-default`.
 8. Press the Next scene shortcut several times quickly: no clicks, and every bus ends at the last
    scene's level.
 
+## 20. Auto-ducking
+
+1. With ducking off (the default), `pw-dump | grep rostrum-meter` shows no meter streams while the
+   Mixer page is hidden, and Plasma's mic indicator is off with Rostrum in the tray.
+2. Settings → Ducking: turn it on with the defaults (your mic, Music, -12 dB). Play music on the
+   Music bus and speak: within about 0.1 s the music drops by 12 dB and the Music strip says
+   "Ducked"; its fader does not move. Stop speaking: after half a second it comes back over
+   about 0.8 s. Short pauses between words do not let it come back.
+3. While ducking listens to the mic, the mic indicator stays lit even with the window hidden.
+   Mute the mic: the indicator goes off (after the mic meter closes) and nothing ducks.
+4. The scene is never marked as changed by ducking, and the saved scene file has the Music fader
+   level, not the ducked one. `pw-dump` on `rostrum.music` shows the lower volume only while
+   ducked.
+5. Trigger "Someone speaks in voice chat": play a voice call on the Voice bus: Music ducks, and the
+   Voice bus never ducks even if it is ticked. Trigger "Either": both work.
+6. Change amount, attack and release: the effect follows at once. Tick Alerts too: both duck.
+7. Move the Music fader while ducked: it moves, and the ducking stays applied on top.
+8. Speak (ducked), and quit Rostrum from the tray mid-sentence: Music returns to its full level.
+9. With a scene fade set, switch scenes while ducked: the fade and the ducking combine, and once
+   speech stops, every bus ends at the new scene's level.
+
 ## Smoke test log
 
 Kubuntu 26.04, Plasma 6.6 Wayland, PipeWire 1.6.2, WirePlumber 0.5.13, build 0.1.0. The checks

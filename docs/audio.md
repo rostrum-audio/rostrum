@@ -122,6 +122,45 @@ never leaves it live for a moment.
   takes that node out of the fade at once; toggling solo ends the whole fade.
 - Loading the default scene at startup never fades: the nodes may still be playing at their
   lingering levels, and the scene applies at once as before.
+- Quitting mid-fade sends every node its scene level first, so nothing is left halfway.
+
+### Auto-ducking
+
+Settings → Ducking turns chosen playback buses down while someone speaks. Like solo, it is
+session behaviour: the scene never changes, it never makes the scene dirty, and the ducked level is
+never written anywhere. The settings live in `settings.toml`:
+
+| Key | Default | Values |
+|-----|---------|--------|
+| `[ducking] enabled` | `false` | |
+| `[ducking] trigger` | `"mic"` | `"mic"`, `"voice"` (the bus that receives voice chat) or `"either"` |
+| `[ducking] buses` | `["music"]` | playback bus ids; the mic and unknown ids are ignored |
+| `[ducking] amount_db` | `-12` | -6, -9, -12, -18, -24 |
+| `[ducking] attack_ms` | `100` | 20, 50, 100, 250, 500 |
+| `[ducking] release_ms` | `800` | 250, 500, 800, 1500, 3000 |
+
+Hand-edited numbers snap to the nearest offered value. The amount stops at -24 dB on purpose: a
+ducked bus is quieter, never silent.
+
+- Detection: while ducking is on, the engine runs its own meter streams (the same `MeterBank` as
+  the strips, independent of what is on screen). With the mic trigger it meters the hardware mic
+  summed to mono, times the mic gain, and only while the mic can be heard on stream (not muted,
+  destination includes Stream, not unplugged). With the voice trigger it meters the voice bus's
+  monitor, which is after its fader and mute. A peak above -40 dBFS counts as speech. Turning
+  ducking off removes the meter streams.
+- The mic meter is an active source stream, like every mic meter, so while ducking listens to the
+  mic, Plasma's microphone indicator stays lit, even with Rostrum in the tray. Muting the mic stops
+  the meter and the indicator. The Settings switch says so.
+- Envelope (`ducking::Envelope`, unit tested): every 20 ms the gain moves toward the amount at
+  amount/attack dB per ms while speech is heard, and stays there until 500 ms after the last
+  speech, so it does not pump between words. Then it returns to 0 dB at amount/release dB per ms.
+- Applying: the gain multiplies the linear volume of each target bus when volumes are sent, on
+  top of fader, balance and any scene fade. The value sent changes, the scene does not, and the
+  once-a-second re-apply compares against the ducked value, so ducking never fights it. The bus
+  that receives voice chat is never ducked when it is the trigger.
+- The strip of a ducked bus says "Ducked" in its status line.
+- Quitting while ducked sends the scene levels first and waits for PipeWire to confirm. After a
+  crash a ducked bus stays down (by at most 24 dB) until Rostrum starts again.
 
 ### Mic channel handling
 
@@ -316,7 +355,9 @@ The Apps page meters each running app the same way, by capturing the app's own p
 playback stream's output ports without moving the app, so the app keeps playing where it was.
 The Devices page and the wizard meter every input.
 
-Meter streams exist only while the page that shows them is visible and the window is shown. They carry
+Auto-ducking has its own meters (below), which run whenever ducking is on, whatever is on screen.
+Otherwise, meter streams exist only while the page that shows them is visible and the window is
+shown. They carry
 `node.dont-fallback`, `node.dont-move` and `node.dont-reconnect` so a meter never wanders onto
 another device. These keys are allowed here because meters are Rostrum's own internal streams
 (`rostrum.internal = true`). They never appear in app rules.
@@ -381,8 +422,8 @@ moves to Rostrum scenes.
 
 All configuration is TOML under `$XDG_CONFIG_HOME/rostrum/` (default `~/.config/rostrum/`):
 
-- `settings.toml`: general options, mixer options, default scene, saved headphone and mic
-  `node.name`, shortcuts, window size, last page.
+- `settings.toml`: general options, mixer options, ducking, default scene, saved headphone and
+  mic `node.name`, shortcuts, window size, last page.
 - `scenes/<slug>.toml`: one scene per file. The `name` inside the file wins over the file name.
   A scene holds master levels, sidetone level, the bus list (id, name, color, kind, volume, mute,
   balance, destination) and app rules (match, key, bus, per-app volume and mute, an optional label for apps

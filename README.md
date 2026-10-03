@@ -134,6 +134,8 @@ F6 moves focus between the header, the sidebar and the page.
 - Assign apps automatically: on. Game, Voice, Music, Alerts and Desktop each receive their own kind
   of app; Desktop gets everything else that is recognised. The Mic bus receives nothing.
 - Solo is not saved in the scene.
+- Scene fade: off (scenes switch at once). Auto-ducking: off; when on, your mic turns Music down by
+  12 dB while you speak. Neither is saved in scenes.
 - If your chosen mic is unplugged, the stream mic stays silent until it comes back. No other mic
   goes live unless you turn on "Use another mic while mine is unplugged" on the Devices page.
 - Close window hides to tray (when the desktop has one). Quit from the tray or Settings.

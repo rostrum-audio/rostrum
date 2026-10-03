@@ -17,10 +17,12 @@ constexpr int kCreateRetryMs = 3000;
 constexpr int kCreateTimeoutMs = 5000;
 constexpr qint64 kSessionGraceMs = 30000;
 constexpr int kFadeStepMs = 16;
+constexpr int kDuckStepMs = 20;
 } // namespace
 
 Engine::Engine(pw::PwContext *pw, QObject *parent)
     : QObject(parent)
+    , m_duckMeters(pw)
     , m_pw(pw)
     , m_scene(defaults::scene())
 {
@@ -34,6 +36,9 @@ Engine::Engine(pw::PwContext *pw, QObject *parent)
     m_fadeTimer.setInterval(kFadeStepMs);
     m_fadeTimer.setTimerType(Qt::PreciseTimer);
     connect(&m_fadeTimer, &QTimer::timeout, this, &Engine::fadeTick);
+    m_duckTimer.setInterval(kDuckStepMs);
+    m_duckTimer.setTimerType(Qt::PreciseTimer);
+    connect(&m_duckTimer, &QTimer::timeout, this, &Engine::duckTick);
 }
 
 void Engine::setScene(const Scene &scene, bool fade)
@@ -225,6 +230,7 @@ void Engine::reconcile()
     reconcileNodes();
     reconcileDevices();
     reconcileLinks();
+    reconcileDucking();
     reconcileVolumes();
     reconcileRoutes();
     // Compare with the last reported state: the graph changes before this pass runs.

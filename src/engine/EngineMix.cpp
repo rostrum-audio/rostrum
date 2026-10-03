@@ -446,6 +446,122 @@ void Engine::reconcileDevices()
     }
 }
 
+// ---- ducking ----------------------------------------------------------------------------
+
+void Engine::setDucking(const ducking::Settings &settings)
+{
+    const ducking::Settings s = ducking::sanitize(settings);
+    if (s == m_ducking) {
+        return;
+    }
+    if (s.enabled != m_ducking.enabled) {
+        qCInfo(lcEngine) << "ducking" << s.enabled;
+    }
+    m_ducking = s;
+    reconcileDucking();
+    Q_EMIT duckedChanged();
+    scheduleReconcile();
+}
+
+QString Engine::duckTriggerBus() const
+{
+    if (m_ducking.trigger == ducking::Trigger::Mic) {
+        return {};
+    }
+    const Bus *b = m_scene.busFor(AppCategory::Voice);
+    return b ? b->id : QString();
+}
+
+bool Engine::isDuckTarget(const QString &busId) const
+{
+    const Bus *b = m_scene.bus(busId);
+    return m_ducking.enabled && b && !b->isInput() && m_ducking.buses.contains(busId) &&
+           busId != duckTriggerBus();
+}
+
+bool Engine::isDucked(const QString &busId) const
+{
+    return m_duckEnvelope.ducked() && isDuckTarget(busId);
+}
+
+void Engine::reconcileDucking()
+{
+    const bool on = m_ducking.enabled && m_mixEnabled;
+    QString mic;
+    QString voice;
+    if (on && m_ducking.trigger != ducking::Trigger::Voice) {
+        // A source meter keeps the mic open, so it runs only while the mic can be heard on stream.
+        const Bus *micBus = m_scene.micBus();
+        if (micBus && !micBus->muted && feedsStream(micBus->destination) && !micSilenced()) {
+            mic = resolvedSourceName();
+        }
+    }
+    if (on && m_ducking.trigger != ducking::Trigger::Mic) {
+        if (const Bus *b = m_scene.busFor(AppCategory::Voice)) {
+            voice = b->nodeName();
+        }
+    }
+    m_duckMicNode = mic;
+    m_duckVoiceNode = voice;
+    QStringList targets;
+    if (!mic.isEmpty()) {
+        targets << mic;
+    }
+    if (!voice.isEmpty()) {
+        targets << voice;
+    }
+    m_duckMeters.setTargets(targets, mic.isEmpty() ? QStringList() : QStringList{mic});
+    m_duckMeters.setActive(on);
+    if (on && !m_duckTimer.isActive()) {
+        m_duckClock.start();
+        m_duckTimer.start();
+    } else if (!on && m_duckTimer.isActive()) {
+        m_duckTimer.stop();
+        const bool was = m_duckEnvelope.ducked();
+        m_duckEnvelope.reset();
+        if (was) {
+            Q_EMIT duckedChanged();
+        }
+    }
+}
+
+void Engine::duckTick()
+{
+    const double dt = double(m_duckClock.restart());
+    double peak = 0.0;
+    if (!m_duckMicNode.isEmpty()) {
+        const Bus *mic = m_scene.micBus();
+        peak = m_duckMeters.takePeak(m_duckMicNode) * volume::faderToLinear(mic ? mic->volume : 1.0);
+    }
+    if (!m_duckVoiceNode.isEmpty()) {
+        peak = std::max(peak, double(m_duckMeters.takePeak(m_duckVoiceNode)));
+    }
+    const bool was = m_duckEnvelope.ducked();
+    m_duckEnvelope.advance(peak, dt, m_ducking);
+    if (was != m_duckEnvelope.ducked()) {
+        Q_EMIT duckedChanged();
+    }
+    if (m_duckEnvelope.gain() != m_duckGainSent && m_pw->state() == pw::PwContext::State::Ready) {
+        reconcileVolumes();
+    }
+}
+
+bool Engine::releaseTransientLevels()
+{
+    m_duckTimer.stop();
+    m_duckMeters.setActive(false);
+    m_fadeTimer.stop();
+    if (m_duckEnvelope.gain() >= 1.0 && m_fades.isEmpty()) {
+        return false;
+    }
+    m_duckEnvelope.reset();
+    m_fades.clear();
+    if (m_pw->state() == pw::PwContext::State::Ready) {
+        reconcileVolumes();
+    }
+    return true;
+}
+
 // ---- links ------------------------------------------------------------------------------
 
 void Engine::reconcileLinks()
@@ -634,11 +750,13 @@ void Engine::reconcileVolumes()
         }
     };
 
+    m_duckGainSent = m_duckEnvelope.gain();
     for (const auto &b : m_scene.buses) {
         if (b.isInput()) {
             continue;
         }
-        level(b.nodeName(), b.volume, b.muted || dimmedBySolo(b.id), b.balance);
+        level(b.nodeName(), b.volume, b.muted || dimmedBySolo(b.id), b.balance,
+              isDuckTarget(b.id) ? m_duckGainSent : 1.0);
     }
     // Halve while mono is wanted or any cross-link is still up, so links and volume changing at
     // slightly different moments can only make it briefly quieter, never 6 dB louder.

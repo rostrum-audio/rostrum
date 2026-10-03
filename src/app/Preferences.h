@@ -1,10 +1,14 @@
 #pragma once
 
+#include "core/Ducking.h"
+
 #include <QKeySequence>
 #include <QObject>
 #include <QUrl>
 #include <QVariantList>
 #include <QtQml/qqmlregistration.h>
+
+#include <functional>
 
 class QQmlEngine;
 class QJSEngine;
@@ -28,6 +32,13 @@ class Preferences : public QObject
     Q_PROPERTY(bool showDb READ showDb WRITE setShowDb NOTIFY changed)
     Q_PROPERTY(bool showNodeIds READ showNodeIds WRITE setShowNodeIds NOTIFY changed)
     Q_PROPERTY(bool autoAssign READ autoAssign WRITE setAutoAssign NOTIFY changed)
+    Q_PROPERTY(bool duckingEnabled READ duckingEnabled WRITE setDuckingEnabled NOTIFY changed)
+    // "mic", "voice" or "either"
+    Q_PROPERTY(QString duckingTrigger READ duckingTrigger WRITE setDuckingTrigger NOTIFY changed)
+    Q_PROPERTY(QStringList duckingBuses READ duckingBuses NOTIFY changed)
+    Q_PROPERTY(int duckingAmountDb READ duckingAmountDb WRITE setDuckingAmountDb NOTIFY changed)
+    Q_PROPERTY(int duckingAttackMs READ duckingAttackMs WRITE setDuckingAttackMs NOTIFY changed)
+    Q_PROPERTY(int duckingReleaseMs READ duckingReleaseMs WRITE setDuckingReleaseMs NOTIFY changed)
     // Apps the user took off their automatic bus
     Q_PROPERTY(int skippedApps READ skippedApps NOTIFY changed)
     // Rows: {id, label, shortcut, defaultShortcut, global, problem}. global: the desktop delivers the
@@ -62,6 +73,17 @@ public:
     void setShowNodeIds(bool on);
     bool autoAssign() const;
     void setAutoAssign(bool on);
+    bool duckingEnabled() const;
+    void setDuckingEnabled(bool on);
+    QString duckingTrigger() const;
+    void setDuckingTrigger(const QString &trigger);
+    QStringList duckingBuses() const;
+    int duckingAmountDb() const;
+    void setDuckingAmountDb(int db);
+    int duckingAttackMs() const;
+    void setDuckingAttackMs(int ms);
+    int duckingReleaseMs() const;
+    void setDuckingReleaseMs(int ms);
     int skippedApps() const;
     QVariantList hotkeys() const;
     QString configFolder() const;
@@ -77,6 +99,7 @@ public:
     Q_INVOKABLE QString hotkeyConflict(const QString &actionId, const QString &sequence) const;
     Q_INVOKABLE void openConfigFolder();
     Q_INVOKABLE void forgetSkippedApps();
+    Q_INVOKABLE void setDuckingBus(const QString &busId, bool ducked);
     Q_INVOKABLE void rebuildMix();
     Q_INVOKABLE void exportRulesNow();
 
@@ -86,6 +109,7 @@ Q_SIGNALS:
 private:
     template<typename T>
     void update(T &field, const T &value);
+    void updateDucking(const std::function<void(ducking::Settings &)> &change);
 
     static Preferences *s_instance;
     AppController *m_app = nullptr;

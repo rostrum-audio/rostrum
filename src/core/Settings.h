@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/Ducking.h"
+
 #include <QMap>
 #include <QString>
 #include <QStringList>
@@ -49,6 +51,7 @@ struct Settings
     // Mixer
     QString meterSpeed = QStringLiteral("normal"); // "low" or "normal"
     bool showDb = false;
+    ducking::Settings ducking;
     // Apps
     bool autoAssign = true;  // place recognised apps on the bus for their kind
     QStringList autoSkip;    // app keys the user took off their automatic bus

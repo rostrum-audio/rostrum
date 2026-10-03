@@ -3,8 +3,10 @@
 #include "core/AppClassifier.h"
 #include "core/AppIdentity.h"
 #include "core/DesktopEntries.h"
+#include "core/Ducking.h"
 #include "core/Model.h"
 #include "engine/NodeSpecs.h"
+#include "pw/MeterBank.h"
 
 #include <QElapsedTimer>
 #include <QHash>
@@ -123,6 +125,17 @@ public:
     void setMonoHeadphones(bool on);
     bool monoHeadphones() const { return m_monoHeadphones; }
 
+    // Auto-ducking: while the trigger is heard, the target buses are turned down. Applied as a
+    // multiplier when volumes are sent; the scene never changes. Its meter streams exist only
+    // while ducking is on (a mic trigger keeps the desktop's mic indicator lit).
+    void setDucking(const ducking::Settings &settings);
+    const ducking::Settings &ducking() const { return m_ducking; }
+    bool isDucked(const QString &busId) const; // a target bus, turned down right now
+    bool isDuckTarget(const QString &busId) const;
+    // On quit: ends ducking and any scene fade, sending every bus its scene level, so nothing is
+    // left turned down. Returns whether anything was sent.
+    bool releaseTransientLevels();
+
     // Apps
     QList<AppStream> appStreams() const;
     // always = true writes a rule into the scene; false places the app for this launch only.
@@ -164,6 +177,7 @@ Q_SIGNALS:
     void micLost(const QString &description);
     void micRestored();
     void autoSkipChanged();
+    void duckedChanged();
 
 protected:
     void scheduleReconcile();
@@ -184,6 +198,9 @@ protected:
     std::optional<Level> fadingLevel(const QString &nodeName) const;
     void cancelFade(const QString &nodeName);
     void fadeTick();
+    void reconcileDucking();
+    void duckTick();
+    QString duckTriggerBus() const; // the voice bus that triggers, if the trigger includes it
     void levelChanged();
     const pw::Node *resolveSink() const;
     const pw::Node *resolveSource() const;
@@ -256,6 +273,14 @@ protected:
     int m_fadeLength = 0;
     int m_sceneFadeMs = 0;
     QTimer m_fadeTimer;
+    ducking::Settings m_ducking;
+    ducking::Envelope m_duckEnvelope;
+    pw::MeterBank m_duckMeters;
+    QTimer m_duckTimer;
+    QElapsedTimer m_duckClock;
+    QString m_duckMicNode;   // hardware mic being metered, empty when the mic is not live
+    QString m_duckVoiceNode; // voice bus being metered
+    double m_duckGainSent = 1.0;
     bool isOwnedNode(const pw::Node &n) const;
     void destroyOnce(uint32_t id);
 

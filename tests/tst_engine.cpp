@@ -1,3 +1,4 @@
+#include "core/Ducking.h"
 #include "core/SceneStore.h"
 #include "core/SceneToml.h"
 #include "core/Settings.h"
@@ -8,6 +9,8 @@
 
 #include <QTemporaryDir>
 #include <QTest>
+
+#include <cmath>
 
 using namespace rostrum;
 
@@ -328,6 +331,124 @@ private Q_SLOTS:
         QCOMPARE(parsed("-20"), 0);
         QCOMPARE(parsed("99999"), 1000);
         QCOMPARE(parsed("'slow'"), 0);
+    }
+
+    void duckingEnvelope()
+    {
+        ducking::Settings s; // -12 dB, 100 ms attack, 800 ms release
+        ducking::Envelope env;
+        const double speech = 0.1; // -20 dBFS
+        const double hiss = 0.005; // -46 dBFS, below the threshold
+        auto near = [](double a, double b) { return qAbs(a - b) < 1e-6; };
+
+        for (int i = 0; i < 100; ++i) {
+            env.advance(hiss, 20, s);
+        }
+        QCOMPARE(env.gainDb(), 0.0);
+        QCOMPARE(env.gain(), 1.0);
+        QVERIFY(!env.ducked());
+
+        // Attack: 12 dB over 100 ms.
+        env.advance(speech, 50, s);
+        QVERIFY(near(env.gainDb(), -6.0));
+        QVERIFY(env.ducked());
+        env.advance(speech, 50, s);
+        QVERIFY(near(env.gainDb(), -12.0));
+        // Never past the amount, however late the tick.
+        env.advance(speech, 1000, s);
+        QVERIFY(near(env.gainDb(), -12.0));
+        QVERIFY(qAbs(env.gain() - std::pow(10.0, -12.0 / 20.0)) < 1e-9);
+
+        // Hold: a pause between words keeps it down.
+        env.advance(hiss, 300, s);
+        QVERIFY(near(env.gainDb(), -12.0));
+        env.advance(speech, 20, s);
+        env.advance(hiss, ducking::kHoldMs - 20, s);
+        QVERIFY(near(env.gainDb(), -12.0));
+        // Release: back over 800 ms once the hold has run out.
+        env.advance(hiss, 20, s);
+        env.advance(hiss, 400, s);
+        QVERIFY2(env.gainDb() > -6.5 && env.gainDb() < -5.5, qPrintable(QString::number(env.gainDb())));
+        env.advance(hiss, 5000, s);
+        QCOMPARE(env.gainDb(), 0.0);
+        QVERIFY(!env.ducked());
+
+        env.advance(speech, 20, s);
+        QVERIFY(env.gainDb() < 0.0);
+        env.reset();
+        QCOMPARE(env.gainDb(), 0.0);
+        QCOMPARE(env.gain(), 1.0);
+    }
+
+    void duckingSettings()
+    {
+        const Settings d = defaultSettings();
+        QVERIFY(!d.ducking.enabled);
+        QCOMPARE(d.ducking.trigger, ducking::Trigger::Mic);
+        QCOMPARE(d.ducking.buses, QStringList{QStringLiteral("music")});
+        QCOMPARE(d.ducking.amountDb, -12);
+        QCOMPARE(d.ducking.attackMs, 100);
+        QCOMPARE(d.ducking.releaseMs, 800);
+
+        Settings s = d;
+        s.ducking.enabled = true;
+        s.ducking.trigger = ducking::Trigger::Either;
+        s.ducking.buses = {QStringLiteral("music"), QStringLiteral("alerts")};
+        s.ducking.amountDb = -18;
+        s.ducking.attackMs = 50;
+        s.ducking.releaseMs = 1500;
+        QCOMPARE(parseSettings(serializeSettings(s)), s);
+
+        const Settings odd = parseSettings(QStringLiteral(
+            "[ducking]\nenabled = true\ntrigger = 'loud'\n"
+            "buses = ['music', 'mic', 'music', 'Bad Id', 'game']\n"
+            "amount_db = -100\nattack_ms = 'fast'\nrelease_ms = 1e9\n"));
+        QVERIFY(odd.ducking.enabled);
+        QCOMPARE(odd.ducking.trigger, ducking::Trigger::Mic);
+        QCOMPARE(odd.ducking.buses, (QStringList{QStringLiteral("music"), QStringLiteral("game")}));
+        QCOMPARE(odd.ducking.amountDb, -24);
+        QCOMPARE(odd.ducking.attackMs, 100);
+        QCOMPARE(odd.ducking.releaseMs, 3000);
+        QCOMPARE(parseSettings(QStringLiteral("[ducking]\namount_db = -10.6\n")).ducking.amountDb, -9);
+        QCOMPARE(parseSettings(QStringLiteral("[ducking]\nbuses = []\n")).ducking.buses, QStringList());
+    }
+
+    void duckingTargetsAndSessionOnly()
+    {
+        QTemporaryDir dir;
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        engine::SceneManager scenes(&engine, dir.path());
+        scenes.load(QStringLiteral("Live"));
+        const QString music = QStringLiteral("music");
+        const QString voice = QStringLiteral("voice");
+
+        QVERIFY(!engine.isDuckTarget(music)); // off by default
+        ducking::Settings s;
+        s.enabled = true;
+        s.buses = {music, voice, QStringLiteral("mic"), QStringLiteral("gone")};
+        engine.setDucking(s);
+        QCOMPARE(engine.ducking().buses, (QStringList{music, voice, QStringLiteral("gone")}));
+        QVERIFY(engine.isDuckTarget(music));
+        QVERIFY(engine.isDuckTarget(voice));
+        QVERIFY(!engine.isDuckTarget(QStringLiteral("mic")));
+        QVERIFY(!engine.isDuckTarget(QStringLiteral("gone")));
+        QVERIFY(!engine.isDuckTarget(QStringLiteral("game")));
+        // The bus that triggers is never ducked by itself.
+        s.trigger = ducking::Trigger::Voice;
+        engine.setDucking(s);
+        QVERIFY(!engine.isDuckTarget(voice));
+        s.trigger = ducking::Trigger::Either;
+        engine.setDucking(s);
+        QVERIFY(!engine.isDuckTarget(voice));
+        QVERIFY(engine.isDuckTarget(music));
+
+        // Nothing is heard without an audio server, so nothing is ducked or released.
+        QVERIFY(!engine.isDucked(music));
+        QVERIFY(!engine.releaseTransientLevels());
+        // Ducking is a setting, never a level.
+        QVERIFY(!scenes.dirty());
+        QVERIFY(!toml_io::serializeScene(engine.scene()).contains(QStringLiteral("duck")));
     }
 
     void micFallbackIsOffByDefault()
