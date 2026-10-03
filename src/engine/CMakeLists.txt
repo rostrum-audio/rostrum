@@ -1,5 +1,6 @@
 add_library(rostrum_engine STATIC
     Engine.cpp Engine.h
+    EngineMix.cpp
     NodeSpecs.cpp NodeSpecs.h
 )
 

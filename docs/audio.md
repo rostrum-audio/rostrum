@@ -45,6 +45,63 @@ crash would cut the stream. Null-sink adapters plus explicit links give the same
 processing inside the PipeWire daemon. Bus renames change the description only after
 "Rebuild virtual devices", because a live node's `node.description` is fixed at creation.
 
+## Destinations and links
+
+Rostrum creates links port by port with `link-factory` (`object.linger = true`), matched by
+`audio.channel`. The desired link set is recomputed on every graph change:
+
+| From | To | When |
+|------|----|------|
+| `rostrum.<bus>` monitor | `rostrum.phones` | bus destination is Phones or Both |
+| `rostrum.<bus>` monitor | `rostrum.stream` | bus destination is Stream or Both |
+| `rostrum.phones` monitor | headphone device | always |
+| hardware mic | `rostrum.mic` | always (mute/destination act on the node, not the link) |
+| hardware mic | `rostrum.sidetone` | always |
+| `rostrum.sidetone` monitor | `rostrum.phones` | always (muted unless sidetone is on) |
+
+Rostrum only removes links it manages: links that start at a Rostrum node and end at a Rostrum node
+or a hardware sink, and links into `rostrum.mic` / `rostrum.sidetone`. App streams going into a bus
+and OBS capturing a Rostrum monitor are never touched. A link you patch by hand from a Rostrum node
+to a hardware sink will be removed.
+
+Ports of a new device arrive one by one, so a node is only linked once it has as many ports as its
+channel count. Otherwise a half-enumerated stereo device would briefly look mono.
+
+### Volumes, mute and solo
+
+Fader positions are perceptual: linear gain = position³, as in pavucontrol. They are sent as
+`SPA_PROP_channelVolumes` and `SPA_PROP_mute` on the node's `Props` param.
+
+- Bus node: fader, muted if the bus is muted or dimmed by solo.
+- `rostrum.phones` / `rostrum.stream`: Master Phones / Master Stream. These multiply every bus send.
+  "Mute all playback to stream" mutes `rostrum.stream`.
+- `rostrum.mic`: mic gain (0 to 150%, 100% = 0 dB), muted if the mic is muted or the mic
+  destination does not include Stream.
+- `rostrum.sidetone`: sidetone fader, muted unless the mic destination includes Phones, the mic is
+  live, and the fader is above zero.
+
+If something else changes a Rostrum node's volume (WirePlumber's state restore, another mixer),
+Rostrum re-applies the scene value at most once a second, so two tools cannot get into a loop.
+
+### Mic channel handling
+
+`rostrum.mic` and `rostrum.sidetone` are mono. Every channel of the hardware mic is summed into
+them, because many USB interfaces expose a mono mic as stereo with signal on one side only. A true
+dual-mono feed comes out 6 dB hotter, which the mic gain fader covers. A virtual source built from a
+null sink (Easy Effects Source, for example) reports its capture ports as `port.monitor = true`.
+Rostrum accepts those ports when a non-sink node has no other outputs.
+
+### Devices
+
+The headphone target is the saved `node.name` if present, otherwise the system default sink
+(`default.audio.sink` metadata), otherwise the highest `priority.session` sink. Rostrum nodes are
+never candidates. The mic works the same way with sources.
+
+If the saved headphones disappear, the scene is held unchanged. `rostrum.phones` is relinked to the
+fallback, the UI shows a banner, and one desktop notification is sent ("Headphones disconnected,
+scene held"). When a node with the saved `node.name` returns, Rostrum relinks to it. The saved
+device is never rewritten by a fallback.
+
 ## Moving app streams
 
 An app stream is moved by setting `target.object` in the `default` metadata object for the stream's

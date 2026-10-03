@@ -50,14 +50,20 @@ QList<Port> sortedPorts(QList<Port> ports)
 QList<Port> Graph::outputPorts(uint32_t nodeId) const
 {
     const Node *n = node(nodeId);
-    const bool wantMonitor = n && n->isSink();
-    QList<Port> out;
+    const bool sink = n && n->isSink();
+    QList<Port> plain;
+    QList<Port> monitors;
     for (const auto &p : ports) {
-        if (p.nodeId == nodeId && p.output && p.monitor == wantMonitor) {
-            out.append(p);
+        if (p.nodeId == nodeId && p.output) {
+            (p.monitor ? monitors : plain).append(p);
         }
     }
-    return sortedPorts(out);
+    // Sinks carry their audio out on monitor ports. Virtual sources built from a null sink also
+    // flag their capture ports as monitors, so fall back to those when there is nothing else.
+    if (sink) {
+        return sortedPorts(monitors);
+    }
+    return sortedPorts(plain.isEmpty() ? monitors : plain);
 }
 
 QList<Port> Graph::inputPorts(uint32_t nodeId) const

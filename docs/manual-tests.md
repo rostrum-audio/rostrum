@@ -38,4 +38,60 @@ Use a tone file (any 30–60 s WAV) and target a bus first, so the test is silen
    again (previous target restored).
 6. Bus re-creation: with the rule active, run `$B --teardown`, then `$B --rule name:pw-play=game`.
    The stream is moved onto the new `rostrum.game` as soon as it appears, without restarting
-   pw-play.
+   pw-play. While the bus is gone, WirePlumber falls back to the default sink (Rostrum never sets
+   `node.dont-fallback`).
+
+## 3. Destinations, solo, mic, sidetone (scripted)
+
+`tests/manual/graph-checks.sh` runs these against a fake headset (`rostrumtest.headset`, a null
+sink) and a fake mic (`rostrumtest.mic`, a virtual source fed by a tone), so nothing reaches real
+speakers. RMS is computed from `pw-record` captures. Expected output on the development machine:
+
+```
+game=both  headset: 0.0424  stream mix: 0.0424
+game=phones  headset: 0.0424  stream mix: 0.0000
+game=stream  headset: 0.0000  stream mix: 0.0424
+solo voice  headset: 0.0000  stream mix: 0.0000
+mic live:  Rostrum Mic: 0.0424  stream mix: 0.0000  headset (sidetone off): 0.0000
+    rostrumtest.mic:capture_MONO
+      |-> rostrum.sidetone:playback_MONO
+      |-> rostrum.mic:input_MONO
+mic muted: Rostrum Mic: 0.0000
+sidetone:  headset: 0.0217  stream mix: 0.0000
+```
+
+Any non-zero value is signal; 0.0000 is digital silence. Sidetone at 0.8 reads 0.8³ × 0.0424.
+
+## 4. Mic path (explicit, real hardware)
+
+A doubled voice is the most likely real-world failure: OBS captures the headset mic directly and
+also captures `Rostrum Mic`. Run this with the real mic and OBS.
+
+1. **Graph.** Start Rostrum with the real mic selected on the Devices page. `pw-link -l` shows the
+   hardware source's capture ports (for example
+   `alsa_input.usb-…:capture_FL` / `capture_FR`) linked into `rostrum.mic:input_MONO`, and into
+   `rostrum.sidetone:playback_MONO`. Nothing else from Rostrum is linked to the hardware source.
+2. **Signal.** Speak. `pw-record --target rostrum.mic mic.wav` has signal. Mute the mic from the
+   header: the same capture is silent. Move the mic gain fader: the level changes.
+3. **Not in the stream mix.** With nothing playing, speak and capture the stream mix:
+   `pw-record -P '{ stream.capture.sink = true }' --target rostrum.stream s.wav`. It must be
+   silent. The mic reaches OBS only through `Rostrum Mic`.
+4. **OBS captures `Rostrum Mic` only.**
+   1. In OBS → Settings → Audio, set every global "Mic/Auxiliary Audio" device to Disabled.
+   2. Add an *Audio Capture (PipeWire)* source (or *Audio Input Capture*) and pick
+      **Rostrum Mic**. Its meter in the OBS Audio Mixer moves when you speak.
+   3. Make sure no other source captures the headset mic directly (no second Audio Input Capture
+      on the hardware device, and no desktop-wide capture).
+   4. Speak with no playback: exactly one mic-driven meter moves in the OBS Audio Mixer. If two
+      move, the voice will be doubled on stream. Remove the extra capture.
+5. **Sidetone.** Turn sidetone on and raise its fader: you hear yourself in the headphones. The
+   stream-mix capture from step 3 is still silent.
+
+## 5. Headphones unplugged
+
+1. Run `$B --headphones <your headset node.name>` and unplug the headset (or, with fakes, destroy
+   `rostrumtest.headset` with `pw-cli destroy <id>`).
+2. It prints `Headphones disconnected (…), scene held. Falling back to <default sink>`, and
+   `rostrum.phones` is linked to the default sink.
+3. Plug it back in (or recreate the fake). It prints `Headphones back`, `rostrum.phones` is linked
+   to the headset again, and the fallback links are removed. The scene was never modified.

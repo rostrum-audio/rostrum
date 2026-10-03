@@ -34,6 +34,9 @@ Engine::Engine(pw::PwContext *pw, QObject *parent)
 void Engine::setScene(const Scene &scene)
 {
     m_scene = scene;
+    m_soloed.clear();
+    Q_EMIT soloChanged();
+    Q_EMIT levelsChanged();
     Q_EMIT sceneChanged();
     scheduleReconcile();
 }
@@ -130,7 +133,14 @@ void Engine::reconcile()
         return;
     }
     const bool wasReady = mixReady();
+    const auto &g = m_pw->graph();
+    for (auto it = m_pendingDestroy.begin(); it != m_pendingDestroy.end();) {
+        it = (g.nodes.contains(*it) || g.links.contains(*it)) ? std::next(it) : m_pendingDestroy.erase(it);
+    }
     reconcileNodes();
+    reconcileDevices();
+    reconcileLinks();
+    reconcileVolumes();
     reconcileRoutes();
     if (wasReady != mixReady()) {
         if (mixReady()) {

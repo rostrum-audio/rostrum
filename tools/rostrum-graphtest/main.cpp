@@ -48,7 +48,18 @@ int main(int argc, char **argv)
     QCommandLineOption unassignAfter(QStringLiteral("unassign-after"),
                                      QStringLiteral("Unassign every app after N seconds."), QStringLiteral("N"));
     QCommandLineOption listApps(QStringLiteral("list-apps"), QStringLiteral("Print app streams once ready."));
-    parser.addOptions({seconds, teardown, rule, session, unassignAfter, listApps});
+    QCommandLineOption dest(QStringLiteral("dest"), QStringLiteral("Set a bus destination, e.g. game=phones."),
+                            QStringLiteral("bus=phones|stream|both"));
+    QCommandLineOption headphones(QStringLiteral("headphones"), QStringLiteral("Headphone sink node.name."),
+                                  QStringLiteral("node"));
+    QCommandLineOption mic(QStringLiteral("mic"), QStringLiteral("Mic source node.name."), QStringLiteral("node"));
+    QCommandLineOption micMuted(QStringLiteral("mic-muted"), QStringLiteral("Start with the mic muted."));
+    QCommandLineOption sidetone(QStringLiteral("sidetone"), QStringLiteral("Sidetone volume 0..1 (turns it on)."),
+                                QStringLiteral("v"));
+    QCommandLineOption solo(QStringLiteral("solo"), QStringLiteral("Solo a bus (session only)."),
+                            QStringLiteral("bus"));
+    parser.addOptions({seconds, teardown, rule, session, unassignAfter, listApps, dest, headphones, mic, micMuted,
+                       sidetone, solo});
     parser.process(app);
 
     pw::PwContext pw;
@@ -79,6 +90,22 @@ int main(int argc, char **argv)
                 QCoreApplication::quit();
             });
             return;
+        }
+        engine.setHeadphoneDevice(parser.value(headphones));
+        engine.setMicDevice(parser.value(mic));
+        for (const auto &spec : parser.values(dest)) {
+            const auto parts = spec.split(QLatin1Char('='));
+            if (const auto d = destinationFromString(parts.value(1))) {
+                engine.setBusDestination(parts.value(0), *d);
+            }
+        }
+        engine.setMicMuted(parser.isSet(micMuted));
+        if (parser.isSet(sidetone)) {
+            engine.setSidetoneEnabled(true);
+            engine.setSidetoneVolume(parser.value(sidetone).toDouble());
+        }
+        for (const auto &bus : parser.values(solo)) {
+            engine.setSolo(bus, true);
         }
         engine.createMix();
         auto apply = [&](const QStringList &specs, bool always) {
@@ -123,6 +150,14 @@ int main(int argc, char **argv)
         } else if (!engine.mixError().isEmpty()) {
             QTextStream(stderr) << "Mix error: " << engine.mixError() << "\n";
         }
+    });
+
+    QObject::connect(&engine, &engine::Engine::headphonesLost, &app, [&](const QString &desc) {
+        QTextStream(stdout) << "Headphones disconnected (" << desc << "), scene held. Falling back to "
+                            << engine.resolvedSinkName() << "\n";
+    });
+    QObject::connect(&engine, &engine::Engine::headphonesRestored, &app, [&] {
+        QTextStream(stdout) << "Headphones back: " << engine.resolvedSinkName() << "\n";
     });
 
     if (const int s = parser.value(seconds).toInt(); s > 0) {
