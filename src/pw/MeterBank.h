@@ -20,7 +20,9 @@ public:
     explicit MeterBank(PwContext *pw, QObject *parent = nullptr);
     ~MeterBank() override;
 
-    // Node names to meter. Streams exist only while active and the node is in the graph.
+    // Nodes to meter: a node.name, or "#<id>" for app streams, whose names are not unique.
+    // Playback streams are read from their own output. Meter streams exist only while active
+    // and the node is in the graph.
     void setTargets(const QStringList &nodeNames);
     void setActive(bool active);
     bool isActive() const { return m_active; }

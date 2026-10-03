@@ -30,6 +30,12 @@ Scene sample()
     r.volume = 0.7;
     r.lastSeen = QDateTime(QDate(2026, 10, 2), QTime(21, 30, 5), QTimeZone::UTC);
     s.rules.append(r);
+    AppRule wine;
+    wine.match = QStringLiteral("wine64-preloader");
+    wine.key = MatchKey::Binary;
+    wine.busId = QStringLiteral("game");
+    wine.label = QStringLiteral("Elden Ring");
+    s.rules.append(wine);
     s.rules.append({QStringLiteral("Firefox"), MatchKey::Name, QStringLiteral("music")});
     return s;
 }
@@ -49,6 +55,8 @@ private Q_SLOTS:
         QVERIFY2(back.has_value(), qPrintable(err));
         QCOMPARE(*back, s);
         QCOMPARE(back->rules.first().lastSeen, s.rules.first().lastSeen);
+        QCOMPARE(back->rules.at(1).label, QStringLiteral("Elden Ring"));
+        QVERIFY(!text.contains(QStringLiteral("label = \"\"")));
         QCOMPARE(back->bus(QStringLiteral("alerts"))->name, QStringLiteral("Alerts \"loud\" = yes"));
         // Serializing the parsed scene gives identical text (stable output).
         QCOMPARE(toml_io::serializeScene(*back), text);

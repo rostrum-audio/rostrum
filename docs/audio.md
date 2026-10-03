@@ -181,10 +181,21 @@ node's serial. Playback buses and the masters are read from their monitor
 peak sample in an atomic. The UI takes it every 40 ms (80 ms with low meter speed), falls off at
 20 dB/s and holds a clip mark for 1.5 s.
 
-Meter streams exist only while the Mixer page is visible and the window is shown. They carry
+The Apps page meters each running app the same way, by capturing the app's own playback stream
+(targeted by node id, since app node names repeat). WirePlumber links a capture stream to a
+playback stream's output ports without moving the app, so the app keeps playing where it was.
+The Devices page and the wizard meter every input.
+
+Meter streams exist only while the page that shows them is visible and the window is shown. They carry
 `node.dont-fallback`, `node.dont-move` and `node.dont-reconnect` so a meter never wanders onto
 another device. These keys are allowed here because meters are Rostrum's own internal streams
 (`rostrum.internal = true`). They never appear in app rules.
+
+## Test tone
+
+The Devices page and the wizard play a one-second 440 Hz tone at −14 dBFS on the chosen sink
+through an internal `pw_stream` (`rostrum-test-tone`, `rostrum.internal = true`), so the router
+never moves it onto a bus. `rostrum-graphtest --tone <sink>` plays the same tone from a terminal.
 
 ## Files
 
@@ -194,7 +205,8 @@ All configuration is TOML under `$XDG_CONFIG_HOME/rostrum/` (default `~/.config/
   `node.name`, shortcuts, window size, last page.
 - `scenes/<slug>.toml`: one scene per file. The `name` inside the file wins over the file name.
   A scene holds master levels, sidetone level, the bus list (id, name, color, kind, volume, mute,
-  destination) and app rules (match, key, bus, per-app volume, last seen).
+  destination) and app rules (match, key, bus, per-app volume, an optional label for apps that
+  report no name, last seen).
 - Export writes every scene into one TOML file with a `[[scene]]` array. Import never overwrites:
   clashing names get a numeric suffix.
 

@@ -1,6 +1,10 @@
 #include "app/AppController.h"
+#include "app/Apps.h"
+#include "app/Devices.h"
 #include "app/Logging.h"
 #include "app/Mixer.h"
+#include "app/Preferences.h"
+#include "app/Scenes.h"
 #include "core/Paths.h"
 
 #include <KAboutData>
@@ -48,6 +52,10 @@ int main(int argc, char *argv[])
     rostrum::app::Mixer mixer(&controller, nullptr);
     QObject::connect(&controller, &rostrum::app::AppController::settingsChanged, &mixer,
                      &rostrum::app::Mixer::notifySettingsChanged);
+    rostrum::app::Apps apps(&controller, nullptr);
+    rostrum::app::Scenes scenes(&controller, nullptr);
+    rostrum::app::Devices devices(&controller, nullptr);
+    rostrum::app::Preferences preferences(&controller, nullptr);
 
     QQmlApplicationEngine engine;
     KLocalization::setupLocalizedContext(&engine);

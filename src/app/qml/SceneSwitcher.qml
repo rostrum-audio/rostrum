@@ -73,9 +73,22 @@ QQC2.ToolButton {
             onTriggered: App.saveScene()
         }
         QQC2.MenuItem {
+            text: i18nc("@action:inmenu", "Save Scene As…")
+            icon.name: "document-save-as"
+            onTriggered: saveAsDialog.openWith(Scenes.uniqueName(App.currentScene))
+        }
+        QQC2.MenuItem {
             text: i18nc("@action:inmenu", "Manage Scenes…")
             icon.name: "view-media-playlist"
             onTriggered: button.manageRequested()
         }
+    }
+
+    SceneNameDialog {
+        id: saveAsDialog
+        parent: QQC2.Overlay.overlay
+        title: i18nc("@title:dialog", "Save Scene As")
+        except: ""
+        onNameChosen: name => Scenes.saveAs(name)
     }
 }

@@ -1,5 +1,258 @@
-PlaceholderPage {
-    title: i18nc("@title", "Scenes")
-    iconName: "view-media-playlist"
-    explanation: i18n("Switch scenes from the header for now.")
+import QtQuick
+import QtQuick.Controls as QQC2
+import QtQuick.Dialogs as Dialogs
+import QtQuick.Layouts
+import QtCore
+import org.kde.kirigami as Kirigami
+import Rostrum
+
+// Scene management. Selecting a row never loads it, so browsing cannot wreck a live mix; Load
+// does. The header switcher is the live control.
+QQC2.Pane {
+    id: page
+
+    padding: Kirigami.Units.largeSpacing
+    focusPolicy: Qt.NoFocus
+
+    property string selectedName: App.currentScene
+    readonly property var selected: Scenes.rows.find(r => r.name === selectedName) ?? null
+
+    Connections {
+        target: Scenes
+        function onChanged() {
+            if (!Scenes.rows.some(r => r.name === page.selectedName)) {
+                page.selectedName = App.currentScene
+            }
+        }
+    }
+
+    ColumnLayout {
+        anchors.fill: parent
+        spacing: Kirigami.Units.largeSpacing
+
+        Kirigami.ActionToolBar {
+            Layout.fillWidth: true
+            actions: [
+                Kirigami.Action {
+                    text: i18nc("@action:button", "Load")
+                    icon.name: "media-playback-start"
+                    enabled: page.selected !== null && !page.selected.isCurrent
+                    onTriggered: applicationWindow().requestSceneSwitch(page.selectedName)
+                },
+                Kirigami.Action {
+                    text: i18nc("@action:button", "New")
+                    icon.name: "list-add"
+                    onTriggered: {
+                        newDialog.except = ""
+                        newDialog.openWith(Scenes.uniqueName(i18nc("default name for a new scene", "New scene")))
+                    }
+                },
+                Kirigami.Action {
+                    text: i18nc("@action:button", "Duplicate")
+                    icon.name: "edit-copy"
+                    enabled: page.selected !== null
+                    onTriggered: {
+                        const name = Scenes.duplicate(page.selectedName)
+                        if (name) {
+                            page.selectedName = name
+                        }
+                    }
+                },
+                Kirigami.Action {
+                    text: i18nc("@action:button", "Rename")
+                    icon.name: "edit-rename"
+                    enabled: page.selected !== null
+                    onTriggered: {
+                        renameDialog.except = page.selectedName
+                        renameDialog.openWith(page.selectedName)
+                    }
+                },
+                Kirigami.Action {
+                    text: i18nc("@action:button", "Set as Default")
+                    icon.name: "favorite"
+                    enabled: page.selected !== null && !page.selected.isDefault
+                    onTriggered: Scenes.setDefault(page.selectedName)
+                },
+                Kirigami.Action {
+                    text: i18nc("@action:button", "Delete")
+                    icon.name: "edit-delete"
+                    enabled: page.selected !== null && Scenes.rows.length > 1
+                    onTriggered: deleteDialog.open()
+                },
+                Kirigami.Action {
+                    separator: true
+                },
+                Kirigami.Action {
+                    text: i18nc("@action:button", "Export…")
+                    icon.name: "document-export"
+                    displayHint: Kirigami.DisplayHint.AlwaysHide
+                    onTriggered: exportDialog.open()
+                },
+                Kirigami.Action {
+                    text: i18nc("@action:button", "Import…")
+                    icon.name: "document-import"
+                    displayHint: Kirigami.DisplayHint.AlwaysHide
+                    onTriggered: importDialog.open()
+                }
+            ]
+        }
+
+        QQC2.ScrollView {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            ListView {
+                id: list
+                model: Scenes.rows
+                clip: true
+                keyNavigationEnabled: true
+                currentIndex: Scenes.rows.findIndex(r => r.name === page.selectedName)
+                Accessible.name: i18nc("@title", "Scenes")
+
+                delegate: QQC2.ItemDelegate {
+                    id: row
+                    required property var modelData
+                    required property int index
+                    readonly property color textColor: highlighted ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
+                    width: ListView.view.width
+                    highlighted: ListView.isCurrentItem
+                    onClicked: {
+                        page.selectedName = modelData.name
+                        list.forceActiveFocus()
+                    }
+                    onDoubleClicked: applicationWindow().requestSceneSwitch(modelData.name)
+                    Accessible.name: modelData.name
+                    Accessible.description: [modelData.isCurrent ? i18n("Live now") : "",
+                                             modelData.isDefault ? i18n("Default on launch") : "",
+                                             modelData.summary].filter(s => s).join(", ")
+
+                    contentItem: RowLayout {
+                        spacing: Kirigami.Units.largeSpacing
+                        Kirigami.Icon {
+                            source: row.modelData.isDefault ? "rating" : ""
+                            color: row.textColor
+                            isMask: true
+                            implicitWidth: Kirigami.Units.iconSizes.small
+                            implicitHeight: implicitWidth
+                        }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 0
+                            RowLayout {
+                                QQC2.Label {
+                                    text: row.modelData.name
+                                    color: row.textColor
+                                    font.weight: Font.DemiBold
+                                    elide: Text.ElideRight
+                                    Layout.fillWidth: true
+                                }
+                                QQC2.Label {
+                                    visible: row.modelData.isCurrent
+                                    text: App.sceneDirty ? i18nc("@info scene state", "Live, unsaved fader moves")
+                                                         : i18nc("@info scene state", "Live")
+                                    font.pointSize: Kirigami.Theme.smallFont.pointSize
+                                    font.weight: Font.DemiBold
+                                    color: row.highlighted ? row.textColor : Kirigami.Theme.positiveTextColor
+                                }
+                                QQC2.Label {
+                                    visible: row.modelData.isDefault
+                                    text: i18nc("@info scene state", "Default")
+                                    color: row.textColor
+                                    font: Kirigami.Theme.smallFont
+                                    opacity: 0.7
+                                }
+                            }
+                            QQC2.Label {
+                                text: row.modelData.summary
+                                color: row.textColor
+                                font: Kirigami.Theme.smallFont
+                                opacity: 0.7
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                            }
+                        }
+                    }
+                }
+
+                Keys.onReturnPressed: applicationWindow().requestSceneSwitch(page.selectedName)
+                onCurrentIndexChanged: if (currentIndex >= 0 && currentIndex < Scenes.rows.length) {
+                    page.selectedName = Scenes.rows[currentIndex].name
+                }
+            }
+        }
+
+        QQC2.Label {
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            opacity: 0.7
+            font: Kirigami.Theme.smallFont
+            text: i18n("Selecting a scene does not change your mix. Press Load, or switch from the header. The default scene loads when Rostrum starts.")
+        }
+    }
+
+    SceneNameDialog {
+        id: newDialog
+        title: i18nc("@title:dialog", "New Scene")
+        actionText: i18nc("@action:button", "Create")
+        onNameChosen: name => {
+            const created = Scenes.createScene(name)
+            if (created) {
+                page.selectedName = created
+            }
+        }
+    }
+
+    SceneNameDialog {
+        id: renameDialog
+        title: i18nc("@title:dialog", "Rename Scene")
+        actionText: i18nc("@action:button", "Rename")
+        onNameChosen: name => {
+            const renamed = Scenes.rename(renameDialog.except, name)
+            if (renamed) {
+                page.selectedName = renamed
+            }
+        }
+    }
+
+    Kirigami.PromptDialog {
+        id: deleteDialog
+        title: i18nc("@title:dialog", "Delete “%1”?", page.selectedName)
+        subtitle: page.selected && page.selected.isCurrent
+                  ? i18n("This is the live scene. Rostrum switches to the default scene after deleting it.")
+                  : i18n("The scene file is removed. Export first if you want a backup.")
+        standardButtons: Kirigami.Dialog.NoButton
+        customFooterActions: [
+            Kirigami.Action {
+                text: i18nc("@action:button", "Delete")
+                icon.name: "edit-delete"
+                onTriggered: {
+                    Scenes.remove(page.selectedName)
+                    deleteDialog.close()
+                }
+            },
+            Kirigami.Action {
+                text: i18nc("@action:button", "Cancel")
+                icon.name: "dialog-cancel"
+                onTriggered: deleteDialog.close()
+            }
+        ]
+    }
+
+    Dialogs.FileDialog {
+        id: exportDialog
+        title: i18nc("@title:window", "Export Scenes")
+        fileMode: Dialogs.FileDialog.SaveFile
+        defaultSuffix: "toml"
+        nameFilters: [i18nc("file filter", "Rostrum scenes (*.toml)")]
+        currentFolder: StandardPaths.writableLocation(StandardPaths.DocumentsLocation)
+        onAccepted: Scenes.exportTo(selectedFile)
+    }
+
+    Dialogs.FileDialog {
+        id: importDialog
+        title: i18nc("@title:window", "Import Scenes")
+        fileMode: Dialogs.FileDialog.OpenFile
+        currentFolder: StandardPaths.writableLocation(StandardPaths.DocumentsLocation)
+        nameFilters: [i18nc("file filter", "Rostrum scenes (*.toml)"), i18nc("file filter", "All files (*)")]
+        onAccepted: Scenes.importFrom(selectedFile)
+    }
 }

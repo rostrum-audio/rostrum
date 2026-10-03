@@ -136,3 +136,37 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
    nothing is soloed, and `rg -i solo ~/.config/rostrum` finds nothing.
 6. Using only the keyboard, tab to a fader and press Page Up, M, S, 1, 2 and 3. Each key does what
    its tooltip says, and the focus ring is always visible.
+
+## 9. First-run wizard
+
+1. Move `~/.config/rostrum` aside and tear the buses down (`$B --teardown`). Start Rostrum.
+2. The wizard shows Welcome with the diagram. `wpctl status` shows no Rostrum nodes yet.
+3. Start. On Headphones, press Test on your headset: you hear a short tone there and nowhere
+   else. Pick it. The star moves to it.
+4. Next. On Mic, speak: only your mic's meter moves. Press Mute Mic: the header button turns
+   red too. Unmute.
+5. Next. The six buses show their destinations (Music → Stream, the rest Both, Mic → Stream).
+   Press Create Mix: a spinner shows, then the Mixer opens. `~/.config/rostrum/scenes/live.toml`
+   exists and `settings.toml` has `wizard_done = true`.
+6. Repeat from step 1, but press Skip on Welcome: the Mixer opens and the nodes exist anyway.
+
+## 10. Apps, Scenes, Devices, OBS and Settings pages
+
+1. Apps: play Firefox and Discord. Each shows with its binary and "matched by name". Assign
+   Firefox to Music: the chip says Music and Always is on, and a rule appears on the right.
+   Turn Always off: the rule disappears but Firefox stays on Music until it quits.
+2. Apps: drag Firefox's volume slider. The row does not jump or reset while you drag.
+   Type "disc" in the search box: only Discord rows remain in both lists.
+3. Apps: run `pw-play -P '{ application.name = "ALSA plug-in [x]" application.process.binary = "mygame" }' file.wav`.
+   A banner offers to name it. Name it "My Game" on Game: the rule shows "My Game → Game",
+   matched by binary.
+4. Scenes: New, Duplicate, Rename and Set as Default all update the list. Selecting a row does
+   not change the mix; Load does. Export, delete a scene, then Import: it comes back, with
+   " 2" added if the name is taken.
+5. Devices: the input meters move only while the page is open (`pw-cli ls Node | rg rostrum-meter`
+   lists them only then). Picking another output moves Rostrum's headphone mix there.
+6. OBS: both node names show a check mark. Copy puts "Rostrum Stream Mix" on the clipboard.
+   With the nodes torn down, the page offers Create Mix.
+7. Settings: turn off "Scroll to adjust faders": the wheel no longer moves faders. Turn on
+   "Show dB readouts": every strip prints its level. Rebind "Mute mic" and restart: the new
+   binding is kept in `settings.toml`.

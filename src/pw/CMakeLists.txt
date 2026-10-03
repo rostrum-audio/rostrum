@@ -2,6 +2,7 @@ add_library(rostrum_pw STATIC
     Graph.cpp Graph.h
     MeterBank.cpp MeterBank.h
     PwContext.cpp PwContext.h
+    TestTone.cpp TestTone.h
 )
 
 target_include_directories(rostrum_pw PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)

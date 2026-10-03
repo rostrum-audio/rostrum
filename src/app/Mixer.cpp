@@ -12,12 +12,6 @@
 namespace rostrum::app {
 
 namespace {
-constexpr int kNormalIntervalMs = 40; // 25 fps
-constexpr int kLowIntervalMs = 80;
-constexpr qint64 kClipHoldMs = 1500;
-constexpr double kFalloffPerSecond = 20.0 / -volume::kMeterFloorDb; // 20 dB/s
-constexpr float kClipLinear = 0.999f;
-
 int destinationIndex(Destination d)
 {
     switch (d) {
@@ -219,7 +213,8 @@ void Mixer::setMetersActive(bool active)
     m_meters.setActive(active);
     if (active) {
         m_lastTick = m_clock.elapsed();
-        m_timer.start(m_app->settings().meterSpeed == QLatin1String("low") ? kLowIntervalMs : kNormalIntervalMs);
+        m_timer.start(m_app->settings().meterSpeed == QLatin1String("low") ? meters::kLowIntervalMs
+                                                                           : meters::kNormalIntervalMs);
     } else {
         m_timer.stop();
         m_busMeters.clear();
@@ -231,20 +226,6 @@ void Mixer::setMetersActive(bool active)
         Q_EMIT metersChanged();
     }
     Q_EMIT metersActiveChanged();
-}
-
-void Mixer::advance(MeterState &state, float linearPeak, bool frozen, double dt, qint64 now)
-{
-    if (frozen) {
-        state = {};
-        return;
-    }
-    const double target = volume::meterFraction(linearPeak);
-    state.fraction = std::max(target, state.fraction - kFalloffPerSecond * dt);
-    if (linearPeak >= kClipLinear) {
-        state.clipUntil = now + kClipHoldMs;
-    }
-    state.clip = now < state.clipUntil;
 }
 
 void Mixer::tick()
@@ -262,11 +243,11 @@ void Mixer::tick()
         }
         const QString node = b->isInput() ? QString::fromLatin1(engine::kMicNode) : b->nodeName();
         MeterState &st = m_busMeters[id];
-        advance(st, m_meters.takePeak(node), b->muted || m_engine->dimmedBySolo(id), dt, now);
+        meters::advance(st, m_meters.takePeak(node), b->muted || m_engine->dimmedBySolo(id), dt, now);
         m_model.setMeter(row, st.fraction, st.clip);
     }
-    advance(m_phones, m_meters.takePeak(QString::fromLatin1(engine::kPhonesNode)), s.masterPhonesMuted, dt, now);
-    advance(m_stream, m_meters.takePeak(QString::fromLatin1(engine::kStreamNode)), s.masterStreamMuted, dt, now);
+    meters::advance(m_phones, m_meters.takePeak(QString::fromLatin1(engine::kPhonesNode)), s.masterPhonesMuted, dt, now);
+    meters::advance(m_stream, m_meters.takePeak(QString::fromLatin1(engine::kStreamNode)), s.masterStreamMuted, dt, now);
     Q_EMIT metersChanged();
 }
 

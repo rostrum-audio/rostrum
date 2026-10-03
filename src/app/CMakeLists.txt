@@ -14,7 +14,13 @@ qt_add_qml_module(rostrum
     VERSION 1.0
     SOURCES
         AppController.cpp AppController.h
+        Apps.cpp Apps.h
+        Devices.cpp Devices.h
+        MeterBallistics.h
         Mixer.cpp Mixer.h
+        Preferences.cpp Preferences.h
+        RowsModel.cpp RowsModel.h
+        Scenes.cpp Scenes.h
     QML_FILES
         qml/Main.qml
         qml/Shell.qml
@@ -25,7 +31,6 @@ qt_add_qml_module(rostrum
         qml/StatusBar.qml
         qml/Banners.qml
         qml/PipeWireMissingPage.qml
-        qml/PlaceholderPage.qml
         qml/MixerPage.qml
         qml/MasterFader.qml
         qml/BusStrip.qml
@@ -36,15 +41,26 @@ qt_add_qml_module(rostrum
         qml/AppChip.qml
         qml/ColorPopup.qml
         qml/AppsPage.qml
+        qml/AppRow.qml
+        qml/RuleRow.qml
+        qml/BusMenu.qml
         qml/ScenesPage.qml
+        qml/SceneNameDialog.qml
         qml/DevicesPage.qml
+        qml/DeviceList.qml
         qml/ObsPage.qml
         qml/SettingsPage.qml
+        qml/Wizard.qml
+        qml/MixDiagram.qml
 )
 
 # Shared system Qt: QML imports resolve at runtime, no static plugin import scan needed.
 set_target_properties(rostrum PROPERTIES QT_QML_MODULE_NO_IMPORT_SCAN TRUE)
 target_include_directories(rostrum PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_compile_definitions(rostrum PRIVATE
+    ROSTRUM_DOC_DIR="${CMAKE_INSTALL_FULL_DOCDIR}"
+    ROSTRUM_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+)
 target_link_libraries(rostrum PRIVATE
     rostrum_engine
     Qt6::Quick
@@ -57,3 +73,4 @@ target_link_libraries(rostrum PRIVATE
 )
 
 install(TARGETS rostrum RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES ${PROJECT_SOURCE_DIR}/README.md ${PROJECT_SOURCE_DIR}/LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR})

@@ -108,9 +108,15 @@ void MeterBank::sync()
         return;
     }
     const Graph &g = m_pw->graph();
+    auto resolve = [&g](const QString &key) -> const Node * {
+        if (key.startsWith(QLatin1Char('#'))) {
+            return g.node(key.mid(1).toUInt());
+        }
+        return g.nodeByName(key);
+    };
     const QStringList existing = m_meters.keys();
     for (const QString &name : existing) {
-        const Node *n = g.nodeByName(name);
+        const Node *n = resolve(name);
         if (!m_targets.contains(name) || !n || n->id != m_meters.value(name)->nodeId) {
             destroyMeter(name);
         }
@@ -119,13 +125,13 @@ void MeterBank::sync()
         if (m_meters.contains(name)) {
             continue;
         }
-        const Node *n = g.nodeByName(name);
-        if (!n || !(n->isSink() || n->isSource())) {
+        const Node *n = resolve(name);
+        if (!n || !(n->isSink() || n->isSource() || n->isPlaybackStream())) {
             continue;
         }
         auto *m = new Meter;
         m->nodeId = n->id;
-        const QByteArray streamName = "rostrum-meter." + name.toUtf8();
+        const QByteArray streamName = "rostrum-meter." + n->name.toUtf8();
         const QByteArray target = (n->serial.isEmpty() ? n->name : n->serial).toUtf8();
 
         pw_thread_loop_lock(m_pw->threadLoop());

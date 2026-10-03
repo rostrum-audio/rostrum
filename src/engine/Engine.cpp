@@ -251,6 +251,12 @@ QList<AppStream> Engine::appStreams() const
             s.busId.clear();
         }
         s.volume = s.ruleKey.isValid() ? appVolume(s.ruleKey) : appVolume(s.identity.key);
+        if (s.ruleKey.isValid()) {
+            if (const AppRule *r = m_scene.rule(s.ruleKey.key, s.ruleKey.match); r && !r->label.isEmpty()) {
+                s.identity.displayName = r->label;
+                s.identity.unnamed = false;
+            }
+        }
         out.append(s);
     }
     std::sort(out.begin(), out.end(), [](const AppStream &a, const AppStream &b) {
@@ -345,6 +351,19 @@ void Engine::editRule(const AppKey &oldKey, const AppKey &newKey)
     Q_EMIT sceneChanged();
     Q_EMIT appsChanged();
     scheduleReconcile();
+}
+
+void Engine::setRuleLabel(const AppKey &key, const QString &label)
+{
+    AppRule *r = m_scene.rule(key.key, key.match);
+    const QString clean = label.trimmed().left(64);
+    if (!r || r->label == clean) {
+        return;
+    }
+    r->label = clean;
+    Q_EMIT structureChanged();
+    Q_EMIT sceneChanged();
+    Q_EMIT appsChanged();
 }
 
 void Engine::setAppVolume(const AppKey &key, double volume)

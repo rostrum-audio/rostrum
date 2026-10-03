@@ -98,6 +98,7 @@ public:
     double appVolume(const AppKey &key) const;
     void removeRule(const AppKey &key);
     void editRule(const AppKey &oldKey, const AppKey &newKey);
+    void setRuleLabel(const AppKey &key, const QString &label);
 
 Q_SIGNALS:
     void sceneChanged();

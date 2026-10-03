@@ -17,6 +17,7 @@ Kirigami.Page {
     ]
     readonly property int pageIndex: Math.max(0, pages.findIndex(p => p.id === App.lastPage))
     readonly property bool blocked: App.pipewireState === "missing" || App.pipewireState === "connecting"
+    readonly property bool inWizard: !App.wizardDone && !blocked
     readonly property bool sidebarHasFocus: sidebar.activeFocusInside
 
     function focusSidebar() {
@@ -39,6 +40,7 @@ Kirigami.Page {
 
         Sidebar {
             id: sidebar
+            visible: !shell.inWizard
             Layout.fillHeight: true
             pages: shell.pages
             currentIndex: shell.pageIndex
@@ -47,6 +49,7 @@ Kirigami.Page {
         }
 
         Kirigami.Separator {
+            visible: !shell.inWizard
             Layout.fillHeight: true
         }
 
@@ -60,9 +63,15 @@ Kirigami.Page {
                 Layout.fillWidth: true
             }
 
+            Wizard {
+                visible: shell.inWizard
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+            }
+
             StackLayout {
                 id: stack
-                visible: !shell.blocked
+                visible: !shell.blocked && !shell.inWizard
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 currentIndex: shell.pageIndex

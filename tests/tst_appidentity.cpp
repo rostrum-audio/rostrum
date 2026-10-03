@@ -23,6 +23,16 @@ private Q_SLOTS:
         QCOMPARE(id.displayName, QStringLiteral("Discord"));
         QCOMPARE(id.key.key, MatchKey::Binary);
         QCOMPARE(id.key.match, QStringLiteral("Discord"));
+        QVERIFY(!id.unnamed);
+    }
+
+    void genericNameWithUnknownBinaryIsUnnamed()
+    {
+        const auto id = identify({QStringLiteral("ALSA plug-in [wine64-preloader]"),
+                                  QStringLiteral("wine64-preloader"), {}, {}});
+        QVERIFY(id.unnamed);
+        QCOMPARE(id.key.key, MatchKey::Binary);
+        QCOMPARE(id.key.match, QStringLiteral("wine64-preloader"));
     }
 
     void deletedBinaryIsCleaned()

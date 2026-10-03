@@ -46,11 +46,12 @@ struct AppRule
     MatchKey key = MatchKey::Name;
     QString busId;
     double volume = 1.0; // per-app offset on top of the bus fader
+    QString label;       // user's name for an app that reports none; empty = use the app's own
     QDateTime lastSeen;  // bookkeeping only; ignored by operator== so it never marks a scene dirty
 
     bool operator==(const AppRule &o) const
     {
-        return match == o.match && key == o.key && busId == o.busId && volume == o.volume;
+        return match == o.match && key == o.key && busId == o.busId && volume == o.volume && label == o.label;
     }
 };
 

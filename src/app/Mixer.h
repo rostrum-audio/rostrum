@@ -1,5 +1,6 @@
 #pragma once
 
+#include "app/MeterBallistics.h"
 #include "pw/MeterBank.h"
 
 #include <QAbstractListModel>
@@ -140,15 +141,9 @@ Q_SIGNALS:
     void settingsChanged();
 
 private:
-    struct MeterState
-    {
-        double fraction = 0.0;
-        bool clip = false;
-        qint64 clipUntil = 0;
-    };
+    using MeterState = meters::State;
     void tick();
     void updateTargets();
-    void advance(MeterState &state, float linearPeak, bool frozen, double dt, qint64 now);
 
     static Mixer *s_instance;
     AppController *m_app = nullptr;

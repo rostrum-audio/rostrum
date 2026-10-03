@@ -43,7 +43,9 @@ sudo apt install build-essential cmake ninja-build pkg-config extra-cmake-module
   libpipewire-0.3-dev libtomlplusplus-dev qt6-base-dev qt6-declarative-dev \
   libkirigami-dev kirigami-addons-dev libkf6coreaddons-dev libkf6dbusaddons-dev \
   libkf6i18n-dev libkf6globalaccel-dev libkf6statusnotifieritem-dev libkf6notifications-dev \
-  qml6-module-org-kde-kirigami qml6-module-org-kde-kquickcontrols qml6-module-org-kde-desktop
+  qml6-module-org-kde-kirigami qml6-module-org-kde-kquickcontrols qml6-module-org-kde-desktop \
+  qml6-module-org-kde-kirigamiaddons-formcard qml6-module-org-kde-kitemmodels \
+  qml6-module-qtquick-dialogs qml6-module-qtcore
 cmake -S . -B build -G Ninja
 cmake --build build
 ctest --test-dir build

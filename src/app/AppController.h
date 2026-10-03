@@ -139,6 +139,10 @@ public:
     Q_INVOKABLE bool switchScene(const QString &name);
     Q_INVOKABLE bool saveScene();
     Q_INVOKABLE void createMix();
+    // Wizard: finish once the mix exists; skip creates the mix with defaults and finishes too.
+    Q_INVOKABLE void finishWizard();
+    Q_INVOKABLE void skipWizard();
+    Q_INVOKABLE void copyToClipboard(const QString &text, const QString &toastText = QString());
     Q_INVOKABLE void saveSettingsNow();
     Q_INVOKABLE void quit();
 

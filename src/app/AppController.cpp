@@ -5,7 +5,8 @@
 
 #include <KLocalizedString>
 
-#include <QCoreApplication>
+#include <QClipboard>
+#include <QGuiApplication>
 #include <QJSEngine>
 #include <QLoggingCategory>
 
@@ -262,6 +263,33 @@ bool AppController::mixBusy() const { return m_engine.mixEnabled() && !m_engine.
 QString AppController::mixError() const { return m_engine.mixError(); }
 void AppController::createMix() { m_engine.createMix(); }
 
+void AppController::finishWizard()
+{
+    if (m_settings.wizardDone) {
+        return;
+    }
+    m_settings.wizardDone = true;
+    m_settings.lastPage = QStringLiteral("mixer");
+    if (m_scenes.dirty()) {
+        m_scenes.save();
+    }
+    saveSettingsNow();
+    Q_EMIT settingsChanged();
+    Q_EMIT windowStateChanged();
+}
+
+void AppController::skipWizard()
+{
+    m_engine.createMix();
+    finishWizard();
+}
+
+void AppController::copyToClipboard(const QString &text, const QString &toastText)
+{
+    QGuiApplication::clipboard()->setText(text);
+    Q_EMIT toast(toastText.isEmpty() ? i18n("Copied") : toastText);
+}
+
 void AppController::setLastPage(const QString &page)
 {
     if (page == m_settings.lastPage) {
@@ -318,7 +346,7 @@ void AppController::saveSettingsNow()
 void AppController::quit()
 {
     saveSettingsNow();
-    QCoreApplication::quit();
+    QGuiApplication::quit();
 }
 
 } // namespace rostrum::app

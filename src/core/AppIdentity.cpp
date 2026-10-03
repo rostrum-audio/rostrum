@@ -56,7 +56,7 @@ bool isGenericAppName(const QString &name)
 
 namespace {
 
-QString prettyBinary(const QString &binary)
+QString prettyBinary(const QString &binary, bool *isKnown = nullptr)
 {
     static const QHash<QString, QString> known = {
         {QStringLiteral("discord"), QStringLiteral("Discord")},
@@ -75,7 +75,13 @@ QString prettyBinary(const QString &binary)
     };
     const QString lower = binary.toLower();
     if (auto it = known.constFind(lower); it != known.cend()) {
+        if (isKnown) {
+            *isKnown = true;
+        }
         return it.value();
+    }
+    if (isKnown) {
+        *isKnown = false;
     }
     QString out = binary;
     if (!out.isEmpty()) {
@@ -97,9 +103,12 @@ AppIdentity identify(const StreamProps &props)
         return id;
     }
     if (!id.binary.isEmpty()) {
-        id.displayName = prettyBinary(id.binary);
+        // A generic name ("ALSA plug-in [wine64-preloader]") is no name, unless the binary alone
+        // says which app it is.
+        bool known = false;
+        id.displayName = prettyBinary(id.binary, &known);
         id.key = {MatchKey::Binary, id.binary};
-        id.unnamed = name.isEmpty();
+        id.unnamed = !known;
         return id;
     }
     id.unnamed = true;

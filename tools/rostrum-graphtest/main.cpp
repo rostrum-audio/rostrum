@@ -6,6 +6,7 @@
 #include "engine/Engine.h"
 #include "engine/SceneManager.h"
 #include "pw/PwContext.h"
+#include "pw/TestTone.h"
 
 #include <QCommandLineParser>
 #include <QCoreApplication>
@@ -63,8 +64,11 @@ int main(int argc, char **argv)
                             QStringLiteral("bus"));
     QCommandLineOption config(QStringLiteral("config"),
                               QStringLiteral("Apply the saved default scene and devices from $XDG_CONFIG_HOME/rostrum."));
+    QCommandLineOption tone(QStringLiteral("tone"),
+                            QStringLiteral("Play the one-second test tone on a sink (node.name) and exit."),
+                            QStringLiteral("sink"));
     parser.addOptions({seconds, teardown, rule, session, unassignAfter, listApps, dest, headphones, mic, micMuted,
-                       sidetone, solo, config});
+                       sidetone, solo, config, tone});
     parser.process(app);
 
     pw::PwContext pw;
@@ -100,6 +104,20 @@ int main(int argc, char **argv)
             return;
         }
         started = true;
+        if (parser.isSet(tone)) {
+            auto *player = new pw::TestTone(&pw, &app);
+            if (!player->play(parser.value(tone))) {
+                QTextStream(stderr) << "No sink called " << parser.value(tone) << "\n";
+                QCoreApplication::exit(1);
+                return;
+            }
+            QObject::connect(player, &pw::TestTone::playingChanged, &app, [player] {
+                if (!player->isPlaying()) {
+                    QCoreApplication::quit();
+                }
+            });
+            return;
+        }
         if (parser.isSet(teardown)) {
             engine.destroyMix();
             QTimer::singleShot(500, &app, [&] {
