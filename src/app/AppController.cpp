@@ -432,6 +432,48 @@ void AppController::setWindowHeight(int h)
     Q_EMIT windowStateChanged();
 }
 
+void AppController::setCompactWindow(bool on)
+{
+    if (on == m_settings.compactWindow) {
+        return;
+    }
+    m_settings.compactWindow = on;
+    saveSettingsSoon();
+    Q_EMIT windowStateChanged();
+}
+
+void AppController::setCompactWidth(int w)
+{
+    w = std::max(kCompactMinWidth, w);
+    if (w == m_settings.compactWidth) {
+        return;
+    }
+    m_settings.compactWidth = w;
+    saveSettingsSoon();
+    Q_EMIT windowStateChanged();
+}
+
+void AppController::setCompactHeight(int h)
+{
+    h = std::max(kCompactMinHeight, h);
+    if (h == m_settings.compactHeight) {
+        return;
+    }
+    m_settings.compactHeight = h;
+    saveSettingsSoon();
+    Q_EMIT windowStateChanged();
+}
+
+void AppController::setKeepOnTop(bool on)
+{
+    if (on == m_settings.keepOnTop) {
+        return;
+    }
+    m_settings.keepOnTop = on;
+    saveSettingsSoon();
+    Q_EMIT windowStateChanged();
+}
+
 void AppController::saveSettingsSoon() { m_saveTimer.start(); }
 
 void AppController::saveSettingsNow()

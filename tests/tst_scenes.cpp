@@ -412,6 +412,18 @@ bus = "game"
         QVERIFY(!err.isEmpty());
         // Window size never drops below the minimum.
         QCOMPARE(parseSettings(QStringLiteral("[window]\nwidth = 100\nheight = 100\n")).windowWidth, 960);
+
+        // The compact window keeps its own size and minimum.
+        s.compactWindow = true;
+        s.compactWidth = 500;
+        s.compactHeight = 240;
+        s.keepOnTop = true;
+        QCOMPARE(parseSettings(serializeSettings(s)), s);
+        const Settings tiny =
+            parseSettings(QStringLiteral("[window]\ncompact_width = 10\ncompact_height = 10\n"));
+        QCOMPARE(tiny.compactWidth, kCompactMinWidth);
+        QCOMPARE(tiny.compactHeight, kCompactMinHeight);
+        QVERIFY(!tiny.compactWindow);
     }
 
     void settingsPrivacyAndUpdates()

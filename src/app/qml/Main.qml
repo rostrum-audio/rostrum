@@ -8,10 +8,13 @@ Kirigami.ApplicationWindow {
 
     title: App.currentScene.length > 0 ? i18nc("@title:window scene name", "%1 — Rostrum", App.currentScene)
                                        : i18nc("@title:window", "Rostrum")
-    minimumWidth: 960
-    minimumHeight: 600
+    readonly property bool compact: App.compactWindow && App.wizardDone
+    minimumWidth: compact ? App.compactMinWidth : 960
+    minimumHeight: compact ? App.compactMinHeight : 600
+    flags: compact && App.keepOnTop ? Qt.Window | Qt.WindowStaysOnTopHint : Qt.Window
     visible: !Desktop.startHidden
 
+    pageStack.visible: !compact
     pageStack.globalToolBar.style: Kirigami.ApplicationHeaderStyle.None
     pageStack.columnView.columnResizeMode: Kirigami.ColumnView.SingleColumn
     pageStack.initialPage: Shell {
@@ -21,12 +24,40 @@ Kirigami.ApplicationWindow {
     header: HeaderBar {
         id: headerBar
         window: root
+        visible: !root.compact
     }
-    footer: StatusBar {}
+    footer: StatusBar {
+        visible: !root.compact
+    }
+
+    CompactView {
+        anchors.fill: parent
+        visible: root.compact
+        onFullViewRequested: page => {
+            root.setCompact(false)
+            if (page) {
+                root.showPage(page)
+            }
+        }
+    }
 
     function showPage(page) {
+        if (root.compact) {
+            root.setCompact(false)
+        }
         if (App.pipewireState !== "missing") {
             App.lastPage = page
+        }
+    }
+
+    // Each mode keeps its own size; read both before the minimum size changes under us.
+    function setCompact(on) {
+        const w = on ? App.compactWidth : App.windowWidth
+        const h = on ? App.compactHeight : App.windowHeight
+        App.compactWindow = on
+        if (visibility === Window.Windowed) {
+            width = w
+            height = h
         }
     }
 
@@ -36,12 +67,30 @@ Kirigami.ApplicationWindow {
     }
 
     Component.onCompleted: {
-        width = App.windowWidth
-        height = App.windowHeight
+        width = compact ? App.compactWidth : App.windowWidth
+        height = compact ? App.compactHeight : App.windowHeight
         offerTimer.start()
     }
-    onWidthChanged: if (visibility === Window.Windowed) App.windowWidth = width
-    onHeightChanged: if (visibility === Window.Windowed) App.windowHeight = height
+    onWidthChanged: {
+        if (visibility !== Window.Windowed) {
+            return
+        }
+        if (compact) {
+            App.compactWidth = width
+        } else if (width >= 960) {
+            App.windowWidth = width
+        }
+    }
+    onHeightChanged: {
+        if (visibility !== Window.Windowed) {
+            return
+        }
+        if (compact) {
+            App.compactHeight = height
+        } else if (height >= 600) {
+            App.windowHeight = height
+        }
+    }
     onClosing: close => {
         App.saveSettingsNow()
         if (Desktop.trayAvailable) {

@@ -345,6 +345,22 @@ at once instead of after 20 seconds.
    the time. Restore one: it comes back at the end of the list, with " 2" added if the name is
    taken. Set a trash file's name to a date more than 30 days ago and restart: it is gone.
 
+## 17. Compact window
+
+1. App menu → Compact View: the window shrinks to the mic button, the scene switcher, Headphones
+   and Stream, and one slim fader with a mute button per bus. It can be resized down to about
+   420×220; the bus list scrolls.
+2. Move a bus fader and mute a bus in the compact window: the full Mixer shows the same state.
+   The mic button and scene switcher work as in the header; Manage Scenes… in the scene menu
+   opens the full window on the Scenes page.
+3. Resize the compact window, press Full View, then Compact View again: each mode comes back at
+   its own size. Quit in compact mode and start again: Rostrum opens compact. `settings.toml`
+   has `compact`, `compact_width`, `compact_height` and `keep_on_top` under `[window]`.
+4. Turn on Keep on Top. On X11 the window stays above others; on Plasma Wayland the hint may be
+   ignored (the tooltip says so; the window menu's Keep Above Others works). Full View drops the
+   hint, and it comes back with the compact window.
+5. Before setup is finished, Compact View is disabled and a saved `compact = true` is ignored.
+
 ## Smoke test log
 
 Kubuntu 26.04, Plasma 6.6 Wayland, PipeWire 1.6.2, WirePlumber 0.5.13, build 0.1.0. The checks

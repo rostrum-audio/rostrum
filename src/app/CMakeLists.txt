@@ -35,6 +35,7 @@ qt_add_qml_module(rostrum
         qml/HeaderBar.qml
         qml/SceneSwitcher.qml
         qml/MicButton.qml
+        qml/CompactView.qml
         qml/Sidebar.qml
         qml/StatusBar.qml
         qml/Banners.qml

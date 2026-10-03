@@ -108,6 +108,12 @@ QQC2.ToolBar {
                     onTriggered: bar.window.showPage("scenes")
                 }
                 QQC2.MenuItem {
+                    text: i18nc("@action:inmenu", "Compact View")
+                    icon.name: "window-minimize-pip"
+                    enabled: App.wizardDone
+                    onTriggered: bar.window.setCompact(true)
+                }
+                QQC2.MenuItem {
                     text: i18nc("@action:inmenu", "Settings")
                     icon.name: "settings-configure"
                     onTriggered: bar.window.showPage("settings")

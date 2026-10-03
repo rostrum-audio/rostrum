@@ -125,6 +125,8 @@ Default global shortcuts, rebindable in Settings or in System Settings → Keybo
 | Load scene 1–4 (in Scenes page order) | Meta+Alt+1 … Meta+Alt+4 |
 
 With a fader focused: Up/Down 1 %, Page Up/Down 10 %, M mute, S solo, 1/2/3 Headphones/Stream/Both.
+App menu → Compact View shrinks Rostrum to a small mixer (mic, scene, masters and a slim fader per
+bus) that can stay on top of a game or OBS; it remembers its own size and comes back that way.
 Ctrl+Z and Ctrl+Shift+Z undo and redo level and bus edits in the live scene (not solo, and never
 the mic mute). Deleted scenes stay in Scenes → Recently Deleted for 30 days.
 F6 moves focus between the header, the sidebar and the page.

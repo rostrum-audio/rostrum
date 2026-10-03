@@ -29,6 +29,8 @@ QString sceneSlotAction(int slot); // 3 -> "scene_3"
 // Bumped when first-run setup gains a step that existing users should see once. 1 = devices and
 // buses, 2 = startup, crash reports and updates.
 inline constexpr int kSetupVersion = 2;
+inline constexpr int kCompactMinWidth = 420;
+inline constexpr int kCompactMinHeight = 220;
 
 namespace crashmode {
 inline constexpr const char *kSend = "send";
@@ -74,6 +76,10 @@ struct Settings
     int windowHeight = 680;
     QString lastPage = QStringLiteral("mixer");
     bool sidebarCollapsed = false;
+    bool compactWindow = false; // the small always-handy mixer instead of the full window
+    int compactWidth = 460;
+    int compactHeight = 320;
+    bool keepOnTop = false; // compact window only
 
     bool operator==(const Settings &) const = default;
 };

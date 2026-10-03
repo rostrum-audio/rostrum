@@ -150,6 +150,10 @@ QString serializeSettings(const Settings &s)
              {"height", s.windowHeight},
              {"page", s.lastPage.toStdString()},
              {"sidebar_collapsed", s.sidebarCollapsed},
+             {"compact", s.compactWindow},
+             {"compact_width", s.compactWidth},
+             {"compact_height", s.compactHeight},
+             {"keep_on_top", s.keepOnTop},
          }},
     };
     std::ostringstream out;
@@ -223,6 +227,12 @@ Settings parseSettings(const QString &text, QString *error)
     s.windowHeight = std::max(600, int(get<int64_t>(t, "window", "height", s.windowHeight)));
     s.lastPage = getStr(t, "window", "page", s.lastPage);
     s.sidebarCollapsed = get(t, "window", "sidebar_collapsed", s.sidebarCollapsed);
+    s.compactWindow = get(t, "window", "compact", s.compactWindow);
+    s.compactWidth =
+        std::max(kCompactMinWidth, int(get<int64_t>(t, "window", "compact_width", s.compactWidth)));
+    s.compactHeight =
+        std::max(kCompactMinHeight, int(get<int64_t>(t, "window", "compact_height", s.compactHeight)));
+    s.keepOnTop = get(t, "window", "keep_on_top", s.keepOnTop);
     return s;
 }
 
