@@ -5,12 +5,13 @@ import org.kde.kirigami as Kirigami
 import Rostrum
 
 // The biggest control in the chrome. Live is neutral, Muted is filled red, No mic is dim with a
-// warning icon. Click toggles mute; right-click, long-press or the Menu key opens gain and sidetone.
+// warning icon, and Offline (no PipeWire) is dim and disabled. Click toggles mute; right-click, long-press or the Menu key opens gain and sidetone.
 QQC2.AbstractButton {
     id: mic
 
     signal devicesRequested()
 
+    readonly property bool offline: !App.connected
     readonly property bool noMic: !App.hasMic
     readonly property bool muted: App.micMuted
 
@@ -20,10 +21,12 @@ QQC2.AbstractButton {
     rightPadding: Kirigami.Units.largeSpacing * 1.5
     focusPolicy: Qt.StrongFocus
     hoverEnabled: true
+    enabled: !offline
 
-    text: noMic ? i18nc("@action:button mic state", "No mic")
-                : muted ? i18nc("@action:button mic state", "Mic muted")
-                        : i18nc("@action:button mic state", "Mic live")
+    text: offline ? i18nc("@action:button mic state", "Mic offline")
+        : noMic ? i18nc("@action:button mic state", "No mic")
+        : muted ? i18nc("@action:button mic state", "Mic muted")
+        : i18nc("@action:button mic state", "Mic live")
 
     Accessible.role: Accessible.Button
     Accessible.name: i18nc("@action:button", "Mic mute")
@@ -68,9 +71,9 @@ QQC2.AbstractButton {
             color: Kirigami.Theme.positiveTextColor
         }
         Kirigami.Icon {
-            source: mic.noMic ? "dialog-warning" : mic.muted ? "microphone-sensitivity-muted" : "microphone-sensitivity-high"
+            source: mic.offline ? "microphone-sensitivity-muted" : mic.noMic ? "dialog-warning" : mic.muted ? "microphone-sensitivity-muted" : "microphone-sensitivity-high"
             color: mic.muted && !mic.noMic ? "white" : Kirigami.Theme.textColor
-            isMask: !mic.noMic
+            isMask: mic.offline || !mic.noMic
             implicitWidth: Kirigami.Units.iconSizes.smallMedium
             implicitHeight: implicitWidth
         }

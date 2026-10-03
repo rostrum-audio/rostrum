@@ -2,6 +2,8 @@
 
 #include <QTest>
 
+#include <cerrno>
+
 using namespace rostrum::requirements;
 
 class TestRequirements : public QObject
@@ -30,11 +32,29 @@ private Q_SLOTS:
 
     void hintNamesPackages()
     {
-        const QString hint = installHint();
-        QVERIFY(hint.contains(QStringLiteral("pipewire-pulse")));
-        QVERIFY(hint.contains(QStringLiteral("wireplumber")));
-        QVERIFY(hint.contains(QStringLiteral("dnf")));
-        QVERIFY(hint.contains(QStringLiteral("pacman")));
+        const auto cmds = installCommands();
+        QCOMPARE(cmds.size(), 3);
+        QVERIFY(cmds.at(0).command.startsWith(QStringLiteral("sudo apt ")));
+        QVERIFY(cmds.at(1).command.contains(QStringLiteral("pipewire-pulseaudio")));
+        QVERIFY(cmds.at(2).command.startsWith(QStringLiteral("sudo pacman ")));
+        for (const auto &c : cmds) {
+            QVERIFY(c.command.contains(QStringLiteral("wireplumber")));
+            QVERIFY(!c.command.contains(QLatin1Char('\n')));
+        }
+        QVERIFY(startCommand().startsWith(QStringLiteral("systemctl --user ")));
+        QVERIFY(!startCommand().contains(QStringLiteral("sudo")));
+        QVERIFY(installHint().contains(startCommand()));
+        QVERIFY(installHint().contains(cmds.at(1).command));
+    }
+
+    void connectProblems()
+    {
+        QCOMPARE(connectProblem(EHOSTDOWN), ConnectProblem::NotRunning);
+        QCOMPARE(connectProblem(ENOENT), ConnectProblem::NotRunning);
+        QCOMPARE(connectProblem(ECONNREFUSED), ConnectProblem::NotAnswering);
+        QCOMPARE(connectProblem(EACCES), ConnectProblem::NotAllowed);
+        QCOMPARE(connectProblem(EIO), ConnectProblem::Other);
+        QCOMPARE(connectProblem(0), ConnectProblem::Other);
     }
 };
 

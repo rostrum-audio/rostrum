@@ -30,6 +30,7 @@ public:
 
     State state() const;
     QString errorString() const;
+    int errorCode() const; // errno from the last failed connect, 0 otherwise
     QString serverVersion() const;
     QString libraryVersion() const;
     QString wireplumberVersion() const;

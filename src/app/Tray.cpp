@@ -55,6 +55,7 @@ Tray::Tray(AppController *app, QObject *parent) : QObject(parent), m_app(app)
 
     connect(m_app, &AppController::levelsChanged, this, &Tray::updateState);
     connect(m_app, &AppController::devicesChanged, this, &Tray::updateState);
+    connect(m_app, &AppController::statusChanged, this, &Tray::updateState);
     connect(m_app, &AppController::scenesChanged, this, &Tray::updateState);
     connect(m_app, &AppController::scenesChanged, this, &Tray::rebuildScenes);
     connect(m_menu, &QMenu::aboutToShow, this, &Tray::updateState);
@@ -84,7 +85,8 @@ void Tray::updateState()
         m_lastMuted = muted;
         m_iconSet = true;
     }
-    const QString mic = !m_app->hasMic() ? i18nc("@info:tooltip", "No mic")
+    const QString mic = !m_app->connected() ? i18nc("@info:tooltip", "PipeWire missing")
+                        : !m_app->hasMic() ? i18nc("@info:tooltip", "No mic")
                         : muted          ? i18nc("@info:tooltip", "Mic muted")
                                          : i18nc("@info:tooltip", "Mic live");
     // Levels change many times a second while a fader moves; only talk to the tray host on news.

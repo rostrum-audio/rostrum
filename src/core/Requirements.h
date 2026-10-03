@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QList>
 #include <QString>
 
 namespace rostrum::requirements {
@@ -24,7 +25,22 @@ bool atLeast(const Version &v, int major, int minor);
 bool pipewireOk(const QString &serverVersion);
 bool wireplumberOk(const QString &version);
 
-// Plain-language text naming the packages to install on Kubuntu, Fedora and Arch.
+// Starts the audio services for the user session. Usually all that is missing on Kubuntu.
+QString startCommand();
+
+struct InstallCommand
+{
+    QString distro;
+    QString command;
+};
+// The packages to install on Kubuntu, Fedora and Arch.
+QList<InstallCommand> installCommands();
+
+// The same commands as plain text for a terminal.
 QString installHint();
+
+enum class ConnectProblem { NotRunning, NotAnswering, NotAllowed, Other };
+// What a failed connect means, from its errno. libpipewire reports a missing socket as EHOSTDOWN.
+ConnectProblem connectProblem(int err);
 
 } // namespace rostrum::requirements

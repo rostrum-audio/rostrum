@@ -26,7 +26,10 @@ class AppController : public QObject
     Q_PROPERTY(QString pipewireState READ pipewireState NOTIFY statusChanged)
     Q_PROPERTY(QString pipewireStatusText READ pipewireStatusText NOTIFY statusChanged)
     Q_PROPERTY(QString pipewireDetail READ pipewireDetail NOTIFY statusChanged)
-    Q_PROPERTY(QString installHint READ installHint CONSTANT)
+    Q_PROPERTY(bool pipewireTooOld READ pipewireTooOld NOTIFY statusChanged)
+    Q_PROPERTY(QString startCommand READ startCommand CONSTANT)
+    // Rows: {distro, command}
+    Q_PROPERTY(QVariantList installCommands READ installCommands CONSTANT)
     Q_PROPERTY(bool connected READ connected NOTIFY statusChanged)
     Q_PROPERTY(bool hasWirePlumber READ hasWirePlumber NOTIFY statusChanged)
     Q_PROPERTY(QString pipewireVersion READ pipewireVersion NOTIFY statusChanged)
@@ -85,7 +88,9 @@ public:
     QString pipewireState() const { return m_status; }
     QString pipewireStatusText() const;
     QString pipewireDetail() const { return m_detail; }
-    QString installHint() const;
+    bool pipewireTooOld() const { return m_versionRefused; }
+    QString startCommand() const;
+    QVariantList installCommands() const;
     bool connected() const;
     bool hasWirePlumber() const;
     QString pipewireVersion() const;
@@ -175,6 +180,7 @@ private:
     void updateStatus();
     void onConnectionChanged();
     QString describeNode(const QString &nodeName) const;
+    QString connectFailureText() const;
 
     static AppController *s_instance;
 

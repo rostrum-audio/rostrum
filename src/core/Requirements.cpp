@@ -2,6 +2,8 @@
 
 #include <QRegularExpression>
 
+#include <cerrno>
+
 namespace rostrum::requirements {
 
 Version parseVersion(const QString &text)
@@ -37,14 +39,46 @@ bool wireplumberOk(const QString &version)
     return atLeast(parseVersion(version), kMinWirePlumberMajor, kMinWirePlumberMinor);
 }
 
+QString startCommand()
+{
+    return QStringLiteral("systemctl --user enable --now pipewire pipewire-pulse wireplumber");
+}
+
+QList<InstallCommand> installCommands()
+{
+    return {
+        {QStringLiteral("Kubuntu, Ubuntu, Debian"), QStringLiteral("sudo apt install pipewire pipewire-pulse wireplumber")},
+        {QStringLiteral("Fedora"), QStringLiteral("sudo dnf install pipewire pipewire-pulseaudio wireplumber")},
+        {QStringLiteral("Arch"), QStringLiteral("sudo pacman -S pipewire pipewire-pulse wireplumber")},
+    };
+}
+
 QString installHint()
 {
-    return QStringLiteral("Rostrum needs PipeWire 1.0+ with WirePlumber 0.5+.\n"
-                          "  Kubuntu / Ubuntu / Debian:  sudo apt install pipewire pipewire-pulse wireplumber\n"
-                          "  Fedora:                     sudo dnf install pipewire pipewire-pulseaudio wireplumber\n"
-                          "  Arch:                       sudo pacman -S pipewire pipewire-pulse wireplumber\n"
-                          "Then log out and back in, or run: systemctl --user enable --now pipewire "
-                          "pipewire-pulse wireplumber");
+    QString out = QStringLiteral("Rostrum needs PipeWire 1.0+ with WirePlumber 0.5+.\n"
+                                 "Start it for your session:\n  %1\n"
+                                 "If it is not installed, install it, then log out and back in:\n")
+                      .arg(startCommand());
+    for (const auto &c : installCommands()) {
+        out += QStringLiteral("  %1:\n    %2\n").arg(c.distro, c.command);
+    }
+    return out.trimmed();
+}
+
+ConnectProblem connectProblem(int err)
+{
+    switch (err) {
+    case EHOSTDOWN:
+    case ENOENT:
+        return ConnectProblem::NotRunning;
+    case ECONNREFUSED:
+        return ConnectProblem::NotAnswering;
+    case EACCES:
+    case EPERM:
+        return ConnectProblem::NotAllowed;
+    default:
+        return ConnectProblem::Other;
+    }
 }
 
 } // namespace rostrum::requirements

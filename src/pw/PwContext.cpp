@@ -104,6 +104,7 @@ struct PwContext::Impl
     // Qt-thread state.
     State state = State::Idle;
     QString error;
+    int errorCode = 0;
     QString serverVersion;
     QString wireplumberVersion;
     bool hasWirePlumber = false;
@@ -513,6 +514,7 @@ bool PwContext::start()
     d->graph = {};
     d->metadataValues.clear();
     d->error.clear();
+    d->errorCode = 0;
     d->state = State::Connecting;
     Q_EMIT stateChanged();
 
@@ -538,6 +540,7 @@ bool PwContext::start()
         const int err = errno;
         pw_thread_loop_unlock(d->loop);
         d->error = QStringLiteral("PipeWire is not running (%1).").arg(QString::fromUtf8(std::strerror(err)));
+        d->errorCode = err;
         stop();
         d->state = State::Failed;
         Q_EMIT stateChanged();
@@ -575,6 +578,7 @@ void PwContext::stop()
 
 PwContext::State PwContext::state() const { return d->state; }
 QString PwContext::errorString() const { return d->error; }
+int PwContext::errorCode() const { return d->errorCode; }
 QString PwContext::serverVersion() const { return d->serverVersion; }
 QString PwContext::libraryVersion() const { return QString::fromUtf8(pw_get_library_version()); }
 QString PwContext::wireplumberVersion() const { return d->wireplumberVersion; }

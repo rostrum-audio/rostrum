@@ -10,6 +10,8 @@
 #include <QJSEngine>
 #include <QLoggingCategory>
 
+#include <cstring>
+
 Q_LOGGING_CATEGORY(lcApp, "rostrum.app")
 
 namespace rostrum::app {
@@ -143,7 +145,7 @@ void AppController::updateStatus()
         detail = i18n("PipeWire %1 is too old. Rostrum needs PipeWire 1.0 or newer.", m_pw.serverVersion());
     } else if (state == pw::PwContext::State::Failed || state == pw::PwContext::State::Idle) {
         status = QStringLiteral("missing");
-        detail = m_pw.errorString().isEmpty() ? i18n("PipeWire is not running.") : m_pw.errorString();
+        detail = connectFailureText();
     } else if (state == pw::PwContext::State::Connecting) {
         status = QStringLiteral("connecting");
     } else {
@@ -192,7 +194,34 @@ QString AppController::pipewireStatusText() const
     return i18n("PipeWire missing");
 }
 
-QString AppController::installHint() const { return requirements::installHint(); }
+QString AppController::connectFailureText() const
+{
+    if (m_pw.errorString().isEmpty()) {
+        return i18n("PipeWire is not running.");
+    }
+    switch (requirements::connectProblem(m_pw.errorCode())) {
+    case requirements::ConnectProblem::NotRunning:
+        return i18n("PipeWire is not running in your session, so there is no audio server to connect to.");
+    case requirements::ConnectProblem::NotAnswering:
+        return i18n("PipeWire is not answering. The service may have stopped or crashed.");
+    case requirements::ConnectProblem::NotAllowed:
+        return i18n("Rostrum is not allowed to connect to PipeWire. Run it as your own user, not with sudo.");
+    case requirements::ConnectProblem::Other:
+        break;
+    }
+    return i18n("Could not connect to PipeWire: %1", QString::fromLocal8Bit(std::strerror(m_pw.errorCode())));
+}
+
+QString AppController::startCommand() const { return requirements::startCommand(); }
+
+QVariantList AppController::installCommands() const
+{
+    QVariantList out;
+    for (const auto &c : requirements::installCommands()) {
+        out << QVariantMap{{QStringLiteral("distro"), c.distro}, {QStringLiteral("command"), c.command}};
+    }
+    return out;
+}
 bool AppController::connected() const { return m_pw.state() == pw::PwContext::State::Ready && !m_versionRefused; }
 bool AppController::hasWirePlumber() const { return m_pw.hasWirePlumber(); }
 QString AppController::pipewireVersion() const { return m_pw.serverVersion(); }

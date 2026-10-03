@@ -327,6 +327,7 @@ nested KWin with a fake tray host, or offscreen rendering. Fake devices were nul
 | 200 % scale (`QT_SCALE_FACTOR=2`), window 1280×720 | All six strips fit, no overlapping controls |
 | Unplug the saved headset (fake), then plug it back | Banner and "PipeWire degraded"; Headphones fall back to the default sink; app keeps running; routes come back and the banner clears |
 | Tray | Tooltip and menu follow the mic state and scene; Mute Mic from the tray mutes the header too; Show/Hide works |
+| `PIPEWIRE_REMOTE=nope rostrum` | "Rostrum can't reach PipeWire" says PipeWire is not running (no "Host is down"); each command is on one line and its Copy button puts it on the clipboard; the header reads "Mic offline" and cannot be clicked; the tray tooltip says "PipeWire missing" |
 | Close the window (KWin closes it) | App keeps running in the tray |
 | Start in tray (`--autostart`) | No window until Show |
 | Global shortcuts through KGlobalAccel | All eight registered as `dev.getrostrum.Rostrum`; invoking Mute mic toggles the mic; a shortcut KWin owns (Meta+D) is reported in Settings and stays in-window |
