@@ -17,7 +17,7 @@ jobs:
     name: Ubuntu unit tests
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install build dependencies
         run: |
           sudo apt-get update
@@ -41,7 +41,7 @@ jobs:
           dnf install -y \
             git cmake ninja-build gcc-c++ pkgconf-pkg-config \
             qt6-qtbase-devel pipewire-devel tomlplusplus-devel
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Configure and build
         run: |
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DROSTRUM_BUILD_TESTS=OFF
@@ -57,7 +57,7 @@ jobs:
         run: |
           pacman -Syu --noconfirm
           pacman -S --noconfirm --needed git cmake ninja gcc pkgconf qt6-base pipewire tomlplusplus
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Configure and build
         run: |
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DROSTRUM_BUILD_TESTS=OFF
