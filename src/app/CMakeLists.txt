@@ -125,6 +125,7 @@ endif()
 
 install(TARGETS rostrum RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES ${PROJECT_SOURCE_DIR}/data/${ROSTRUM_APP_ID}.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES ${PROJECT_SOURCE_DIR}/data/${ROSTRUM_APP_ID}.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
 install(FILES ${PROJECT_SOURCE_DIR}/data/icons/${ROSTRUM_APP_ID}.svg
     DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
 foreach(size 16x16 22x22)

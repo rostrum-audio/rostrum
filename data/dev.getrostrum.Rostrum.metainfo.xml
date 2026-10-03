@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright Rostrum Audio -->
+<component type="desktop-application">
+  <id>dev.getrostrum.Rostrum</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+
+  <name>Rostrum</name>
+  <summary>Stream mix console for PipeWire</summary>
+
+  <description>
+    <p>
+      Rostrum splits your game, voice chat, mic, music, alerts and desktop audio into named buses.
+      Each bus goes to your headphones, to the stream, or to both, and OBS records the stream mix.
+      It is a mixing desk, not a patchbay: faders, meters, mute and solo, and scenes you can
+      switch live, with the PipeWire graph kept out of sight.
+    </p>
+    <ul>
+      <li>Buses for game, voice, mic, music, alerts and desktop audio, each with a fader and mute</li>
+      <li>Two mixes from one console: what you hear and what your audience hears</li>
+      <li>Sets up OBS in one click and can undo every change</li>
+      <li>Scenes recall every level, mute and destination, from the header or a global shortcut</li>
+      <li>Recognised apps find their bus on their own, and remember it at the next login</li>
+      <li>Audio keeps flowing if Rostrum quits or crashes</li>
+    </ul>
+    <p>
+      Rostrum needs PipeWire 1.0 or newer with WirePlumber 0.5 or newer.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">dev.getrostrum.Rostrum.desktop</launchable>
+
+  <url type="homepage">https://getrostrum.dev</url>
+  <url type="bugtracker">https://github.com/rostrum-audio/rostrum/issues</url>
+  <url type="vcs-browser">https://github.com/rostrum-audio/rostrum</url>
+  <url type="contribute">https://github.com/rostrum-audio/rostrum/blob/main/CONTRIBUTING.md</url>
+  <update_contact>hello@getrostrum.dev</update_contact>
+
+  <developer id="dev.getrostrum">
+    <name>Rostrum Audio</name>
+  </developer>
+
+  <content_rating type="oars-1.1"/>
+
+  <categories>
+    <category>AudioVideo</category>
+    <category>Audio</category>
+    <category>Mixer</category>
+  </categories>
+
+  <keywords>
+    <keyword>stream</keyword>
+    <keyword>mixer</keyword>
+    <keyword>pipewire</keyword>
+    <keyword>obs</keyword>
+    <keyword>audio</keyword>
+  </keywords>
+
+  <provides>
+    <binary>rostrum</binary>
+  </provides>
+
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>The Mixer: Headphones and Stream masters, then a strip for each bus</caption>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/rostrum-audio/rostrum/main/docs/screenshots/mixer.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>The Apps page: what is playing now, and the saved rules</caption>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/rostrum-audio/rostrum/main/docs/screenshots/apps.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>The OBS page: what OBS records right now</caption>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/rostrum-audio/rostrum/main/docs/screenshots/obs.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>First-time setup</caption>
+      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/rostrum-audio/rostrum/main/docs/screenshots/wizard.png</image>
+    </screenshot>
+  </screenshots>
+
+  <releases>
+    <release version="0.1.0" date="2026-10-03">
+      <description>
+        <p>First release: buses, two mixes, scenes, OBS setup, automatic app assignment, private crash reports and updates.</p>
+      </description>
+    </release>
+  </releases>
+</component>

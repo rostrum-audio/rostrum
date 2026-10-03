@@ -20,3 +20,15 @@ rostrum_add_test(tst_autostart)
 rostrum_add_test(tst_testtone)
 rostrum_add_test(tst_obs)
 target_link_libraries(tst_obs PRIVATE rostrum_obs)
+
+# Desktop metadata checks run where the validators are installed (CI's app build has both).
+find_program(APPSTREAMCLI_EXECUTABLE appstreamcli)
+if(APPSTREAMCLI_EXECUTABLE)
+    add_test(NAME metainfo_valid
+        COMMAND ${APPSTREAMCLI_EXECUTABLE} validate --no-net ${PROJECT_SOURCE_DIR}/data/${ROSTRUM_APP_ID}.metainfo.xml)
+endif()
+find_program(DESKTOP_FILE_VALIDATE_EXECUTABLE desktop-file-validate)
+if(DESKTOP_FILE_VALIDATE_EXECUTABLE)
+    add_test(NAME desktop_file_valid
+        COMMAND ${DESKTOP_FILE_VALIDATE_EXECUTABLE} ${PROJECT_SOURCE_DIR}/data/${ROSTRUM_APP_ID}.desktop)
+endif()
