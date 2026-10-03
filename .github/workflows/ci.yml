@@ -89,6 +89,8 @@ jobs:
             app.log
           if-no-files-found: ignore
 
+  # The Fedora and Arch jobs install the README's package list for that distro, plus git for the
+  # checkout and the tools that let the D-Bus, release feed and metadata tests run.
   fedora:
     name: Fedora build
     runs-on: ubuntu-24.04
@@ -97,13 +99,41 @@ jobs:
       - name: Install build dependencies
         run: |
           dnf install -y \
-            git cmake ninja-build gcc-c++ pkgconf-pkg-config \
-            qt6-qtbase-devel qt6-qtwebsockets-devel pipewire-devel tomlplusplus-devel
+            gcc-c++ cmake ninja-build pkgconf-pkg-config extra-cmake-modules \
+            pipewire-devel tomlplusplus-devel qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtwebsockets-devel \
+            kf6-kirigami-devel kf6-kcoreaddons-devel kf6-kdbusaddons-devel kf6-ki18n-devel \
+            kf6-kglobalaccel-devel kf6-kstatusnotifieritem-devel \
+            kf6-kirigami-addons kf6-kdeclarative kf6-qqc2-desktop-style kf6-kitemmodels qt6-qtsvg \
+            pipewire pipewire-pulseaudio wireplumber \
+            git dbus-daemon python3 appstream desktop-file-utils
       - uses: actions/checkout@v7
-      - name: Configure and build
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Start the app offscreen
+        shell: bash
         run: |
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DROSTRUM_BUILD_APP=OFF -DROSTRUM_BUILD_TESTS=OFF
-          cmake --build build
+          set -o pipefail
+          export XDG_CONFIG_HOME="$RUNNER_TEMP/config" XDG_STATE_HOME="$RUNNER_TEMP/state"
+          export XDG_RUNTIME_DIR="$RUNNER_TEMP/runtime"
+          mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
+          QT_QPA_PLATFORM=offscreen PIPEWIRE_REMOTE=rostrum-test-none ROSTRUM_SCREENSHOT="$PWD/screenshot.png" \
+            timeout 60 dbus-run-session -- ./build/src/app/rostrum 2>&1 | tee app.log
+          test -s screenshot.png
+          if grep -E 'qrc:/.*\.qml:[0-9]+.*(Error|error|is not a type|is not installed|not found)' app.log; then
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: app-offscreen-fedora
+          path: |
+            screenshot.png
+            app.log
+          if-no-files-found: ignore
 
   arch:
     name: Arch build
@@ -111,12 +141,42 @@ jobs:
     continue-on-error: true
     container: archlinux:base-devel
     steps:
+      # The image has no fonts; without one the screenshot shows only boxes.
       - name: Install build dependencies
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm --needed git cmake ninja gcc pkgconf qt6-base qt6-websockets pipewire tomlplusplus
+          pacman -S --noconfirm --needed \
+            base-devel cmake ninja extra-cmake-modules tomlplusplus \
+            qt6-base qt6-declarative qt6-websockets qt6-svg \
+            kirigami kirigami-addons kcoreaddons kdbusaddons ki18n kglobalaccel kstatusnotifieritem \
+            kdeclarative qqc2-desktop-style kitemmodels \
+            pipewire pipewire-pulse wireplumber \
+            git python appstream desktop-file-utils ttf-dejavu
       - uses: actions/checkout@v7
-      - name: Configure and build
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Start the app offscreen
+        shell: bash
         run: |
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DROSTRUM_BUILD_APP=OFF -DROSTRUM_BUILD_TESTS=OFF
-          cmake --build build
+          set -o pipefail
+          export XDG_CONFIG_HOME="$RUNNER_TEMP/config" XDG_STATE_HOME="$RUNNER_TEMP/state"
+          export XDG_RUNTIME_DIR="$RUNNER_TEMP/runtime"
+          mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
+          QT_QPA_PLATFORM=offscreen PIPEWIRE_REMOTE=rostrum-test-none ROSTRUM_SCREENSHOT="$PWD/screenshot.png" \
+            timeout 60 dbus-run-session -- ./build/src/app/rostrum 2>&1 | tee app.log
+          test -s screenshot.png
+          if grep -E 'qrc:/.*\.qml:[0-9]+.*(Error|error|is not a type|is not installed|not found)' app.log; then
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: app-offscreen-arch
+          path: |
+            screenshot.png
+            app.log
+          if-no-files-found: ignore
