@@ -249,7 +249,7 @@ Start from a scene with no rules and "Assign automatically" on.
    Device): Rostrum leaves it on that device and says why.
 4. Drag Spotify's chip to Desktop: it stays there, the Auto tag goes away, and Always saves a rule.
    Press the chip's ✕ on Discord: Discord goes to the default sink, the row says "You took it off
-   its bus.", and restarting Discord keeps it off. Settings → Apps → Forget Skipped Apps: Discord
+   its bus.", and restarting Discord keeps it off. Settings → Apps → Forget skipped apps: Discord
    goes back to Voice.
 5. Right-click the Music strip → Receives Automatically → Nothing: Spotify returns to the default
    sink and Apps says no bus receives music players. Pick Music Players on the Alerts strip

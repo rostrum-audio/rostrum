@@ -191,7 +191,7 @@ Automatic placements are live only. They are not written to the client rule frag
 guess should not outlive Rostrum. Turning on "Always" for an automatic row saves a real rule, which
 then also applies before Rostrum starts. Taking an app off its bus (or unassigning it) adds it to a
 skip list in `settings.toml` (`[apps] auto_skip`). Assigning it to any bus again removes it from
-the list. Settings → Apps → **Forget Skipped Apps** clears the list. Steam games are skipped by
+the list. Settings → Apps → **Forget skipped apps** clears the list. Steam games are skipped by
 Steam app id (`steam:<id>`), so skipping one Proton game does not skip all of `wine64-preloader`.
 
 The classifier (`src/core/AppClassifier.cpp`) is a pure function of facts collected once per
@@ -348,7 +348,7 @@ with OBS closed, edits OBS's scene collection after backing it up.
 - Tray: a StatusNotifierItem, shown only when a tray host is registered
   (`org.kde.StatusNotifierWatcher`). Without a tray, closing the window quits instead of hiding.
 - Global shortcuts: through KGlobalAccel when `org.kde.kglobalaccel` is running (Plasma), as the
-  component `dev.getrostrum.Rostrum`, so they show up in System Settings → Shortcuts and
+  component `dev.getrostrum.Rostrum`, so they show up in System Settings → Keyboard → Shortcuts and
   can be rebound there too. Otherwise through the XDG GlobalShortcuts portal. A shortcut the
   desktop refuses, or one another component already owns, stays active inside the window and
   Settings says why. There is no X11 key grab.

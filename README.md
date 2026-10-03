@@ -21,7 +21,8 @@
 
 ## 🌟 Highlights
 
-- 🎚️ **Buses, not wires.** Game, Voice, Mic, Music, Alerts and Desktop each get a fader, mute and solo.
+- 🎚️ **Buses, not wires.** Game, Voice, Mic, Music, Alerts and Desktop each get a fader and mute,
+  and every playback bus gets solo.
 - 🎧 **Two mixes from one console.** Send each bus to your headphones, to the stream, or to both.
   Music can play for viewers without playing in your ears.
 - 🔴 **OBS in one click.** OBS captures one clean `Rostrum Stream Mix` and one `Rostrum Mic`.
@@ -38,8 +39,9 @@
   sending anything to Sentry. A report holds only the crash location and software versions: no
   names, paths, device names or IDs. You can read the exact report first. See
   [docs/privacy.md](docs/privacy.md).
-- ⬆️ **Stays up to date.** A daily check announces new versions. The AppImage updates itself after
-  checking the release checksum, and package installs are left to the package manager.
+- ⬆️ **Stays up to date.** A daily check announces new versions. Once AppImage builds are published,
+  they update themselves after checking the release checksum. Package installs are left to the
+  package manager.
 
 
 ## ℹ️ Overview
@@ -53,9 +55,9 @@ Rostrum targets any current Linux desktop on PipeWire and WirePlumber. Kubuntu i
 machine, not the only supported system. Plasma, GNOME and other desktops are in scope. X11 is a
 fallback.
 
-**Status:** v1 is feature-complete and smoke-tested on Kubuntu. The headset, OBS and reboot checks in
-[docs/manual-tests.md](docs/manual-tests.md) still need a person with the hardware. The repo is
-private for now and is written so it can be made public later.
+**Status:** version 0.1.0 is feature-complete and smoke-tested on Kubuntu. The headset, OBS and
+reboot checks in [docs/manual-tests.md](docs/manual-tests.md) still need a person with the hardware.
+There are no packages or AppImage builds yet, so Rostrum installs from source (see below).
 
 ### ✍️ Authors
 
@@ -111,7 +113,7 @@ Five minutes to a split stream:
 
 ### ⌨️ Shortcuts
 
-Default global shortcuts, rebindable in Settings or in System Settings → Shortcuts on Plasma:
+Default global shortcuts, rebindable in Settings or in System Settings → Keyboard → Shortcuts on Plasma:
 
 | Action | Shortcut |
 | --- | --- |
@@ -173,16 +175,16 @@ Installing into `~/.local` adds the app menu entry, the icon and the System Sett
 ### 📋 Requirements
 
 - Linux with PipeWire 1.0 or newer and WirePlumber 0.5 or newer. PulseAudio is not used or required.
-- Qt 6.5+ (with Qt WebSockets), KDE Frameworks 6 (Kirigami, Kirigami Addons, GlobalAccel,
+- Qt 6.5+ (with Qt WebSockets), KDE Frameworks 6.8+ (Kirigami, Kirigami Addons, GlobalAccel,
   StatusNotifierItem, CoreAddons, I18n, DBusAddons), toml++ 3.
 
 Base packages on other distros (add the Kirigami and KDE Frameworks packages above):
 
 | Distro | Packages |
 | --- | --- |
-| Debian, Ubuntu, Kubuntu | `pipewire` `pipewire-pulse` `wireplumber` `qt6-base-dev` `qt6-websockets-dev` `libpipewire-0.3-dev` `libtomlplusplus-dev` `cmake` `ninja-build` `pkg-config` |
-| Fedora | `pipewire` `pipewire-pulseaudio` `wireplumber` `qt6-qtbase-devel` `qt6-qtwebsockets-devel` `pipewire-devel` `tomlplusplus-devel` `cmake` `ninja-build` `pkgconf-pkg-config` |
-| Arch | `pipewire` `pipewire-pulse` `wireplumber` `qt6-base` `qt6-websockets` `pipewire` `tomlplusplus` `cmake` `ninja` `pkgconf` |
+| Debian, Ubuntu, Kubuntu | `build-essential` `pipewire` `pipewire-pulse` `wireplumber` `qt6-base-dev` `qt6-websockets-dev` `libpipewire-0.3-dev` `libtomlplusplus-dev` `cmake` `ninja-build` `pkg-config` |
+| Fedora | `pipewire` `pipewire-pulseaudio` `wireplumber` `qt6-qtbase-devel` `qt6-qtwebsockets-devel` `pipewire-devel` `tomlplusplus-devel` `gcc-c++` `cmake` `ninja-build` `pkgconf-pkg-config` |
+| Arch | `pipewire` `pipewire-pulse` `wireplumber` `qt6-base` `qt6-websockets` `tomlplusplus` `gcc` `cmake` `ninja` `pkgconf` |
 
 Smoke-tested on **Kubuntu 26.04 LTS, KDE Plasma 6 on Wayland**, PipeWire 1.6.2, WirePlumber 0.5.13,
 Qt 6.10, KDE Frameworks 6.24.
