@@ -9,6 +9,15 @@ on:
         description: Tag to build and publish (for example v0.2.0). Leave empty for a test build that publishes nothing.
         required: false
         default: ''
+  # Prepare release calls this after pushing the tag: a tag pushed with GITHUB_TOKEN starts no workflow.
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+    secrets:
+      SENTRY_AUTH_TOKEN:
+        required: false
 
 permissions:
   contents: read

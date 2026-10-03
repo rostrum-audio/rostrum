@@ -5,7 +5,31 @@ It builds the `official` preset (crash reports on, debug info), runs the tests, 
 `Rostrum-<version>-x86_64.AppImage`, starts the packaged app once offscreen, writes the update
 feed and a checksum file, and publishes a GitHub release with all three.
 
-## Cut a release
+## Release from GitHub
+
+Actions → **Prepare release** → **Run workflow** does steps 1, 2 and 4 below for you:
+
+1. Enter the version (`0.2.0`, or `0.2.0-rc1` for a pre-release) and the release notes: one or
+   two plain sentences, the same text step 4 puts in the tag.
+2. Leave **Dry run** ticked the first time. The run checks the version (well formed, not older
+   than the current one, no tag yet), sets it with `tools/release/set-version.py`, validates the
+   metainfo, and shows the change in the run summary. Nothing is pushed.
+3. Run it again with **Dry run** unticked. It commits "Release 0.2.0" to `main` if the version
+   changed, pushes the annotated tag, and runs the **Release** workflow below for that tag.
+
+The new metainfo entry is described by the release notes; edit it afterwards if the app stores
+should say more. A final release moves the date of an existing entry (from a release candidate)
+to the release day.
+
+**RELEASE_TOKEN.** `main` is protected, and the workflow's own token cannot push to it. Committing
+a new version needs a repository secret named `RELEASE_TOKEN`: a
+[fine-grained personal access token](https://github.com/settings/personal-access-tokens/new)
+of a maintainer who may push to `main`, for `rostrum-audio/rostrum` only, with **Contents: Read and
+write** and nothing else. Without it, set the version by hand (steps 1 and 2) and the button only
+tags and publishes. The tag itself is always pushed with the workflow's own token, so the
+**Release** workflow runs once, called by Prepare release, not again for the tag push.
+
+## Cut a release by hand
 
 1. Set the version in `CMakeLists.txt` (`project(rostrum VERSION 0.2.0 …)`).
 2. Add a `<release version="0.2.0" date="YYYY-MM-DD">` entry at the top of `<releases>` in

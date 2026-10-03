@@ -1,0 +1,135 @@
+name: Prepare release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, for example 0.2.0 (0.2.0-rc1 makes a pre-release).
+        required: true
+      notes:
+        description: Release notes, one or two plain sentences. They become the GitHub release text and the app's What's New.
+        required: true
+      dry_run:
+        description: Dry run. Check everything and show the changes, but push and publish nothing.
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prepare-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.check.outputs.tag }}
+      publish: ${{ steps.check.outputs.publish }}
+    env:
+      VERSION: ${{ inputs.version }}
+      NOTES: ${{ inputs.notes }}
+      DRY_RUN: ${{ inputs.dry_run }}
+      HAS_RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN != '' }}
+    steps:
+      - name: Only from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Run Prepare release from the main branch."
+          exit 1
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN || github.token }}
+      - name: Check the version and tag
+        id: check
+        run: |
+          VERSION="${VERSION#v}"
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
+            echo "::error::'$VERSION' is not a version like 0.2.0 or 0.2.0-rc1."
+            exit 1
+          fi
+          if [ -n "$(git ls-remote --tags origin "refs/tags/v$VERSION")" ]; then
+            echo "::error::The tag v$VERSION already exists."
+            exit 1
+          fi
+          if ! printf '%s' "$NOTES" | grep -q '[^[:space:]]'; then
+            echo "::error::Write the release notes."
+            exit 1
+          fi
+          echo "RELEASE_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Set the version
+        id: bump
+        run: |
+          result="$(python3 tools/release/set-version.py --version "$RELEASE_VERSION" --notes "$NOTES")"
+          echo "result=$result" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Rostrum $RELEASE_VERSION"
+            echo
+            echo "Release notes: $NOTES"
+            echo
+            if [ "$result" = "changed" ]; then
+              echo '```diff'
+              git diff
+              echo '```'
+              if [ "$HAS_RELEASE_TOKEN" != "true" ]; then
+                echo
+                echo "**Publishing needs a RELEASE_TOKEN secret** to commit this to main. See docs/releasing.md."
+              fi
+            else
+              echo "CMakeLists.txt and the metainfo already match $RELEASE_VERSION; no commit is needed."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          git diff
+      - name: Validate the AppStream metadata
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends appstream
+          appstreamcli validate --no-net data/dev.getrostrum.Rostrum.metainfo.xml
+      - name: Commit the version to main
+        if: steps.bump.outputs.result == 'changed' && env.DRY_RUN != 'true'
+        run: |
+          if [ "$HAS_RELEASE_TOKEN" != "true" ]; then
+            echo "::error::main is protected, so committing the new version needs a RELEASE_TOKEN secret. See docs/releasing.md, or set the version by hand and run this again."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Release $RELEASE_VERSION"
+          git push origin HEAD:main
+      - name: Tag the release
+        if: env.DRY_RUN != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          git tag -a "v$RELEASE_VERSION" -m "$NOTES"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "v$RELEASE_VERSION"
+      - name: Dry run
+        if: env.DRY_RUN == 'true'
+        run: echo "Dry run for v$RELEASE_VERSION passed. Run again with Dry run unticked to publish." | tee -a "$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: Release
+    needs: prepare
+    if: needs.prepare.outputs.publish == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+    secrets:
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
