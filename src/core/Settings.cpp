@@ -86,6 +86,10 @@ QString serializeSettings(const Settings &s)
     for (auto it = s.hotkeys.cbegin(); it != s.hotkeys.cend(); ++it) {
         hotkeys.insert(it.key().toStdString(), it.value().toStdString());
     }
+    toml::array skip;
+    for (const auto &key : s.autoSkip) {
+        skip.push_back(key.toStdString());
+    }
     toml::table t{
         {"format", 1},
         {"general",
@@ -97,6 +101,7 @@ QString serializeSettings(const Settings &s)
              {"scroll_to_adjust", s.scrollToAdjust},
          }},
         {"mixer", toml::table{{"meter_speed", s.meterSpeed.toStdString()}, {"show_db", s.showDb}}},
+        {"apps", toml::table{{"auto_assign", s.autoAssign}, {"auto_skip", skip}}},
         {"advanced", toml::table{{"show_node_ids", s.showNodeIds}}},
         {"scenes", toml::table{{"default", s.defaultScene.toStdString()}}},
         {"devices", toml::table{{"headphones", s.headphones.toStdString()}, {"mic", s.mic.toStdString()}}},
@@ -136,6 +141,15 @@ Settings parseSettings(const QString &text, QString *error)
         s.meterSpeed = QStringLiteral("normal");
     }
     s.showDb = get(t, "mixer", "show_db", s.showDb);
+    s.autoAssign = get(t, "apps", "auto_assign", s.autoAssign);
+    if (const auto *skip = t["apps"]["auto_skip"].as_array()) {
+        for (const auto &v : *skip) {
+            if (auto key = v.value<std::string>(); key && !key->empty()) {
+                s.autoSkip << QString::fromStdString(*key);
+            }
+        }
+        s.autoSkip.removeDuplicates();
+    }
     s.showNodeIds = get(t, "advanced", "show_node_ids", s.showNodeIds);
     s.defaultScene = getStr(t, "scenes", "default", s.defaultScene);
     s.headphones = getStr(t, "devices", "headphones", s.headphones);

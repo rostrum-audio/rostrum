@@ -173,6 +173,56 @@ After a reboot or re-login, the order is as follows:
 
 If Discord stays on the default sink until it is restarted, that is a router bug.
 
+### Automatic assignment
+
+With **Assign apps automatically** on (the default), a stream that matches no rule is sorted by
+what kind of app it is. Each bus has an `auto` key in the scene (`game`, `voice`, `music`,
+`alerts`, `desktop` or `none`), and the stream goes to the bus that receives its kind. At most one
+bus receives each kind, and the input bus never receives one. Scenes saved before this key existed
+get it from the bus id, so the default buses work without editing anything.
+
+The router decides where each stream goes in this order:
+
+1. A "this launch only" assignment made in the app.
+2. A rule in the current scene.
+3. Automatic assignment, unless it is off or the user has taken this app off its bus before.
+
+Automatic placements are live only. They are not written to the client rule fragments, because a
+guess should not outlive Rostrum. Turning on "Always" for an automatic row saves a real rule, which
+then also applies before Rostrum starts. Taking an app off its bus (or unassigning it) adds it to a
+skip list in `settings.toml` (`[apps] auto_skip`). Assigning it to any bus again removes it from
+the list. Settings → Apps → **Forget Skipped Apps** clears the list. Steam games are skipped by
+Steam app id (`steam:<id>`), so skipping one Proton game does not skip all of `wine64-preloader`.
+
+The classifier (`src/core/AppClassifier.cpp`) is a pure function of facts collected once per
+stream and cached until the stream's properties change. It checks, in order:
+
+| Step | Evidence | Result |
+| --- | --- | --- |
+| 1 | The stream carries its own `target.object` / `node.target` that is not a Rostrum bus, or sets `node.dont-move` | Excluded: the user picked this app's output in its own settings |
+| 2 | `media.role` is `Accessibility`, `Production` or `Test` | Excluded |
+| 3 | The binary, `application.name` or Flatpak/Snap id is in the built-in catalog | Its kind; OBS, audio tools (pavucontrol, Helvum, qpwgraph, EasyEffects, Carla, DAWs) and screen readers are excluded |
+| 4 | The app's menu entry lists it as a Mixer, Recorder, Sequencer or MIDI tool | Excluded |
+| 5 | `SteamAppId` / `SteamGameId` in the process environment | Game, named from the Steam app manifest when the stream has no name |
+| 6 | The binary is Wine or a `.exe` | Game |
+| 7 | The icon name is in the catalog | Its kind |
+| 8 | `media.role` is `Game`, `Music`, `Communication`/`Phone`, or a desktop role such as `Notification` or `Movie` | That kind |
+| 9 | The app's `.desktop` entry: `Game`; `InstantMessaging`, `Chat`, `VideoConference`, `Telephony`; `Music` or `Audio`+`Player` | Game, Voice, Music; any other menu entry is Desktop |
+| 10 | `application.name` is a game audio engine (OpenAL Soft, SDL, FMOD) | Game |
+
+Anything else stays unassigned and plays on the default sink, as it would without Rostrum.
+
+Process facts are read from `/proc/<pid>/environ` only after `/proc/<pid>/exe` (or `comm`) matches
+`application.process.binary`. Flatpak apps report a pid from their own namespace, so an unchecked
+read could belong to an unrelated process. Flatpak apps are still identified by
+`pipewire.access.portal.app_id`. Desktop entries are indexed from `XDG_DATA_DIRS` plus the Flatpak
+and Snap export directories. They are looked up by app id, binary, `Exec`, `TryExec`,
+`StartupWMClass`, icon and name, and rescanned at most once a minute when a lookup misses.
+
+The Apps page marks automatic rows **Auto** and states the evidence in plain words, and the strip
+chip's tooltip repeats it. Each placement is logged as `recognised "<app>" <id> as "<kind>"` and
+`route ... (automatic)`.
+
 ## Meters
 
 Each strip's meter is a `pw_stream` capture named `rostrum-meter.<node>`, targeted at the

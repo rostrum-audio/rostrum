@@ -2,6 +2,7 @@
 
 #include "app/MeterBallistics.h"
 #include "app/RowsModel.h"
+#include "engine/Engine.h"
 #include "pw/MeterBank.h"
 
 #include <QElapsedTimer>
@@ -26,7 +27,8 @@ class Apps : public QObject
     QML_SINGLETON
 
     // Rows: {key, name, binary, matchKey, busId, busName, busColor, volume, always, unnamed,
-    //        nodeIds}
+    //        nodeIds, automatic, detail}. detail explains an automatic placement, or why an
+    //        app Rostrum recognised was left where it is; empty for the user's own choices.
     Q_PROPERTY(QVariantList running READ running NOTIFY changed)
     // Rows: {key, match, matchKey, label, busId, busName, busColor, lastSeen, running}
     Q_PROPERTY(QVariantList rules READ rules NOTIFY changed)
@@ -46,6 +48,10 @@ public:
     ~Apps() override;
 
     static Apps *create(QQmlEngine *, QJSEngine *);
+
+    // "Steam game", "Its app menu entry lists it as a music player", ... Empty if Rostrum does
+    // not recognise the app.
+    static QString reason(const engine::AppStream &app);
 
     QVariantList running() const { return m_running; }
     QVariantList rules() const { return m_rules; }

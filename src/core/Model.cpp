@@ -1,5 +1,6 @@
 #include "core/Model.h"
 
+#include <QHash>
 #include <QRegularExpression>
 
 namespace rostrum {
@@ -54,6 +55,38 @@ QString Bus::nodeName() const
     return QStringLiteral("rostrum.") + id;
 }
 
+QString categoryName(AppCategory c)
+{
+    switch (c) {
+    case AppCategory::Game:
+        return QStringLiteral("game");
+    case AppCategory::Voice:
+        return QStringLiteral("voice");
+    case AppCategory::Music:
+        return QStringLiteral("music");
+    case AppCategory::Alerts:
+        return QStringLiteral("alerts");
+    case AppCategory::Desktop:
+        return QStringLiteral("desktop");
+    case AppCategory::None:
+        break;
+    }
+    return QStringLiteral("none");
+}
+
+std::optional<AppCategory> categoryFromString(const QString &s)
+{
+    static const QHash<QString, AppCategory> map = {
+        {QStringLiteral("none"), AppCategory::None},   {QStringLiteral("game"), AppCategory::Game},
+        {QStringLiteral("voice"), AppCategory::Voice}, {QStringLiteral("music"), AppCategory::Music},
+        {QStringLiteral("alerts"), AppCategory::Alerts}, {QStringLiteral("desktop"), AppCategory::Desktop},
+    };
+    if (auto it = map.constFind(s.trimmed().toLower()); it != map.cend()) {
+        return it.value();
+    }
+    return std::nullopt;
+}
+
 Bus *Scene::bus(const QString &id)
 {
     for (auto &b : buses) {
@@ -78,6 +111,19 @@ QList<Bus> Scene::playbackBuses() const
         }
     }
     return out;
+}
+
+const Bus *Scene::busFor(AppCategory category) const
+{
+    if (category == AppCategory::None) {
+        return nullptr;
+    }
+    for (const auto &b : buses) {
+        if (!b.isInput() && b.autoCategory == category) {
+            return &b;
+        }
+    }
+    return nullptr;
 }
 
 AppRule *Scene::rule(MatchKey key, const QString &match)
@@ -141,6 +187,12 @@ Destination destinationFor(const QString &busId)
     return Destination::Both;
 }
 
+AppCategory autoCategoryFor(const QString &busId)
+{
+    return busId == QLatin1String(kMicBusId) ? AppCategory::None
+                                              : categoryFromString(busId).value_or(AppCategory::None);
+}
+
 Scene scene(const QString &name)
 {
     struct Def
@@ -162,6 +214,7 @@ Scene scene(const QString &name)
         b.color = QString::fromLatin1(palette().at(i++).hex);
         b.kind = b.id == QLatin1String(kMicBusId) ? BusKind::Input : BusKind::Playback;
         b.destination = destinationFor(b.id);
+        b.autoCategory = autoCategoryFor(b.id);
         s.buses.append(b);
     }
     return s;

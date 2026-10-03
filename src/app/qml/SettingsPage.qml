@@ -6,7 +6,7 @@ import org.kde.kirigamiaddons.formcard as FormCard
 import org.kde.kquickcontrols as KQuickControls
 import Rostrum
 
-// Plasma-style settings groups: General, Hotkeys, Mixer, Advanced, About.
+// Plasma-style settings groups: General, Hotkeys, Mixer, Apps, Advanced, About.
 QQC2.ScrollView {
     id: page
 
@@ -154,6 +154,30 @@ QQC2.ScrollView {
                 description: i18n("Print the level under every fader. Off shows it only on hover or focus.")
                 checked: Preferences.showDb
                 onToggled: Preferences.showDb = checked
+            }
+        }
+
+        FormCard.FormHeader {
+            title: i18nc("@title:group", "Apps")
+        }
+        FormCard.FormCard {
+            FormCard.FormSwitchDelegate {
+                text: i18nc("@option:check", "Assign apps automatically")
+                description: i18n("Rostrum recognises games, voice chat, music players and stream alert tools, and puts each on the bus that receives it. Your own assignments and rules always win. Choose what a bus receives from its right-click menu.")
+                checked: Preferences.autoAssign
+                onToggled: Preferences.autoAssign = checked
+            }
+            FormCard.FormDelegateSeparator {}
+            FormCard.FormButtonDelegate {
+                text: i18nc("@action:button", "Forget skipped apps")
+                description: Preferences.skippedApps > 0
+                             ? i18ncp("@info", "One app you took off its bus stays unassigned. Forget it and it is assigned automatically again.",
+                                      "%1 apps you took off their bus stay unassigned. Forget them and they are assigned automatically again.",
+                                      Preferences.skippedApps)
+                             : i18n("Apps you take off their bus stay unassigned. None so far.")
+                icon.name: "edit-clear-history"
+                enabled: Preferences.skippedApps > 0
+                onClicked: Preferences.forgetSkippedApps()
             }
         }
 

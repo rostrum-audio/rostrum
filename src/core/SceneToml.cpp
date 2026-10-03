@@ -83,6 +83,7 @@ toml::table sceneTable(const Scene &scene)
             {"volume", b.volume},
             {"muted", b.muted},
             {"destination", s(destinationName(b.destination))},
+            {"auto", s(categoryName(b.autoCategory))},
         });
     }
     t.insert("bus", std::move(buses));
@@ -136,6 +137,8 @@ Scene sceneFrom(const toml::table &t)
             b.volume = num(bv["volume"], 1.0);
             b.muted = flag(bv["muted"], false);
             b.destination = destinationFromString(qs(bv["destination"])).value_or(defaults::destinationFor(b.id));
+            // Scenes saved before automatic assignment existed: the default buses keep their job.
+            b.autoCategory = categoryFromString(qs(bv["auto"])).value_or(defaults::autoCategoryFor(b.id));
             scene.buses.append(b);
         }
     }
@@ -214,6 +217,14 @@ Scene sanitize(Scene scene)
             b.color = QString::fromLatin1(defaults::palette().at(k % defaults::palette().size()).hex);
         }
         b.volume = std::clamp(b.volume, 0.0, b.isInput() ? 1.5 : 1.0);
+    }
+    QSet<int> claimed;
+    for (Bus &b : out) {
+        if (b.isInput() || claimed.contains(int(b.autoCategory))) {
+            b.autoCategory = AppCategory::None;
+        } else if (b.autoCategory != AppCategory::None) {
+            claimed.insert(int(b.autoCategory));
+        }
     }
     scene.buses = out;
 

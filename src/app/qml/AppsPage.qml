@@ -80,6 +80,14 @@ QQC2.Pane {
             Item {
                 Layout.fillWidth: true
             }
+            QQC2.Switch {
+                text: i18nc("@option:check", "Assign automatically")
+                checked: Preferences.autoAssign
+                onToggled: Preferences.autoAssign = checked
+                QQC2.ToolTip.text: i18nc("@info:tooltip", "Put games, voice chat, music players and stream alerts on their bus as soon as they play. Your own assignments always win.")
+                QQC2.ToolTip.visible: hovered
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+            }
         }
 
         Kirigami.InlineMessage {

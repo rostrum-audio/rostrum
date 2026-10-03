@@ -66,6 +66,16 @@ bool Preferences::showDb() const { return m_app->settings().showDb; }
 void Preferences::setShowDb(bool on) { update(m_app->settings().showDb, on); }
 bool Preferences::showNodeIds() const { return m_app->settings().showNodeIds; }
 void Preferences::setShowNodeIds(bool on) { update(m_app->settings().showNodeIds, on); }
+bool Preferences::autoAssign() const { return m_app->settings().autoAssign; }
+
+void Preferences::setAutoAssign(bool on)
+{
+    update(m_app->settings().autoAssign, on);
+    m_app->engine()->setAutoAssign(on);
+}
+
+int Preferences::skippedApps() const { return int(m_app->settings().autoSkip.size()); }
+void Preferences::forgetSkippedApps() { m_app->engine()->forgetAutoSkip(); }
 
 QString Preferences::actionLabel(const QString &id)
 {

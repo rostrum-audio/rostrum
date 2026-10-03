@@ -5,6 +5,7 @@ import org.kde.kirigami as Kirigami
 import Rostrum
 
 // One running app: name and binary, its bus, a live meter, its own volume, Assign and Always.
+// An app Rostrum placed by itself says so, and says why.
 QQC2.Control {
     id: row
 
@@ -38,14 +39,18 @@ QQC2.Control {
                     Layout.fillWidth: true
                 }
                 QQC2.Label {
-                    // The match key explains why a rule stuck: by name or by binary.
+                    // Why it is where it is: what Rostrum recognised, or how a rule matches.
                     text: {
                         const parts = []
                         if (row.app.binary) {
                             parts.push(row.app.binary)
                         }
-                        parts.push(row.app.matchKey === "binary" ? i18nc("@info", "matched by binary")
-                                                                 : i18nc("@info", "matched by name"))
+                        if (row.app.detail) {
+                            parts.push(row.app.detail)
+                        } else {
+                            parts.push(row.app.matchKey === "binary" ? i18nc("@info", "matched by binary")
+                                                                     : i18nc("@info", "matched by name"))
+                        }
                         if (Preferences.showNodeIds) {
                             parts.push(row.app.nodeIds.map(id => "#" + id).join(", "))
                         }
@@ -55,6 +60,19 @@ QQC2.Control {
                     opacity: 0.7
                     elide: Text.ElideRight
                     Layout.fillWidth: true
+                }
+            }
+
+            QQC2.Label {
+                visible: row.app.automatic
+                text: i18nc("@info placed automatically", "Auto")
+                font: Kirigami.Theme.smallFont
+                opacity: 0.65
+                QQC2.ToolTip.text: i18nc("@info:tooltip", "Rostrum put it here. Move it, or turn on Always, to decide yourself.")
+                QQC2.ToolTip.visible: autoHover.hovered
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                HoverHandler {
+                    id: autoHover
                 }
             }
 
@@ -127,7 +145,8 @@ QQC2.Control {
                 QQC2.ToolTip.visible: hovered
                 QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                 QQC2.ToolTip.text: checked ? i18nc("@info:tooltip", "New launches go to this bus too")
-                                           : i18nc("@info:tooltip", "Only this launch goes to this bus")
+                                 : row.app.automatic ? i18nc("@info:tooltip", "Make it a rule, so it lands here even before Rostrum starts")
+                                                     : i18nc("@info:tooltip", "Only this launch goes to this bus")
             }
         }
     }

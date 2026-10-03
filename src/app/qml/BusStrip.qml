@@ -22,11 +22,19 @@ QQC2.Control {
     required property var apps
     required property real peak
     required property bool clip
+    required property string autoCategory
 
     property bool editing: false
     property bool expanded: false
     readonly property bool dropHover: dropArea.containsDrag
     readonly property int maxChips: 3
+    readonly property var autoLabels: ({
+        game: i18nc("@info bus receives automatically", "Auto: games"),
+        voice: i18nc("@info bus receives automatically", "Auto: voice chat"),
+        music: i18nc("@info bus receives automatically", "Auto: music"),
+        alerts: i18nc("@info bus receives automatically", "Auto: stream alerts"),
+        desktop: i18nc("@info bus receives automatically", "Auto: everything else")
+    })
 
     signal removeRequested(string busId, string name)
     signal overflowRequested(string busId)
@@ -128,6 +136,7 @@ QQC2.Control {
                     : strip.dimmed ? i18nc("@info:status", "Dimmed by solo")
                     : strip.soloed ? i18nc("@info:status", "Solo")
                     : strip.isInput ? i18nc("@label", "Gain")
+                    : Preferences.autoAssign ? (strip.autoLabels[strip.autoCategory] ?? "")
                     : ""
                 color: strip.muted ? Kirigami.Theme.negativeTextColor
                      : strip.soloed ? Kirigami.Theme.neutralTextColor
@@ -235,6 +244,8 @@ QQC2.Control {
                     Layout.fillWidth: true
                     appKey: modelData.key
                     appName: modelData.name
+                    automatic: modelData.automatic
+                    reason: modelData.reason
                     busId: strip.busId
                     busColor: strip.busColor
                 }
@@ -370,6 +381,30 @@ QQC2.Control {
             text: i18nc("@action:inmenu", "Color…")
             icon.name: "color-management"
             onTriggered: colorPopup.open()
+        }
+        QQC2.Menu {
+            id: autoMenu
+            title: i18nc("@title:menu", "Receives Automatically")
+            enabled: !strip.isInput
+            Instantiator {
+                model: [
+                    { id: "game", text: i18nc("@item:inmenu automatic bus", "Games") },
+                    { id: "voice", text: i18nc("@item:inmenu automatic bus", "Voice Chat") },
+                    { id: "music", text: i18nc("@item:inmenu automatic bus", "Music Players") },
+                    { id: "alerts", text: i18nc("@item:inmenu automatic bus", "Stream Alerts") },
+                    { id: "desktop", text: i18nc("@item:inmenu automatic bus", "Everything Else") },
+                    { id: "none", text: i18nc("@item:inmenu automatic bus", "Nothing") }
+                ]
+                QQC2.MenuItem {
+                    required property var modelData
+                    text: modelData.text
+                    checkable: true
+                    checked: strip.autoCategory === modelData.id
+                    onTriggered: Mixer.setAutoCategory(strip.busId, modelData.id)
+                }
+                onObjectAdded: (index, object) => autoMenu.insertItem(index, object)
+                onObjectRemoved: (index, object) => autoMenu.removeItem(object)
+            }
         }
         QQC2.MenuItem {
             text: i18nc("@action:inmenu", "Duplicate")

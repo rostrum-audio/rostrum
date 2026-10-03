@@ -16,11 +16,15 @@ inline constexpr const char *kDefaultSceneName = "Live";
 enum class Destination { Phones, Stream, Both };
 enum class BusKind { Input, Playback };
 enum class MatchKey { Name, Binary };
+// What kind of app a bus receives automatically. None = only apps the user puts there.
+enum class AppCategory { None, Game, Voice, Music, Alerts, Desktop };
 
 QString destinationName(Destination d);
 std::optional<Destination> destinationFromString(const QString &s);
 QString matchKeyName(MatchKey k);
 std::optional<MatchKey> matchKeyFromString(const QString &s);
+QString categoryName(AppCategory c);
+std::optional<AppCategory> categoryFromString(const QString &s);
 
 inline bool feedsPhones(Destination d) { return d == Destination::Phones || d == Destination::Both; }
 inline bool feedsStream(Destination d) { return d == Destination::Stream || d == Destination::Both; }
@@ -34,6 +38,7 @@ struct Bus
     double volume = 1.0; // fader position, 0..1 for playback, 0..1.5 for mic gain (1.0 = unity / 0 dB)
     bool muted = false;
     Destination destination = Destination::Both;
+    AppCategory autoCategory = AppCategory::None; // at most one bus per category in a scene
 
     bool isInput() const { return kind == BusKind::Input; }
     QString nodeName() const;
@@ -74,6 +79,7 @@ struct Scene
     Bus *micBus() { return bus(QString::fromLatin1(kMicBusId)); }
     const Bus *micBus() const { return bus(QString::fromLatin1(kMicBusId)); }
     QList<Bus> playbackBuses() const;
+    const Bus *busFor(AppCategory category) const; // the playback bus that receives it, if any
 
     AppRule *rule(MatchKey key, const QString &match);
     const AppRule *rule(MatchKey key, const QString &match) const;
@@ -97,6 +103,7 @@ struct Swatch
 const QList<Swatch> &palette();
 Scene scene(const QString &name = QString::fromLatin1(kDefaultSceneName));
 Destination destinationFor(const QString &busId);
+AppCategory autoCategoryFor(const QString &busId); // what the default buses receive
 
 } // namespace defaults
 

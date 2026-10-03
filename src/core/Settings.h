@@ -33,6 +33,9 @@ struct Settings
     // Mixer
     QString meterSpeed = QStringLiteral("normal"); // "low" or "normal"
     bool showDb = false;
+    // Apps
+    bool autoAssign = true;  // place recognised apps on the bus for their kind
+    QStringList autoSkip;    // app keys the user took off their automatic bus
     // Advanced
     bool showNodeIds = false;
     // Scenes

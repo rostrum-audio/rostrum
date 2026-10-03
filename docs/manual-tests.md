@@ -154,7 +154,8 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
 
 ## 10. Apps, Scenes, Devices, OBS and Settings pages
 
-1. Apps: play Firefox and Discord. Each shows with its binary and "matched by name". Assign
+1. Apps: turn off "Assign automatically", then play Firefox and Discord. Each shows with its
+   binary and "matched by name". Assign
    Firefox to Music: the chip says Music and Always is on, and a rule appears on the right.
    Turn Always off: the rule disappears but Firefox stays on Music until it quits.
 2. Apps: drag Firefox's volume slider. The row does not jump or reset while you drag.
@@ -214,6 +215,30 @@ private D-Bus session with a headless nested KWin and a fake tray host, so nothi
 real desktop. On GNOME, or anywhere without `org.kde.kglobalaccel`, hotkeys go through the XDG
 GlobalShortcuts portal instead. That path is untested so far.
 
+## 12. Automatic assignment
+
+Start from a scene with no rules and "Assign automatically" on.
+
+1. Start Discord, Spotify and a Steam game (Proton or native). Within a second each lands on
+   Voice, Music and Game. The Apps rows say **Auto** with a reason ("Recognised as a voice chat
+   app", "Steam game"), and a nameless Proton game is named from its Steam manifest. The log has
+   one `recognised` and one `route … (automatic)` line per app. Nothing new appears in
+   `~/.config/pipewire/*/50-rostrum.conf`.
+2. With OBS running, OBS is listed but stays unassigned, with the reason shown. Start
+   pavucontrol's test sound or Helvum: they are not moved either.
+3. In an app's own audio settings, pick a specific output (Discord → Voice & Video → Output
+   Device): Rostrum leaves it on that device and says why.
+4. Drag Spotify's chip to Desktop: it stays there, the Auto tag goes away, and Always saves a rule.
+   Press the chip's ✕ on Discord: Discord goes to the default sink, the row says "You took it off
+   its bus.", and restarting Discord keeps it off. Settings → Apps → Forget Skipped Apps: Discord
+   goes back to Voice.
+5. Right-click the Music strip → Receives Automatically → Nothing: Spotify returns to the default
+   sink and Apps says no bus receives music players. Pick Music Players on the Alerts strip
+   instead: Spotify moves to Alerts, and Music's label no longer reads "Auto: music". Save, restart,
+   and the choice is kept.
+6. Turn "Assign automatically" off: every Auto row goes back to the default sink; rule-based apps
+   do not move.
+
 ## Smoke test log
 
 Kubuntu 26.04, Plasma 6.6 Wayland, PipeWire 1.6.2, WirePlumber 0.5.13, build 0.1.0. The checks
@@ -231,7 +256,8 @@ nested KWin with a fake tray host, or offscreen rendering. Fake devices were nul
 | Close the window (KWin closes it) | App keeps running in the tray |
 | Start in tray (`--autostart`) | No window until Show |
 | Global shortcuts through KGlobalAccel | All eight registered as `dev.getrostrum.Rostrum`; invoking Mute mic toggles the mic; a shortcut KWin owns (Meta+D) is reported in Settings and stays in-window |
-| Unit tests | 7 of 7 pass |
+| Automatic assignment with stand-in streams (Discord, Spotify, Streamer.bot, Firefox, an unknown game with `media.role = "Game"`) and the real OBS | Each lands on Voice, Music, Alerts, Desktop and Game with the reason shown; OBS is recognised and left alone; no fragment file changes |
+| Unit tests | 10 of 10 pass |
 
 Still manual (needs hardware or a real session): tests 4 (mic path), 6 and 7 (quit and reboot
 routing with Discord), OBS capture, the real headset unplug, and the GlobalShortcuts portal on a

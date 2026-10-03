@@ -47,6 +47,76 @@ Apps *Apps::create(QQmlEngine *, QJSEngine *)
     return s_instance;
 }
 
+namespace {
+
+QString kindOf(AppCategory c)
+{
+    switch (c) {
+    case AppCategory::Game:
+        return i18nc("@info kind of app", "a game");
+    case AppCategory::Voice:
+        return i18nc("@info kind of app", "a voice chat app");
+    case AppCategory::Music:
+        return i18nc("@info kind of app", "a music player");
+    case AppCategory::Alerts:
+        return i18nc("@info kind of app", "a stream alerts tool");
+    case AppCategory::Desktop:
+        return i18nc("@info kind of app", "a desktop app");
+    case AppCategory::None:
+        break;
+    }
+    return {};
+}
+
+QString kindPlural(AppCategory c)
+{
+    switch (c) {
+    case AppCategory::Game:
+        return i18nc("@info kind of app, plural", "games");
+    case AppCategory::Voice:
+        return i18nc("@info kind of app, plural", "voice chat");
+    case AppCategory::Music:
+        return i18nc("@info kind of app, plural", "music players");
+    case AppCategory::Alerts:
+        return i18nc("@info kind of app, plural", "stream alerts");
+    case AppCategory::Desktop:
+        return i18nc("@info kind of app, plural", "desktop apps");
+    case AppCategory::None:
+        break;
+    }
+    return {};
+}
+
+} // namespace
+
+QString Apps::reason(const engine::AppStream &a)
+{
+    const Classification &c = a.detected;
+    if (c.excluded) {
+        return c.evidence == Evidence::OwnOutput
+                   ? i18nc("@info", "Chose its own output in its settings, so Rostrum leaves it there")
+                   : i18nc("@info", "Audio tools, OBS and screen readers are never assigned automatically");
+    }
+    switch (c.evidence) {
+    case Evidence::Catalog:
+        return i18nc("@info %1 is a kind of app", "Recognised as %1", kindOf(c.category));
+    case Evidence::Steam:
+        return i18nc("@info", "Steam game");
+    case Evidence::Wine:
+        return i18nc("@info", "Windows game under Wine or Proton");
+    case Evidence::MediaRole:
+        return i18nc("@info %1 is a kind of app", "The app reports itself as %1", kindOf(c.category));
+    case Evidence::DesktopEntry:
+        return i18nc("@info %1 is a kind of app", "Its app menu entry lists it as %1", kindOf(c.category));
+    case Evidence::GameEngine:
+        return i18nc("@info", "Plays through a game audio engine");
+    case Evidence::OwnOutput:
+    case Evidence::None:
+        break;
+    }
+    return {};
+}
+
 void Apps::rebuild()
 {
     const engine::Engine *e = m_app->engine();
@@ -87,6 +157,20 @@ void Apps::rebuild()
             continue;
         }
         const Bus *bus = scene.bus(a.busId);
+        const QString why = reason(a);
+        QString detail;
+        if (a.automatic || a.detected.excluded) {
+            detail = why;
+        } else if (!bus && !why.isEmpty()) {
+            if (!e->autoAssign()) {
+                detail = i18nc("@info %1 is why Rostrum recognised the app", "%1. Automatic assignment is off.", why);
+            } else if (a.skipped) {
+                detail = i18nc("@info %1 is why Rostrum recognised the app", "%1. You took it off its bus.", why);
+            } else if (!scene.busFor(a.detected.category)) {
+                detail = i18nc("@info %1 is why Rostrum recognised the app, %2 a kind of app",
+                               "%1. No bus receives %2 yet.", why, kindPlural(a.detected.category));
+            }
+        }
         rowOf.insert(keyString, int(running.size()));
         running << QVariantMap{
             {QStringLiteral("key"), keyString},
@@ -100,6 +184,8 @@ void Apps::rebuild()
             {QStringLiteral("always"), a.ruleKey.isValid() && !a.sessionOnly},
             {QStringLiteral("unnamed"), a.identity.unnamed},
             {QStringLiteral("nodeIds"), QVariantList{a.nodeId}},
+            {QStringLiteral("automatic"), a.automatic},
+            {QStringLiteral("detail"), detail},
         };
     }
 

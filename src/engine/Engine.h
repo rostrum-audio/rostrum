@@ -1,6 +1,8 @@
 #pragma once
 
+#include "core/AppClassifier.h"
 #include "core/AppIdentity.h"
+#include "core/DesktopEntries.h"
 #include "core/Model.h"
 #include "engine/NodeSpecs.h"
 
@@ -24,6 +26,10 @@ struct AppStream
     QString busId;          // effective bus, empty if unassigned
     AppKey ruleKey;         // the rule that placed it, if any
     bool sessionOnly = false; // placed by a "this launch only" assignment
+    bool automatic = false;   // placed by what Rostrum recognised, not by the user
+    Classification detected;  // what Rostrum recognised, whether or not it placed it
+    QString detectedName;     // e.g. the Steam game's name, empty if none
+    bool skipped = false;     // the user took it off its automatic bus
     double volume = 1.0;
 };
 
@@ -100,6 +106,16 @@ public:
     void editRule(const AppKey &oldKey, const AppKey &newKey);
     void setRuleLabel(const AppKey &key, const QString &label);
 
+    // Automatic assignment: recognised apps go to the bus whose autoCategory matches, below
+    // "this launch only" choices and rules. Taking an app off its automatic bus skips it from
+    // then on, until the user assigns it again or forgets the skips.
+    void setAutoAssign(bool on);
+    bool autoAssign() const { return m_autoAssign; }
+    void setAutoSkip(const QStringList &keys);
+    QStringList autoSkip() const;
+    void forgetAutoSkip();
+    void setBusAutoCategory(const QString &busId, AppCategory category);
+
 Q_SIGNALS:
     void sceneChanged();
     void structureChanged(); // bus list, names, colors or rules changed: persist without saving faders
@@ -110,6 +126,7 @@ Q_SIGNALS:
     void devicesChanged();
     void headphonesLost(const QString &description);
     void headphonesRestored();
+    void autoSkipChanged();
 
 protected:
     void scheduleReconcile();
@@ -124,7 +141,24 @@ protected:
     const pw::Node *resolveSource() const;
     bool isOwnStream(const pw::Node &n) const;
     StreamProps propsOf(const pw::Node &n) const;
-    QString effectiveBus(const StreamProps &props, const AppIdentity &id, AppKey *ruleKey, bool *session) const;
+    struct Placement
+    {
+        QString busId;
+        AppKey ruleKey;
+        bool session = false;
+        bool automatic = false;
+    };
+    struct Recognised
+    {
+        QString signature; // the props it was computed from; a change recomputes it
+        AppFacts facts;
+        Classification detected;
+        QString skipKey; // "steam:<id>" for Steam games, else the app key
+    };
+    const Recognised &recognise(const pw::Node &n, const StreamProps &props, const AppIdentity &id) const;
+    Placement place(const pw::Node &n, const StreamProps &props, const AppIdentity &id) const;
+    bool isRostrumTarget(const QString &target) const;
+    void skipAuto(const AppKey &key, bool skip);
 
     struct Routed
     {
@@ -138,6 +172,10 @@ protected:
     QHash<QString, QElapsedTimer> m_sessionSeen; // AppKey string -> last time a stream was present
     QHash<uint32_t, double> m_appliedStreamVolume;
     QSet<QString> m_seenThisSession;
+    bool m_autoAssign = true;
+    QSet<QString> m_autoSkip; // lower-case skip keys
+    mutable QHash<uint32_t, Recognised> m_recognised;
+    mutable DesktopIndex m_desktop;
 
     QSet<QString> m_soloed;
     QString m_headphones;

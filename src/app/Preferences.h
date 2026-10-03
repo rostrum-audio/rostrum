@@ -25,6 +25,9 @@ class Preferences : public QObject
     Q_PROPERTY(bool lowMeterSpeed READ lowMeterSpeed WRITE setLowMeterSpeed NOTIFY changed)
     Q_PROPERTY(bool showDb READ showDb WRITE setShowDb NOTIFY changed)
     Q_PROPERTY(bool showNodeIds READ showNodeIds WRITE setShowNodeIds NOTIFY changed)
+    Q_PROPERTY(bool autoAssign READ autoAssign WRITE setAutoAssign NOTIFY changed)
+    // Apps the user took off their automatic bus
+    Q_PROPERTY(int skippedApps READ skippedApps NOTIFY changed)
     // Rows: {id, label, shortcut, defaultShortcut, global, problem}. global: the desktop delivers the
     // shortcut while Rostrum is not focused. problem: why a bound shortcut is not global.
     Q_PROPERTY(QVariantList hotkeys READ hotkeys NOTIFY changed)
@@ -51,6 +54,9 @@ public:
     void setShowDb(bool on);
     bool showNodeIds() const;
     void setShowNodeIds(bool on);
+    bool autoAssign() const;
+    void setAutoAssign(bool on);
+    int skippedApps() const;
     QVariantList hotkeys() const;
     QString configFolder() const;
     QString logFile() const;
@@ -64,6 +70,7 @@ public:
     // The action already using this sequence, or empty.
     Q_INVOKABLE QString hotkeyConflict(const QString &actionId, const QString &sequence) const;
     Q_INVOKABLE void openConfigFolder();
+    Q_INVOKABLE void forgetSkippedApps();
     Q_INVOKABLE void rebuildMix();
     Q_INVOKABLE void exportRulesNow();
 

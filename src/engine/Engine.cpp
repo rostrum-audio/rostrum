@@ -1,5 +1,6 @@
 #include "engine/Engine.h"
 
+#include "core/AppFacts.h"
 #include "core/Volume.h"
 #include "pw/PwContext.h"
 
@@ -218,21 +219,64 @@ StreamProps Engine::propsOf(const pw::Node &n) const
     return {n.appName, n.binary, n.mediaName, n.name};
 }
 
-QString Engine::effectiveBus(const StreamProps &props, const AppIdentity &id, AppKey *ruleKey, bool *session) const
+bool Engine::isRostrumTarget(const QString &target) const
 {
-    *session = false;
-    *ruleKey = {};
+    if (target.startsWith(QLatin1String("rostrum."))) {
+        return true;
+    }
+    const auto &nodes = m_pw->graph().nodes;
+    return std::any_of(nodes.cbegin(), nodes.cend(), [&](const pw::Node &o) {
+        return o.isRostrum() && (o.serial == target || QString::number(o.id) == target);
+    });
+}
+
+const Engine::Recognised &Engine::recognise(const pw::Node &n, const StreamProps &props, const AppIdentity &id) const
+{
+    const QString signature =
+        QStringList{props.appName, props.binary, QString::number(n.pid), n.prop("media.role"),
+                    n.prop("application.icon-name"), n.prop("application.id"), n.prop("pipewire.access.portal.app_id"),
+                    n.prop("target.object"), n.prop("node.target"), n.prop("node.dont-move")}
+            .join(QChar(u'\x1f'));
+    if (auto it = m_recognised.constFind(n.id); it != m_recognised.cend() && it->signature == signature) {
+        return *it;
+    }
+    Recognised r;
+    r.signature = signature;
+    r.facts = collectFacts(props, n.props, n.pid, m_desktop, [this](const QString &t) { return isRostrumTarget(t); });
+    r.detected = classify(r.facts);
+    r.skipKey = (r.facts.steamAppId.isEmpty() ? id.key.toString() : QStringLiteral("steam:") + r.facts.steamAppId).toLower();
+    qCInfo(lcEngine) << "recognised" << id.displayName << n.id << "as"
+                     << (r.detected.excluded ? QStringLiteral("excluded") : categoryName(r.detected.category))
+                     << "evidence" << int(r.detected.evidence);
+    return *m_recognised.insert(n.id, r);
+}
+
+Engine::Placement Engine::place(const pw::Node &n, const StreamProps &props, const AppIdentity &id) const
+{
+    Placement p;
     if (auto it = m_sessionAssign.constFind(id.key.toString()); it != m_sessionAssign.cend()) {
-        *session = true;
-        return it.value();
+        p.session = true;
+        p.busId = it.value();
+        return p;
     }
-    const int idx = matchRule(m_scene.rules, props);
-    if (idx < 0) {
-        return {};
+    if (const int idx = matchRule(m_scene.rules, props); idx >= 0) {
+        const AppRule &r = m_scene.rules.at(idx);
+        p.ruleKey = {r.key, r.match};
+        p.busId = r.busId;
+        return p;
     }
-    const AppRule &r = m_scene.rules.at(idx);
-    *ruleKey = {r.key, r.match};
-    return r.busId;
+    if (!m_autoAssign) {
+        return p;
+    }
+    const Recognised &r = recognise(n, props, id);
+    if (r.detected.excluded || m_autoSkip.contains(r.skipKey)) {
+        return p;
+    }
+    if (const Bus *bus = m_scene.busFor(r.detected.category)) {
+        p.busId = bus->id;
+        p.automatic = true;
+    }
+    return p;
 }
 
 QList<AppStream> Engine::appStreams() const
@@ -246,9 +290,18 @@ QList<AppStream> Engine::appStreams() const
         s.nodeId = n.id;
         s.props = propsOf(n);
         s.identity = identify(s.props);
-        s.busId = effectiveBus(s.props, s.identity, &s.ruleKey, &s.sessionOnly);
-        if (!m_scene.bus(s.busId)) {
-            s.busId.clear();
+        const Placement p = place(n, s.props, s.identity);
+        s.busId = m_scene.bus(p.busId) ? p.busId : QString();
+        s.ruleKey = p.ruleKey;
+        s.sessionOnly = p.session;
+        s.automatic = p.automatic && !s.busId.isEmpty();
+        const Recognised &r = recognise(n, s.props, s.identity);
+        s.detected = r.detected;
+        s.detectedName = r.facts.steamGameName;
+        s.skipped = m_autoSkip.contains(r.skipKey);
+        if (s.identity.unnamed && !s.detectedName.isEmpty()) {
+            s.identity.displayName = s.detectedName;
+            s.identity.unnamed = false;
         }
         s.volume = s.ruleKey.isValid() ? appVolume(s.ruleKey) : appVolume(s.identity.key);
         if (s.ruleKey.isValid()) {
@@ -272,6 +325,7 @@ void Engine::assignApp(const AppKey &key, const QString &busId, bool always)
     if (!key.isValid() || !bus || bus->isInput()) {
         return;
     }
+    skipAuto(key, false);
     if (always) {
         m_sessionAssign.remove(key.toString());
         if (AppRule *r = m_scene.rule(key.key, key.match)) {
@@ -302,6 +356,8 @@ void Engine::assignApp(const AppKey &key, const QString &busId, bool always)
 
 void Engine::unassignApp(const AppKey &key)
 {
+    // Taking an app off its bus must not let the automatic tier put it straight back.
+    skipAuto(key, true);
     bool structural = false;
     m_sessionAssign.remove(key.toString());
     const auto before = m_scene.rules.size();
@@ -323,6 +379,7 @@ void Engine::unassignStream(uint32_t nodeId)
     }
     const auto props = propsOf(*n);
     const auto id = identify(props);
+    skipAuto(id.key, true);
     m_sessionAssign.remove(id.key.toString());
     const int idx = matchRule(m_scene.rules, props);
     if (idx >= 0) {
@@ -336,7 +393,108 @@ void Engine::unassignStream(uint32_t nodeId)
 
 void Engine::removeRule(const AppKey &key)
 {
-    unassignApp(key);
+    // Deleting a rule is tidying up, not "keep it off": the app may fall back to its automatic bus.
+    const auto before = m_scene.rules.size();
+    m_scene.rules.removeIf([&](const AppRule &r) { return AppKey{r.key, r.match} == key; });
+    if (before != m_scene.rules.size()) {
+        Q_EMIT structureChanged();
+        Q_EMIT sceneChanged();
+    }
+    Q_EMIT appsChanged();
+    scheduleReconcile();
+}
+
+void Engine::skipAuto(const AppKey &key, bool skip)
+{
+    bool changed = false;
+    if (!skip) {
+        changed = m_autoSkip.remove(key.toString().toLower());
+    }
+    for (const auto &n : m_pw->graph().nodes) {
+        if (!n.isPlaybackStream() || isOwnStream(n)) {
+            continue;
+        }
+        const auto props = propsOf(n);
+        const auto id = identify(props);
+        const int idx = matchRule(m_scene.rules, props);
+        const bool same = id.key == key || (idx >= 0 && AppKey{m_scene.rules.at(idx).key, m_scene.rules.at(idx).match} == key);
+        if (!same) {
+            continue;
+        }
+        const Recognised &r = recognise(n, props, id);
+        if (skip && (r.detected.excluded || r.detected.category == AppCategory::None)) {
+            continue;
+        }
+        if (!skip) {
+            changed |= m_autoSkip.remove(r.skipKey);
+        } else if (!m_autoSkip.contains(r.skipKey)) {
+            m_autoSkip.insert(r.skipKey);
+            changed = true;
+        }
+    }
+    if (changed) {
+        Q_EMIT autoSkipChanged();
+    }
+}
+
+void Engine::setAutoAssign(bool on)
+{
+    if (m_autoAssign == on) {
+        return;
+    }
+    m_autoAssign = on;
+    Q_EMIT appsChanged();
+    scheduleReconcile();
+}
+
+void Engine::setAutoSkip(const QStringList &keys)
+{
+    QSet<QString> next;
+    for (const auto &k : keys) {
+        next.insert(k.toLower());
+    }
+    if (next == m_autoSkip) {
+        return;
+    }
+    m_autoSkip = next;
+    Q_EMIT appsChanged();
+    scheduleReconcile();
+}
+
+QStringList Engine::autoSkip() const
+{
+    QStringList out(m_autoSkip.cbegin(), m_autoSkip.cend());
+    out.sort();
+    return out;
+}
+
+void Engine::forgetAutoSkip()
+{
+    if (m_autoSkip.isEmpty()) {
+        return;
+    }
+    m_autoSkip.clear();
+    Q_EMIT autoSkipChanged();
+    Q_EMIT appsChanged();
+    scheduleReconcile();
+}
+
+void Engine::setBusAutoCategory(const QString &busId, AppCategory category)
+{
+    Bus *target = m_scene.bus(busId);
+    if (!target || target->isInput() || target->autoCategory == category) {
+        return;
+    }
+    for (auto &b : m_scene.buses) {
+        if (category != AppCategory::None && b.autoCategory == category) {
+            b.autoCategory = AppCategory::None;
+        }
+    }
+    target->autoCategory = category;
+    Q_EMIT structureChanged();
+    Q_EMIT sceneChanged();
+    Q_EMIT appsChanged();
+    scheduleReconcile();
 }
 
 void Engine::editRule(const AppKey &oldKey, const AppKey &newKey)
@@ -402,9 +560,9 @@ void Engine::reconcileRoutes()
         const auto props = propsOf(n);
         const auto id = identify(props);
         presentKeys.insert(id.key.toString());
-        AppKey ruleKey;
-        bool session = false;
-        const QString busId = effectiveBus(props, id, &ruleKey, &session);
+        const Placement placement = place(n, props, id);
+        const QString &busId = placement.busId;
+        const AppKey &ruleKey = placement.ruleKey;
 
         if (ruleKey.isValid() && !m_seenThisSession.contains(ruleKey.toString())) {
             m_seenThisSession.insert(ruleKey.toString());
@@ -434,7 +592,8 @@ void Engine::reconcileRoutes()
                 }
                 m_routed[n.id].busId = busId;
                 m_routed[n.id].requested = busNode->serial;
-                qCInfo(lcEngine) << "route" << id.displayName << n.id << "->" << bus->nodeName();
+                qCInfo(lcEngine) << "route" << id.displayName << n.id << "->" << bus->nodeName()
+                                 << (placement.automatic ? "(automatic)" : "");
                 m_pw->setMetadata(n.id, QStringLiteral("target.object"), QStringLiteral("Spa:Id"), busNode->serial);
             }
         } else if (busId.isEmpty() && m_routed.contains(n.id)) {
@@ -464,6 +623,9 @@ void Engine::reconcileRoutes()
     }
     for (auto it = m_appliedStreamVolume.begin(); it != m_appliedStreamVolume.end();) {
         it = present.contains(it.key()) ? std::next(it) : m_appliedStreamVolume.erase(it);
+    }
+    for (auto it = m_recognised.begin(); it != m_recognised.end();) {
+        it = present.contains(it.key()) ? std::next(it) : m_recognised.erase(it);
     }
     // "This launch only" assignments end once the app has been gone for a while.
     for (auto it = m_sessionAssign.begin(); it != m_sessionAssign.end();) {

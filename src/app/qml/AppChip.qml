@@ -13,6 +13,8 @@ QQC2.Control {
     required property string appName
     property string busId
     property color busColor: Kirigami.Theme.highlightColor
+    property bool automatic: false
+    property string reason
 
     readonly property string mimeType: "application/x-rostrum-app"
 
@@ -25,6 +27,11 @@ QQC2.Control {
 
     Accessible.role: Accessible.StaticText
     Accessible.name: appName
+    Accessible.description: automatic ? i18nc("@info accessible", "Placed automatically. %1", reason) : ""
+
+    QQC2.ToolTip.text: i18nc("@info:tooltip %1 is why", "Placed automatically: %1", reason)
+    QQC2.ToolTip.visible: automatic && hovered
+    QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
 
     background: Rectangle {
         radius: height / 2

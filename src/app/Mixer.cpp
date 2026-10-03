@@ -1,6 +1,7 @@
 #include "app/Mixer.h"
 
 #include "app/AppController.h"
+#include "app/Apps.h"
 #include "core/Volume.h"
 #include "engine/Engine.h"
 #include "engine/NodeSpecs.h"
@@ -46,6 +47,7 @@ QHash<int, QByteArray> BusModel::roleNames() const
         {IsInputRole, "isInput"}, {VolumeRole, "volume"}, {MutedRole, "muted"},
         {SoloedRole, "soloed"}, {DimmedRole, "dimmed"},   {DestinationRole, "destination"},
         {AppsRole, "apps"},    {PeakRole, "peak"},       {ClipRole, "clip"},
+        {AutoCategoryRole, "autoCategory"},
     };
 }
 
@@ -84,6 +86,8 @@ QVariant BusModel::data(const QModelIndex &index, int role) const
         return m_meters.value(id).fraction;
     case ClipRole:
         return m_meters.value(id).clip;
+    case AutoCategoryRole:
+        return categoryName(b->autoCategory);
     }
     return {};
 }
@@ -116,6 +120,8 @@ void BusModel::refresh()
             {QStringLiteral("key"), key},
             {QStringLiteral("name"), a.identity.displayName},
             {QStringLiteral("session"), a.sessionOnly},
+            {QStringLiteral("automatic"), a.automatic},
+            {QStringLiteral("reason"), a.automatic ? Apps::reason(a) : QString()},
         });
     }
 
@@ -128,7 +134,7 @@ void BusModel::refresh()
     if (!m_ids.isEmpty()) {
         Q_EMIT dataChanged(index(0), index(int(m_ids.size()) - 1),
                            {NameRole, ColorRole, VolumeRole, MutedRole, SoloedRole, DimmedRole, DestinationRole,
-                            AppsRole});
+                            AppsRole, AutoCategoryRole});
     }
 }
 
@@ -325,6 +331,11 @@ void Mixer::rename(const QString &busId, const QString &name)
 }
 
 void Mixer::recolor(const QString &busId, const QString &color) { m_engine->recolorBus(busId, color); }
+
+void Mixer::setAutoCategory(const QString &busId, const QString &category)
+{
+    m_engine->setBusAutoCategory(busId, categoryFromString(category).value_or(AppCategory::None));
+}
 QString Mixer::duplicate(const QString &busId) { return m_engine->duplicateBus(busId); }
 bool Mixer::remove(const QString &busId) { return m_engine->removeBus(busId); }
 

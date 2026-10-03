@@ -64,6 +64,11 @@ AppController::AppController(QObject *parent)
         Q_EMIT scenesChanged();
     });
     connect(&m_scenes, &engine::SceneManager::errorOccurred, this, &AppController::toast);
+    connect(&m_engine, &engine::Engine::autoSkipChanged, this, [this] {
+        m_settings.autoSkip = m_engine.autoSkip();
+        saveSettingsSoon();
+        Q_EMIT settingsChanged();
+    });
 }
 
 AppController::~AppController()
@@ -86,6 +91,8 @@ void AppController::start()
     }
     m_engine.setHeadphoneDevice(m_settings.headphones);
     m_engine.setMicDevice(m_settings.mic);
+    m_engine.setAutoAssign(m_settings.autoAssign);
+    m_engine.setAutoSkip(m_settings.autoSkip);
     m_scenes.load(m_settings.defaultScene);
     if (m_settings.wizardDone) {
         m_engine.createMix();

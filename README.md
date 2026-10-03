@@ -27,6 +27,9 @@
 - 🔴 **OBS in one click.** OBS captures one clean `Rostrum Stream Mix` and one `Rostrum Mic`.
   Rostrum sets it up, mutes the sources that would double your audio, and can undo every change.
 - 🎬 **Scenes.** Recall every level, mute and destination at once, from the header or a global shortcut.
+- 🪄 **Apps find their bus on their own.** Discord goes to Voice, Spotify to Music, Steam and Proton
+  games to Game, and Streamer.bot to Alerts. Every placement shows why it was made, and OBS and audio
+  tools are never touched.
 - 🧲 **Apps remember their bus.** Drag an app onto a bus once and it lands there every time, even
   before Rostrum starts at your next login.
 - 🛟 **Safe by design.** The virtual devices live in PipeWire, so audio keeps flowing if Rostrum
@@ -64,10 +67,14 @@ Five minutes to a split stream:
 
    ![First-run wizard, step 1 of 4: apps go to buses, buses go to your headphones and to OBS](docs/screenshots/wizard.png)
 
-3. **Put apps on buses.** Start Discord, your game and Spotify. On the Mixer, drag each app chip
-   onto its bus, or open Apps and press Move. Leave "Always" on and the app goes straight to that
-   bus whenever Rostrum sees it, and from your next login on even before Rostrum starts. Apps that
-   report no name (Wine and Proton games) get a banner so you can name them once.
+3. **Put apps on buses.** Start Discord, your game and Spotify. Rostrum recognises most apps and
+   puts them on the matching bus by itself; the Apps page marks those **Auto** and says why ("Steam
+   game", "Recognised as a voice chat app"). To change one, drag its chip onto another bus on the
+   Mixer, or open Apps and press Move. Leave "Always" on and the app goes straight to that bus
+   whenever Rostrum sees it, and from your next login on even before Rostrum starts. Take an app off
+   its bus and Rostrum stops placing it. Right-click a strip → **Receives Automatically** to choose
+   which kind of app each bus gets. Apps that report no name (Wine and Proton games) get a banner so
+   you can name them once.
 
    ![The Apps page: what is playing now, and the saved rules](docs/screenshots/apps.png)
 
@@ -105,6 +112,8 @@ F6 moves focus between the header, the sidebar and the page.
 - Default scene name: `Live`.
 - Six buses: Mic, Game, Voice, Music, Alerts, Desktop (at most 12).
 - Music bus destination: Stream. Other playback buses: Both. Mic: Stream, sidetone off.
+- Assign apps automatically: on. Game, Voice, Music, Alerts and Desktop each receive their own kind
+  of app; Desktop gets everything else that is recognised. The Mic bus receives nothing.
 - Solo is not saved in the scene.
 - Close window hides to tray (when the desktop has one). Quit from the tray or Settings.
 - Scroll-to-adjust faders: on. Confirm scene switch: off. Launch at login: off.
