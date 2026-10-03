@@ -1,6 +1,7 @@
 #include "app/AppController.h"
 #include "app/Apps.h"
 #include "app/CrashReports.h"
+#include "app/DBusControl.h"
 #include "app/Desktop.h"
 #include "app/Devices.h"
 #include "app/Logging.h"
@@ -52,6 +53,7 @@ int main(int argc, char *argv[])
     QIcon::setFallbackThemeName(QStringLiteral("breeze"));
 
     rostrum::app::AppController controller(nullptr);
+    rostrum::app::DBusControl control(&controller, nullptr);
     QObject::connect(&service, &KDBusService::activateRequested, &controller,
                      &rostrum::app::AppController::raiseRequested);
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &controller, [&controller] {
@@ -60,6 +62,7 @@ int main(int argc, char *argv[])
         controller.saveSettingsNow();
     });
     controller.start();
+    control.registerOn(QDBusConnection::sessionBus());
     rostrum::app::Mixer mixer(&controller, nullptr);
     QObject::connect(&controller, &rostrum::app::AppController::settingsChanged, &mixer,
                      &rostrum::app::Mixer::notifySettingsChanged);

@@ -1,3 +1,4 @@
+#include "core/Remote.h"
 #include "core/SceneStore.h"
 #include "core/SceneToml.h"
 #include "core/Settings.h"
@@ -262,6 +263,24 @@ private Q_SLOTS:
         QCOMPARE(r.controls.press(QStringLiteral("previous_scene")).scene, QStringLiteral("Ranked"));
         QCOMPARE(r.controls.press(QStringLiteral("scene_1")).scene, QStringLiteral("Live"));
         QCOMPARE(r.controls.press(QStringLiteral("scene_5")).result, Result::NoSuchScene);
+    }
+
+    void volumeArguments()
+    {
+        auto v = remote::parseVolumeArg(QStringLiteral("game=0.8"));
+        QVERIFY(v);
+        QCOMPARE(v->busId, QStringLiteral("game"));
+        QCOMPARE(v->position, 0.8);
+        v = remote::parseVolumeArg(QStringLiteral(" Music = 45% "));
+        QVERIFY(v);
+        QCOMPARE(v->busId, QStringLiteral("Music"));
+        QCOMPARE(v->position, 0.45);
+        QVERIFY(!remote::parseVolumeArg(QStringLiteral("game")));
+        QVERIFY(!remote::parseVolumeArg(QStringLiteral("=0.5")));
+        QVERIFY(!remote::parseVolumeArg(QStringLiteral("game=loud")));
+        QVERIFY(!remote::parseVolumeArg(QStringLiteral("game=nan")));
+        QCOMPARE(remote::maxPosition(QStringLiteral("mic")), 1.5);
+        QCOMPARE(remote::maxPosition(QStringLiteral("stream")), 1.0);
     }
 };
 

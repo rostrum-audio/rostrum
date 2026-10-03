@@ -1,0 +1,86 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<!--
+  Rostrum's control interface. Service: dev.getrostrum.Rostrum (the running instance).
+  Object: /dev/getrostrum/Rostrum/Control.
+
+  Bus ids are the ids from ListBuses: "stream" and "phones" for the Stream and Headphones masters,
+  "mic" for mic gain, then the playback buses of the live scene. Where a bus id is expected, a bus
+  name in any case also works. Positions are fader travel: 0 to 1, mic gain 0 to 1.5.
+
+  Calls never open a dialog. SwitchScene and scene actions switch at once; with "Save scene
+  changes automatically" off, unsaved fader moves in the scene being left are dropped.
+
+  Errors: dev.getrostrum.Rostrum1.Error.UnknownAction, .NoSuchScene, .NoSuchBus, .InvalidValue,
+  .HoldAction (TriggerAction on push_to_talk or push_to_mute).
+
+  Properties are read-only and announced with org.freedesktop.DBus.Properties.PropertiesChanged.
+-->
+<node>
+  <interface name="dev.getrostrum.Rostrum1">
+    <!-- True when nothing from the mic reaches the stream: muted, push to mute held or panic. -->
+    <property name="MicMuted" type="b" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
+    </property>
+    <!-- True when the Stream master is muted, by the user or by panic. -->
+    <property name="StreamMuted" type="b" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
+    </property>
+    <!-- Panic mute is on (panic_mute). Not saved. -->
+    <property name="Panic" type="b" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
+    </property>
+    <property name="CurrentScene" type="s" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
+    </property>
+    <!-- Rostrum is connected to PipeWire. -->
+    <property name="Connected" type="b" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
+    </property>
+
+    <!-- Runs a hotkey action by id, as if its shortcut was pressed. See ListActions. -->
+    <method name="TriggerAction">
+      <arg name="id" type="s" direction="in"/>
+    </method>
+    <!-- For push_to_talk and push_to_mute: on until ReleaseAction, or until the caller leaves the
+         bus. Any other action runs once, as with TriggerAction. -->
+    <method name="PressAction">
+      <arg name="id" type="s" direction="in"/>
+    </method>
+    <method name="ReleaseAction">
+      <arg name="id" type="s" direction="in"/>
+    </method>
+    <method name="SwitchScene">
+      <arg name="name" type="s" direction="in"/>
+    </method>
+    <method name="SetBusVolume">
+      <arg name="busId" type="s" direction="in"/>
+      <arg name="position" type="d" direction="in"/>
+    </method>
+    <method name="SetBusMuted">
+      <arg name="busId" type="s" direction="in"/>
+      <arg name="muted" type="b" direction="in"/>
+    </method>
+    <method name="ToggleBusMuted">
+      <arg name="busId" type="s" direction="in"/>
+    </method>
+    <method name="SetMicMuted">
+      <arg name="muted" type="b" direction="in"/>
+    </method>
+    <method name="ToggleMicMute"/>
+    <method name="ListScenes">
+      <arg type="as" direction="out"/>
+    </method>
+    <!-- (id, name, position, muted) for each fader of the live scene. -->
+    <method name="ListBuses">
+      <arg type="a(ssdb)" direction="out"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="rostrum::app::BusInfoList"/>
+    </method>
+    <!-- (id, name) for each action: the fixed ones, then mute_bus_<id> for every playback bus
+         in any scene. -->
+    <method name="ListActions">
+      <arg type="a(ss)" direction="out"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="rostrum::app::ActionInfoList"/>
+    </method>
+  </interface>
+</node>

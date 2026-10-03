@@ -7,6 +7,7 @@ qt_policy(SET QTP0004 NEW)
 qt_add_executable(rostrum
     main.cpp
     CrashCapture.cpp CrashCapture.h
+    DBusControl.cpp DBusControl.h
     Logging.cpp Logging.h
 )
 
@@ -125,6 +126,7 @@ endif()
 
 install(TARGETS rostrum RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES ${PROJECT_SOURCE_DIR}/data/${ROSTRUM_APP_ID}.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES ${PROJECT_SOURCE_DIR}/data/dev.getrostrum.Rostrum1.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/dbus-1/interfaces)
 install(FILES ${PROJECT_SOURCE_DIR}/data/icons/${ROSTRUM_APP_ID}.svg
     DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
 foreach(size 16x16 22x22)
