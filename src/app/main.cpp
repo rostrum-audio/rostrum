@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
     KLocalizedString::setApplicationDomain("rostrum");
     KAboutData about(QStringLiteral("Rostrum"), i18n("Rostrum"), QStringLiteral(ROSTRUM_VERSION),
                      i18n("A stream mix console for Linux"), KAboutLicense::Apache_V2);
-    about.setOrganizationDomain("rostrum_audio.github.io");
+    about.setOrganizationDomain("getrostrum.dev");
     about.setDesktopFileName(QStringLiteral(ROSTRUM_APP_ID));
     about.setBugAddress("https://github.com/rostrum-audio/rostrum/issues");
     about.setHomepage(QStringLiteral("https://getrostrum.dev"));

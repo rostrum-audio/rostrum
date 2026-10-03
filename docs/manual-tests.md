@@ -202,7 +202,7 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
 5. Make a second scene. Meta+Alt+PgDown switches to it from any app; the tray's Scenes submenu
    checks it. With "Confirm before switching scenes" on and a fader moved, the hotkey raises the
    window and asks first.
-6. Turn on "Launch at login": `~/.config/autostart/io.github.rostrum_audio.Rostrum.desktop` exists
+6. Turn on "Launch at login": `~/.config/autostart/dev.getrostrum.Rostrum.desktop` exists
    and `desktop-file-validate` passes on it. Turn on "Start in tray", log out and in: Rostrum is
    in the tray with no window. Starting it from the app menu while it runs raises the window.
    Turn "Launch at login" off: the file is gone.
@@ -230,7 +230,7 @@ nested KWin with a fake tray host, or offscreen rendering. Fake devices were nul
 | Tray | Tooltip and menu follow the mic state and scene; Mute Mic from the tray mutes the header too; Show/Hide works |
 | Close the window (KWin closes it) | App keeps running in the tray |
 | Start in tray (`--autostart`) | No window until Show |
-| Global shortcuts through KGlobalAccel | All eight registered as `io.github.rostrum_audio.Rostrum`; invoking Mute mic toggles the mic; a shortcut KWin owns (Meta+D) is reported in Settings and stays in-window |
+| Global shortcuts through KGlobalAccel | All eight registered as `dev.getrostrum.Rostrum`; invoking Mute mic toggles the mic; a shortcut KWin owns (Meta+D) is reported in Settings and stays in-window |
 | Unit tests | 7 of 7 pass |
 
 Still manual (needs hardware or a real session): tests 4 (mic path), 6 and 7 (quit and reboot

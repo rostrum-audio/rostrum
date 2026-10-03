@@ -7,6 +7,7 @@
 #include "core/Autostart.h"
 #include "core/Paths.h"
 
+#include <KGlobalAccel>
 #include <KLocalizedString>
 #include <QCoreApplication>
 #include <QDBusConnection>
@@ -57,6 +58,19 @@ QString autostartExec()
     return program + QStringLiteral(" --autostart");
 }
 
+// The app id before Rostrum had its own domain. Its global shortcuts would hold the same keys
+// and make every new binding look taken, so they go before Hotkeys registers anything.
+const QString kOldAppId = QStringLiteral("io.github.rostrum_audio.Rostrum");
+
+void dropOldShortcuts()
+{
+    const auto *bus = QDBusConnection::sessionBus().interface();
+    if (bus && bus->isServiceRegistered(QStringLiteral("org.kde.kglobalaccel")) &&
+        KGlobalAccel::cleanComponent(kOldAppId)) {
+        qCInfo(lcDesktop) << "Removed global shortcuts left under" << kOldAppId;
+    }
+}
+
 } // namespace
 
 Desktop *Desktop::s_instance = nullptr;
@@ -70,6 +84,9 @@ Desktop::Desktop(AppController *app, QObject *parent) : QObject(parent), m_app(a
     m_enabled = QGuiApplication::platformName() != QLatin1String("offscreen") &&
                 qEnvironmentVariableIsEmpty("ROSTRUM_SCREENSHOT");
 
+    if (m_enabled) {
+        dropOldShortcuts();
+    }
     m_hotkeys = new Hotkeys(this);
     connect(m_hotkeys, &Hotkeys::triggered, m_app, &AppController::triggerAction);
     connect(m_hotkeys, &Hotkeys::changedExternally, this, [this](const QString &id, const QString &portable) {
@@ -90,6 +107,12 @@ Desktop::Desktop(AppController *app, QObject *parent) : QObject(parent), m_app(a
     }
     m_startHidden = m_tray && m_app->settings().startInTray && m_app->settings().wizardDone &&
                     QCoreApplication::arguments().contains(QStringLiteral("--autostart"));
+
+    const QString oldAutostart = QFileInfo(paths::autostartFile()).dir().filePath(kOldAppId + QStringLiteral(".desktop"));
+    if (m_enabled && QFileInfo::exists(oldAutostart) && QFile::remove(oldAutostart)) {
+        qCInfo(lcDesktop) << "Moved the autostart entry to" << paths::autostartFile();
+        setLaunchAtLogin(true);
+    }
 
     // The autostart file is the truth: the user may have removed it in System Settings.
     const bool exists = QFileInfo::exists(paths::autostartFile());
