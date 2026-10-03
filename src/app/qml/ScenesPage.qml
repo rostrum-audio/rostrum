@@ -16,6 +16,7 @@ QQC2.Pane {
 
     property string selectedName: App.currentScene
     readonly property var selected: Scenes.rows.find(r => r.name === selectedName) ?? null
+    readonly property int selectedIndex: Scenes.rows.findIndex(r => r.name === selectedName)
 
     Component {
         id: presetActionComponent
@@ -95,6 +96,22 @@ QQC2.Pane {
                     }
                 },
                 Kirigami.Action {
+                    text: i18nc("@action:button", "Move Up")
+                    icon.name: "go-up"
+                    tooltip: i18n("Scenes keep this order in the header, the tray and the Load scene hotkeys. Alt+Up also moves the selected scene.")
+                    displayHint: Kirigami.DisplayHint.IconOnly
+                    enabled: page.selectedIndex > 0
+                    onTriggered: Scenes.moveBy(page.selectedName, -1)
+                },
+                Kirigami.Action {
+                    text: i18nc("@action:button", "Move Down")
+                    icon.name: "go-down"
+                    tooltip: i18n("Scenes keep this order in the header, the tray and the Load scene hotkeys. Alt+Down also moves the selected scene.")
+                    displayHint: Kirigami.DisplayHint.IconOnly
+                    enabled: page.selectedIndex >= 0 && page.selectedIndex < Scenes.rows.length - 1
+                    onTriggered: Scenes.moveBy(page.selectedName, 1)
+                },
+                Kirigami.Action {
                     text: i18nc("@action:button", "Set as Default")
                     icon.name: "favorite"
                     enabled: page.selected !== null && !page.selected.isDefault
@@ -150,7 +167,11 @@ QQC2.Pane {
                     Accessible.name: modelData.name
                     Accessible.description: [modelData.isCurrent ? i18n("Live now") : "",
                                              modelData.isDefault ? i18n("Default on launch") : "",
+                                             row.slotText,
                                              modelData.summary].filter(s => s).join(", ")
+                    readonly property string slotText: modelData.slot <= 0 ? ""
+                        : modelData.shortcut ? i18nc("@info:tooltip scene hotkey slot", "Load scene %1: %2", modelData.slot, modelData.shortcut)
+                        : i18nc("@info:tooltip scene hotkey slot", "Load scene %1 (no shortcut set)", modelData.slot)
 
                     contentItem: RowLayout {
                         spacing: Kirigami.Units.largeSpacing
@@ -165,6 +186,28 @@ QQC2.Pane {
                             Layout.fillWidth: true
                             spacing: 0
                             RowLayout {
+                                Rectangle {
+                                    opacity: row.modelData.slot > 0 ? 1 : 0
+                                    implicitWidth: Math.max(implicitHeight, slotLabel.implicitWidth + Kirigami.Units.smallSpacing * 2)
+                                    implicitHeight: slotLabel.implicitHeight + 2
+                                    radius: height / 2
+                                    color: "transparent"
+                                    border.width: 1
+                                    border.color: Qt.alpha(row.textColor, 0.5)
+                                    QQC2.Label {
+                                        id: slotLabel
+                                        anchors.centerIn: parent
+                                        text: row.modelData.slot > 0 ? row.modelData.slot : "0"
+                                        color: row.textColor
+                                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                                    }
+                                    HoverHandler {
+                                        id: slotHover
+                                    }
+                                    QQC2.ToolTip.text: row.slotText
+                                    QQC2.ToolTip.visible: slotHover.hovered && row.modelData.slot > 0
+                                    QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                                }
                                 QQC2.Label {
                                     text: row.modelData.name
                                     color: row.textColor
@@ -202,6 +245,12 @@ QQC2.Pane {
                 }
 
                 Keys.onReturnPressed: applicationWindow().requestSceneSwitch(page.selectedName)
+                Keys.onPressed: event => {
+                    if ((event.modifiers & Qt.AltModifier) && (event.key === Qt.Key_Up || event.key === Qt.Key_Down)) {
+                        Scenes.moveBy(page.selectedName, event.key === Qt.Key_Up ? -1 : 1)
+                        event.accepted = true
+                    }
+                }
                 onCurrentIndexChanged: if (currentIndex >= 0 && currentIndex < Scenes.rows.length) {
                     page.selectedName = Scenes.rows[currentIndex].name
                 }

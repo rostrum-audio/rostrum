@@ -22,6 +22,11 @@ public:
     // Loads every scene file. Creates and saves the default "Live" scene if there are none.
     void load(const QString &defaultName);
 
+    // The user's order, which next/previous and the scene hotkey slots follow. Names not in the
+    // list keep file-name order after the listed ones. New scenes go to the end.
+    void setOrder(const QStringList &names);
+    bool move(const QString &name, int toIndex);
+
     const QList<Scene> &scenes() const { return m_saved; }
     QStringList names() const;
     const Scene *saved(const QString &name) const;
@@ -85,6 +90,7 @@ private:
     QString m_error;
     QString m_pulseFragment;
     QString m_clientFragment;
+    QStringList m_order;
 };
 
 } // namespace rostrum::engine

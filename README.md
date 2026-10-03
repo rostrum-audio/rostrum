@@ -109,7 +109,9 @@ Five minutes to a split stream:
 6. **Make more scenes.** Scenes recall every level, mute and destination, and changes save to the
    live scene by themselves. On the Scenes page, **New** starts an empty scene or one from a preset
    (Gaming, Just Chatting, Music Stream, Podcast, Be Right Back) that keeps your buses and app
-   rules. Switch with Meta+Alt+PgDown or the scene menu in the header.
+   rules. Switch with Meta+Alt+PgDown or the scene menu in the header. Move Up and Move Down set
+   the order that the header, the tray and the scene hotkeys follow; the badge shows each scene's
+   hotkey number.
 
 ### ⌨️ Shortcuts
 
@@ -120,7 +122,7 @@ Default global shortcuts, rebindable in Settings or in System Settings → Keybo
 | Mute mic | Meta+Alt+M |
 | Mute all playback to stream | Meta+Alt+S |
 | Previous / next scene | Meta+Alt+PgUp / Meta+Alt+PgDown |
-| Load scene 1–4 | Meta+Alt+1 … Meta+Alt+4 |
+| Load scene 1–4 (in Scenes page order) | Meta+Alt+1 … Meta+Alt+4 |
 
 With a fader focused: Up/Down 1 %, Page Up/Down 10 %, M mute, S solo, 1/2/3 Headphones/Stream/Both.
 F6 moves focus between the header, the sidebar and the page.

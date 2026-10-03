@@ -48,6 +48,30 @@ QString defaultShortcut(const QString &id)
     return keys.value(id);
 }
 
+int sceneSlot(const QString &id)
+{
+    if (!id.startsWith(QLatin1String("scene_")) || !all().contains(id)) {
+        return 0;
+    }
+    bool ok = false;
+    const int n = id.mid(6).toInt(&ok);
+    return ok && n > 0 ? n : 0;
+}
+
+int sceneSlotCount()
+{
+    int count = 0;
+    for (const auto &id : all()) {
+        count = std::max(count, sceneSlot(id));
+    }
+    return count;
+}
+
+QString sceneSlotAction(int slot)
+{
+    return QStringLiteral("scene_%1").arg(slot);
+}
+
 } // namespace actions
 
 Settings defaultSettings()
@@ -90,6 +114,10 @@ QString serializeSettings(const Settings &s)
     for (const auto &key : s.autoSkip) {
         skip.push_back(key.toStdString());
     }
+    toml::array order;
+    for (const auto &name : s.sceneOrder) {
+        order.push_back(name.toStdString());
+    }
     toml::table t{
         {"format", 1},
         {"general",
@@ -113,7 +141,7 @@ QString serializeSettings(const Settings &s)
              {"last_check", int64_t(s.lastUpdateCheck)},
          }},
         {"advanced", toml::table{{"show_node_ids", s.showNodeIds}}},
-        {"scenes", toml::table{{"default", s.defaultScene.toStdString()}}},
+        {"scenes", toml::table{{"default", s.defaultScene.toStdString()}, {"scene_order", order}}},
         {"devices", toml::table{{"headphones", s.headphones.toStdString()}, {"mic", s.mic.toStdString()}}},
         {"hotkeys", hotkeys},
         {"window",
@@ -173,6 +201,14 @@ Settings parseSettings(const QString &text, QString *error)
     s.lastUpdateCheck = get<int64_t>(t, "updates", "last_check", s.lastUpdateCheck);
     s.showNodeIds = get(t, "advanced", "show_node_ids", s.showNodeIds);
     s.defaultScene = getStr(t, "scenes", "default", s.defaultScene);
+    if (const auto *order = t["scenes"]["scene_order"].as_array()) {
+        for (const auto &v : *order) {
+            if (auto name = v.value<std::string>(); name && !name->empty()) {
+                s.sceneOrder << QString::fromStdString(*name);
+            }
+        }
+        s.sceneOrder.removeDuplicates();
+    }
     s.headphones = getStr(t, "devices", "headphones", s.headphones);
     s.mic = getStr(t, "devices", "mic", s.mic);
     if (const auto *hk = t["hotkeys"].as_table()) {

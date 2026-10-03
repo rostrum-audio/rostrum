@@ -65,6 +65,12 @@ AppController::AppController(QObject *parent)
         saveSettingsSoon();
         Q_EMIT scenesChanged();
     });
+    connect(&m_scenes, &engine::SceneManager::scenesChanged, this, [this] {
+        if (const QStringList order = m_scenes.names(); order != m_settings.sceneOrder) {
+            m_settings.sceneOrder = order;
+            saveSettingsSoon();
+        }
+    });
     connect(&m_scenes, &engine::SceneManager::errorOccurred, this, &AppController::toast);
     connect(&m_engine, &engine::Engine::autoSkipChanged, this, [this] {
         m_settings.autoSkip = m_engine.autoSkip();
@@ -96,6 +102,7 @@ void AppController::start()
     m_engine.setAutoAssign(m_settings.autoAssign);
     m_engine.setAutoSkip(m_settings.autoSkip);
     m_scenes.setAutoSave(m_settings.autoSaveScenes);
+    m_scenes.setOrder(m_settings.sceneOrder);
     m_scenes.load(m_settings.defaultScene);
     if (m_settings.wizardDone) {
         m_engine.createMix();
@@ -318,13 +325,12 @@ void AppController::triggerAction(const QString &id)
         target = (current + 1) % names.size();
     } else if (id == QLatin1String(actions::kPrevScene)) {
         target = (current - 1 + names.size()) % names.size();
-    } else if (id.startsWith(QLatin1String("scene_"))) {
-        bool ok = false;
-        const int n = id.mid(6).toInt(&ok);
-        if (ok && n >= 1 && n <= names.size()) {
-            target = n - 1;
-        } else if (ok) {
-            Q_EMIT toast(i18n("There is no scene %1", n));
+    } else if (const int slot = actions::sceneSlot(id); slot > 0) {
+        // Slots index the user's scene order, so a moved scene takes its new number's hotkey.
+        if (slot <= names.size()) {
+            target = slot - 1;
+        } else {
+            Q_EMIT toast(i18n("There is no scene %1", slot));
         }
     }
     if (target >= 0) {

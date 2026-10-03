@@ -20,6 +20,10 @@ inline constexpr const char *kScene4 = "scene_4";
 QStringList all();
 QString label(const QString &id);
 QString defaultShortcut(const QString &id);
+// "scene_3" -> 3, the position in the scene order it loads; 0 for any other action.
+int sceneSlot(const QString &id);
+int sceneSlotCount();
+QString sceneSlotAction(int slot); // 3 -> "scene_3"
 } // namespace actions
 
 // Bumped when first-run setup gains a step that existing users should see once. 1 = devices and
@@ -59,6 +63,7 @@ struct Settings
     bool showNodeIds = false;
     // Scenes
     QString defaultScene = QStringLiteral("Live");
+    QStringList sceneOrder; // scene names in the user's order; scenes not listed follow by file name
     // Devices (PipeWire node.name; empty = system default)
     QString headphones;
     QString mic;

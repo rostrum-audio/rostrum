@@ -313,6 +313,19 @@ at once instead of after 20 seconds.
 8. Run with `FLATPAK_ID=dev.getrostrum.Rostrum`: Settings → Updates says Flatpak keeps Rostrum up
    to date, and there are no switches.
 
+## 15. Scene order and hotkey slots
+
+1. Make five scenes. On the Scenes page the first four show badges 1–4; hovering a badge names
+   its shortcut (Meta+Alt+1 …). The fifth has no badge.
+2. Select the fourth scene and press Move Up (or Alt+Up): it becomes third and takes badge 3.
+   The header scene menu and the tray's Scenes submenu list the same order, and Meta+Alt+3 now
+   loads it from any app. Meta+Alt+PgDown walks the scenes in this order.
+3. `settings.toml` has `scene_order` under `[scenes]` with the new order. Restart: the order is
+   kept.
+4. Rename a scene: it keeps its place. Delete one: the rest close up. Import a bundle or make a
+   new scene: it goes to the end. Delete `scene_order` from `settings.toml` and restart: scenes
+   fall back to file-name order.
+
 ## Smoke test log
 
 Kubuntu 26.04, Plasma 6.6 Wayland, PipeWire 1.6.2, WirePlumber 0.5.13, build 0.1.0. The checks

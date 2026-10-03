@@ -100,7 +100,7 @@ bool SceneManager::write(const Scene &scene)
 void SceneManager::load(const QString &defaultName)
 {
     QStringList errors;
-    m_saved = m_store.loadAll(&errors);
+    m_saved = SceneStore::applyOrder(m_store.loadAll(&errors), m_order);
     for (const auto &e : errors) {
         fail(QStringLiteral("Skipped a scene file that could not be read. %1").arg(e));
     }
@@ -113,6 +113,32 @@ void SceneManager::load(const QString &defaultName)
     Q_EMIT scenesChanged();
     Q_EMIT defaultChanged();
     switchTo(m_default);
+}
+
+void SceneManager::setOrder(const QStringList &names)
+{
+    m_order = names;
+    const QList<Scene> ordered = SceneStore::applyOrder(m_saved, names);
+    if (ordered != m_saved) {
+        m_saved = ordered;
+        Q_EMIT scenesChanged();
+    }
+}
+
+bool SceneManager::move(const QString &name, int toIndex)
+{
+    const int from = indexOf(name);
+    if (from < 0 || m_saved.isEmpty()) {
+        return false;
+    }
+    const int to = std::clamp(toIndex, 0, int(m_saved.size()) - 1);
+    if (to == from) {
+        return false;
+    }
+    m_saved.move(from, to);
+    m_order = names();
+    Q_EMIT scenesChanged();
+    return true;
 }
 
 bool SceneManager::switchTo(const QString &name)
