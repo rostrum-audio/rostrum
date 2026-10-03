@@ -47,6 +47,7 @@ qt_add_qml_module(rostrum
         qml/DestinationControl.qml
         qml/StripToggle.qml
         qml/StreamDot.qml
+        qml/LiveBadge.qml
         qml/Chevron.qml
         qml/AppChip.qml
         qml/ColorPopup.qml
@@ -59,6 +60,8 @@ qt_add_qml_module(rostrum
         qml/DevicesPage.qml
         qml/DeviceList.qml
         qml/ObsPage.qml
+        qml/ObsSetupDialog.qml
+        qml/ObsChoices.qml
         qml/SettingsPage.qml
         qml/Wizard.qml
         qml/MixDiagram.qml

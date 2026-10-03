@@ -63,8 +63,10 @@ class AppController : public QObject
     Q_PROPERTY(int windowHeight READ windowHeight WRITE setWindowHeight NOTIFY windowStateChanged)
     Q_PROPERTY(bool confirmSceneSwitch READ confirmSceneSwitch NOTIFY settingsChanged)
     Q_PROPERTY(bool wizardDone READ wizardDone NOTIFY settingsChanged)
-    // Setup steps added since this user finished setup (startup, privacy, updates); shown once.
+    // Setup steps added since this user finished setup (startup, privacy, updates, OBS); shown once.
     Q_PROPERTY(bool setupUpdateNeeded READ setupUpdateNeeded NOTIFY settingsChanged)
+    // The setup version this user last saw (see kSetupVersion), so the dialog shows only what is new.
+    Q_PROPERTY(int setupVersion READ setupVersion NOTIFY settingsChanged)
     // Bus id the Apps page filters to when opened from a strip's "+N"; empty = all.
     Q_PROPERTY(QString appsFilter READ appsFilter WRITE setAppsFilter NOTIFY appsFilterChanged)
 
@@ -133,6 +135,7 @@ public:
     bool confirmSceneSwitch() const { return m_settings.confirmSceneSwitch; }
     bool wizardDone() const { return m_settings.wizardDone; }
     bool setupUpdateNeeded() const { return m_settings.wizardDone && m_settings.setupVersion < kSetupVersion; }
+    int setupVersion() const { return m_settings.setupVersion; }
     bool setupComplete() const { return m_settings.wizardDone && m_settings.setupVersion >= kSetupVersion; }
     QString appsFilter() const { return m_appsFilter; }
     void setAppsFilter(const QString &busId)

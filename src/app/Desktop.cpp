@@ -225,24 +225,33 @@ void Desktop::applyHotkeys()
 
 void Desktop::notifyHeadphonesLost(const QString &description)
 {
+    notify(i18n("Headphones disconnected, scene held."),
+           i18n("%1 went away. Plug it back in and routes come back on their own.", description), 1,
+           &m_notificationId);
+}
+
+void Desktop::notifyGoLive(const QString &body)
+{
+    notify(i18n("Check your stream audio"), body, 2, &m_goLiveNotificationId);
+}
+
+void Desktop::notify(const QString &summary, const QString &body, uchar urgency, uint *id)
+{
     if (!m_enabled) {
         return;
     }
     QDBusMessage msg = QDBusMessage::createMethodCall(
         QStringLiteral("org.freedesktop.Notifications"), QStringLiteral("/org/freedesktop/Notifications"),
         QStringLiteral("org.freedesktop.Notifications"), QStringLiteral("Notify"));
-    msg << i18n("Rostrum") << m_notificationId << QStringLiteral(ROSTRUM_APP_ID)
-        << i18n("Headphones disconnected, scene held.")
-        << i18n("%1 went away. Plug it back in and routes come back on their own.", description)
-        << QStringList()
+    msg << i18n("Rostrum") << *id << QStringLiteral(ROSTRUM_APP_ID) << summary << body << QStringList()
         << QVariantMap{{QStringLiteral("desktop-entry"), QStringLiteral(ROSTRUM_APP_ID)},
-                       {QStringLiteral("urgency"), QVariant::fromValue<uchar>(1)}}
+                       {QStringLiteral("urgency"), QVariant::fromValue<uchar>(urgency)}}
         << -1;
     auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(msg), this);
-    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *w) {
+    connect(watcher, &QDBusPendingCallWatcher::finished, this, [id](QDBusPendingCallWatcher *w) {
         QDBusPendingReply<uint> reply = *w;
         if (reply.isValid()) {
-            m_notificationId = reply.value();
+            *id = reply.value();
         } else {
             qCWarning(lcDesktop) << "Notification failed:" << reply.error().message();
         }

@@ -1,6 +1,7 @@
 #include "app/Obs.h"
 
 #include "app/AppController.h"
+#include "app/Desktop.h"
 #include "core/Paths.h"
 #include "obs/ObsCaptures.h"
 #include "obs/ObsLive.h"
@@ -11,6 +12,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QGuiApplication>
 #include <QJSEngine>
 #include <QJsonDocument>
 #include <QLoggingCategory>
@@ -26,6 +28,11 @@ namespace rostrum::app {
 namespace {
 
 constexpr int kPollMs = 3000;
+// While only following OBS in the background: how often to look for a running OBS, and the
+// longest wait between attempts while its WebSocket server refuses.
+constexpr int kBackgroundPollMs = 5000;
+constexpr qint64 kMaxRetryMs = 60000;
+constexpr int kEvents = obs::Client::kEventScenes | obs::Client::kEventInputs | obs::Client::kEventOutputs;
 
 QString undoFile()
 {
@@ -79,23 +86,32 @@ Obs::Obs(AppController *app, QObject *parent)
     Q_ASSERT(!s_instance);
     s_instance = this;
 
+    // Screenshot and test runs must never reach the user's own OBS on their own.
+    m_offscreen = QGuiApplication::platformName() == QLatin1String("offscreen") ||
+                  !qEnvironmentVariableIsEmpty("ROSTRUM_SCREENSHOT");
+
     m_poll.setInterval(kPollMs);
-    connect(&m_poll, &QTimer::timeout, this, &Obs::refresh);
+    connect(&m_poll, &QTimer::timeout, this, &Obs::poll);
     m_refetch.setSingleShot(true);
     m_refetch.setInterval(300);
     connect(&m_refetch, &QTimer::timeout, this, &Obs::fetchLive);
     m_graphDebounce.setSingleShot(true);
     m_graphDebounce.setInterval(250);
     connect(&m_graphDebounce, &QTimer::timeout, this, &Obs::rebuildRecordings);
+    connect(&m_graphDebounce, &QTimer::timeout, this, &Obs::refreshWarnings);
 
     connect(app->pw(), &pw::PwContext::graphChanged, this, [this] {
-        if (m_active) {
+        if (m_active || !m_problems.isEmpty()) {
             m_graphDebounce.start();
         }
     });
+    connect(app, &AppController::levelsChanged, this, &Obs::refreshWarnings);
+    connect(app->engine(), &engine::Engine::soloChanged, this, &Obs::refreshWarnings);
+    connect(app, &AppController::scenesChanged, this, &Obs::sceneMapChanged);
     connect(&m_client, &obs::Client::statusChanged, this, [this] {
         switch (m_client.status()) {
         case obs::Client::Status::Connected:
+            m_failures = 0;
             if (m_stateName != QLatin1String("connected")) {
                 setStateName(QStringLiteral("connected"));
                 fetchLive();
@@ -107,6 +123,11 @@ Obs::Obs(AppController *app, QObject *parent)
             clearPlan();
             break;
         case obs::Client::Status::Failed:
+            // OBS still starting, or its server refusing: back off instead of knocking every poll.
+            m_failures++;
+            m_retryAt =
+                QDateTime::currentMSecsSinceEpoch() +
+                std::min<qint64>(kMaxRetryMs, qint64(kBackgroundPollMs) << std::min(m_failures - 1, 4));
             setStateName(QStringLiteral("failed"));
             clearPlan();
             break;
@@ -117,10 +138,24 @@ Obs::Obs(AppController *app, QObject *parent)
         Q_EMIT changed();
     });
     connect(&m_client, &obs::Client::event, this, [this](const QString &type, const QJsonObject &) {
-        if (!m_busy && type != QLatin1String("InputVolumeChanged")) {
+        const bool affectsPlan =
+            type.startsWith(QLatin1String("Input")) || type.startsWith(QLatin1String("Scene"));
+        if (m_active && !m_busy && affectsPlan && type != QLatin1String("InputVolumeChanged")) {
             m_refetch.start();
         }
     });
+
+    connect(&m_live, &obs::LiveStatus::changed, this, [this] {
+        if (!m_live.streaming()) {
+            refreshWarnings();
+        }
+        Q_EMIT liveChanged();
+        Q_EMIT sceneMapChanged();
+    });
+    connect(&m_live, &obs::LiveStatus::streamStarted, this, &Obs::checkGoLive);
+    connect(&m_live, &obs::LiveStatus::programSceneChanged, this, &Obs::followProgramScene);
+
+    updatePolling();
 }
 
 Obs::~Obs()
@@ -136,32 +171,81 @@ Obs *Obs::create(QQmlEngine *, QJSEngine *)
 
 void Obs::setActive(bool active)
 {
+    if (active != m_pageActive) {
+        m_pageActive = active;
+        updateActive();
+        Q_EMIT activeChanged();
+    }
+}
+
+void Obs::setWizardActive(bool active)
+{
+    if (active != m_wizardActive) {
+        m_wizardActive = active;
+        updateActive();
+        Q_EMIT activeChanged();
+    }
+}
+
+void Obs::updateActive()
+{
+    const bool active = m_pageActive || m_wizardActive;
     if (active == m_active) {
         return;
     }
     m_active = active;
     if (active) {
-        m_poll.start();
         refresh();
-        rebuildRecordings();
+    } else if (!backgroundAllowed() && !m_busy) {
+        m_client.close();
+        m_stateName.clear();
+    }
+    rebuildRecordings();
+    updatePolling();
+}
+
+bool Obs::backgroundAllowed() const
+{
+    return m_app->settings().obsBackground && !m_offscreen;
+}
+
+void Obs::updatePolling()
+{
+    m_poll.setInterval(m_active ? kPollMs : kBackgroundPollMs);
+    if (m_active || backgroundAllowed()) {
+        if (!m_poll.isActive()) {
+            m_poll.start();
+            poll();
+        }
     } else {
         m_poll.stop();
-        if (!m_busy) {
-            m_client.close();
-            m_stateName.clear();
-        }
     }
-    Q_EMIT activeChanged();
 }
 
 void Obs::refresh()
 {
+    m_retryAt = 0;
+    poll();
+    // Read OBS again even when nothing changed on its side: Rostrum's devices may have.
+    if (m_active && m_install && m_stateName == QLatin1String("closed")) {
+        loadOffline(true);
+    }
+    fetchLive();
+}
+
+void Obs::poll()
+{
     if (m_busy) {
+        return;
+    }
+    if (!m_active && !backgroundAllowed()) {
+        m_client.close();
         return;
     }
     const auto installs = obs::findInstalls();
     if (installs.isEmpty()) {
         m_install.reset();
+        m_running = false;
         m_client.close();
         clearPlan();
         setStateName(obs::obsBinaryInstalled() ? QStringLiteral("neverRun") : QStringLiteral("notInstalled"));
@@ -169,35 +253,55 @@ void Obs::refresh()
         return;
     }
     m_install = installs.first();
+    const bool wasRunning = m_running;
     m_running = obs::isObsRunning();
+    if (m_running && !wasRunning) {
+        m_failures = 0;
+        m_retryAt = 0;
+    }
     m_ws = obs::readWebSocketConfig(m_install->configDir);
 
     if (!m_running) {
         m_client.close();
         setStateName(QStringLiteral("closed"));
-        loadOffline();
+        if (m_active) {
+            loadOffline();
+        }
     } else if (!m_ws.enabled) {
         m_client.close();
         setStateName(QStringLiteral("noWebSocket"));
         clearPlan();
     } else {
-        // A refused connection (OBS still starting) is retried quietly on every poll; a refused
-        // password only once OBS's settings hold a different one.
-        const auto status = m_client.status();
-        if (status == obs::Client::Status::Disconnected ||
-            (status == obs::Client::Status::AuthFailed && m_ws.password != m_rejectedPassword)) {
-            setStateName(QStringLiteral("connecting"));
-            m_client.open(m_ws.port, m_ws.password, obs::Client::kEventScenes | obs::Client::kEventInputs);
-        } else if (status == obs::Client::Status::Failed) {
-            m_client.open(m_ws.port, m_ws.password, obs::Client::kEventScenes | obs::Client::kEventInputs);
-        }
+        openClient();
     }
     Q_EMIT changed();
 }
 
+void Obs::openClient()
+{
+    // A refused connection (OBS still starting) is retried quietly: on every poll while the page
+    // is open, with a growing pause otherwise. A refused password only once OBS's settings hold
+    // a different one.
+    const auto status = m_client.status();
+    if (status == obs::Client::Status::Connected || status == obs::Client::Status::Connecting) {
+        return;
+    }
+    if (status == obs::Client::Status::AuthFailed && m_ws.password == m_rejectedPassword) {
+        return;
+    }
+    if (status == obs::Client::Status::Failed && !m_active &&
+        QDateTime::currentMSecsSinceEpoch() < m_retryAt) {
+        return;
+    }
+    if (status != obs::Client::Status::Failed) {
+        setStateName(QStringLiteral("connecting"));
+    }
+    m_client.open(m_ws.port, m_ws.password, kEvents);
+}
+
 void Obs::fetchLive()
 {
-    if (m_client.status() != obs::Client::Status::Connected) {
+    if (!m_active || m_client.status() != obs::Client::Status::Connected) {
         return;
     }
     obs::fetchState(&m_client, [this](const obs::State &state, const QString &error) {
@@ -246,6 +350,7 @@ void Obs::setPlan(const obs::State &state, obs::Mode mode)
     m_havePlan = true;
     rebuildRecordings();
     Q_EMIT planChanged();
+    Q_EMIT sceneMapChanged();
     Q_EMIT changed();
 }
 
@@ -258,6 +363,7 @@ void Obs::clearPlan()
     m_state = {};
     if (had) {
         Q_EMIT planChanged();
+        Q_EMIT sceneMapChanged();
     }
     rebuildRecordings();
 }
@@ -608,6 +714,201 @@ void Obs::appendUndo(const QList<obs::UndoOp> &ops)
     }
     u.ops += ops;
     saveUndo(u);
+}
+
+bool Obs::background() const
+{
+    return m_app->settings().obsBackground;
+}
+
+void Obs::setBackground(bool on)
+{
+    if (m_app->settings().obsBackground == on) {
+        return;
+    }
+    m_app->settings().obsBackground = on;
+    m_app->saveSettingsSoon();
+    if (!on && !m_active && !m_busy) {
+        m_client.close();
+        m_stateName.clear();
+    }
+    updatePolling();
+    Q_EMIT preferencesChanged();
+}
+
+bool Obs::goLiveWarnings() const
+{
+    return m_app->settings().obsGoLiveWarnings;
+}
+
+void Obs::setGoLiveWarnings(bool on)
+{
+    if (m_app->settings().obsGoLiveWarnings == on) {
+        return;
+    }
+    m_app->settings().obsGoLiveWarnings = on;
+    m_app->saveSettingsSoon();
+    refreshWarnings();
+    Q_EMIT preferencesChanged();
+}
+
+QVariantList Obs::sceneMap() const
+{
+    // While OBS is closed, the page's copy of the scene collection still knows its scenes.
+    const bool knowScenes = m_live.known() || m_haveState;
+    QStringList scenes = m_live.known() ? m_live.scenes() : (m_haveState ? m_state.scenes : QStringList());
+    const QStringList present = scenes;
+    const auto &map = m_app->settings().obsSceneMap;
+    for (auto it = map.cbegin(); it != map.cend(); ++it) {
+        if (!scenes.contains(it.key())) {
+            scenes << it.key();
+        }
+    }
+    const QStringList ours = m_app->sceneNames();
+    QVariantList rows;
+    for (const QString &name : std::as_const(scenes)) {
+        const QString target = map.value(name);
+        rows << QVariantMap{{QStringLiteral("obsScene"), name},
+                            {QStringLiteral("rostrumScene"), ours.contains(target) ? target : QString()},
+                            {QStringLiteral("present"), !knowScenes || present.contains(name)},
+                            {QStringLiteral("onProgram"), m_live.known() && name == m_live.programScene()}};
+    }
+    return rows;
+}
+
+void Obs::setSceneMapping(const QString &obsScene, const QString &rostrumScene)
+{
+    auto &map = m_app->settings().obsSceneMap;
+    if (obsScene.isEmpty() || map.value(obsScene) == rostrumScene) {
+        return;
+    }
+    if (rostrumScene.isEmpty()) {
+        map.remove(obsScene);
+    } else {
+        map.insert(obsScene, rostrumScene);
+    }
+    m_app->saveSettingsSoon();
+    Q_EMIT sceneMapChanged();
+}
+
+void Obs::followProgramScene(const QString &obsScene)
+{
+    const QString target = obs::mappedScene(m_app->settings().obsSceneMap, obsScene, m_app->sceneNames());
+    if (target.isEmpty() || target == m_app->currentScene() || !m_app->connected()) {
+        return;
+    }
+    // A direct switch, like a hotkey with confirmation off: the live scene's pending levels are
+    // saved first when auto-save is on. Asking would block the switch while the user is live.
+    if (m_app->switchScene(target)) {
+        qCInfo(lcObs) << "OBS switched scenes; loaded the mapped Rostrum scene";
+        Q_EMIT m_app->toast(
+            i18n("OBS switched to %1, so Rostrum loaded %2.", quoted(obsScene), quoted(target)));
+    }
+}
+
+QList<obs::GoLiveProblem> Obs::currentProblems() const
+{
+    QSet<QString> soloed;
+    for (const auto &bus : m_app->engine()->scene().buses) {
+        if (m_app->engine()->isSoloed(bus.id)) {
+            soloed.insert(bus.id);
+        }
+    }
+    std::optional<QList<obs::Recording>> recordings;
+    if (m_app->connected() && m_running) {
+        recordings = obs::obsRecordings(m_app->pw()->graph());
+    }
+    return obs::goLiveProblems(m_app->engine()->scene(), soloed, recordings ? &*recordings : nullptr);
+}
+
+void Obs::checkGoLive()
+{
+    if (!goLiveWarnings()) {
+        return;
+    }
+    m_problems = currentProblems();
+    Q_EMIT warningsChanged();
+    if (!m_problems.isEmpty()) {
+        qCInfo(lcObs) << "stream started with" << m_problems.size() << "problem(s)";
+        if (Desktop::instance()) {
+            Desktop::instance()->notifyGoLive(warningText());
+        }
+    }
+}
+
+void Obs::refreshWarnings()
+{
+    if (m_problems.isEmpty()) {
+        return;
+    }
+    if (!m_live.streaming() || !goLiveWarnings()) {
+        m_problems.clear();
+        Q_EMIT warningsChanged();
+        return;
+    }
+    // Only fixed problems go away. Muting the mic later on purpose doesn't bring a banner back.
+    const QList<obs::GoLiveProblem> now = currentProblems();
+    const auto removed = m_problems.removeIf([&now](obs::GoLiveProblem p) { return !now.contains(p); });
+    if (removed > 0) {
+        Q_EMIT warningsChanged();
+    }
+}
+
+void Obs::dismissWarnings()
+{
+    if (!m_problems.isEmpty()) {
+        m_problems.clear();
+        Q_EMIT warningsChanged();
+    }
+}
+
+QStringList Obs::warnings() const
+{
+    QStringList out;
+    for (const auto p : m_problems) {
+        switch (p) {
+        case obs::GoLiveProblem::MicMuted:
+            out << QStringLiteral("micMuted");
+            break;
+        case obs::GoLiveProblem::StreamMixSilent:
+            out << QStringLiteral("streamSilent");
+            break;
+        case obs::GoLiveProblem::NoStreamMixCapture:
+            out << QStringLiteral("noStreamCapture");
+            break;
+        case obs::GoLiveProblem::NoMicCapture:
+            out << QStringLiteral("noMicCapture");
+            break;
+        }
+    }
+    return out;
+}
+
+QString Obs::warningText() const
+{
+    QStringList lines;
+    for (const auto p : m_problems) {
+        switch (p) {
+        case obs::GoLiveProblem::MicMuted:
+            lines << i18n("Your mic is muted or kept off the stream.");
+            break;
+        case obs::GoLiveProblem::StreamMixSilent:
+            lines << i18n(
+                "No bus reaches the stream: Master Stream or every bus sent to the stream is muted.");
+            break;
+        case obs::GoLiveProblem::NoStreamMixCapture:
+            lines << i18n("OBS isn't recording Rostrum Stream Mix, so viewers won't hear your buses.");
+            break;
+        case obs::GoLiveProblem::NoMicCapture:
+            lines << i18n(
+                "OBS isn't recording Rostrum Mic, so viewers won't hear your voice through Rostrum.");
+            break;
+        }
+    }
+    if (lines.isEmpty()) {
+        return {};
+    }
+    return i18nc("@info %1 is one or more sentences", "You're live, but: %1", lines.join(QLatin1Char(' ')));
 }
 
 } // namespace rostrum::app

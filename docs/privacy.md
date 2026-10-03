@@ -3,7 +3,7 @@
 Rostrum makes two kinds of network request, and only if you allow them: it sends a crash report
 after a crash, and it checks once a day for a new version. Both are chosen during first-run setup
 and can be changed later in Settings → Privacy and Settings → Updates. Nothing else in Rostrum
-touches the network, apart from obs-websocket on `localhost`.
+touches the network, apart from obs-websocket on `localhost` (see [OBS](#obs) below).
 
 ## Crash reports
 
@@ -186,6 +186,23 @@ Or a GitHub "latest release" response
 (`https://api.github.com/repos/<owner>/<repo>/releases/latest`). Rostrum reads `tag_name`,
 `html_url`, `body` and `published_at`, skips drafts and pre-releases, and picks the asset whose
 name ends in `-<arch>.AppImage`, using GitHub's `digest` (`sha256:…`) as the checksum.
+
+## OBS
+
+Rostrum talks to OBS through obs-websocket on `127.0.0.1` only, on the port and with the password
+in OBS's own config. That traffic never leaves your computer. It is used in two ways:
+
+- **Set Up OBS and Undo** on the OBS page, when you press them. These are the only requests that
+  change OBS.
+- **Following OBS while it runs** (Settings → OBS, `[obs] background`, on by default; also offered
+  in first-run setup and in the one-time dialog after upgrading). While an OBS process runs with
+  its WebSocket server turned on, Rostrum stays connected and only reads: whether OBS is streaming
+  or recording and for how long, the scene on program, and the scene list, for the LIVE and REC
+  badges, go-live warnings and scene mapping. Nothing is stored apart from the scene mapping you
+  choose. When OBS is not running, no connection is attempted. Turn the switch off and Rostrum
+  connects only while the OBS page is open.
+
+Runs with `QT_QPA_PLATFORM=offscreen` or `ROSTRUM_SCREENSHOT` never connect in the background.
 
 ## Builds and testing
 

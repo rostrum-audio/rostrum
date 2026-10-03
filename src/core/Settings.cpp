@@ -90,6 +90,10 @@ QString serializeSettings(const Settings &s)
     for (const auto &key : s.autoSkip) {
         skip.push_back(key.toStdString());
     }
+    toml::table sceneMap;
+    for (auto it = s.obsSceneMap.cbegin(); it != s.obsSceneMap.cend(); ++it) {
+        sceneMap.insert(it.key().toStdString(), it.value().toStdString());
+    }
     toml::table t{
         {"format", 1},
         {"general",
@@ -111,6 +115,12 @@ QString serializeSettings(const Settings &s)
              {"install", s.installUpdates},
              {"skipped_version", s.skippedVersion.toStdString()},
              {"last_check", int64_t(s.lastUpdateCheck)},
+         }},
+        {"obs",
+         toml::table{
+             {"background", s.obsBackground},
+             {"go_live_warnings", s.obsGoLiveWarnings},
+             {"scene_map", sceneMap},
          }},
         {"advanced", toml::table{{"show_node_ids", s.showNodeIds}}},
         {"scenes", toml::table{{"default", s.defaultScene.toStdString()}}},
@@ -171,6 +181,17 @@ Settings parseSettings(const QString &text, QString *error)
     s.installUpdates = get(t, "updates", "install", s.installUpdates);
     s.skippedVersion = getStr(t, "updates", "skipped_version", s.skippedVersion);
     s.lastUpdateCheck = get<int64_t>(t, "updates", "last_check", s.lastUpdateCheck);
+    s.obsBackground = get(t, "obs", "background", s.obsBackground);
+    s.obsGoLiveWarnings = get(t, "obs", "go_live_warnings", s.obsGoLiveWarnings);
+    if (const auto *map = t["obs"]["scene_map"].as_table()) {
+        for (auto &&[k, v] : *map) {
+            const auto target = v.value<std::string>();
+            if (!k.empty() && target && !target->empty()) {
+                s.obsSceneMap.insert(QString::fromStdString(std::string(k.str())),
+                                     QString::fromStdString(*target));
+            }
+        }
+    }
     s.showNodeIds = get(t, "advanced", "show_node_ids", s.showNodeIds);
     s.defaultScene = getStr(t, "scenes", "default", s.defaultScene);
     s.headphones = getStr(t, "devices", "headphones", s.headphones);

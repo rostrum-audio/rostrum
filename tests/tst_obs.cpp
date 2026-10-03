@@ -2,8 +2,10 @@
 #include "obs/ObsConfig.h"
 #include "obs/ObsLive.h"
 #include "obs/ObsPlan.h"
+#include "obs/ObsStatus.h"
 #include "obs/SceneCollection.h"
 
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QJsonArray>
@@ -15,6 +17,7 @@
 #include <QWebSocketServer>
 
 using namespace rostrum::obs;
+using rostrum::Scene;
 
 namespace {
 
@@ -79,6 +82,8 @@ public:
         m_server.listen(QHostAddress::LocalHost, 0);
         connect(&m_server, &QWebSocketServer::newConnection, this, [this] {
             QWebSocket *s = m_server.nextPendingConnection();
+            m_sockets << s;
+            connect(s, &QWebSocket::disconnected, this, [this, s] { m_sockets.removeAll(s); });
             connect(s, &QWebSocket::textMessageReceived, this, [this, s](const QString &t) { onMessage(s, t); });
             send(s, 0, {{QStringLiteral("obsWebSocketVersion"), QStringLiteral("5.7.4")},
                         {QStringLiteral("rpcVersion"), 1},
@@ -100,6 +105,24 @@ public:
     QMap<QString, QStringList> scenes;
     QHash<QString, QString> special;
     QStringList refuse; // request types to fail
+    bool streaming = false;
+    bool recording = false;
+    bool recordPaused = false;
+    qint64 outputDuration = 0;
+    QString programScene;
+
+    void emitEvent(const QString &type, const QJsonObject &data)
+    {
+        for (QWebSocket *s : std::as_const(m_sockets)) {
+            send(s, 5, {{QStringLiteral("eventType"), type}, {QStringLiteral("eventData"), data}});
+        }
+    }
+    void dropClients()
+    {
+        for (QWebSocket *s : std::as_const(m_sockets)) {
+            s->close();
+        }
+    }
 
 private:
     void send(QWebSocket *s, int op, const QJsonObject &d)
@@ -152,6 +175,16 @@ private:
                 list.append(QJsonObject{{QStringLiteral("sceneName"), *it}});
             }
             out.insert(QStringLiteral("scenes"), list);
+        } else if (type == QLatin1String("GetStreamStatus")) {
+            out.insert(QStringLiteral("outputActive"), streaming);
+            out.insert(QStringLiteral("outputDuration"), double(streaming ? outputDuration : 0));
+        } else if (type == QLatin1String("GetRecordStatus")) {
+            out.insert(QStringLiteral("outputActive"), recording);
+            out.insert(QStringLiteral("outputPaused"), recordPaused);
+            out.insert(QStringLiteral("outputDuration"), double(recording ? outputDuration : 0));
+        } else if (type == QLatin1String("GetCurrentProgramScene")) {
+            out.insert(QStringLiteral("sceneName"), programScene);
+            out.insert(QStringLiteral("currentProgramSceneName"), programScene);
         } else if (type == QLatin1String("GetInputList")) {
             QJsonArray list;
             for (auto it = inputs.cbegin(); it != inputs.cend(); ++it) {
@@ -221,6 +254,8 @@ private:
         return true;
     }
 
+    // Before the server: its sockets report disconnected while it is destroyed.
+    QList<QWebSocket *> m_sockets;
     QWebSocketServer m_server;
     QString m_password;
     const QString m_salt = QStringLiteral("c2FsdA==");
@@ -517,6 +552,126 @@ private Q_SLOTS:
                   });
         QTRY_VERIFY(done);
         QVERIFY(!obs.inputs[QStringLiteral("Game Audio")].muted);
+    }
+
+    void liveStatusFollowsOutputsAndScenes()
+    {
+        FakeObs obs(QStringLiteral("pw"));
+        populate(obs);
+        obs.streaming = true;
+        obs.outputDuration = 65000;
+        obs.programScene = QStringLiteral("Game");
+        Client client;
+        LiveStatus live(&client);
+        QSignalSpy started(&live, &LiveStatus::streamStarted);
+        QSignalSpy switched(&live, &LiveStatus::programSceneChanged);
+        QVERIFY(connectClient(client, obs.port(), QStringLiteral("pw")));
+        QTRY_VERIFY(live.known());
+
+        // Already live at connect: reported once, with the start worked out from OBS's duration.
+        QVERIFY(live.streaming());
+        QCOMPARE(started.count(), 1);
+        QVERIFY(qAbs(QDateTime::currentMSecsSinceEpoch() - 65000 - live.streamStartMs()) < 5000);
+        QVERIFY(!live.recording());
+        QCOMPARE(live.programScene(), QStringLiteral("Game"));
+        QCOMPARE(live.scenes(),
+                 (QStringList{QStringLiteral("BRB"), QStringLiteral("Game"), QStringLiteral("Overlays")}));
+        QCOMPARE(switched.count(), 0);
+
+        obs.emitEvent(QStringLiteral("StreamStateChanged"),
+                      {{QStringLiteral("outputActive"), false},
+                       {QStringLiteral("outputState"), QStringLiteral("OBS_WEBSOCKET_OUTPUT_STOPPED")}});
+        QTRY_VERIFY(!live.streaming());
+        QCOMPARE(live.streamStartMs(), 0);
+        obs.emitEvent(QStringLiteral("StreamStateChanged"),
+                      {{QStringLiteral("outputActive"), true},
+                       {QStringLiteral("outputState"), QStringLiteral("OBS_WEBSOCKET_OUTPUT_STARTED")}});
+        QTRY_COMPARE(started.count(), 2);
+        QVERIFY(live.streaming());
+
+        obs.recording = true;
+        obs.outputDuration = 0;
+        obs.emitEvent(QStringLiteral("RecordStateChanged"),
+                      {{QStringLiteral("outputActive"), true},
+                       {QStringLiteral("outputState"), QStringLiteral("OBS_WEBSOCKET_OUTPUT_STARTED")}});
+        QTRY_VERIFY(live.recording());
+        obs.recordPaused = true;
+        obs.outputDuration = 42000;
+        obs.emitEvent(QStringLiteral("RecordStateChanged"),
+                      {{QStringLiteral("outputActive"), true},
+                       {QStringLiteral("outputState"), QStringLiteral("OBS_WEBSOCKET_OUTPUT_PAUSED")}});
+        QTRY_COMPARE(live.recordPausedElapsedMs(), 42000);
+        QVERIFY(live.recordPaused());
+
+        obs.emitEvent(QStringLiteral("CurrentProgramSceneChanged"),
+                      {{QStringLiteral("sceneName"), QStringLiteral("BRB")}});
+        QTRY_COMPARE(switched.count(), 1);
+        QCOMPARE(switched.first().first().toString(), QStringLiteral("BRB"));
+        QCOMPARE(live.programScene(), QStringLiteral("BRB"));
+
+        obs.scenes.insert(QStringLiteral("Just Chatting"), {});
+        obs.emitEvent(QStringLiteral("SceneCreated"),
+                      {{QStringLiteral("sceneName"), QStringLiteral("Just Chatting")}});
+        QTRY_VERIFY(live.scenes().contains(QStringLiteral("Just Chatting")));
+
+        // OBS quitting must never leave a stale LIVE badge behind.
+        obs.dropClients();
+        QTRY_VERIFY(!live.known());
+        QVERIFY(!live.streaming());
+        QVERIFY(!live.recording());
+        QVERIFY(live.programScene().isEmpty());
+    }
+
+    void goLiveProblemsAreFound()
+    {
+        Scene scene = rostrum::defaults::scene();
+        QVERIFY(goLiveProblems(scene, {}, nullptr).isEmpty());
+
+        scene.micBus()->muted = true;
+        QCOMPARE(goLiveProblems(scene, {}, nullptr), QList<GoLiveProblem>{GoLiveProblem::MicMuted});
+        scene.micBus()->muted = false;
+        scene.micBus()->destination = rostrum::Destination::Phones;
+        QCOMPARE(goLiveProblems(scene, {}, nullptr), QList<GoLiveProblem>{GoLiveProblem::MicMuted});
+        scene.micBus()->destination = rostrum::Destination::Stream;
+
+        scene.masterStreamMuted = true;
+        QCOMPARE(goLiveProblems(scene, {}, nullptr), QList<GoLiveProblem>{GoLiveProblem::StreamMixSilent});
+        scene.masterStreamMuted = false;
+        for (auto &bus : scene.buses) {
+            if (!bus.isInput() && rostrum::feedsStream(bus.destination) && bus.id != QLatin1String("music")) {
+                bus.muted = true;
+            }
+        }
+        QVERIFY(goLiveProblems(scene, {}, nullptr).isEmpty()); // Music still reaches the stream
+        // Solo dims the stream too: soloing a muted bus leaves nothing.
+        QCOMPARE(goLiveProblems(scene, {QStringLiteral("game")}, nullptr),
+                 QList<GoLiveProblem>{GoLiveProblem::StreamMixSilent});
+        scene.bus(QStringLiteral("music"))->volume = 0.0;
+        QCOMPARE(goLiveProblems(scene, {}, nullptr), QList<GoLiveProblem>{GoLiveProblem::StreamMixSilent});
+
+        const Scene fine = rostrum::defaults::scene();
+        const QList<Recording> none;
+        QCOMPARE(goLiveProblems(fine, {}, &none),
+                 (QList<GoLiveProblem>{GoLiveProblem::NoStreamMixCapture, GoLiveProblem::NoMicCapture}));
+        const QList<Recording> both{
+            {QStringLiteral("Mic/Aux"), QStringLiteral("Rostrum Mic"), Capture::RostrumMic},
+            {QStringLiteral("Desktop Audio"), QStringLiteral("Rostrum Stream Mix"), Capture::RostrumStream}};
+        QVERIFY(goLiveProblems(fine, {}, &both).isEmpty());
+        const QList<Recording> desktop{
+            {QStringLiteral("Mic/Aux"), QStringLiteral("Rostrum Mic"), Capture::RostrumMic},
+            {QStringLiteral("Desktop Audio"), QStringLiteral("Speakers"), Capture::Output}};
+        QCOMPARE(goLiveProblems(fine, {}, &desktop), QList<GoLiveProblem>{GoLiveProblem::NoStreamMixCapture});
+    }
+
+    void sceneMapPicksKnownScenes()
+    {
+        const QMap<QString, QString> map{{QStringLiteral("BRB"), QStringLiteral("Be Right Back")},
+                                         {QStringLiteral("Game"), QStringLiteral("Deleted")}};
+        const QStringList ours{QStringLiteral("Live"), QStringLiteral("Be Right Back")};
+        QCOMPARE(mappedScene(map, QStringLiteral("BRB"), ours), QStringLiteral("Be Right Back"));
+        QVERIFY(mappedScene(map, QStringLiteral("Game"), ours).isEmpty());
+        QVERIFY(mappedScene(map, QStringLiteral("Overlays"), ours).isEmpty());
+        QVERIFY(mappedScene(map, QString(), ours).isEmpty());
     }
 };
 

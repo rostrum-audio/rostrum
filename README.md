@@ -70,13 +70,15 @@ Rostrum is made by [Rostrum Audio](https://github.com/rostrum-audio). More at
 Five minutes to a split stream:
 
 1. **Start Rostrum** from the app menu (after installing, see below) or run `./build/src/app/rostrum`.
-2. **Run first-time setup.** Seven short steps, with a summary at the end:
+2. **Run first-time setup.** Eight short steps, with a summary at the end:
    - **Headphones:** press Test and a short chime plays only there.
    - **Mic:** speak and watch its meter.
    - **Apps and Buses:** whether apps go to their bus automatically, and which kind of app each bus receives.
    - **Startup:** launch at login (recommended) and start hidden in the tray.
    - **Privacy and Updates:** crash reports (send, ask, or never; official builds only) and update
      checks.
+   - **OBS:** if OBS is installed, **Set Up OBS** shows the same preview as the OBS page (Rostrum
+     creates its devices first), or **Skip**. Also whether Rostrum follows OBS while it runs.
    - **Ready:** each choice in one list. Click one to change it, then press **Create Mix**.
 
    Skip Setup creates the same mix with the defaults. Everything can be changed later in Settings.
@@ -105,6 +107,14 @@ Five minutes to a split stream:
    shows what OBS really records, from the PipeWire graph. "Set it up by hand" has the manual steps.
 
    ![The OBS page: OBS is set up, and the list of what OBS records right now](docs/screenshots/obs.png)
+
+   **While you stream**, Rostrum follows OBS quietly over the same localhost connection, whenever
+   OBS is open (Settings → OBS → "Follow OBS while it runs"). The header shows a red **LIVE** badge
+   and a **REC** badge with the elapsed time, and the tray tooltip says the same. If a stream
+   starts with your mic muted, nothing reaching the stream mix, or OBS not recording Rostrum, a
+   banner and a desktop notification say so. Under "When OBS switches scenes" on the OBS page,
+   pick a Rostrum scene for each OBS scene. When OBS puts that scene on program, Rostrum loads it
+   at once, without asking, after saving the current scene if auto-save is on.
 
 6. **Make more scenes.** Scenes recall every level, mute and destination, and changes save to the
    live scene by themselves. On the Scenes page, **New** starts an empty scene or one from a preset
@@ -138,6 +148,8 @@ F6 moves focus between the header, the sidebar and the page.
   on (setup recommends it).
 - Crash reports: ask after a crash. Update checks: once a day. Automatic install: on, for the
   AppImage only.
+- Follow OBS while it runs: on (localhost only, read-only). Go-live warnings: on. No OBS scenes
+  mapped.
 
 ### 🗂️ Where things live
 

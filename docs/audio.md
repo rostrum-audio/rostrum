@@ -307,12 +307,51 @@ moves to Rostrum scenes.
 
 `rostrum-obs` prints the same status and, with `--plan`, the plan, without changing anything.
 
+### While OBS runs
+
+With "Follow OBS while it runs" on (`[obs] background`, default on), Rostrum keeps the same
+obs-websocket connection open while OBS runs, even with the OBS page closed. Every 5 seconds it
+checks whether an OBS process is running and its WebSocket server is turned on in OBS's config.
+Only then does it connect, to `127.0.0.1` only. A refused connection waits 5 seconds, then 10,
+20, 40 and at most 60 before the next try. Starting OBS, or opening the OBS page, resets that. The
+background connection shows no toasts and writes nothing to the log. Offscreen runs
+(`QT_QPA_PLATFORM=offscreen` or `ROSTRUM_SCREENSHOT`) never connect in the background.
+
+It subscribes to the Outputs and Scenes events (`StreamStateChanged`, `RecordStateChanged`,
+`CurrentProgramSceneChanged`, scene list changes), and asks `GetStreamStatus`,
+`GetRecordStatus`, `GetCurrentProgramScene` and `GetSceneList` when it connects. The background
+connection only reads. OBS is changed only by Set Up OBS and Undo. `obs::LiveStatus` in
+`src/obs/ObsStatus.cpp` holds the result and clears it when OBS goes away, so a LIVE badge never
+outlives OBS.
+
+- **Badges.** The header shows a red LIVE badge and a REC badge (REC paused while paused) with the
+  elapsed time, counted from the duration OBS reports. Clicking one opens the OBS page. Screen
+  readers hear "Live on stream for …" and "Recording for …". The tray tooltip starts with "LIVE
+  since 20:04" and "REC since 20:10": a start time, because the tray host only hears about changes.
+- **Go-live warnings** (`[obs] go_live_warnings`, default on). When a stream starts, or when
+  Rostrum connects to a stream already running, it checks the current scene
+  (`obs::goLiveProblems`). It warns if the mic is muted, at zero, or its destination leaves out
+  Stream. It warns if Master Stream is muted or at zero, or if no unmuted playback bus with a
+  level above zero and a Stream destination is left, solo included. It also warns if OBS records
+  nothing from `Rostrum Stream Mix` or `Rostrum Mic`, read from the PipeWire graph as on the OBS
+  page. One banner and one desktop notification are shown per stream start. A problem drops off
+  the banner once it is fixed, and the banner goes away when the stream stops. A problem that
+  appears later in the stream is not reported.
+- **Scene mapping** (`[obs.scene_map]`, OBS scene name = Rostrum scene name). The OBS page lists
+  OBS's scenes, plus mapped ones OBS no longer has, so they can be forgotten. When OBS puts a
+  mapped scene on program, Rostrum switches straight to the Rostrum scene, as a hotkey does but
+  without the confirm dialog: blocking a switch while live would be worse than losing unsaved
+  levels. With auto-save on, the current scene is saved first. With it off, unsaved levels are
+  dropped, and the page says so. A toast names both scenes. Nothing happens at connect, only on a
+  change, and a mapping to a Rostrum scene that no longer exists does nothing.
+
 ## Files
 
 All configuration is TOML under `$XDG_CONFIG_HOME/rostrum/` (default `~/.config/rostrum/`):
 
 - `settings.toml`: general options, mixer options, default scene, saved headphone and mic
-  `node.name`, shortcuts, window size, last page.
+  `node.name`, shortcuts, window size, last page, OBS options and the OBS scene map
+  (`[obs.scene_map]`).
 - `scenes/<slug>.toml`: one scene per file. The `name` inside the file wins over the file name.
   A scene holds master levels, sidetone level, the bus list (id, name, color, kind, volume, mute,
   destination) and app rules (match, key, bus, per-app volume, an optional label for apps that
@@ -352,8 +391,9 @@ with OBS closed, edits OBS's scene collection after backing it up.
   can be rebound there too. Otherwise through the XDG GlobalShortcuts portal. A shortcut the
   desktop refuses, or one another component already owns, stays active inside the window and
   Settings says why. There is no X11 key grab.
-- The one notification is "Headphones disconnected, scene held.", sent straight to
-  `org.freedesktop.Notifications`. Mute changes never notify.
+- Two notifications, sent straight to `org.freedesktop.Notifications`: "Headphones disconnected,
+  scene held.", and "Check your stream audio" when a stream starts with a problem (critical
+  urgency; see OBS above). Mute changes never notify.
 - Offscreen runs (`QT_QPA_PLATFORM=offscreen` or `ROSTRUM_SCREENSHOT`) skip the tray, shortcuts
   and notifications. `ROSTRUM_NO_GLOBAL_SHORTCUTS=1` skips only the shortcuts.
 

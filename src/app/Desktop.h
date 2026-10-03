@@ -15,7 +15,7 @@ class Hotkeys;
 class Tray;
 
 // Everything that talks to the desktop rather than PipeWire: the tray, global shortcuts, the
-// autostart file and the one notification. Offscreen runs (screenshots, tests) skip all of it.
+// autostart file and notifications. Offscreen runs (screenshots, tests) skip all of it.
 class Desktop : public QObject
 {
     Q_OBJECT
@@ -47,6 +47,8 @@ public:
     void setStartInTray(bool on);
     bool startHidden() const { return m_startHidden; }
     QString shortcutBackend() const;
+    // A stream started with a problem: `body` says what it is.
+    void notifyGoLive(const QString &body);
 
 Q_SIGNALS:
     void trayChanged();
@@ -58,6 +60,8 @@ private Q_SLOTS:
 private:
     void applyHotkeys();
     void notifyHeadphonesLost(const QString &description);
+    // Replaces the earlier notification with the same `id`, and stores the new id there.
+    void notify(const QString &summary, const QString &body, uchar urgency, uint *id);
 
     static Desktop *s_instance;
     AppController *m_app = nullptr;
@@ -67,6 +71,7 @@ private:
     bool m_enabled = false;
     bool m_startHidden = false;
     uint m_notificationId = 0;
+    uint m_goLiveNotificationId = 0;
 };
 
 } // namespace rostrum::app
