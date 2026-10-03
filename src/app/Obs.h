@@ -36,6 +36,8 @@ class Obs : public QObject
     Q_PROPERTY(QString summary READ summary NOTIFY changed)
     Q_PROPERTY(QString detail READ detail NOTIFY changed)
     Q_PROPERTY(bool setUp READ setUp NOTIFY changed)
+    // Mic and Stream Mix are in place; only sources that double audio are left to mute.
+    Q_PROPERTY(bool onlyDoubling READ onlyDoubling NOTIFY changed)
     Q_PROPERTY(bool canApply READ canApply NOTIFY changed)
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY changed)
     Q_PROPERTY(bool busy READ busy NOTIFY changed)
@@ -56,6 +58,7 @@ public:
     QString summary() const;
     QString detail() const;
     bool setUp() const { return m_havePlan && m_plan.isEmpty(); }
+    bool onlyDoubling() const;
     bool canApply() const;
     bool canUndo() const;
     bool busy() const { return m_busy; }

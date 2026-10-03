@@ -162,7 +162,8 @@ QQC2.ScrollView {
                         enabled: Obs.canApply && page.nodesPresent
                         highlighted: true
                         icon.name: "configure"
-                        text: i18nc("@action:button", "Set Up OBS…")
+                        text: Obs.onlyDoubling ? i18nc("@action:button", "Fix OBS…")
+                                               : i18nc("@action:button", "Set Up OBS…")
                         onClicked: previewDialog.open()
                     }
                     QQC2.Button {
@@ -288,7 +289,7 @@ QQC2.ScrollView {
                     QQC2.Label {
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
-                        text: i18n("Mute every other audio source that records your mic, your headphones (often called “Default”) or a single app. They skip Rostrum and double the audio.")
+                        text: i18n("Mute every other audio source that records your mic, your headphones (often called “Default”) or a single app. They skip Rostrum and double the audio. In Settings ▸ Audio, leave Desktop Audio disabled or on Rostrum Stream Mix. Never pick a single bus such as Rostrum Desktop or Rostrum Game: the Stream Mix already has it.")
                     }
                 }
 
@@ -310,7 +311,7 @@ QQC2.ScrollView {
 
     Kirigami.Dialog {
         id: previewDialog
-        title: i18nc("@title:dialog", "Set Up OBS")
+        title: Obs.onlyDoubling ? i18nc("@title:dialog", "Fix OBS") : i18nc("@title:dialog", "Set Up OBS")
         padding: Kirigami.Units.largeSpacing
         preferredWidth: Kirigami.Units.gridUnit * 30
         standardButtons: Kirigami.Dialog.NoButton

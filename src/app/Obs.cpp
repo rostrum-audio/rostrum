@@ -7,7 +7,6 @@
 #include "obs/SceneCollection.h"
 
 #include <KLocalizedString>
-
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -17,6 +16,8 @@
 #include <QLoggingCategory>
 #include <QSaveFile>
 #include <QSet>
+
+#include <algorithm>
 
 Q_LOGGING_CATEGORY(lcObs, "rostrum.obs", QtInfoMsg)
 
@@ -297,7 +298,19 @@ QString Obs::summary() const
     if (m_plan.isEmpty()) {
         return i18n("OBS is set up: it records Rostrum Mic and Rostrum Stream Mix.");
     }
+    if (onlyDoubling()) {
+        return i18n("OBS records some audio twice.");
+    }
     return i18n("OBS isn't recording through Rostrum yet.");
+}
+
+bool Obs::onlyDoubling() const
+{
+    if (!m_havePlan || m_plan.isEmpty()) {
+        return false;
+    }
+    return std::all_of(m_plan.actions.cbegin(), m_plan.actions.cend(),
+                       [](const obs::Action &a) { return a.role == obs::Action::Role::Conflict; });
 }
 
 QString Obs::detail() const
@@ -314,6 +327,9 @@ QString Obs::detail() const
     }
     if (s == QLatin1String("failed")) {
         return m_client.errorString();
+    }
+    if (onlyDoubling()) {
+        return i18n("Rostrum Mic and Rostrum Stream Mix are in place, but the sources marked below play on top of them. Fix OBS mutes them.");
     }
     if (s == QLatin1String("closed") && m_havePlan && !m_plan.isEmpty()) {
         return i18n("OBS is closed, so Rostrum will edit its scene collection. The changes show up the next time OBS starts.");
@@ -384,7 +400,7 @@ QVariantList Obs::planItems() const
                 detail = i18n("It records one app directly: that app would be doubled and its bus ignored.");
                 break;
             case obs::Capture::RostrumBus:
-                detail = i18n("It records a Rostrum bus that's already in the Stream Mix, so it would be doubled.");
+                detail = i18n("It records one Rostrum bus, which Rostrum Stream Mix already includes: viewers would hear it twice.");
                 break;
             case obs::Capture::RostrumMic:
             case obs::Capture::RostrumStream:
@@ -438,7 +454,7 @@ void Obs::rebuildRecordings()
                 kind = QStringLiteral("ok");
                 break;
             case obs::Capture::RostrumBus:
-                text = i18n("%1, which is already in the Stream Mix: doubled", r.what);
+                text = i18n("%1, a single bus that Rostrum Stream Mix already includes: viewers hear it twice", r.what);
                 break;
             case obs::Capture::Mic:
                 if (in && obs::classify(*in, obs::factsFrom(*m_app->pw())) == obs::Capture::RostrumMic) {
