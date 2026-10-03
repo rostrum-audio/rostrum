@@ -34,9 +34,10 @@
   before Rostrum starts at your next login.
 - 🛟 **Safe by design.** The virtual devices live in PipeWire, so audio keeps flowing if Rostrum
   quits or crashes.
-- 🔒 **Private crash reports, your call.** After a crash Rostrum asks before sending anything, and a
-  report holds only the crash location and software versions: no names, paths or device names.
-  You can read the exact report first. See [docs/privacy.md](docs/privacy.md).
+- 🔒 **Private crash reports, your call.** In official builds, Rostrum asks after a crash before
+  sending anything to Sentry. A report holds only the crash location and software versions: no
+  names, paths, device names or IDs. You can read the exact report first. See
+  [docs/privacy.md](docs/privacy.md).
 - ⬆️ **Stays up to date.** A daily check announces new versions. The AppImage updates itself after
   checking the release checksum, and package installs are left to the package manager.
 
@@ -72,7 +73,8 @@ Five minutes to a split stream:
    - **Mic:** speak and watch its meter.
    - **Apps and Buses:** whether apps go to their bus automatically, and which kind of app each bus receives.
    - **Startup:** launch at login (recommended) and start hidden in the tray.
-   - **Privacy and Updates:** crash reports (send, ask, or never) and update checks.
+   - **Privacy and Updates:** crash reports (send, ask, or never; official builds only) and update
+     checks.
    - **Ready:** each choice in one list. Click one to change it, then press **Create Mix**.
 
    Skip Setup creates the same mix with the defaults. Everything can be changed later in Settings.
@@ -136,8 +138,8 @@ F6 moves focus between the header, the sidebar and the page.
 ### 🗂️ Where things live
 
 - Settings and scenes: `~/.config/rostrum/` (TOML). Log: `~/.local/state/rostrum/rostrum.log`.
-- Crash files waiting to be sent or discarded: `~/.local/state/rostrum/crashes/` (at most 10,
-  none older than 30 days).
+- Crash reports waiting to be sent or discarded: `~/.local/state/rostrum/crashes/` (at most 10,
+  none older than 30 days), and sentry-native's own database in `~/.local/state/rostrum/sentry/`.
 - App rules for the next login: `~/.config/pipewire/pipewire-pulse.conf.d/50-rostrum.conf` and
   `~/.config/pipewire/client.conf.d/50-rostrum.conf`. Nothing is written to `~/.config/wireplumber/`.
 - Autostart, when on: `~/.config/autostart/dev.getrostrum.Rostrum.desktop`.
@@ -204,10 +206,11 @@ ctest --test-dir build
 ```
 
 Configure with `-DROSTRUM_BUILD_APP=OFF` to build only the engine, tools and tests (CI does this).
-Logs go to `~/.local/state/rostrum/rostrum.log`; a crash appends a backtrace there and writes a
-crash file for the report. `-DROSTRUM_UPDATE_URL=…` and `-DROSTRUM_CRASH_URL=…` point updates and
-crash reports at your own servers. Development runs talk to a local server through the
-environment variables of the same names; see [docs/privacy.md](docs/privacy.md).
+Logs go to `~/.local/state/rostrum/rostrum.log`; a crash appends a backtrace there. Crash reports
+need `-DROSTRUM_WITH_SENTRY=ON -DROSTRUM_SENTRY_DSN=…`, which fetches a pinned sentry-native
+release at configure time; builds without them have no crash reporting.
+`-DROSTRUM_UPDATE_URL=…` points updates at your own feed. See [docs/privacy.md](docs/privacy.md)
+for both, and for testing against a local server.
 
 
 ## 📖 Further reading

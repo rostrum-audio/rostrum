@@ -1,43 +1,49 @@
 #pragma once
 
-#include <QDate>
+#include <QDateTime>
 #include <QJsonObject>
-#include <QMap>
 #include <QString>
 #include <QStringList>
+#include <QUrl>
 
+// Crash reports go to Sentry. sentry-native captures the crash and hands Rostrum an envelope;
+// only scrubEvent() output ever leaves the computer. Kept free of sentry and the network so the
+// scrubbing is unit tested.
 namespace rostrum::crash {
 
-inline constexpr int kSchema = 1;
-inline constexpr int kMaxFrames = 64;
+constexpr int kMaxFrames = 128;
+constexpr int kMaxImages = 256;
 
-// A crash file as the signal handler writes it: "key: value" lines, then "frames:" and one
-// backtrace_symbols line per frame. It stays on this computer; only buildReport() output is sent.
-struct CrashFile
+struct Dsn
 {
-    QMap<QString, QString> fields;
-    QStringList frames;
-    bool valid = false;
+    QUrl envelopeUrl;  // https://<host>/api/<project>/envelope/
+    QString publicKey; // the DSN's user part; public by design
+    bool valid() const { return envelopeUrl.isValid() && !publicKey.isEmpty(); }
 };
 
-CrashFile parseCrashFile(const QByteArray &text);
+Dsn parseDsn(const QString &dsn);
 
-// "module(symbol+0x1c) [0x7f…]" -> "module symbol+0x1c". The module keeps only its file name, the
-// absolute address is dropped (it changes every run), and anything that does not look like a
-// library name or a mangled symbol is replaced by "?". Returns "?" for lines that do not parse.
-QString sanitizeFrame(const QString &line);
+// The "event" item of a Sentry envelope, or an empty object.
+QJsonObject eventFromEnvelope(const QByteArray &envelope);
 
-// Field values are versions and names such as "6.10.1" or "KDE". Anything outside that small
-// alphabet is removed and the result is capped at 64 characters.
+// A copy holding only whitelisted fields: no user or installation ID, no registers, no paths
+// (library and image paths become file names), no timestamps, tags, breadcrumbs or extras, and
+// only the libraries the stack trace runs through.
+QJsonObject scrubEvent(const QJsonObject &event);
+
+// A one-event envelope for the Sentry envelope endpoint.
+QByteArray toEnvelope(const QJsonObject &event);
+
+// When the crash happened, from the unscrubbed event.
+QDateTime eventTime(const QJsonObject &event);
+
+// Keys allowed in the "rostrum" context Rostrum sets for each crash.
+QStringList contextFields();
+
+// Letters, digits, space and . _ : + ( ) / - only, at most 64 characters.
 QString sanitizeValue(const QString &value);
 
-QString signalName(int signal);
-
-// The JSON that is uploaded. Only the fields listed in reportFields() are copied from the file.
-QJsonObject buildReport(const CrashFile &file, const QDate &date);
-QStringList reportFields();
-
-// "NAME VERSION_ID" from /etc/os-release, e.g. "Ubuntu 26.04".
-QString osName(const QString &osRelease);
+// The last path component if it looks like a library or program file name, else "?".
+QString fileName(const QString &path);
 
 } // namespace rostrum::crash

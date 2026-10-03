@@ -182,12 +182,14 @@ QQC2.ScrollView {
         }
 
         FormCard.FormHeader {
+            visible: CrashReports.available
             title: i18nc("@title:group", "Privacy")
         }
         FormCard.FormCard {
+            visible: CrashReports.available
             FormCard.FormComboBoxDelegate {
                 text: i18nc("@label:listbox", "Crash reports")
-                description: i18n("A crash report shows where in Rostrum's code it crashed, and which versions of Rostrum, Linux, Qt and PipeWire were running. It never includes personal information, names, files or logs.")
+                description: i18n("A crash report shows where in Rostrum's code it crashed, and which versions of Rostrum, Linux, Qt and PipeWire were running. It goes to Sentry, a crash reporting service, and never includes personal information, names, files or logs.")
                 readonly property var modes: ["send", "ask", "never"]
                 model: [i18nc("@item:inlistbox crash reports", "Send automatically"),
                         i18nc("@item:inlistbox crash reports", "Ask after a crash"),

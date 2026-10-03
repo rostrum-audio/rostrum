@@ -257,23 +257,28 @@ Start from a scene with no rules and "Assign automatically" on.
 
 ## 13. Crash reports
 
-Use a copy of Rostrum started from a terminal, not one that holds your real session's audio.
-`kill -SEGV` makes it crash. The buses stay up, as in test 6.
+Needs a build with `-DROSTRUM_WITH_SENTRY=ON`. Without a DSN built in, start it with
+`ROSTRUM_SENTRY_DSN=http://key@127.0.0.1:8766/1` and a local server that logs POSTs to
+`/api/1/envelope/`. Use a copy started from a terminal, not one that holds your real session's
+audio; `kill -SEGV` makes it crash, and the buses stay up, as in test 6.
 
-1. With crash reports on Ask, start Rostrum and run `kill -SEGV $(pgrep -x rostrum)`. A file
-   `~/.local/state/rostrum/crashes/crash-<time>.txt` appears (mode 0600), and `rostrum.log`
-   ends with a backtrace.
-2. Start Rostrum again. After a moment it asks to send a report. Press Show the Report: the JSON
-   has the signal, the frames as `library symbol+offset`, and the versions. It contains no user
-   name, no `/home` path, no device name and no `[0x…]` address.
-3. Press Don't Send: the crash file is deleted, and the next start does not ask again.
-4. Crash again and answer Send Report. Without a network connection the file stays and is sent at
-   a later start. With one, it is deleted. To see exactly what goes over the wire, run a local
-   server and start Rostrum with `ROSTRUM_CRASH_URL=http://127.0.0.1:8765/crash`.
-5. Tick "Send reports without asking from now on" in the dialog: Settings → Privacy now says
+1. A build without `ROSTRUM_WITH_SENTRY`, or without a DSN, shows no crash reporting anywhere:
+   setup's step is called Updates, and Settings has no Privacy group.
+2. With crash reports on Ask, run `kill -SEGV <pid>`. `rostrum.log` ends with a backtrace, and
+   `~/.local/state/rostrum/sentry/` holds a `.run` folder with the crash.
+3. Start Rostrum again. `~/.local/state/rostrum/crashes/crash-<time>-0.envelope` appears (mode
+   0600, folder 0700), nothing reaches the server, and after a moment Rostrum asks to send the
+   report. Press Show the Report: the JSON has the signal, frames with `package` file names and
+   addresses, and the versions. It contains no `user`, no `/home` path, no device name, no
+   registers and no timestamp.
+4. Press Don't Send: the file is deleted, and the next start does not ask again.
+5. Crash again and answer Send Report. The server receives one envelope with an `X-Sentry-Auth`
+   header, no cookie, and exactly the JSON the dialog showed; the file is deleted. With the
+   server stopped, the file stays and goes out at a later start.
+6. Tick "Send reports without asking from now on" in the dialog: Settings → Privacy now says
    Send automatically, and the next crash is sent at start without a dialog.
-6. Set Never send and crash again. At the next start the crash file is deleted, nothing is sent,
-   and nothing is asked.
+7. Set Never send: `~/.local/state/rostrum/sentry/` is deleted at once. Crash again: nothing is
+   captured, and the next start sends and asks nothing.
 
 ## 14. Updates
 
@@ -325,7 +330,7 @@ nested KWin with a fake tray host, or offscreen rendering. Fake devices were nul
 | Automatic assignment with stand-in streams (Discord, Spotify, Streamer.bot, Firefox, an unknown game with `media.role = "Game"`) and the real OBS | Each lands on Voice, Music, Alerts, Desktop and Game with the reason shown; OBS is recognised and left alone; no fragment file changes |
 | First-time setup, each step rendered in a headless nested KWin and offscreen at 1280×720 | Step list marks finished steps; no layout overlap; no QML warnings |
 | Existing settings with `wizard_done = true` and no `setup_version` | The one-time Crash Reports and Updates dialog opens over the Mixer, with no binding loops |
-| `kill -SEGV` on a test instance, crash reports on Send, local test server | Crash file written; at the next start one report is posted and the file deleted; the report has no user name, path, device name or absolute address; `addr2line` resolves its frames |
+| Sentry build, `kill -SEGV` on a test instance (no PipeWire, private D-Bus, temp config), local server as the DSN | Send: one 3.5 KB envelope posted at the next start, file deleted; no user name, path, installation ID, registers, timestamp or device name; only the 4 libraries in the stack listed. Ask: report kept (0600), nothing posted. Never: nothing captured, no sentry folder |
 | Update feed 0.2.0 from a local server, as an AppImage | Download checked against SHA-256, AppImage replaced with mode 755, Restart Now offered; no cookies sent; `User-Agent: Rostrum/0.1.0` |
 | Same, with a wrong checksum | Refused; the old AppImage kept; no `.part` file left |
 | Unit tests | 11 of 11 pass |

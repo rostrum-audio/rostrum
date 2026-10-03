@@ -27,7 +27,7 @@
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
-    rostrum::logging::install(rostrum::paths::logFile(), rostrum::paths::crashDir());
+    rostrum::logging::install(rostrum::paths::logFile());
 
     KLocalizedString::setApplicationDomain("rostrum");
     KAboutData about(QStringLiteral("Rostrum"), i18n("Rostrum"), QStringLiteral(ROSTRUM_VERSION),

@@ -14,8 +14,9 @@ option(ROSTRUM_BUILD_TESTS "Build unit tests" ON)
 option(ROSTRUM_BUILD_APP "Build the Kirigami app" ON)
 set(ROSTRUM_UPDATE_URL "https://getrostrum.dev/releases/latest.json" CACHE STRING
     "Release feed the update check reads (Rostrum feed or a GitHub latest-release URL)")
-set(ROSTRUM_CRASH_URL "https://getrostrum.dev/api/v1/crash-reports" CACHE STRING
-    "Endpoint crash reports are POSTed to")
+option(ROSTRUM_WITH_SENTRY "Capture crashes with sentry-native for crash reports (official builds)" OFF)
+set(ROSTRUM_SENTRY_DSN "" CACHE STRING
+    "Sentry DSN crash reports go to; without one, crash reporting is hidden")
 
 include(GNUInstallDirs)
 

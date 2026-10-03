@@ -29,9 +29,13 @@ QQC2.Pane {
         { id: "startup", title: i18nc("@title wizard step", "Startup"),
           heading: i18nc("@title", "When Rostrum starts"),
           lead: i18n("Your mix keeps playing while Rostrum is closed, but apps find their bus and hotkeys work only while it runs.") },
-        { id: "privacy", title: i18nc("@title wizard step", "Privacy and Updates"),
-          heading: i18nc("@title", "Privacy and updates"),
-          lead: i18n("Help fix crashes and stay up to date. Nothing personal is ever collected.") },
+        CrashReports.available
+            ? { id: "privacy", title: i18nc("@title wizard step", "Privacy and Updates"),
+                heading: i18nc("@title", "Privacy and updates"),
+                lead: i18n("Help fix crashes and stay up to date. Nothing personal is ever collected.") }
+            : { id: "privacy", title: i18nc("@title wizard step", "Updates"),
+                heading: i18nc("@title", "Updates"),
+                lead: i18n("Stay up to date. Nothing about you is sent.") },
         { id: "ready", title: i18nc("@title wizard step", "Ready"),
           heading: i18nc("@title", "You're all set"),
           lead: i18n("Here is your setup. Create the mix and the Mixer opens. Everything can be changed later in Settings.") }
@@ -491,7 +495,7 @@ QQC2.Pane {
                                                      : i18nc("@info", "At login"), step: 4 },
                                             { icon: "security-high", label: i18nc("@label", "Crash reports"), value: wizard.crashModeText(CrashReports.mode), step: 5 },
                                             { icon: "update-none", label: i18nc("@label", "Updates"), value: wizard.updatesText(), step: 5 }
-                                        ]
+                                        ].filter(row => row.icon !== "security-high" || CrashReports.available)
                                         delegate: FormCard.FormButtonDelegate {
                                             required property var modelData
                                             icon.name: modelData.icon

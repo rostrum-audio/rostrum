@@ -1,97 +1,278 @@
 #include "core/CrashReport.h"
 
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QRegularExpression>
 
-#include <csignal>
+#include <algorithm>
 
 namespace rostrum::crash {
 
 namespace {
 
-const QString kMagic = QStringLiteral("rostrum-crash 1");
-
-// Where each allowed field goes in the report. Nothing else in the file is ever read.
-struct Field
+bool matches(const QString &s, const char *pattern)
 {
-    const char *key;
-    const char *section;
-};
-constexpr Field kFields[] = {
-    {"version", "app"},       {"build_id", "app"},     {"install", "app"},     {"signal", "crash"},
-    {"uptime", "crash"},      {"os", "system"},        {"kernel", "system"},   {"arch", "system"},
-    {"desktop", "system"},    {"session", "system"},   {"qt", "system"},       {"kf", "system"},
-    {"pipewire", "system"},   {"wireplumber", "system"},
-};
+    return QRegularExpression(QString::fromLatin1(pattern)).match(s).hasMatch();
+}
 
-bool isHex(const QString &s)
+bool isAddress(const QString &s) { return matches(s, "^0x[0-9a-fA-F]{1,16}$"); }
+quint64 address(const QString &s) { return isAddress(s) ? s.mid(2).toULongLong(nullptr, 16) : 0; }
+bool isUuid(const QString &s) { return matches(s, "^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$"); }
+bool isHex(const QString &s) { return matches(s, "^[0-9a-f]{1,128}$"); }
+bool isSymbol(const QString &s) { return matches(s, "^[A-Za-z0-9_.$@]{1,512}$"); }
+bool isSignal(const QString &s) { return matches(s, "^[A-Z0-9_]{1,32}$"); }
+// Short words only: no slashes, so no paths.
+bool isPlainText(const QString &s) { return matches(s, "^[A-Za-z0-9 ._:()-]{1,64}$"); }
+bool isRelease(const QString &s) { return matches(s, "^[A-Za-z0-9._+@-]{1,64}$"); }
+
+void copyIf(QJsonObject &to, const QJsonObject &from, const char *key, bool (*ok)(const QString &))
 {
-    static const QRegularExpression re(QStringLiteral("^[0-9a-f]+$"));
-    return re.match(s).hasMatch();
+    const QString k = QString::fromLatin1(key);
+    const QString v = from.value(k).toString();
+    if (!v.isEmpty() && ok(v)) {
+        to.insert(k, v);
+    }
+}
+
+void copySanitized(QJsonObject &to, const QJsonObject &from, const char *key)
+{
+    const QString k = QString::fromLatin1(key);
+    if (const QString v = sanitizeValue(from.value(k).toString()); !v.isEmpty()) {
+        to.insert(k, v);
+    }
+}
+
+QJsonObject scrubFrame(const QJsonObject &in)
+{
+    QJsonObject out;
+    copyIf(out, in, "instruction_addr", isAddress);
+    copyIf(out, in, "image_addr", isAddress);
+    copyIf(out, in, "symbol_addr", isAddress);
+    copyIf(out, in, "function", isSymbol);
+    if (const QString package = in.value(QStringLiteral("package")).toString(); !package.isEmpty()) {
+        out.insert(QStringLiteral("package"), fileName(package));
+    }
+    return out;
+}
+
+QJsonObject scrubException(const QJsonObject &in)
+{
+    QJsonObject out;
+    copyIf(out, in, "type", isSignal);
+    copyIf(out, in, "value", isPlainText);
+
+    const QJsonObject mechIn = in.value(QStringLiteral("mechanism")).toObject();
+    QJsonObject mech;
+    copyIf(mech, mechIn, "type", isPlainText);
+    for (const char *flag : {"handled", "synthetic"}) {
+        if (const QJsonValue v = mechIn.value(QLatin1String(flag)); v.isBool()) {
+            mech.insert(QLatin1String(flag), v);
+        }
+    }
+    const QJsonObject sigIn = mechIn.value(QStringLiteral("meta")).toObject().value(QStringLiteral("signal")).toObject();
+    QJsonObject sig;
+    copyIf(sig, sigIn, "name", isSignal);
+    if (const QJsonValue n = sigIn.value(QStringLiteral("number")); n.isDouble()) {
+        sig.insert(QStringLiteral("number"), n.toInt());
+    }
+    if (!sig.isEmpty()) {
+        mech.insert(QStringLiteral("meta"), QJsonObject{{QStringLiteral("signal"), sig}});
+    }
+    if (!mech.isEmpty()) {
+        out.insert(QStringLiteral("mechanism"), mech);
+    }
+
+    // Sentry orders frames caller first; the crash end is the part worth keeping.
+    const QJsonArray framesIn = in.value(QStringLiteral("stacktrace")).toObject().value(QStringLiteral("frames")).toArray();
+    QJsonArray frames;
+    for (qsizetype i = std::max<qsizetype>(0, framesIn.size() - kMaxFrames); i < framesIn.size(); ++i) {
+        const QJsonObject frame = scrubFrame(framesIn.at(i).toObject());
+        if (frame.contains(QStringLiteral("instruction_addr"))) {
+            frames.append(frame);
+        }
+    }
+    if (!frames.isEmpty()) {
+        out.insert(QStringLiteral("stacktrace"), QJsonObject{{QStringLiteral("frames"), frames}});
+    }
+    return out;
+}
+
+QJsonObject scrubImage(const QJsonObject &in)
+{
+    QJsonObject out;
+    if (in.value(QStringLiteral("type")).toString() == QLatin1String("elf")) {
+        out.insert(QStringLiteral("type"), QStringLiteral("elf"));
+    }
+    if (const QString file = in.value(QStringLiteral("code_file")).toString(); !file.isEmpty()) {
+        out.insert(QStringLiteral("code_file"), fileName(file));
+    }
+    copyIf(out, in, "image_addr", isAddress);
+    if (const QJsonValue size = in.value(QStringLiteral("image_size")); size.isDouble()) {
+        out.insert(QStringLiteral("image_size"), size.toInteger());
+    }
+    copyIf(out, in, "code_id", isHex);
+    copyIf(out, in, "debug_id", isUuid);
+    return out;
 }
 
 } // namespace
 
-CrashFile parseCrashFile(const QByteArray &text)
+Dsn parseDsn(const QString &dsn)
 {
-    CrashFile file;
-    const QStringList lines = QString::fromUtf8(text).split(QLatin1Char('\n'));
-    if (lines.isEmpty() || lines.constFirst().trimmed() != kMagic) {
-        return file;
+    const QUrl url(dsn, QUrl::StrictMode);
+    if (!url.isValid() || url.userName().isEmpty() || url.host().isEmpty()) {
+        return {};
     }
-    bool inFrames = false;
-    for (qsizetype i = 1; i < lines.size(); ++i) {
-        const QString line = lines.at(i).trimmed();
-        if (line.isEmpty()) {
-            continue;
-        }
-        if (inFrames) {
-            if (line.startsWith(QLatin1String("===="))) {
-                break;
-            }
-            if (file.frames.size() < kMaxFrames) {
-                file.frames << line;
-            }
-            continue;
-        }
-        if (line == QLatin1String("frames:")) {
-            inFrames = true;
-            continue;
-        }
-        const qsizetype colon = line.indexOf(QLatin1Char(':'));
-        if (colon > 0) {
-            file.fields.insert(line.left(colon).trimmed(), line.mid(colon + 1).trimmed());
-        }
+    QString path = url.path();
+    const qsizetype slash = path.lastIndexOf(QLatin1Char('/'));
+    const QString project = path.mid(slash + 1);
+    if (slash < 0 || !matches(project, "^[0-9]{1,20}$")) {
+        return {};
     }
-    file.valid = file.fields.contains(QStringLiteral("signal"));
-    return file;
+    QUrl envelope;
+    envelope.setScheme(url.scheme());
+    envelope.setHost(url.host());
+    envelope.setPort(url.port());
+    envelope.setPath(path.left(slash) + QStringLiteral("/api/") + project + QStringLiteral("/envelope/"));
+    return {envelope, url.userName()};
 }
 
-QString sanitizeFrame(const QString &line)
+QJsonObject eventFromEnvelope(const QByteArray &envelope)
 {
-    static const QRegularExpression withInfo(QStringLiteral(R"(^(.*)\(([^()]*)\)\s*(\[0x[0-9a-fA-F]+\])?$)"));
-    static const QRegularExpression bare(QStringLiteral(R"(^(.*?)\s*\[0x[0-9a-fA-F]+\]$)"));
-    static const QRegularExpression moduleName(QStringLiteral(R"(^[A-Za-z0-9._+-]{1,64}$)"));
-    static const QRegularExpression symbol(QStringLiteral(R"(^[A-Za-z0-9_.$@]{0,256}(\+0x[0-9a-fA-F]{1,16})?$)"));
+    qsizetype pos = envelope.indexOf('\n');
+    if (pos < 0) {
+        return {};
+    }
+    ++pos;
+    while (pos < envelope.size()) {
+        const qsizetype headerEnd = envelope.indexOf('\n', pos);
+        if (headerEnd < 0) {
+            return {};
+        }
+        const QJsonObject header = QJsonDocument::fromJson(envelope.mid(pos, headerEnd - pos)).object();
+        if (header.isEmpty()) {
+            return {};
+        }
+        pos = headerEnd + 1;
+        qsizetype length = -1;
+        if (const QJsonValue l = header.value(QStringLiteral("length")); l.isDouble()) {
+            length = qsizetype(l.toInteger());
+        } else {
+            const qsizetype end = envelope.indexOf('\n', pos);
+            length = (end < 0 ? envelope.size() : end) - pos;
+        }
+        if (length < 0 || pos + length > envelope.size()) {
+            return {};
+        }
+        if (header.value(QStringLiteral("type")).toString() == QLatin1String("event")) {
+            return QJsonDocument::fromJson(envelope.mid(pos, length)).object();
+        }
+        pos += length + 1;
+    }
+    return {};
+}
 
-    QString module;
-    QString inner;
-    if (const auto m = withInfo.match(line); m.hasMatch()) {
-        module = m.captured(1);
-        inner = m.captured(2);
-    } else if (const auto b = bare.match(line); b.hasMatch()) {
-        module = b.captured(1);
-    } else {
-        return QStringLiteral("?");
+QJsonObject scrubEvent(const QJsonObject &event)
+{
+    QJsonObject out;
+    copyIf(out, event, "event_id", isUuid);
+    out.insert(QStringLiteral("platform"), QStringLiteral("native"));
+    const QString level = event.value(QStringLiteral("level")).toString();
+    out.insert(QStringLiteral("level"), level == QLatin1String("error") ? level : QStringLiteral("fatal"));
+    copyIf(out, event, "release", isRelease);
+    copyIf(out, event, "environment", isRelease);
+
+    const QJsonObject sdkIn = event.value(QStringLiteral("sdk")).toObject();
+    QJsonObject sdk;
+    copySanitized(sdk, sdkIn, "name");
+    copySanitized(sdk, sdkIn, "version");
+    if (!sdk.isEmpty()) {
+        out.insert(QStringLiteral("sdk"), sdk);
     }
-    module = module.mid(module.lastIndexOf(QLatin1Char('/')) + 1);
-    if (!moduleName.match(module).hasMatch()) {
-        module = QStringLiteral("?");
+
+    QJsonArray exceptions;
+    for (const QJsonValue &v : event.value(QStringLiteral("exception")).toObject().value(QStringLiteral("values")).toArray()) {
+        if (exceptions.size() < 4) {
+            exceptions.append(scrubException(v.toObject()));
+        }
     }
-    if (!symbol.match(inner).hasMatch()) {
-        inner = QStringLiteral("?");
+    if (!exceptions.isEmpty()) {
+        out.insert(QStringLiteral("exception"), QJsonObject{{QStringLiteral("values"), exceptions}});
     }
-    return inner.isEmpty() ? module : module + QLatin1Char(' ') + inner;
+
+    const QJsonObject contextsIn = event.value(QStringLiteral("contexts")).toObject();
+    QJsonObject contexts;
+    const QJsonObject osIn = contextsIn.value(QStringLiteral("os")).toObject();
+    QJsonObject os;
+    for (const char *key : {"name", "version", "build", "kernel_version", "distribution_name", "distribution_version"}) {
+        copySanitized(os, osIn, key);
+    }
+    if (!os.isEmpty()) {
+        contexts.insert(QStringLiteral("os"), os);
+    }
+    const QJsonObject ownIn = contextsIn.value(QStringLiteral("rostrum")).toObject();
+    QJsonObject own;
+    for (const QString &key : contextFields()) {
+        copySanitized(own, ownIn, key.toLatin1().constData());
+    }
+    if (!own.isEmpty()) {
+        contexts.insert(QStringLiteral("rostrum"), own);
+    }
+    if (!contexts.isEmpty()) {
+        out.insert(QStringLiteral("contexts"), contexts);
+    }
+
+    // Only the libraries the crash ran through: the full list of loaded libraries would say what
+    // else is installed (plugins, overlays), and Sentry needs just these to symbolicate.
+    QList<quint64> addresses;
+    for (const QJsonValue &e : std::as_const(exceptions)) {
+        for (const QJsonValue &f : e.toObject().value(QStringLiteral("stacktrace")).toObject().value(QStringLiteral("frames")).toArray()) {
+            addresses << address(f.toObject().value(QStringLiteral("instruction_addr")).toString());
+        }
+    }
+    QJsonArray images;
+    for (const QJsonValue &v : event.value(QStringLiteral("debug_meta")).toObject().value(QStringLiteral("images")).toArray()) {
+        if (images.size() >= kMaxImages) {
+            break;
+        }
+        const QJsonObject image = scrubImage(v.toObject());
+        const quint64 start = address(image.value(QStringLiteral("image_addr")).toString());
+        const quint64 size = quint64(image.value(QStringLiteral("image_size")).toInteger());
+        const bool used = start != 0 && std::any_of(addresses.cbegin(), addresses.cend(), [&](quint64 ip) {
+            return ip >= start && (size == 0 ? ip == start : ip - start < size);
+        });
+        if (used) {
+            images.append(image);
+        }
+    }
+    if (!images.isEmpty()) {
+        out.insert(QStringLiteral("debug_meta"), QJsonObject{{QStringLiteral("images"), images}});
+    }
+    return out;
+}
+
+QByteArray toEnvelope(const QJsonObject &event)
+{
+    const QByteArray payload = QJsonDocument(event).toJson(QJsonDocument::Compact);
+    QJsonObject header;
+    if (event.contains(QStringLiteral("event_id"))) {
+        header.insert(QStringLiteral("event_id"), event.value(QStringLiteral("event_id")));
+    }
+    const QJsonObject item{{QStringLiteral("type"), QStringLiteral("event")}, {QStringLiteral("length"), payload.size()}};
+    return QJsonDocument(header).toJson(QJsonDocument::Compact) + '\n' + QJsonDocument(item).toJson(QJsonDocument::Compact) +
+           '\n' + payload + '\n';
+}
+
+QDateTime eventTime(const QJsonObject &event)
+{
+    return QDateTime::fromString(event.value(QStringLiteral("timestamp")).toString(), Qt::ISODateWithMs);
+}
+
+QStringList contextFields()
+{
+    return {QStringLiteral("install"), QStringLiteral("arch"),     QStringLiteral("desktop"),
+            QStringLiteral("session"), QStringLiteral("qt"),       QStringLiteral("kf"),
+            QStringLiteral("pipewire"), QStringLiteral("wireplumber")};
 }
 
 QString sanitizeValue(const QString &value)
@@ -102,95 +283,10 @@ QString sanitizeValue(const QString &value)
     return v.trimmed().left(64);
 }
 
-QString signalName(int signal)
+QString fileName(const QString &path)
 {
-    switch (signal) {
-    case SIGSEGV:
-        return QStringLiteral("SIGSEGV");
-    case SIGABRT:
-        return QStringLiteral("SIGABRT");
-    case SIGBUS:
-        return QStringLiteral("SIGBUS");
-    case SIGFPE:
-        return QStringLiteral("SIGFPE");
-    case SIGILL:
-        return QStringLiteral("SIGILL");
-    default:
-        return QStringLiteral("signal %1").arg(signal);
-    }
-}
-
-QStringList reportFields()
-{
-    QStringList keys;
-    for (const auto &f : kFields) {
-        keys << QString::fromLatin1(f.key);
-    }
-    return keys;
-}
-
-QJsonObject buildReport(const CrashFile &file, const QDate &date)
-{
-    QJsonObject sections[3];
-    auto sectionFor = [&](const char *name) -> QJsonObject & {
-        const QLatin1String n(name);
-        return n == QLatin1String("app") ? sections[0] : n == QLatin1String("crash") ? sections[1] : sections[2];
-    };
-    for (const auto &f : kFields) {
-        const QString key = QString::fromLatin1(f.key);
-        const QString raw = file.fields.value(key);
-        if (raw.isEmpty()) {
-            continue;
-        }
-        QJsonObject &section = sectionFor(f.section);
-        if (key == QLatin1String("signal")) {
-            section.insert(key, signalName(raw.toInt()));
-        } else if (key == QLatin1String("uptime")) {
-            section.insert(QStringLiteral("uptime_seconds"), raw.toLongLong());
-        } else if (key == QLatin1String("build_id")) {
-            if (isHex(raw) && raw.size() <= 64) {
-                section.insert(key, raw);
-            }
-        } else if (const QString v = sanitizeValue(raw); !v.isEmpty()) {
-            section.insert(key, v);
-        }
-    }
-    QJsonArray frames;
-    for (const QString &line : file.frames) {
-        frames.append(sanitizeFrame(line));
-    }
-    sections[1].insert(QStringLiteral("frames"), frames);
-
-    return QJsonObject{
-        {QStringLiteral("schema"), kSchema},
-        {QStringLiteral("date"), date.toString(Qt::ISODate)},
-        {QStringLiteral("app"), sections[0]},
-        {QStringLiteral("crash"), sections[1]},
-        {QStringLiteral("system"), sections[2]},
-    };
-}
-
-QString osName(const QString &osRelease)
-{
-    QString name;
-    QString version;
-    for (const QString &line : osRelease.split(QLatin1Char('\n'))) {
-        const qsizetype eq = line.indexOf(QLatin1Char('='));
-        if (eq <= 0) {
-            continue;
-        }
-        QString value = line.mid(eq + 1).trimmed();
-        if (value.size() >= 2 && (value.startsWith(QLatin1Char('"')) || value.startsWith(QLatin1Char('\'')))) {
-            value = value.mid(1, value.size() - 2);
-        }
-        const QString key = line.left(eq).trimmed();
-        if (key == QLatin1String("NAME")) {
-            name = value;
-        } else if (key == QLatin1String("VERSION_ID")) {
-            version = value;
-        }
-    }
-    return sanitizeValue(version.isEmpty() ? name : name + QLatin1Char(' ') + version);
+    const QString name = path.mid(path.lastIndexOf(QLatin1Char('/')) + 1);
+    return matches(name, "^[A-Za-z0-9._+-]{1,64}$") ? name : QStringLiteral("?");
 }
 
 } // namespace rostrum::crash

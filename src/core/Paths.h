@@ -14,6 +14,7 @@ QString settingsFile(); // $XDG_CONFIG_HOME/rostrum/settings.toml
 QString stateDir();    // $XDG_STATE_HOME/rostrum
 QString logFile();     // $XDG_STATE_HOME/rostrum/rostrum.log
 QString crashDir();    // $XDG_STATE_HOME/rostrum/crashes
+QString sentryDir();   // $XDG_STATE_HOME/rostrum/sentry
 QString autostartFile();
 
 QString pipewirePulseFragment(); // ~/.config/pipewire/pipewire-pulse.conf.d/50-rostrum.conf

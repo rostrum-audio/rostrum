@@ -12,7 +12,7 @@ FormCard.FormCardDialog {
 
     signal exampleRequested()
 
-    title: i18nc("@title:dialog", "Crash Reports and Updates")
+    title: CrashReports.available ? i18nc("@title:dialog", "Crash Reports and Updates") : i18nc("@title:dialog", "Updates")
     width: Math.min(parent.width - Kirigami.Units.gridUnit * 2, Kirigami.Units.gridUnit * 36)
     standardButtons: QQC2.Dialog.Ok
     closePolicy: QQC2.Popup.CloseOnEscape
@@ -37,7 +37,9 @@ FormCard.FormCardDialog {
                 Layout.margins: Kirigami.Units.largeSpacing
                 Layout.bottomMargin: 0
                 wrapMode: Text.WordWrap
-                text: i18n("Rostrum can now help fix crashes and keep itself up to date. Choose what you are comfortable with; you can change it later in Settings.")
+                text: CrashReports.available
+                      ? i18n("Rostrum can now help fix crashes and keep itself up to date. Choose what you are comfortable with; you can change it later in Settings.")
+                      : i18n("Rostrum can now keep itself up to date. You can change this later in Settings.")
             }
             PrivacyChoices {
                 Layout.fillWidth: true

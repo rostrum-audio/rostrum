@@ -6,6 +6,7 @@ qt_policy(SET QTP0004 NEW)
 
 qt_add_executable(rostrum
     main.cpp
+    CrashCapture.cpp CrashCapture.h
     Logging.cpp Logging.h
 )
 
@@ -83,7 +84,7 @@ target_compile_definitions(rostrum PRIVATE
     ROSTRUM_DOC_DIR="${CMAKE_INSTALL_FULL_DOCDIR}"
     ROSTRUM_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
     ROSTRUM_UPDATE_URL="${ROSTRUM_UPDATE_URL}"
-    ROSTRUM_CRASH_URL="${ROSTRUM_CRASH_URL}"
+    ROSTRUM_SENTRY_DSN="${ROSTRUM_SENTRY_DSN}"
 )
 target_link_libraries(rostrum PRIVATE
     rostrum_engine
@@ -100,6 +101,27 @@ target_link_libraries(rostrum PRIVATE
     KF6::I18n
     KF6::I18nQml
 )
+
+# Always this pinned release, built in-process with no transport of its own: a system copy built
+# with crashpad would upload crashes itself, past the user's choice. For offline builds, point
+# FETCHCONTENT_SOURCE_DIR_SENTRY at an unpacked copy of the same release.
+if(ROSTRUM_WITH_SENTRY)
+    include(FetchContent)
+    set(SENTRY_BACKEND "inproc" CACHE STRING "" FORCE)
+    set(SENTRY_TRANSPORT "none" CACHE STRING "" FORCE)
+    set(SENTRY_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+    set(SENTRY_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(SENTRY_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(SENTRY_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(sentry
+        URL https://github.com/getsentry/sentry-native/releases/download/0.17.1/sentry-native.zip
+        URL_HASH SHA256=e510b714ac0fb5c24b08011e07c5b13fa01c9bd0f40708356e4af022aa20c5a1
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
+    FetchContent_MakeAvailable(sentry)
+    target_link_libraries(rostrum PRIVATE sentry::sentry)
+    target_compile_definitions(rostrum PRIVATE ROSTRUM_WITH_SENTRY)
+endif()
 
 install(TARGETS rostrum RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES ${PROJECT_SOURCE_DIR}/data/${ROSTRUM_APP_ID}.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)

@@ -15,10 +15,12 @@ ColumnLayout {
     spacing: 0
 
     FormCard.FormHeader {
+        visible: CrashReports.available
         title: i18nc("@title:group", "Crash reports")
         maximumWidth: width - 2
     }
     FormCard.FormCard {
+        visible: CrashReports.available
         maximumWidth: width - 2
         FormCard.FormRadioDelegate {
             text: i18nc("@option:radio crash reports", "Send automatically")
@@ -34,7 +36,7 @@ ColumnLayout {
         }
         FormCard.FormRadioDelegate {
             text: i18nc("@option:radio crash reports", "Never send")
-            description: i18n("Nothing leaves this computer.")
+            description: i18n("Crashes are not recorded, and nothing leaves this computer.")
             checked: CrashReports.mode === "never"
             onToggled: if (checked) CrashReports.mode = "never"
         }
@@ -42,6 +44,7 @@ ColumnLayout {
 
     // The promise, spelled out next to the choice it applies to.
     Rectangle {
+        visible: CrashReports.available
         Layout.fillWidth: true
         Layout.leftMargin: 1
         Layout.rightMargin: 1
@@ -76,7 +79,7 @@ ColumnLayout {
                 }
                 QQC2.Label {
                     Layout.fillWidth: true
-                    text: i18n("A report holds only what is needed to find the bug. There is no account and no ID that links reports to you or to each other.")
+                    text: i18n("A report holds only what is needed to find the bug, and goes to Sentry, a crash reporting service. There is no account and no ID that links reports to you or to each other.")
                     wrapMode: Text.WordWrap
                     opacity: 0.85
                 }
@@ -107,7 +110,7 @@ ColumnLayout {
                         Layout.alignment: Qt.AlignTop
                         wrapMode: Text.WordWrap
                         font: Kirigami.Theme.smallFont
-                        text: [i18n("Where in Rostrum's code it crashed, and how long it had run"),
+                        text: [i18n("Where in Rostrum's code it crashed, and the libraries on the way there"),
                                i18n("Rostrum's version, build and how it was installed"),
                                i18n("Linux distribution, kernel, CPU type, desktop and session type"),
                                i18n("Qt, KDE Frameworks, PipeWire and WirePlumber versions")].map(s => "• " + s).join("\n")
@@ -135,7 +138,9 @@ ColumnLayout {
         }
     }
 
+    // Alone on the page, the updates card needs no heading of its own.
     FormCard.FormHeader {
+        visible: CrashReports.available
         title: i18nc("@title:group", "Updates")
         maximumWidth: width - 2
     }

@@ -69,7 +69,7 @@ Kirigami.Dialog {
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
             text: dialog.example
-                  ? i18n("This is the whole report, built from this computer with a made-up crash. Folder paths, names and memory addresses are removed before anything is sent.")
+                  ? i18n("This is the whole report, built from this computer with a made-up crash. Folder paths, names and IDs are removed before anything is sent. The memory addresses change every time Rostrum starts, so they say nothing about you.")
                   : CrashReports.pendingCount > 1
                     ? i18n("Rostrum crashed %1 times recently, most recently on %2. Your mix kept playing. Sending the reports helps fix the problem. They contain no personal information.",
                            CrashReports.pendingCount, CrashReports.lastCrashDate)
@@ -111,7 +111,7 @@ Kirigami.Dialog {
             wrapMode: Text.WordWrap
             font: Kirigami.Theme.smallFont
             opacity: 0.7
-            text: i18n("Reports go to %1 over an encrypted connection. Change this any time in Settings → Privacy.",
+            text: i18n("Reports go to Sentry, a crash reporting service, at %1 over an encrypted connection. Change this any time in Settings → Privacy.",
                        CrashReports.destination)
         }
     }

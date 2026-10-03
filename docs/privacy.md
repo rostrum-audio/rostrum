@@ -7,101 +7,123 @@ touches the network, apart from obs-websocket on `localhost`.
 
 ## Crash reports
 
+Crash reports go to [Sentry](https://sentry.io) (sentry.io, US region), a crash reporting
+service. Only official builds have them: a build needs `-DROSTRUM_WITH_SENTRY=ON` and a
+`-DROSTRUM_SENTRY_DSN=…`. Without both, Rostrum has no crash reporting at all and the settings
+are hidden.
+
 ### Choices
 
 | Setting (`[privacy] crash_reports`) | What happens after a crash |
 | --- | --- |
 | `ask` (default) | The next time Rostrum starts, a dialog offers to send the report. It can show the exact report first. |
 | `send` | The report goes out quietly the next time Rostrum starts. |
-| `never` | Crash files are deleted at the next start and nothing is sent. |
+| `never` | Crashes are not captured. Waiting reports and sentry's local database are deleted. |
 
 ### What is captured
 
-When Rostrum crashes, its signal handler writes
-`~/.local/state/rostrum/crashes/crash-<time>.txt` (mode 0600) and the usual backtrace in
-`rostrum.log`. The handler only writes data that was prepared before the crash: the version, the
-build id, how Rostrum was installed, and the system versions listed below. The crash file stays on
-your computer. Rostrum keeps at most 10 of them, and none older than 30 days.
+Rostrum links [sentry-native](https://github.com/getsentry/sentry-native) 0.17.1, built with its
+in-process (`inproc`) backend and without a transport of its own:
+
+1. When Rostrum crashes, sentry's signal handler walks the stack and stores a crash envelope in
+   `~/.local/state/rostrum/sentry/`. Then Rostrum's own handler appends the usual backtrace to
+   `rostrum.log`. No minidump is made, so no memory contents are captured.
+2. At the next start, sentry hands the envelope to Rostrum, which writes it to
+   `~/.local/state/rostrum/crashes/crash-<time>-<n>.envelope` (mode 0600, folder 0700).
+   Nothing has been sent at this point.
+3. Rostrum sends it, asks, or deletes it, depending on the setting. At most 10 are kept, none
+   older than 30 days.
+
+Session tracking (a ping on every launch), breadcrumbs and client reports are switched off.
+sentry-native keeps an `installation_id` file in its folder; it is never sent (see below).
 
 ### What is sent
 
-The report is built from the crash file by copying a fixed list of fields. Every other line is
-ignored, so even if the file held something private, it could not reach the report. An example,
-exactly as sent:
+Before anything is shown or sent, Rostrum copies a fixed list of fields out of sentry's event
+(`crash::scrubEvent()` in `src/core/CrashReport.cpp`). Everything else is dropped, including
+fields a later sentry-native version might add. The **Show the Report** button shows exactly this
+JSON. A real example, shortened:
 
 ```json
 {
-  "schema": 1,
-  "date": "2026-10-03",
-  "app": { "version": "0.1.0", "build_id": "2615ebc32d3f3d30705b9729536fae62112f393d", "install": "source" },
-  "crash": {
-    "signal": "SIGSEGV",
-    "uptime_seconds": 16,
-    "frames": [
-      "rostrum +0x5aa4b",
-      "libc.so.6 ppoll+0x46",
-      "libQt6Core.so.6 _ZN16QCoreApplication4execEv+0xb7",
-      "rostrum +0x5799d"
-    ]
+  "event_id": "7b593f71cc4b4e6d594980991c051b95",
+  "platform": "native",
+  "level": "fatal",
+  "release": "rostrum@0.1.0",
+  "environment": "production",
+  "sdk": { "name": "sentry.native", "version": "0.17.1" },
+  "exception": { "values": [ {
+    "type": "SIGSEGV",
+    "value": "Segfault",
+    "mechanism": { "type": "signalhandler", "handled": false, "synthetic": true,
+                   "meta": { "signal": { "name": "SIGSEGV", "number": 11 } } },
+    "stacktrace": { "frames": [
+      { "instruction_addr": "0x5d42d2e763d7", "image_addr": "0x5d42d2e1f000", "package": "rostrum" },
+      { "instruction_addr": "0x75d342792c87", "image_addr": "0x75d342600000", "package": "libQt6Core.so.6",
+        "function": "_ZN16QCoreApplication4execEv", "symbol_addr": "0x75d342792bd0" },
+      { "instruction_addr": "0x75d341f28136", "image_addr": "0x75d341e00000", "package": "libc.so.6",
+        "function": "ppoll", "symbol_addr": "0x75d341f280f0" }
+    ] }
+  } ] },
+  "contexts": {
+    "os": { "name": "Linux", "version": "7.0.0", "build": "38-generic",
+            "distribution_name": "ubuntu", "distribution_version": "26.04" },
+    "rostrum": { "install": "source", "arch": "x86_64", "desktop": "KDE", "session": "wayland",
+                 "qt": "6.10.2", "kf": "6.24.0", "pipewire": "1.6.2", "wireplumber": "0.5.13" }
   },
-  "system": {
-    "os": "Ubuntu 26.04", "kernel": "7.0.0-38-generic", "arch": "x86_64",
-    "desktop": "KDE", "session": "wayland",
-    "qt": "6.10.2", "kf": "6.24.0", "pipewire": "1.6.2", "wireplumber": "0.5.13"
-  }
+  "debug_meta": { "images": [
+    { "type": "elf", "code_file": "rostrum", "image_addr": "0x5d42d2e1f000", "image_size": 11010048,
+      "code_id": "…", "debug_id": "…" }
+  ] }
 }
 ```
 
-| Field | Source | Cleaning |
-| --- | --- | --- |
-| `date` | Crash time | Day only, in UTC. No time of day. |
-| `app.version` | Build | Allowed characters only, 64 at most |
-| `app.build_id` | GNU build id of the binary | Lowercase hex only, otherwise dropped |
-| `app.install` | `source`, `package`, `flatpak` or `appimage` | As above |
-| `crash.signal` | The signal | Sent as its name, such as `SIGSEGV` |
-| `crash.uptime_seconds` | Seconds since Rostrum started | A number |
-| `crash.frames` | The backtrace, 64 frames at most | See below |
-| `system.os` | `NAME` and `VERSION_ID` from `/etc/os-release` | Allowed characters only, 64 at most |
-| `system.kernel`, `system.arch` | `QSysInfo` | As above |
-| `system.desktop`, `system.session` | `XDG_CURRENT_DESKTOP`, `XDG_SESSION_TYPE` | As above |
-| `system.qt`, `system.kf` | Qt and KDE Frameworks runtime versions | As above |
-| `system.pipewire`, `system.wireplumber` | Versions Rostrum read from PipeWire | As above |
+| Kept | Cleaning |
+| --- | --- |
+| `event_id` | A random ID for this report only. Lowercase hex. |
+| `release`, `environment`, `sdk` | Letters, digits and `. _ + @ -` only |
+| Signal (`type`, `value`, `mechanism`) | Signal names in capitals; short words with no `/` |
+| Stack frames, 128 at most (the crash end) | Addresses as hex; `package` cut to the file name; `function` only if it looks like a C or C++ symbol |
+| `contexts.os` | Kernel and distribution name and version; sanitized |
+| `contexts.rostrum` | Install type, CPU architecture, desktop, session type, Qt, KDE Frameworks, PipeWire and WirePlumber versions; sanitized |
+| `debug_meta.images` | Only libraries the stack runs through. File name only, plus address, size and build IDs. |
 
-"Allowed characters" means letters, digits, space and `. _ : + ( ) / -`.
+"Sanitized" means letters, digits, space and `. _ : + ( ) / -` only, at most 64 characters. A
+file name with anything other than letters, digits and `. _ + -` becomes `?`.
 
-Each frame becomes `<library file name> <symbol>+<offset>`:
+Dropped, among everything else: `user` (sentry-native fills it with the installation ID), the
+timestamp, CPU registers, trace IDs, tags, extras, breadcrumbs, the host name, and the list of
+other libraries loaded into Rostrum (it would show what else is installed, such as overlays).
 
-- The folder is removed from the library path, so `/home/alex/.local/bin/rostrum` becomes
-  `rostrum`. A file name with anything other than letters, digits and `. _ + -` becomes `?`.
-- A symbol must look like a C or C++ symbol name with an optional `+0x` offset, or it becomes `?`.
-- The absolute address (`[0x55d1c84f2a1]`) is dropped. With address space layout randomisation it
-  would make each report unique.
-- Offsets inside Rostrum's own binary are enough to find the line: match `app.build_id` to the
-  release's debug symbols and run `addr2line -e rostrum -f -C 0x5aa4b`.
+The memory addresses are kept because Sentry needs them to find the line of code. Address space
+layout randomisation changes them every time Rostrum starts, so they say nothing about you and
+cannot link two reports. Frames in Rostrum itself have no function name until the release's debug
+symbols are uploaded to Sentry (`sentry-cli debug-files upload`). Sentry then matches them by
+`debug_id`.
 
-The following are never read and never sent: user names, home folders and file paths, host names,
-app, device, bus and scene names, settings, logs, audio, clipboard contents, and any per-install or
-per-user ID. Reports carry no ID, so two reports from the same computer cannot be linked.
-`tests/tst_privacy.cpp` checks this, including that a crash file containing a user name, a device
-name and a raw address produces a report with none of them.
+`tests/tst_privacy.cpp` feeds the scrubber an event shaped like sentry-native's, with a user ID,
+home folder paths, a device name, registers, a host name and an unrelated library added, and
+checks that none of them survive.
 
 ### How it is sent
 
-- `POST` to `https://getrostrum.dev/api/v1/crash-reports` with `Content-Type: application/json`
-  and `User-Agent: Rostrum/<version>`. Cookies are neither sent nor stored, and redirects may not
-  downgrade from HTTPS.
-- On a 2xx reply, the crash file is deleted. A 4xx reply also deletes it, so a report the server
-  rejects is not retried forever. A network error or 5xx keeps the file for the next start.
-- Each request times out after 15 seconds and failures are silent.
+- `POST` to the DSN's envelope endpoint (`https://<host>/api/<project>/envelope/`) with
+  `Content-Type: application/x-sentry-envelope`, `User-Agent: Rostrum/<version>` and an
+  `X-Sentry-Auth` header carrying the DSN's public key. Cookies are neither sent nor stored, and
+  redirects may not downgrade from HTTPS.
+- A 2xx reply deletes the report. So does a 4xx other than 429, so a report Sentry rejects is not
+  retried forever. A network error, 429 or 5xx keeps it for the next start.
+- Each request times out after 15 seconds, and failures are silent.
 
-### What the server must do
+### Sentry project settings
 
-The endpoint is not part of this repository. Whatever runs it should:
+Set these in the Sentry project so the promise in the app holds on the server too:
 
-- Accept `schema: 1` JSON up to about 64 KiB, and answer 2xx, or 400 for anything malformed.
-- Not log or store client IP addresses. The report itself never contains one, and the promise in
-  the app depends on the server keeping it that way.
-- Delete reports once they are no longer needed for fixing bugs.
+- **Security & Privacy → Prevent Storing of IP Addresses:** on. Reports never contain an IP
+  address, but every HTTP request has one.
+- **Security & Privacy → Data Scrubber** and **Use Default Scrubbers:** on.
+- **Data retention:** as short as the plan allows.
+- Upload debug symbols for each release so Rostrum's own frames get function names and lines.
 
 ## Updates
 
@@ -157,14 +179,20 @@ name ends in `-<arch>.AppImage`, using GitHub's `digest` (`sha256:…`) as the c
 
 ## Builds and testing
 
-The endpoints are CMake cache variables, so a distribution or fork can point them at its own
-servers:
+Official builds turn crash reports on and can point updates at their own feed:
 
 ```sh
-cmake -S . -B build -DROSTRUM_UPDATE_URL=https://example.org/latest.json \
-  -DROSTRUM_CRASH_URL=https://example.org/crash-reports
+cmake -S . -B build -DROSTRUM_WITH_SENTRY=ON \
+  -DROSTRUM_SENTRY_DSN=https://<key>@o<org>.ingest.us.sentry.io/<project> \
+  -DROSTRUM_UPDATE_URL=https://example.org/latest.json
 ```
 
-The environment variables of the same names override them at run time. Only `https://` URLs are
+`ROSTRUM_WITH_SENTRY` downloads the pinned sentry-native release at configure time and checks its
+SHA-256. For offline builds, set `FETCHCONTENT_SOURCE_DIR_SENTRY` to an unpacked copy of the same
+release. A system-wide sentry-native is deliberately not used: one built with the crashpad
+backend would upload crashes by itself, ignoring the user's choice.
+
+The environment variables `ROSTRUM_SENTRY_DSN` and `ROSTRUM_UPDATE_URL` override the built-in
+values at run time; `ROSTRUM_SENTRY_DEBUG=1` turns on sentry-native's log. Only `https://` URLs are
 used, plus `http://` to `localhost` for testing. Runs with `QT_QPA_PLATFORM=offscreen` or
 `ROSTRUM_SCREENSHOT` never touch the network unless one of the variables is set.
