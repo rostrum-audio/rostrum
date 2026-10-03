@@ -54,7 +54,7 @@ Rostrum creates links port by port with `link-factory` (`object.linger = true`),
 |------|----|------|
 | `rostrum.<bus>` monitor | `rostrum.phones` | bus destination is Headphones or Both |
 | `rostrum.<bus>` monitor | `rostrum.stream` | bus destination is Stream or Both |
-| `rostrum.phones` monitor | headphone device | always |
+| `rostrum.phones` monitor | headphone device | always; with mono headphones each side also goes into the other front channel |
 | hardware mic | `rostrum.mic` | always (mute/destination act on the node, not the link) |
 | hardware mic | `rostrum.sidetone` | always |
 | `rostrum.sidetone` monitor | `rostrum.phones` | always (muted unless sidetone is on) |
@@ -72,7 +72,9 @@ channel count. Otherwise a half-enumerated stereo device would briefly look mono
 Fader positions are perceptual: linear gain = position³, as in pavucontrol. They are sent as
 `SPA_PROP_channelVolumes` and `SPA_PROP_mute` on the node's `Props` param.
 
-- Bus node: fader, muted if the bus is muted or dimmed by solo.
+- Bus node: fader, muted if the bus is muted or dimmed by solo. A playback bus with a balance gets
+  one volume per channel (FL, FR): like PulseAudio's balance, the far side is turned down in fader
+  space (position × (1 − |balance|)) and the near side stays at the fader.
 - `rostrum.phones` / `rostrum.stream`: Master Headphones / Master Stream. These multiply every bus send.
   "Mute all playback to stream" mutes `rostrum.stream`.
 - `rostrum.mic`: mic gain (0 to 150%, 100% = 0 dB), muted if the mic is muted or the mic
@@ -82,6 +84,25 @@ Fader positions are perceptual: linear gain = position³, as in pavucontrol. The
 
 If something else changes a Rostrum node's volume (WirePlumber's state restore, another mixer),
 Rostrum re-applies the scene value at most once a second, so two tools cannot get into a loop.
+Every channel is compared, so a balance changed elsewhere comes back too.
+
+Balance is per bus (`balance` in the scene's `[[bus]]`, -1 left to 1 right, 0 = centre and not
+written). It is a level like the fader: saved with the scene, and it makes the scene dirty. Values
+outside -1..1 are clamped, anything that is not a number is centre, and the mono mic bus never has
+one. Set it with the small slider under each playback fader; double-click it or use "Centre
+Balance" in the strip's menu to reset.
+
+### Mono headphones
+
+Devices → "Mono headphones" (`[devices] mono_headphones`, off by default) gives both ears the whole
+mix. It is done with links only, so the downmix happens in the PipeWire daemon like every other
+mix: each `rostrum.phones` monitor port is linked into both front inputs (FL and FR) of the
+headphone device, which PipeWire sums, and `rostrum.phones` is set to half volume (-6 dB) so a
+centred sound stays at the same level. Master Headphones and the scene are unchanged; the halving is
+applied at send time and never saved. While turning it on or off, the halving stays until the last
+cross-link is gone, so the change can only be briefly quieter, never 6 dB louder. Mono sinks
+already sum, and sinks without FL and FR ports keep the normal links. The stream mix stays stereo.
+Like every Rostrum link, the cross-links linger, so headphones stay mono if Rostrum quits.
 
 ### Mic channel handling
 
@@ -345,7 +366,7 @@ All configuration is TOML under `$XDG_CONFIG_HOME/rostrum/` (default `~/.config/
   `node.name`, shortcuts, window size, last page.
 - `scenes/<slug>.toml`: one scene per file. The `name` inside the file wins over the file name.
   A scene holds master levels, sidetone level, the bus list (id, name, color, kind, volume, mute,
-  destination) and app rules (match, key, bus, per-app volume and mute, an optional label for apps
+  balance, destination) and app rules (match, key, bus, per-app volume and mute, an optional label for apps
   that report no name, last seen).
 - Export writes every scene into one TOML file with a `[[scene]]` array. Import never overwrites:
   clashing names get a numeric suffix.
@@ -355,7 +376,7 @@ The mic bus is always present and first, ids must be unique slugs, there are at 
 colors are replaced from the palette, levels are clamped, and rules for unknown buses are dropped.
 
 Bus renames, colors, adding or removing a bus and app rules are written to the current scene file
-right away, merged onto its saved levels. Levels (faders, mutes, destinations, masters, sidetone)
+right away, merged onto its saved levels. Levels (faders, mutes, balance, destinations, masters, sidetone)
 are saved to the live scene one second after the last change, before a scene switch and on quit,
 while "Save scene changes automatically" is on (the default; `[general] auto_save_scenes`). With
 it off, level changes make the scene dirty until Save, and switching scenes discards them.

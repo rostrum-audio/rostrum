@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 
 namespace rostrum::volume {
@@ -24,6 +25,24 @@ inline double linearToDb(double linear)
 }
 
 inline double faderToDb(double position) { return linearToDb(faderToLinear(position)); }
+
+// Balance: -1 = left only, 0 = centre, 1 = right only. Anything else (NaN included) is centre.
+inline double clampBalance(double balance)
+{
+    if (!std::isfinite(balance)) {
+        return 0.0;
+    }
+    // Snap near-centre so a dragged-back control saves no balance at all.
+    return std::abs(balance) < 0.005 ? 0.0 : std::clamp(balance, -1.0, 1.0);
+}
+
+// Per-channel fader positions for a stereo bus. Like PulseAudio's balance, the far side is turned
+// down in fader space and the near side stays at the fader.
+inline double balancedPosition(double position, double balance, bool right)
+{
+    const double b = clampBalance(balance);
+    return position * (right ? 1.0 + std::min(b, 0.0) : 1.0 - std::max(b, 0.0));
+}
 
 // Meter scale: -60 dB .. 0 dB mapped to 0..1.
 inline constexpr double kMeterFloorDb = -60.0;

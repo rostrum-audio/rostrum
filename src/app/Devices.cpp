@@ -192,6 +192,19 @@ void Devices::setMicFallback(bool on)
     Q_EMIT choiceChanged();
 }
 
+bool Devices::monoHeadphones() const { return m_app->settings().monoHeadphones; }
+
+void Devices::setMonoHeadphones(bool on)
+{
+    if (on == monoHeadphones()) {
+        return;
+    }
+    m_app->settings().monoHeadphones = on;
+    m_app->engine()->setMonoHeadphones(on);
+    m_app->saveSettingsSoon();
+    Q_EMIT choiceChanged();
+}
+
 void Devices::setMetersActive(bool active)
 {
     if (active == m_metersActive) {

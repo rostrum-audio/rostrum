@@ -353,6 +353,34 @@ audio.position=[MONO] }'` set as default with `wpctl set-default`.
    which lingers). Start Rostrum: if the mute was saved in the rule, Firefox is muted again.
 5. Switch to a scene whose rule for Firefox is not muted: Firefox plays.
 
+## 17. Bus balance
+
+1. Play music on the Music bus with Music → Both. Drag its balance slider fully left: only the left
+   ear plays. `pw-dump` on `rostrum.music` shows `channelVolumes` with FR at 0 and FL at the fader.
+   OBS (capturing `rostrum.stream`) hears it on the left only too.
+2. Double-click the slider: back to centre. Use "Centre Balance" in the strip menu after moving it:
+   same. The menu item is disabled at centre. The mic strip has no balance slider and its fader is
+   as tall as the others.
+3. Set a balance of about Right 40%, save the scene. The scene file's `[[bus]]` for music has
+   `balance = 0.4`; the other buses have no `balance` line. Centre it: the scene is dirty, save, and
+   the line goes away.
+4. With a balance set, change the bus volume in pavucontrol: within a second Rostrum puts both
+   channels back.
+5. Hand-edit `balance = 9` into a scene and load it: the slider is fully right.
+
+## 18. Mono headphones
+
+1. Play a test file with sound only on the left. Turn on Devices → Mono headphones: both ears hear
+   it at the same level, quieter than the left ear did before (-6 dB). `pw-link -l` shows each
+   `rostrum.phones` monitor port linked to both playback_FL and playback_FR of the headphones.
+2. Play centred music: the loudness does not jump when toggling. Toggle quickly a few times: never
+   a loud blip.
+3. Master Headphones and the scene stay as they were (no dirty scene). The stream (OBS) stays
+   stereo.
+4. Switch headphones to a mono device or a 5.1 sink while on: mono sinks play normally; on 5.1 only
+   the front left and right get the downmix.
+5. Quit Rostrum: headphones keep playing, still mono. Start it with the switch off: back to stereo.
+
 ## Smoke test log
 
 Kubuntu 26.04, Plasma 6.6 Wayland, PipeWire 1.6.2, WirePlumber 0.5.13, build 0.1.0. The checks

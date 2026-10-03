@@ -692,6 +692,11 @@ void PwContext::setNodeVolume(uint32_t nodeId, float linear, bool mute)
     sendProps(nodeId, {linear}, mute ? 1 : 0);
 }
 
+void PwContext::setNodeVolumes(uint32_t nodeId, const QList<float> &perChannel, bool mute)
+{
+    sendProps(nodeId, perChannel, mute ? 1 : 0);
+}
+
 void PwContext::setNodeVolume(uint32_t nodeId, float linear)
 {
     sendProps(nodeId, {linear}, -1);

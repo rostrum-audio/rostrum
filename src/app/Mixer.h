@@ -39,6 +39,7 @@ public:
         PeakRole,
         ClipRole,
         AutoCategoryRole, // "game", "voice", ... or "none"
+        BalanceRole,
     };
 
     explicit BusModel(engine::Engine *engine, QObject *parent = nullptr);
@@ -121,6 +122,7 @@ public:
 
     Q_INVOKABLE void setVolume(const QString &busId, double position);
     Q_INVOKABLE void setMuted(const QString &busId, bool muted);
+    Q_INVOKABLE void setBalance(const QString &busId, double balance);
     Q_INVOKABLE void toggleMuted(const QString &busId);
     Q_INVOKABLE void toggleSolo(const QString &busId);
     Q_INVOKABLE void setDestination(const QString &busId, int index);

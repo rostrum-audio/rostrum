@@ -47,7 +47,7 @@ QHash<int, QByteArray> BusModel::roleNames() const
         {IsInputRole, "isInput"}, {VolumeRole, "volume"}, {MutedRole, "muted"},
         {SoloedRole, "soloed"}, {DimmedRole, "dimmed"},   {DestinationRole, "destination"},
         {AppsRole, "apps"},    {PeakRole, "peak"},       {ClipRole, "clip"},
-        {AutoCategoryRole, "autoCategory"},
+        {AutoCategoryRole, "autoCategory"}, {BalanceRole, "balance"},
     };
 }
 
@@ -88,6 +88,8 @@ QVariant BusModel::data(const QModelIndex &index, int role) const
         return m_meters.value(id).clip;
     case AutoCategoryRole:
         return categoryName(b->autoCategory);
+    case BalanceRole:
+        return b->balance;
     }
     return {};
 }
@@ -134,7 +136,7 @@ void BusModel::refresh()
     if (!m_ids.isEmpty()) {
         Q_EMIT dataChanged(index(0), index(int(m_ids.size()) - 1),
                            {NameRole, ColorRole, VolumeRole, MutedRole, SoloedRole, DimmedRole, DestinationRole,
-                            AppsRole, AutoCategoryRole});
+                            AppsRole, AutoCategoryRole, BalanceRole});
     }
 }
 
@@ -304,6 +306,7 @@ QStringList Mixer::paletteNames() const
 
 void Mixer::setVolume(const QString &busId, double position) { m_engine->setBusVolume(busId, position); }
 void Mixer::setMuted(const QString &busId, bool muted) { m_engine->setBusMuted(busId, muted); }
+void Mixer::setBalance(const QString &busId, double balance) { m_engine->setBusBalance(busId, balance); }
 
 void Mixer::toggleMuted(const QString &busId)
 {

@@ -84,4 +84,8 @@ struct Graph
 // mono input, and falls back to index order.
 QList<QPair<uint32_t, uint32_t>> matchPorts(const QList<Port> &out, const QList<Port> &in);
 
+// Mono downmix by links: every output into both front inputs (FL and FR), which PipeWire sums.
+// Anything without two outputs and both front inputs gets matchPorts.
+QList<QPair<uint32_t, uint32_t>> monoPorts(const QList<Port> &out, const QList<Port> &in);
+
 } // namespace rostrum::pw

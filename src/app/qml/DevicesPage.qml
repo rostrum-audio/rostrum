@@ -64,6 +64,22 @@ QQC2.ScrollView {
                     inUse: Devices.headphonesInUse
                     onPicked: name => Devices.headphones = name
                 }
+                QQC2.Switch {
+                    Layout.fillWidth: true
+                    Layout.topMargin: Kirigami.Units.smallSpacing
+                    text: i18nc("@option:check", "Mono headphones")
+                    checked: Devices.monoHeadphones
+                    onToggled: Devices.monoHeadphones = checked
+                    Accessible.description: monoHint.text
+                }
+                QQC2.Label {
+                    id: monoHint
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    font: Kirigami.Theme.smallFont
+                    text: i18n("Both ears hear the whole mix, for one earbud or hearing on one side. Only your headphones change; the stream stays stereo.")
+                }
             }
 
             ColumnLayout {

@@ -39,6 +39,7 @@ class Devices : public QObject
     Q_PROPERTY(QString micInUse READ micInUse NOTIFY choiceChanged)
     // Off: while the saved mic is unplugged, the stream mic is silent. On: another mic stands in.
     Q_PROPERTY(bool micFallback READ micFallback WRITE setMicFallback NOTIFY choiceChanged)
+    Q_PROPERTY(bool monoHeadphones READ monoHeadphones WRITE setMonoHeadphones NOTIFY choiceChanged)
     Q_PROPERTY(bool metersActive READ metersActive WRITE setMetersActive NOTIFY metersActiveChanged)
     // node.name -> 0..1 meter fraction, for every input while meters are active.
     Q_PROPERTY(QVariantMap inputLevels READ inputLevels NOTIFY levelsChanged)
@@ -63,6 +64,8 @@ public:
     QString micInUse() const;
     bool micFallback() const;
     void setMicFallback(bool on);
+    bool monoHeadphones() const;
+    void setMonoHeadphones(bool on);
     bool metersActive() const { return m_metersActive; }
     void setMetersActive(bool active);
     QVariantMap inputLevels() const { return m_levels; }

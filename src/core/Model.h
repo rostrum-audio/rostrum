@@ -37,6 +37,7 @@ struct Bus
     BusKind kind = BusKind::Playback;
     double volume = 1.0; // fader position, 0..1 for playback, 0..1.5 for mic gain (1.0 = unity / 0 dB)
     bool muted = false;
+    double balance = 0.0; // -1 left .. 1 right; playback buses only
     Destination destination = Destination::Both;
     AppCategory autoCategory = AppCategory::None; // at most one bus per category in a scene
 

@@ -130,6 +130,7 @@ F6 moves focus between the header, the sidebar and the page.
 - Default scene name: `Live`.
 - Six buses: Mic, Game, Voice, Music, Alerts, Desktop (at most 12).
 - Music bus destination: Stream. Other playback buses: Both. Mic: Stream, sidetone off.
+  Every bus balance is centred. Mono headphones: off.
 - Assign apps automatically: on. Game, Voice, Music, Alerts and Desktop each receive their own kind
   of app; Desktop gets everything else that is recognised. The Mic bus receives nothing.
 - Solo is not saved in the scene.

@@ -122,4 +122,24 @@ QList<QPair<uint32_t, uint32_t>> matchPorts(const QList<Port> &out, const QList<
     return pairs;
 }
 
+QList<QPair<uint32_t, uint32_t>> monoPorts(const QList<Port> &out, const QList<Port> &in)
+{
+    QList<Port> front;
+    for (const auto &i : in) {
+        if (i.channel == QLatin1String("FL") || i.channel == QLatin1String("FR")) {
+            front.append(i);
+        }
+    }
+    if (out.size() < 2 || front.size() != 2) {
+        return matchPorts(out, in);
+    }
+    QList<QPair<uint32_t, uint32_t>> pairs;
+    for (const auto &o : out) {
+        for (const auto &i : front) {
+            pairs.append({o.id, i.id});
+        }
+    }
+    return pairs;
+}
+
 } // namespace rostrum::pw

@@ -63,6 +63,7 @@ struct Settings
     QString headphones;
     QString mic;
     bool micFallback = false; // another mic stands in while the saved one is unplugged
+    bool monoHeadphones = false;
     // Shortcuts: action id -> portable key sequence ("Meta+Alt+M"); empty = unbound
     QMap<QString, QString> hotkeys;
     // Window

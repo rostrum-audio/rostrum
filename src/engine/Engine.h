@@ -66,6 +66,7 @@ public:
     // Levels: these change the live scene and make it dirty until saved.
     void setBusVolume(const QString &id, double volume);
     void setBusMuted(const QString &id, bool muted);
+    void setBusBalance(const QString &id, double balance); // playback buses; -1 left .. 1 right
     void setBusDestination(const QString &id, Destination d);
     void setMasterPhones(double volume);
     void setMasterPhonesMuted(bool muted);
@@ -108,6 +109,9 @@ public:
     bool micFallback() const { return m_micFallback; }
     bool micSilenced() const;        // the saved mic is missing and nothing stands in for it
     QString missingMicLabel() const; // its description from when it was last seen, or its node.name
+    // Both headphone channels carry L+R at half level, by linking each side into both. Off by default.
+    void setMonoHeadphones(bool on);
+    bool monoHeadphones() const { return m_monoHeadphones; }
 
     // Apps
     QList<AppStream> appStreams() const;
@@ -159,6 +163,7 @@ protected:
     void reconcileLinks();
     void reconcileVolumes();
     void reconcileDevices();
+    bool phonesCrossLinked() const; // headphone links that carry one side into the other
     void levelChanged();
     const pw::Node *resolveSink() const;
     const pw::Node *resolveSource() const;
@@ -210,11 +215,13 @@ protected:
     QString m_lastSourceDescription;
     bool m_micWasMissing = false;
     bool m_micFallback = false;
+    bool m_monoHeadphones = false;
+    bool m_phonesCrossLinkWanted = false;
     QString m_devicesSignature;
     QHash<QString, QElapsedTimer> m_pendingLinks; // "out:in" port pairs being created
     struct SentVolume
     {
-        float linear = -1.0f;
+        QList<float> volumes; // linear, one per channel or one for all
         bool mute = false;
         QElapsedTimer when;
     };

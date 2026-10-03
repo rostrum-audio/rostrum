@@ -119,6 +119,7 @@ QString serializeSettings(const Settings &s)
              {"headphones", s.headphones.toStdString()},
              {"mic", s.mic.toStdString()},
              {"mic_fallback", s.micFallback},
+             {"mono_headphones", s.monoHeadphones},
          }},
         {"hotkeys", hotkeys},
         {"window",
@@ -181,6 +182,7 @@ Settings parseSettings(const QString &text, QString *error)
     s.headphones = getStr(t, "devices", "headphones", s.headphones);
     s.mic = getStr(t, "devices", "mic", s.mic);
     s.micFallback = get(t, "devices", "mic_fallback", s.micFallback);
+    s.monoHeadphones = get(t, "devices", "mono_headphones", s.monoHeadphones);
     if (const auto *hk = t["hotkeys"].as_table()) {
         for (auto &&[k, v] : *hk) {
             const QString id = QString::fromStdString(std::string(k.str()));

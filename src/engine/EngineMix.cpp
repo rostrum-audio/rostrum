@@ -49,6 +49,20 @@ void Engine::setBusMuted(const QString &id, bool muted)
     levelChanged();
 }
 
+void Engine::setBusBalance(const QString &id, double balance)
+{
+    Bus *b = m_scene.bus(id);
+    if (!b || b->isInput()) {
+        return;
+    }
+    const double v = volume::clampBalance(balance);
+    if (qFuzzyCompare(b->balance + 1.0, v + 1.0)) {
+        return;
+    }
+    b->balance = v;
+    levelChanged();
+}
+
 void Engine::setBusDestination(const QString &id, Destination d)
 {
     Bus *b = m_scene.bus(id);
@@ -235,6 +249,7 @@ QString Engine::duplicateBus(const QString &id)
     if (Bus *b = m_scene.bus(newId)) {
         b->volume = copy.volume;
         b->muted = copy.muted;
+        b->balance = copy.balance;
         b->destination = copy.destination;
         levelChanged();
     }
@@ -360,6 +375,16 @@ bool Engine::micSilenced() const
     return !m_micFallback && micMissing();
 }
 
+void Engine::setMonoHeadphones(bool on)
+{
+    if (m_monoHeadphones == on) {
+        return;
+    }
+    m_monoHeadphones = on;
+    qCInfo(lcEngine) << "mono headphones" << on;
+    scheduleReconcile();
+}
+
 QString Engine::missingMicLabel() const
 {
     return m_lastSourceDescription.isEmpty() ? m_micDevice : m_lastSourceDescription;
@@ -458,13 +483,18 @@ void Engine::reconcileLinks()
     };
 
     QSet<QPair<uint32_t, uint32_t>> wanted;
+    m_phonesCrossLinkWanted = false;
     for (const auto &[out, in] : nodePairs) {
         const auto outPorts = g.outputPorts(out->id);
         const auto inPorts = g.inputPorts(in->id);
         if (!complete(out, outPorts) || !complete(in, inPorts)) {
             continue;
         }
-        const auto pairs = pw::matchPorts(outPorts, inPorts);
+        const bool mono = m_monoHeadphones && out == phones && in == hwSink;
+        const auto pairs = mono ? pw::monoPorts(outPorts, inPorts) : pw::matchPorts(outPorts, inPorts);
+        if (mono) {
+            m_phonesCrossLinkWanted = pairs.size() > outPorts.size();
+        }
         for (const auto &p : pairs) {
             wanted.insert(p);
         }
@@ -517,40 +547,78 @@ void Engine::reconcileLinks()
 
 // ---- volumes ----------------------------------------------------------------------------
 
+bool Engine::phonesCrossLinked() const
+{
+    const auto &g = m_pw->graph();
+    const pw::Node *phones = g.nodeByName(QString::fromLatin1(kPhonesNode));
+    const pw::Node *hwSink = resolveSink();
+    if (!phones || !hwSink) {
+        return false;
+    }
+    for (const auto &l : g.links) {
+        if (l.outNode != phones->id || l.inNode != hwSink->id) {
+            continue;
+        }
+        const QString out = g.ports.value(l.outPort).channel;
+        const QString in = g.ports.value(l.inPort).channel;
+        if (!out.isEmpty() && out != in && (in == QLatin1String("FL") || in == QLatin1String("FR"))) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void Engine::reconcileVolumes()
 {
     if (!m_mixEnabled) {
         return;
     }
     const auto &g = m_pw->graph();
-    auto apply = [&](const QString &nodeName, double fader, bool mute) {
+    // gain multiplies the linear volume for session-only effects that never touch the scene.
+    auto apply = [&](const QString &nodeName, double fader, bool mute, double balance = 0.0,
+                     double gain = 1.0) {
         const pw::Node *n = g.nodeByName(nodeName);
         if (!n) {
             return;
         }
-        const float linear = float(volume::faderToLinear(fader));
+        QList<float> want;
+        if (balance == 0.0) {
+            want = {float(volume::faderToLinear(fader) * gain)};
+        } else {
+            // Bus nodes are FL, FR in that order.
+            want = {float(volume::faderToLinear(volume::balancedPosition(fader, balance, false)) * gain),
+                    float(volume::faderToLinear(volume::balancedPosition(fader, balance, true)) * gain)};
+        }
         auto &sent = m_sentVolume[n->id];
-        const bool sentSame = qFuzzyCompare(sent.linear + 1.0f, linear + 1.0f) && sent.mute == mute;
+        bool sentSame = sent.mute == mute && sent.volumes.size() == want.size();
+        for (qsizetype i = 0; sentSame && i < want.size(); ++i) {
+            sentSame = qFuzzyCompare(sent.volumes.at(i) + 1.0f, want.at(i) + 1.0f);
+        }
         // Something else (WirePlumber's state restore, another mixer) may change our nodes;
         // the scene wins, but at most once per second so two tools cannot spin.
-        const bool reportedDiffers = !n->volumes.isEmpty() &&
-                                     (qAbs(n->volumes.first() - linear) > 0.001f || n->muted != mute);
+        bool reportedDiffers = !n->volumes.isEmpty() && n->muted != mute;
+        for (qsizetype i = 0; i < n->volumes.size(); ++i) {
+            reportedDiffers = reportedDiffers || qAbs(n->volumes.at(i) - want.value(i, want.last())) > 0.001f;
+        }
         if (sentSame && !(reportedDiffers && sent.when.elapsed() >= kVolumeResendMs)) {
             return;
         }
-        sent.linear = linear;
+        sent.volumes = want;
         sent.mute = mute;
         sent.when.start();
-        m_pw->setNodeVolume(n->id, linear, mute);
+        m_pw->setNodeVolumes(n->id, want, mute);
     };
 
     for (const auto &b : m_scene.buses) {
         if (b.isInput()) {
             continue;
         }
-        apply(b.nodeName(), b.volume, b.muted || dimmedBySolo(b.id));
+        apply(b.nodeName(), b.volume, b.muted || dimmedBySolo(b.id), b.balance);
     }
-    apply(QString::fromLatin1(kPhonesNode), m_scene.masterPhones, m_scene.masterPhonesMuted);
+    // Halve while mono is wanted or any cross-link is still up, so links and volume changing at
+    // slightly different moments can only make it briefly quieter, never 6 dB louder.
+    const double phonesGain = (m_phonesCrossLinkWanted || phonesCrossLinked()) ? 0.5 : 1.0;
+    apply(QString::fromLatin1(kPhonesNode), m_scene.masterPhones, m_scene.masterPhonesMuted, 0.0, phonesGain);
     apply(QString::fromLatin1(kStreamNode), m_scene.masterStream, m_scene.masterStreamMuted);
     if (const Bus *mic = m_scene.micBus()) {
         const bool silenced = micSilenced();

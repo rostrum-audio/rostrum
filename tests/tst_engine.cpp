@@ -153,6 +153,64 @@ private Q_SLOTS:
         QCOMPARE(merged.rules.first().busId, QStringLiteral("desktop"));
     }
 
+    void balanceRoundTripsAndIsClamped()
+    {
+        Scene s = defaults::scene();
+        s.bus(QStringLiteral("music"))->balance = -0.4;
+        const QString text = toml_io::serializeScene(s);
+        QVERIFY2(text.contains(QStringLiteral("balance = -0.4")), qPrintable(text));
+        // Only the bus with a balance writes one.
+        QCOMPARE(text.count(QStringLiteral("balance")), 1);
+        QCOMPARE(toml_io::parseScene(text)->bus(QStringLiteral("music"))->balance, -0.4);
+        QCOMPARE(*toml_io::parseScene(text), s);
+
+        QString edited = text;
+        edited.replace(QStringLiteral("balance = -0.4"), QStringLiteral("balance = 7.5"));
+        QCOMPARE(toml_io::parseScene(edited)->bus(QStringLiteral("music"))->balance, 1.0);
+        edited.replace(QStringLiteral("balance = 7.5"), QStringLiteral("balance = nan"));
+        QCOMPARE(toml_io::parseScene(edited)->bus(QStringLiteral("music"))->balance, 0.0);
+        edited.replace(QStringLiteral("balance = nan"), QStringLiteral("balance = 'left'"));
+        QCOMPARE(toml_io::parseScene(edited)->bus(QStringLiteral("music"))->balance, 0.0);
+
+        // The mic is mono: a hand-edited balance on it is dropped.
+        Scene mic = defaults::scene();
+        mic.micBus()->balance = 0.5;
+        QCOMPARE(toml_io::sanitize(mic).micBus()->balance, 0.0);
+    }
+
+    void busBalanceMarksTheSceneDirty()
+    {
+        QTemporaryDir dir;
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        engine::SceneManager scenes(&engine, dir.path());
+        scenes.load(QStringLiteral("Live"));
+        engine.setBusBalance(QStringLiteral("music"), -2.0);
+        QCOMPARE(engine.scene().bus(QStringLiteral("music"))->balance, -1.0);
+        QVERIFY(scenes.dirty());
+        engine.setBusBalance(QStringLiteral("music"), 0.001);
+        QCOMPARE(engine.scene().bus(QStringLiteral("music"))->balance, 0.0);
+        QVERIFY(!scenes.dirty());
+        engine.setBusBalance(QStringLiteral("mic"), 0.5);
+        QCOMPARE(engine.scene().micBus()->balance, 0.0);
+    }
+
+    void monoHeadphonesIsOffByDefault()
+    {
+        QVERIFY(!defaultSettings().monoHeadphones);
+        Settings s = defaultSettings();
+        s.monoHeadphones = true;
+        QCOMPARE(parseSettings(serializeSettings(s)), s);
+        QVERIFY(serializeSettings(s).contains(QStringLiteral("mono_headphones = true")));
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        QVERIFY(!engine.monoHeadphones());
+        engine.setMonoHeadphones(true);
+        QVERIFY(engine.monoHeadphones());
+        // A setting, not a level: the scene never carries it.
+        QVERIFY(!toml_io::serializeScene(engine.scene()).contains(QStringLiteral("mono")));
+    }
+
     void micFallbackIsOffByDefault()
     {
         QVERIFY(!defaultSettings().micFallback);

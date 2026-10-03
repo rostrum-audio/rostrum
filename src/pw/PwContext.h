@@ -46,6 +46,7 @@ public:
     void destroyObject(uint32_t id);
     void createLink(uint32_t outPort, uint32_t inPort);
     void setNodeVolume(uint32_t nodeId, float linear, bool mute);
+    void setNodeVolumes(uint32_t nodeId, const QList<float> &perChannel, bool mute); // the last repeats
     void setNodeVolume(uint32_t nodeId, float linear); // leaves mute alone
     void setNodeMute(uint32_t nodeId, bool mute);      // leaves volume alone
     // Blocks until the daemon has handled every request sent so far, or the timeout passes.

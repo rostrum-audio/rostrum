@@ -96,6 +96,7 @@ int main(int argc, char **argv)
             engine.setMicDevice(settings.mic);
         }
         engine.setMicFallback(settings.micFallback);
+        engine.setMonoHeadphones(settings.monoHeadphones);
     }
     if (parser.isSet(micFallback)) {
         engine.setMicFallback(true);
