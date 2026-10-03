@@ -54,6 +54,19 @@ fetch "linuxdeploy-plugin-qt-${arch}.AppImage" \
 appdir="$work/AppDir"
 DESTDIR="$appdir" cmake --install "$build" --prefix /usr
 
+# PipeWire loads the mic filter plugin into its own process on the host, so the plugin can use
+# nothing from inside the AppImage: only libc and libm.
+dsp="$(find "$appdir/usr" -name librostrum-dsp.so -print -quit)"
+if [ -z "$dsp" ]; then
+    echo "librostrum-dsp.so is missing from the install" >&2
+    exit 1
+fi
+needed="$(readelf -d "$dsp" | sed -n 's/.*Shared library: \[\(.*\)\]/\1/p' | grep -vxE 'libc\.so\.6|libm\.so\.6' || true)"
+if [ -n "$needed" ]; then
+    echo "librostrum-dsp.so needs $needed; configure with -DROSTRUM_RNNOISE=bundled" >&2
+    exit 1
+fi
+
 # qmlimportscanner only sees what QML files import. The Rostrum module is compiled into the
 # binary, so scan its sources, plus the style and modules that are loaded from C++ or only
 # by other modules at run time.

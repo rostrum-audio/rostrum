@@ -1,5 +1,6 @@
 #include "app/AppController.h"
 
+#include "core/DspPlugin.h"
 #include "core/Paths.h"
 #include "core/Requirements.h"
 #include "core/SettingsBackup.h"
@@ -58,6 +59,15 @@ AppController::AppController(QObject *parent)
     connect(&m_engine, &engine::Engine::sceneChanged, this, &AppController::levelsChanged);
     connect(&m_engine, &engine::Engine::headphonesLost, this, &AppController::headphonesLost);
     connect(&m_engine, &engine::Engine::micLost, this, &AppController::micLost);
+    // App choices, the hotkey and the crash breaker change mic filter settings inside the engine.
+    connect(&m_engine, &engine::Engine::micFiltersChanged, this, [this] {
+        if (m_settings.micFilters != m_engine.micFilters()) {
+            m_settings.micFilters = m_engine.micFilters();
+            saveSettingsSoon();
+            Q_EMIT settingsChanged();
+        }
+    });
+    connect(&m_engine, &engine::Engine::micFiltersTripped, this, &AppController::micFiltersTripped);
 
     for (auto sig : {&engine::SceneManager::scenesChanged, &engine::SceneManager::currentChanged,
                      &engine::SceneManager::dirtyChanged}) {
@@ -109,6 +119,13 @@ void AppController::start()
     m_engine.setMonoHeadphones(m_settings.monoHeadphones);
     m_engine.setSceneFadeMs(m_settings.sceneFadeMs);
     m_engine.setDucking(m_settings.ducking);
+    QString pluginError;
+    const QString plugin = dsp::pluginPath(&pluginError);
+    if (!pluginError.isEmpty()) {
+        qCWarning(lcApp) << "Mic filters unavailable:" << pluginError;
+    }
+    m_engine.setMicFilterPlugin(plugin, dsp::hasDenoise(), pluginError);
+    m_engine.setMicFilters(m_settings.micFilters);
     m_engine.setAutoAssign(m_settings.autoAssign);
     m_engine.setAutoSkip(m_settings.autoSkip);
     m_scenes.setAutoSave(m_settings.autoSaveScenes);
@@ -400,7 +417,7 @@ void AppController::updateBusActions()
 AppController::Snapshot AppController::snapshot() const
 {
     return {m_engine.effectiveMicMuted(), m_engine.effectiveStreamMuted(), m_engine.panic(),
-            m_scenes.currentName()};
+            m_scenes.currentName(), m_engine.micFilters().enabled};
 }
 
 void AppController::reportChange(const Snapshot &before)
@@ -421,6 +438,9 @@ void AppController::reportChange(const Snapshot &before)
         Q_EMIT feedbackRequested(now.streamMuted ? QStringLiteral("audio-volume-muted")
                                                  : QStringLiteral("audio-volume-high"),
                                  now.streamMuted ? i18n("Stream muted") : i18n("Stream unmuted"));
+    } else if (now.micFilters != before.micFilters) {
+        Q_EMIT feedbackRequested(QStringLiteral("audio-input-microphone"),
+                                 now.micFilters ? i18n("Mic filters on") : i18n("Mic filters off"));
     }
 }
 
@@ -606,6 +626,7 @@ bool AppController::restoreBackup(const QString &path, QString *safetyCopy, QStr
     m_engine.setMonoHeadphones(m_settings.monoHeadphones);
     m_engine.setSceneFadeMs(m_settings.sceneFadeMs);
     m_engine.setDucking(m_settings.ducking);
+    m_engine.setMicFilters(m_settings.micFilters);
     m_engine.setAutoAssign(m_settings.autoAssign);
     m_engine.setAutoSkip(m_settings.autoSkip);
     m_scenes.setAutoSave(m_settings.autoSaveScenes);

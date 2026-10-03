@@ -314,6 +314,8 @@ private Q_SLOTS:
         };
         QCOMPARE(cap(kPulseInput, {}), Capture::Mic);
         QCOMPARE(cap(kPulseInput, {{QStringLiteral("device_id"), QStringLiteral("rostrum.mic")}}), Capture::RostrumMic);
+        // The filtered mic is the voice again, so it doubles with Rostrum Mic like the hardware.
+        QCOMPARE(cap(kPulseInput, {{QStringLiteral("device_id"), QStringLiteral("rostrum.filtered")}}), Capture::Mic);
         QCOMPARE(cap(kPulseOutput, {}), Capture::Output);
         QCOMPARE(cap(kPulseOutput, {{QStringLiteral("device_id"), QStringLiteral("rostrum.stream.monitor")}}),
                  Capture::RostrumStream);

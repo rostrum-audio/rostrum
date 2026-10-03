@@ -55,6 +55,7 @@ class DBusControl : public QObject, protected QDBusContext
     Q_PROPERTY(bool Panic READ panic)
     Q_PROPERTY(QString CurrentScene READ currentScene)
     Q_PROPERTY(bool Connected READ connected)
+    Q_PROPERTY(bool MicFilters READ micFilters)
 
 public:
     // An error to send back, or to print when the command line runs in this process.
@@ -75,6 +76,7 @@ public:
     bool panic() const;
     QString currentScene() const;
     bool connected() const;
+    bool micFilters() const;
 
     Error triggerAction(const QString &id);
     Error switchScene(const QString &name);
@@ -83,6 +85,7 @@ public:
     Error toggleBusMuted(const QString &busId);
     void setMicMuted(bool muted);
     void toggleMicMute();
+    void setMicFilters(bool on);
     // Stream and Headphones masters, the mic, then the playback buses, as saved in `scene`.
     static BusInfoList busesOf(const Scene &scene);
     BusInfoList buses() const; // the live scene, with holds and panic applied
@@ -98,6 +101,7 @@ public Q_SLOTS:
     void ToggleBusMuted(const QString &busId);
     void SetMicMuted(bool muted);
     void ToggleMicMute();
+    void SetMicFilters(bool on);
     QStringList ListScenes();
     rostrum::app::BusInfoList ListBuses();
     rostrum::app::ActionInfoList ListActions();

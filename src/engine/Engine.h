@@ -4,6 +4,7 @@
 #include "core/AppIdentity.h"
 #include "core/DesktopEntries.h"
 #include "core/Ducking.h"
+#include "core/MicFilters.h"
 #include "core/Model.h"
 #include "engine/NodeSpecs.h"
 #include "pw/MeterBank.h"
@@ -39,6 +40,17 @@ struct AppStream
     QStringList iconNames;    // theme icon names or absolute paths, best first
     double volume = 1.0;
     bool muted = false;
+};
+
+// An app recording the mic, for the mic filter app list.
+struct MicApp
+{
+    uint32_t nodeId = 0;
+    AppIdentity identity;
+    QStringList iconNames;
+    micfx::AppChoice choice = micfx::AppChoice::Default;
+    bool excludedByDefault = false; // an audio tool or recorder: the untouched mic unless chosen
+    bool filtered = false;          // records the filtered mic
 };
 
 // The device Rostrum links for headphones (sink) or the mic: the saved node.name if present,
@@ -184,6 +196,24 @@ public:
     void forgetAutoSkip();
     void setBusAutoCategory(const QString &busId, AppCategory category);
 
+    // Mic filters run in the PipeWire daemon: the mic feeds rostrum.micfx, which feeds the stream
+    // mic, sidetone and rostrum.filtered, the virtual mic apps are moved to. The hardware mic and
+    // the system default are never changed, and everything lingers if Rostrum quits.
+    void setMicFilters(const micfx::Settings &settings);
+    const micfx::Settings &micFilters() const { return m_micFx; }
+    // The plugin PipeWire loads; empty with `error` set when there is none.
+    void setMicFilterPlugin(const QString &path, bool denoise, const QString &error);
+    bool micFiltersHaveDenoise() const { return m_fxDenoise; }
+    // Why mic filters cannot run on this system, empty when they can.
+    QString micFiltersUnavailable() const;
+    enum class MicFxState { Off, Starting, Active, Failed };
+    MicFxState micFiltersState() const;
+    QString micFilterError() const { return m_fxError; }
+    QList<MicApp> micApps() const;
+    void setMicAppChoice(const AppKey &key, micfx::AppChoice choice);
+    // The node the mic meter and ducking read: the filtered mic while filters run, else the mic.
+    QString micMeterNode() const;
+
 Q_SIGNALS:
     void sceneChanged();
     void structureChanged(); // bus list, names, colors or rules changed: persist without saving faders
@@ -198,6 +228,10 @@ Q_SIGNALS:
     void micRestored();
     void autoSkipChanged();
     void duckedChanged();
+    void micFiltersChanged();      // the settings changed (app choices, or switched off by Rostrum)
+    void micFiltersStateChanged(); // running, starting, failed
+    // PipeWire went down twice right after the filters loaded, so Rostrum switched them off.
+    void micFiltersTripped(const QString &reason);
 
 protected:
     void scheduleReconcile();
@@ -219,6 +253,16 @@ protected:
     void cancelFade(const QString &nodeName);
     void fadeTick();
     void reconcileDucking();
+    void reconcileMicFx();
+    void reconcileMicRoutes();
+    void applyMicFxControls(const pw::Node &fx);
+    void micFxConnectionChanged();
+    bool micFxWanted() const;
+    bool micFxRunning() const;            // wanted, and this run sent the graph to the node
+    const pw::Node *micFxNode() const;    // processing node with both port sides, if usable
+    const pw::Node *filteredNode() const; // the filtered mic, if micFxNode is usable too
+    const pw::Node *appsMic() const;      // the mic apps record: saved mic if present, else the default
+    void setMicFxState(MicFxState state, const QString &error = QString());
     void duckTick();
     QString duckTriggerBus() const; // the voice bus that triggers, if the trigger includes it
     void levelChanged();
@@ -307,6 +351,46 @@ protected:
     QString m_duckMicNode;   // hardware mic being metered, empty when the mic is not live
     QString m_duckVoiceNode; // voice bus being metered
     double m_duckGainSent = 1.0;
+    micfx::Settings m_micFx;
+    QString m_fxPlugin;
+    QString m_fxPluginError;
+    bool m_fxDenoise = false;
+    MicFxState m_fxState = MicFxState::Off;
+    QString m_fxError;
+    bool m_fxFailed = false;          // did not start; cleared by switching filters on again or a new plugin
+    QTimer m_fxTimer;                 // re-checks while the node or graph is starting
+    uint32_t m_fxConfigured = 0;      // node PortConfig was sent to
+    uint32_t m_fxGraphNode = 0;       // node the graph was loaded into this session
+    QString m_fxGraphJson;            // the graph's layout (plugin path, denoise)
+    QElapsedTimer m_fxGraphClock;     // since the graph was last sent
+    QList<micfx::Control> m_fxGraphControls; // the values in that graph
+    QElapsedTimer m_fxMissingClock;   // running without reporting the graph since
+    bool m_fxVerified = false;        // the node reported the graph's controls since it was sent
+    int m_fxStrikes = 0;              // PipeWire losses right after a graph load
+    struct SentControl
+    {
+        float value = 0.0f;
+        QElapsedTimer when;
+    };
+    QHash<QString, SentControl> m_fxSent;
+    struct MicRouted
+    {
+        QString previousTarget; // metadata target.object before Rostrum moved it, empty if none
+        QString requested;      // the filtered mic's serial Rostrum asked for
+    };
+    QHash<uint32_t, MicRouted> m_micRouted;
+    struct MicRecognised
+    {
+        QString signature;
+        AppIdentity identity;
+        QStringList iconNames;
+        bool excluded = false;
+    };
+    const MicRecognised &recogniseCapture(const pw::Node &n) const;
+    bool isMicCapture(const pw::Node &n) const;
+    bool linked(uint32_t outNode, uint32_t inNode) const;
+    mutable QHash<uint32_t, MicRecognised> m_micRecognised;
+
     bool isOwnedNode(const pw::Node &n) const;
     void destroyOnce(uint32_t id);
 

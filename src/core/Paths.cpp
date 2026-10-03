@@ -19,6 +19,7 @@ QString fromEnv(const char *var, const QString &fallbackUnderHome)
 
 QString configHome() { return fromEnv("XDG_CONFIG_HOME", QStringLiteral(".config")); }
 QString stateHome() { return fromEnv("XDG_STATE_HOME", QStringLiteral(".local/state")); }
+QString dataHome() { return fromEnv("XDG_DATA_HOME", QStringLiteral(".local/share")); }
 
 QString configDir() { return configHome() + QStringLiteral("/rostrum"); }
 QString scenesDir() { return configDir() + QStringLiteral("/scenes"); }
@@ -29,6 +30,7 @@ QString stateDir() { return stateHome() + QStringLiteral("/rostrum"); }
 QString logFile() { return stateDir() + QStringLiteral("/rostrum.log"); }
 QString crashDir() { return stateDir() + QStringLiteral("/crashes"); }
 QString sentryDir() { return stateDir() + QStringLiteral("/sentry"); }
+QString dspDir() { return dataHome() + QStringLiteral("/rostrum/dsp"); }
 
 QString autostartFile()
 {

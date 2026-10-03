@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: rostrum 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/rostrum-audio/rostrum/issues\n"
-"POT-Creation-Date: 2026-10-03 03:49-0400\n"
+"POT-Creation-Date: 2026-10-03 05:48-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,152 +18,162 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
 
-#: src/app/AppController.cpp:164
+#: src/app/AppController.cpp:181
 #, kde-format
 msgid "PipeWire %1 is too old. Rostrum needs PipeWire 1.0 or newer."
 msgstr ""
 
-#: src/app/AppController.cpp:173
+#: src/app/AppController.cpp:190
 #, kde-format
 msgid "The session manager is not WirePlumber."
 msgstr ""
 
-#: src/app/AppController.cpp:175
+#: src/app/AppController.cpp:192
 #, kde-format
 msgid "WirePlumber %1 is older than 0.5."
 msgstr ""
 
-#: src/app/AppController.cpp:181
+#: src/app/AppController.cpp:198
 #, kde-format
 msgid "The saved headphones are not connected."
 msgstr ""
 
-#: src/app/AppController.cpp:184
+#: src/app/AppController.cpp:201
 #, kde-format
 msgid "The saved mic is not connected, so the stream mic is silent."
 msgstr ""
 
-#: src/app/AppController.cpp:186
+#: src/app/AppController.cpp:203
 #, kde-format
 msgid "The saved mic is not connected."
 msgstr ""
 
-#: src/app/AppController.cpp:207
+#: src/app/AppController.cpp:224
 #, kde-format
 msgid "PipeWire OK"
 msgstr ""
 
-#: src/app/AppController.cpp:210
+#: src/app/AppController.cpp:227
 #, kde-format
 msgid "PipeWire degraded"
 msgstr ""
 
-#: src/app/AppController.cpp:213
+#: src/app/AppController.cpp:230
 #, kde-format
 msgid "Connecting to PipeWire…"
 msgstr ""
 
-#: src/app/AppController.cpp:215
+#: src/app/AppController.cpp:232
 #, kde-format
 msgid "PipeWire missing"
 msgstr ""
 
-#: src/app/AppController.cpp:221
+#: src/app/AppController.cpp:238
 #, kde-format
 msgid "PipeWire is not running."
 msgstr ""
 
-#: src/app/AppController.cpp:225
+#: src/app/AppController.cpp:242
 #, kde-format
 msgid ""
 "PipeWire is not running in your session, so there is no audio server to "
 "connect to."
 msgstr ""
 
-#: src/app/AppController.cpp:227
+#: src/app/AppController.cpp:244
 #, kde-format
 msgid "PipeWire is not answering. The service may have stopped or crashed."
 msgstr ""
 
-#: src/app/AppController.cpp:229
+#: src/app/AppController.cpp:246
 #, kde-format
 msgid ""
 "Rostrum is not allowed to connect to PipeWire. Run it as your own user, not "
 "with sudo."
 msgstr ""
 
-#: src/app/AppController.cpp:233
+#: src/app/AppController.cpp:250
 #, kde-format
 msgid "Could not connect to PipeWire: %1"
 msgstr ""
 
-#: src/app/AppController.cpp:267 src/app/AppController.cpp:276
+#: src/app/AppController.cpp:284 src/app/AppController.cpp:293
 #, kde-format
 msgid "Unknown"
 msgstr ""
 
-#: src/app/AppController.cpp:270 src/app/AppController.cpp:282
+#: src/app/AppController.cpp:287 src/app/AppController.cpp:299
 #, kde-format
 msgid "None"
 msgstr ""
 
-#: src/app/AppController.cpp:279
+#: src/app/AppController.cpp:296
 #, kde-format
 msgctxt "@info mic device that is not plugged in"
 msgid "%1 (unplugged)"
 msgstr ""
 
-#: src/app/AppController.cpp:358
+#: src/app/AppController.cpp:375
 #, kde-format
 msgid "There is no scene %1"
 msgstr ""
 
-#: src/app/AppController.cpp:363
+#: src/app/AppController.cpp:380
 #, kde-format
 msgid "This scene has no bus “%1”"
 msgstr ""
 
-#: src/app/AppController.cpp:412
+#: src/app/AppController.cpp:429
 #, kde-format
 msgid "Panic mute: mic and stream muted"
 msgstr ""
 
-#: src/app/AppController.cpp:413
+#: src/app/AppController.cpp:430
 #, kde-format
 msgid "Panic mute off: mic and stream restored"
 msgstr ""
 
-#: src/app/AppController.cpp:415
+#: src/app/AppController.cpp:432
 #, kde-format
 msgid "Scene: %1"
 msgstr ""
 
-#: src/app/AppController.cpp:419
+#: src/app/AppController.cpp:436
 #, kde-format
 msgid "Mic muted"
 msgstr ""
 
-#: src/app/AppController.cpp:419
+#: src/app/AppController.cpp:436
 #, kde-format
 msgid "Mic live"
 msgstr ""
 
-#: src/app/AppController.cpp:423
+#: src/app/AppController.cpp:440
 #, kde-format
 msgid "Stream muted"
 msgstr ""
 
-#: src/app/AppController.cpp:423
+#: src/app/AppController.cpp:440
 #, kde-format
 msgid "Stream unmuted"
 msgstr ""
 
-#: src/app/AppController.cpp:432 src/app/Scenes.cpp:195
+#: src/app/AppController.cpp:443
+#, kde-format
+msgid "Mic filters on"
+msgstr ""
+
+#: src/app/AppController.cpp:443
+#, kde-format
+msgid "Mic filters off"
+msgstr ""
+
+#: src/app/AppController.cpp:452 src/app/Scenes.cpp:195
 #, kde-format
 msgid "Scene saved"
 msgstr ""
 
-#: src/app/AppController.cpp:477
+#: src/app/AppController.cpp:497
 #, kde-format
 msgid "Copied"
 msgstr ""
@@ -409,103 +419,115 @@ msgstr ""
 msgid "Could not reach Rostrum: %1"
 msgstr ""
 
-#: src/app/DBusControl.cpp:169 src/app/DBusControl.cpp:191
+#: src/app/DBusControl.cpp:174 src/app/DBusControl.cpp:196
 #, kde-format
 msgid "There is no action “%1”."
 msgstr ""
 
-#: src/app/DBusControl.cpp:181
+#: src/app/DBusControl.cpp:186
 #, kde-format
 msgid "“%1” acts while held. Use PressAction and ReleaseAction instead."
 msgstr ""
 
-#: src/app/DBusControl.cpp:186
+#: src/app/DBusControl.cpp:191
 #, kde-format
 msgid "There is no scene %1."
 msgstr ""
 
-#: src/app/DBusControl.cpp:189 src/app/DBusControl.cpp:223
-#: src/app/DBusControl.cpp:245 src/app/DBusControl.cpp:264
+#: src/app/DBusControl.cpp:194 src/app/DBusControl.cpp:228
+#: src/app/DBusControl.cpp:250 src/app/DBusControl.cpp:269
 #, kde-format
 msgid "The live scene has no bus “%1”."
 msgstr ""
 
-#: src/app/DBusControl.cpp:209
+#: src/app/DBusControl.cpp:214
 #, kde-format
 msgid "There is no scene called “%1”."
 msgstr ""
 
-#: src/app/DBusControl.cpp:228
+#: src/app/DBusControl.cpp:233
 #, kde-format
 msgid "The volume for “%1” must be between 0 and %2."
 msgstr ""
 
-#: src/app/DBusControl.cpp:290
+#: src/app/DBusControl.cpp:304
 #, kde-format
 msgctxt "@label master fader"
 msgid "Stream"
 msgstr ""
 
-#: src/app/DBusControl.cpp:292
+#: src/app/DBusControl.cpp:306
 #, kde-format
 msgctxt "@label master fader"
 msgid "Headphones"
 msgstr ""
 
-#: src/app/Desktop.cpp:215
+#: src/app/Desktop.cpp:216
 #, kde-format
 msgid "Could not write %1"
 msgstr ""
 
-#: src/app/Desktop.cpp:219 src/app/main.cpp:41
+#: src/app/Desktop.cpp:220 src/app/main.cpp:42
 #, kde-format
 msgid "A stream mix console for Linux"
 msgstr ""
 
-#: src/app/Desktop.cpp:221
+#: src/app/Desktop.cpp:222
 #, kde-format
 msgid "Could not remove %1"
 msgstr ""
 
-#: src/app/Desktop.cpp:328 src/app/Desktop.cpp:375 src/app/Tray.cpp:33
-#: src/app/Tray.cpp:34 src/app/main.cpp:40
+#: src/app/Desktop.cpp:329 src/app/Desktop.cpp:384 src/app/Tray.cpp:33
+#: src/app/Tray.cpp:34 src/app/main.cpp:41
 #, kde-format
 msgid "Rostrum"
 msgstr ""
 
-#: src/app/Desktop.cpp:344
+#: src/app/Desktop.cpp:345
 #, kde-format
 msgid "Headphones disconnected, scene held."
 msgstr ""
 
-#: src/app/Desktop.cpp:345
+#: src/app/Desktop.cpp:346
 #, kde-format
 msgid "%1 went away. Plug it back in and routes come back on their own."
 msgstr ""
 
-#: src/app/Desktop.cpp:351
+#: src/app/Desktop.cpp:352
 #, kde-format
 msgid "Check your stream audio"
 msgstr ""
 
-#: src/app/Desktop.cpp:357
+#: src/app/Desktop.cpp:358
 #, kde-format
 msgid "Mic disconnected, stream mic silent."
 msgstr ""
 
-#: src/app/Desktop.cpp:358
+#: src/app/Desktop.cpp:359
 #, kde-format
 msgid "%1 went away. Your stream mic stays silent until it comes back."
 msgstr ""
 
-#: src/app/Desktop.cpp:361
+#: src/app/Desktop.cpp:362
 #, kde-format
 msgid "Mic disconnected."
 msgstr ""
 
-#: src/app/Desktop.cpp:362
+#: src/app/Desktop.cpp:363
 #, kde-format
 msgid "%1 went away. Using %2 until it comes back."
+msgstr ""
+
+#: src/app/Desktop.cpp:370
+#, kde-format
+msgid "Mic filters turned off"
+msgstr ""
+
+#: src/app/Desktop.cpp:371
+#, kde-format
+msgid ""
+"PipeWire stopped twice right after they started. Your mic works without "
+"them; you can turn them on again on the Mic Filters page."
 msgstr ""
 
 #: src/app/Devices.cpp:31
@@ -695,6 +717,367 @@ msgstr ""
 msgid ""
 "The desktop did not bind this shortcut. It works only while Rostrum is "
 "focused."
+msgstr ""
+
+#: src/app/MicFilters.cpp:27
+#, kde-format
+msgctxt "@title mic filter"
+msgid "Rumble filter"
+msgstr ""
+
+#: src/app/MicFilters.cpp:28
+#, kde-format
+msgid "Cuts hum, desk thumps and handling noise below your voice."
+msgstr ""
+
+#: src/app/MicFilters.cpp:29
+#, kde-format
+msgctxt "@title mic filter"
+msgid "Noise removal"
+msgstr ""
+
+#: src/app/MicFilters.cpp:30
+#, kde-format
+msgid ""
+"Removes fans, keyboards, traffic and room noise while you talk. Adds 10 ms "
+"of delay."
+msgstr ""
+
+#: src/app/MicFilters.cpp:31
+#, kde-format
+msgctxt "@title mic filter"
+msgid "Noise gate"
+msgstr ""
+
+#: src/app/MicFilters.cpp:32
+#, kde-format
+msgid ""
+"Turns the mic down between phrases. Noise removal usually does this better; "
+"the gate helps with noise it cannot remove."
+msgstr ""
+
+#: src/app/MicFilters.cpp:34
+#, kde-format
+msgctxt "@title mic filter"
+msgid "Tone"
+msgstr ""
+
+#: src/app/MicFilters.cpp:35
+#, kde-format
+msgid "A gentle EQ: less boom and mud, more clarity and air."
+msgstr ""
+
+#: src/app/MicFilters.cpp:36
+#, kde-format
+msgctxt "@title mic filter"
+msgid "Compressor"
+msgstr ""
+
+#: src/app/MicFilters.cpp:37
+#, kde-format
+msgid "Evens out loud and quiet speech, so your voice sits at a steady level."
+msgstr ""
+
+#: src/app/MicFilters.cpp:38
+#, kde-format
+msgctxt "@title mic filter"
+msgid "Limiter"
+msgstr ""
+
+#: src/app/MicFilters.cpp:39
+#, kde-format
+msgid ""
+"A safety net: shouts and laughs never go above the ceiling, so they do not "
+"clip."
+msgstr ""
+
+#: src/app/MicFilters.cpp:56
+#, kde-format
+msgctxt "@label:slider rumble filter"
+msgid "Cut below"
+msgstr ""
+
+#: src/app/MicFilters.cpp:57
+#, kde-format
+msgctxt "@option:check rumble filter"
+msgid "Steeper cut"
+msgstr ""
+
+#: src/app/MicFilters.cpp:58
+#, kde-format
+msgid "Cuts harder below the frequency, for strong hum or a boomy room."
+msgstr ""
+
+#: src/app/MicFilters.cpp:59
+#, kde-format
+msgctxt "@label:slider noise removal"
+msgid "Strength"
+msgstr ""
+
+#: src/app/MicFilters.cpp:60
+#, kde-format
+msgid "Lower lets a little background through, which can sound more natural."
+msgstr ""
+
+#: src/app/MicFilters.cpp:61
+#, kde-format
+msgctxt "@label:slider noise removal"
+msgid "Mute when not talking"
+msgstr ""
+
+#: src/app/MicFilters.cpp:62
+#, kde-format
+msgid ""
+"Silences the mic while noise removal is less sure than this that you are "
+"talking. Off keeps everything it lets through."
+msgstr ""
+
+#: src/app/MicFilters.cpp:65
+#, kde-format
+msgctxt "@label:slider noise gate"
+msgid "Opens above"
+msgstr ""
+
+#: src/app/MicFilters.cpp:66
+#, kde-format
+msgctxt "@label:slider noise gate"
+msgid "Turn down by"
+msgstr ""
+
+#: src/app/MicFilters.cpp:67
+#, kde-format
+msgctxt "@label:slider noise gate"
+msgid "Open over"
+msgstr ""
+
+#: src/app/MicFilters.cpp:68
+#, kde-format
+msgctxt "@label:slider noise gate"
+msgid "Stay open for"
+msgstr ""
+
+#: src/app/MicFilters.cpp:69
+#, kde-format
+msgctxt "@label:slider noise gate"
+msgid "Close over"
+msgstr ""
+
+#: src/app/MicFilters.cpp:70
+#, kde-format
+msgctxt "@label:slider tone"
+msgid "Low"
+msgstr ""
+
+#: src/app/MicFilters.cpp:70
+#, kde-format
+msgid "Warmth and boom."
+msgstr ""
+
+#: src/app/MicFilters.cpp:71
+#, kde-format
+msgctxt "@label:slider tone"
+msgid "Low frequency"
+msgstr ""
+
+#: src/app/MicFilters.cpp:72
+#, kde-format
+msgctxt "@label:slider tone"
+msgid "Mud"
+msgstr ""
+
+#: src/app/MicFilters.cpp:72
+#, kde-format
+msgid "Turn down for a boxy or muffled sound."
+msgstr ""
+
+#: src/app/MicFilters.cpp:73
+#, kde-format
+msgctxt "@label:slider tone"
+msgid "Mud frequency"
+msgstr ""
+
+#: src/app/MicFilters.cpp:74
+#, kde-format
+msgctxt "@label:slider tone"
+msgid "Presence"
+msgstr ""
+
+#: src/app/MicFilters.cpp:74
+#, kde-format
+msgid "Clarity of speech."
+msgstr ""
+
+#: src/app/MicFilters.cpp:75
+#, kde-format
+msgctxt "@label:slider tone"
+msgid "Presence frequency"
+msgstr ""
+
+#: src/app/MicFilters.cpp:76
+#, kde-format
+msgctxt "@label:slider tone"
+msgid "Air"
+msgstr ""
+
+#: src/app/MicFilters.cpp:76
+#, kde-format
+msgid "Brightness and breath."
+msgstr ""
+
+#: src/app/MicFilters.cpp:77
+#, kde-format
+msgctxt "@label:slider tone"
+msgid "Air frequency"
+msgstr ""
+
+#: src/app/MicFilters.cpp:78
+#, kde-format
+msgctxt "@label:slider compressor"
+msgid "Starts at"
+msgstr ""
+
+#: src/app/MicFilters.cpp:79
+#, kde-format
+msgid "Speech louder than this is turned down."
+msgstr ""
+
+#: src/app/MicFilters.cpp:80
+#, kde-format
+msgctxt "@label:slider compressor"
+msgid "Makeup gain"
+msgstr ""
+
+#: src/app/MicFilters.cpp:81
+#, kde-format
+msgid "Raises the evened-out voice again."
+msgstr ""
+
+#: src/app/MicFilters.cpp:82
+#, kde-format
+msgctxt "@label:slider compressor"
+msgid "Ratio"
+msgstr ""
+
+#: src/app/MicFilters.cpp:83
+#, kde-format
+msgctxt "@label:slider compressor"
+msgid "Knee"
+msgstr ""
+
+#: src/app/MicFilters.cpp:84
+#, kde-format
+msgctxt "@label:slider compressor"
+msgid "Attack"
+msgstr ""
+
+#: src/app/MicFilters.cpp:85
+#, kde-format
+msgctxt "@label:slider compressor"
+msgid "Release"
+msgstr ""
+
+#: src/app/MicFilters.cpp:86
+#, kde-format
+msgctxt "@label:slider limiter"
+msgid "Ceiling"
+msgstr ""
+
+#: src/app/MicFilters.cpp:87
+#, kde-format
+msgctxt "@label:slider limiter"
+msgid "Release"
+msgstr ""
+
+#: src/app/MicFilters.cpp:240
+#, kde-format
+msgctxt "@item mic filter preset"
+msgid "Light"
+msgstr ""
+
+#: src/app/MicFilters.cpp:241
+#, kde-format
+msgctxt "@item mic filter preset"
+msgid "Streaming"
+msgstr ""
+
+#: src/app/MicFilters.cpp:242
+#, kde-format
+msgctxt "@item mic filter preset"
+msgid "Noisy room"
+msgstr ""
+
+#: src/app/MicFilters.cpp:243
+#, kde-format
+msgctxt "@item mic filter preset"
+msgid "Broadcast"
+msgstr ""
+
+#: src/app/MicFilters.cpp:246
+#, kde-format
+msgid "Removes noise and rumble, and catches peaks. Your voice stays as it is."
+msgstr ""
+
+#: src/app/MicFilters.cpp:247
+#, kde-format
+msgid "Clean, clear and even. A good start for most mics."
+msgstr ""
+
+#: src/app/MicFilters.cpp:248
+#, kde-format
+msgid "Stronger cleanup for fans, keyboards and busy rooms."
+msgstr ""
+
+#: src/app/MicFilters.cpp:249
+#, kde-format
+msgid "Close, dense radio sound with heavier compression."
+msgstr ""
+
+#: src/app/MicFilters.cpp:345
+#, kde-format
+msgctxt "@item value in kilohertz"
+msgid "%1 kHz"
+msgstr ""
+
+#: src/app/MicFilters.cpp:346
+#, kde-format
+msgctxt "@item value in hertz"
+msgid "%1 Hz"
+msgstr ""
+
+#: src/app/MicFilters.cpp:349 src/app/MicFilters.cpp:352
+#, kde-format
+msgctxt "@item percent"
+msgid "%1 %"
+msgstr ""
+
+#: src/app/MicFilters.cpp:352
+#, kde-format
+msgctxt "@item voice threshold"
+msgid "Off"
+msgstr ""
+
+#: src/app/MicFilters.cpp:355
+#, kde-format
+msgctxt "@item compressor ratio"
+msgid "%1:1"
+msgstr ""
+
+#: src/app/MicFilters.cpp:358
+#, kde-format
+msgctxt "@item value in milliseconds"
+msgid "%1 ms"
+msgstr ""
+
+#: src/app/MicFilters.cpp:363
+#, kde-format
+msgctxt "@item positive value in decibels"
+msgid "+%1 dB"
+msgstr ""
+
+#: src/app/MicFilters.cpp:365
+#, kde-format
+msgctxt "@item value in decibels"
+msgid "%1 dB"
 msgstr ""
 
 #: src/app/Mixer.cpp:353
@@ -1111,55 +1494,61 @@ msgctxt "@label shortcut action"
 msgid "Sidetone on or off"
 msgstr ""
 
-#: src/app/Preferences.cpp:175
+#: src/app/Preferences.cpp:176
+#, kde-format
+msgctxt "@label shortcut action"
+msgid "Mic filters on or off"
+msgstr ""
+
+#: src/app/Preferences.cpp:177
 #, kde-format
 msgctxt "@label shortcut action"
 msgid "Mute headphones"
 msgstr ""
 
-#: src/app/Preferences.cpp:176
+#: src/app/Preferences.cpp:178
 #, kde-format
 msgctxt "@label shortcut action"
 msgid "Stream volume up"
 msgstr ""
 
-#: src/app/Preferences.cpp:178
+#: src/app/Preferences.cpp:180
 #, kde-format
 msgctxt "@label shortcut action"
 msgid "Stream volume down"
 msgstr ""
 
-#: src/app/Preferences.cpp:184
+#: src/app/Preferences.cpp:186
 #, kde-format
 msgctxt "@label shortcut action"
 msgid "Load scene %1"
 msgstr ""
 
-#: src/app/Preferences.cpp:189
+#: src/app/Preferences.cpp:191
 #, kde-format
 msgctxt "@label shortcut action, bus name"
 msgid "Mute %1 bus"
 msgstr ""
 
-#: src/app/Preferences.cpp:198
+#: src/app/Preferences.cpp:200
 #, kde-format
 msgctxt "@info shortcut action"
 msgid "Mutes or unmutes the mic."
 msgstr ""
 
-#: src/app/Preferences.cpp:200
+#: src/app/Preferences.cpp:202
 #, kde-format
 msgctxt "@info shortcut action"
 msgid "Hold to talk while the mic is muted. Letting go mutes it again."
 msgstr ""
 
-#: src/app/Preferences.cpp:203
+#: src/app/Preferences.cpp:205
 #, kde-format
 msgctxt "@info shortcut action"
 msgid "Hold to mute the mic, for a cough or a sip. Letting go brings it back."
 msgstr ""
 
-#: src/app/Preferences.cpp:205
+#: src/app/Preferences.cpp:207
 #, kde-format
 msgctxt "@info shortcut action"
 msgid ""
@@ -1167,80 +1556,88 @@ msgid ""
 "both back as they were."
 msgstr ""
 
-#: src/app/Preferences.cpp:208
+#: src/app/Preferences.cpp:210
 #, kde-format
 msgctxt "@info shortcut action"
 msgid "Turns hearing your own mic in the headphones on or off."
 msgstr ""
 
-#: src/app/Preferences.cpp:211
+#: src/app/Preferences.cpp:213
 #, kde-format
 msgctxt "@info shortcut action"
-msgid "Mutes or unmutes the Stream master. Your headphones are not affected."
-msgstr ""
-
-#: src/app/Preferences.cpp:214
-#, kde-format
-msgctxt "@info shortcut action"
-msgid "Mutes or unmutes the Headphones master. The stream is not affected."
+msgid ""
+"Turns noise removal and the other mic filters on or off, for the stream and "
+"for apps."
 msgstr ""
 
 #: src/app/Preferences.cpp:216
 #, kde-format
 msgctxt "@info shortcut action"
+msgid "Mutes or unmutes the Stream master. Your headphones are not affected."
+msgstr ""
+
+#: src/app/Preferences.cpp:219
+#, kde-format
+msgctxt "@info shortcut action"
+msgid "Mutes or unmutes the Headphones master. The stream is not affected."
+msgstr ""
+
+#: src/app/Preferences.cpp:221
+#, kde-format
+msgctxt "@info shortcut action"
 msgid "Raises the Stream master by 5 %."
 msgstr ""
 
-#: src/app/Preferences.cpp:218
+#: src/app/Preferences.cpp:223
 #, kde-format
 msgctxt "@info shortcut action"
 msgid "Lowers the Stream master by 5 %."
 msgstr ""
 
-#: src/app/Preferences.cpp:224
+#: src/app/Preferences.cpp:229
 #, kde-format
 msgctxt "@info shortcut action"
 msgid "Counted in the order of the Scenes page."
 msgstr ""
 
-#: src/app/Preferences.cpp:228
+#: src/app/Preferences.cpp:233
 #, kde-format
 msgctxt "@info shortcut action"
 msgid "Mutes or unmutes this bus in the live scene, where it has one."
 msgstr ""
 
-#: src/app/Preferences.cpp:336 src/app/Preferences.cpp:351
+#: src/app/Preferences.cpp:341 src/app/Preferences.cpp:356
 #: src/app/Scenes.cpp:236 src/app/Scenes.cpp:260
 #, kde-format
 msgid "Choose a file on this computer."
 msgstr ""
 
-#: src/app/Preferences.cpp:341
+#: src/app/Preferences.cpp:346
 #, kde-format
 msgid "Could not back up settings. %1"
 msgstr ""
 
-#: src/app/Preferences.cpp:344
+#: src/app/Preferences.cpp:349
 #, kde-format
 msgid "Settings and scenes backed up"
 msgstr ""
 
-#: src/app/Preferences.cpp:358
+#: src/app/Preferences.cpp:363
 #, kde-format
 msgid "Nothing was restored. %1"
 msgstr ""
 
-#: src/app/Preferences.cpp:367
+#: src/app/Preferences.cpp:372
 #, kde-format
 msgid "Settings and scenes restored. The previous setup was saved as %1."
 msgstr ""
 
-#: src/app/Preferences.cpp:380
+#: src/app/Preferences.cpp:385
 #, kde-format
 msgid "Rebuilding the virtual devices…"
 msgstr ""
 
-#: src/app/Preferences.cpp:386
+#: src/app/Preferences.cpp:391
 #, kde-format
 msgid "App rules written for the next login"
 msgstr ""
@@ -1512,39 +1909,27 @@ msgctxt "@info accessible"
 msgid "Placed automatically. %1"
 msgstr ""
 
-#: src/app/qml/AppChip.qml:33
+#: src/app/qml/AppChip.qml:34
 #, kde-format
 msgctxt "@info:tooltip %1 is why"
 msgid "Placed automatically: %1"
 msgstr ""
 
-#: src/app/qml/AppChip.qml:66
+#: src/app/qml/AppChip.qml:69
 #, kde-format
 msgctxt "@action:button accessible"
 msgid "%1 options"
 msgstr ""
 
-#: src/app/qml/AppChip.qml:73
+#: src/app/qml/AppChip.qml:76
 #, kde-format
 msgctxt "@action:inmenu"
 msgid "Move to"
 msgstr ""
 
-#: src/app/qml/AppChip.qml:90 src/app/qml/BusMenu.qml:37
+#: src/app/qml/AppChip.qml:93 src/app/qml/BusMenu.qml:37
 #, kde-format
 msgctxt "@action:inmenu"
-msgid "Unassign"
-msgstr ""
-
-#: src/app/qml/AppChip.qml:103
-#, kde-format
-msgctxt "@action:button accessible"
-msgid "Unassign %1"
-msgstr ""
-
-#: src/app/qml/AppChip.qml:105
-#, kde-format
-msgctxt "@info:tooltip"
 msgid "Unassign"
 msgstr ""
 
@@ -2116,127 +2501,151 @@ msgctxt "@info:tooltip"
 msgid "Solo (S). Not saved in the scene."
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:294
+#: src/app/qml/BusStrip.qml:264
+#, kde-format
+msgctxt "@action:button short for mic filters (effects)"
+msgid "FX"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:267
+#, kde-format
+msgctxt "@action:button accessible"
+msgid "Mic filters"
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:269
+#, kde-format
+msgctxt "@info:tooltip"
+msgid "Mic filters on (FX). Right-click to set them up."
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:270
+#, kde-format
+msgctxt "@info:tooltip"
+msgid "Mic filters off (FX). Right-click to set them up."
+msgstr ""
+
+#: src/app/qml/BusStrip.qml:312
 #, kde-format
 msgctxt "@action:button more apps"
 msgid "+%1 more"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:308
+#: src/app/qml/BusStrip.qml:326
 #, kde-format
 msgctxt "@info placeholder"
 msgid "Drop an app here"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:331
+#: src/app/qml/BusStrip.qml:349
 #, kde-format
 msgctxt "@action:button"
 msgid "Sidetone"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:338
+#: src/app/qml/BusStrip.qml:356
 #, kde-format
 msgctxt "@action:button accessible"
 msgid "Show sidetone"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:360
+#: src/app/qml/BusStrip.qml:378
 #, kde-format
 msgctxt "@info:status sidetone"
 msgid "On"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:360
+#: src/app/qml/BusStrip.qml:378
 #, kde-format
 msgctxt "@info:status sidetone"
 msgid "Off"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:368
+#: src/app/qml/BusStrip.qml:386
 #, kde-format
 msgctxt "@option:check"
 msgid "On"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:372
+#: src/app/qml/BusStrip.qml:390
 #, kde-format
 msgctxt "@option:check accessible"
 msgid "Sidetone"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:382
+#: src/app/qml/BusStrip.qml:400
 #, kde-format
 msgctxt "@label accessible"
 msgid "Sidetone volume"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:413
+#: src/app/qml/BusStrip.qml:431
 #, kde-format
 msgctxt "@action:inmenu"
 msgid "Rename"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:418
+#: src/app/qml/BusStrip.qml:436
 #, kde-format
 msgctxt "@action:inmenu"
 msgid "Color…"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:424
+#: src/app/qml/BusStrip.qml:442
 #, kde-format
 msgctxt "@title:menu"
 msgid "Receives Automatically"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:428
+#: src/app/qml/BusStrip.qml:446
 #, kde-format
 msgctxt "@item:inmenu automatic bus"
 msgid "Games"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:429
+#: src/app/qml/BusStrip.qml:447
 #, kde-format
 msgctxt "@item:inmenu automatic bus"
 msgid "Voice Chat"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:430
+#: src/app/qml/BusStrip.qml:448
 #, kde-format
 msgctxt "@item:inmenu automatic bus"
 msgid "Music Players"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:431
+#: src/app/qml/BusStrip.qml:449
 #, kde-format
 msgctxt "@item:inmenu automatic bus"
 msgid "Stream Alerts"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:432
+#: src/app/qml/BusStrip.qml:450
 #, kde-format
 msgctxt "@item:inmenu automatic bus"
 msgid "Everything Else"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:433
+#: src/app/qml/BusStrip.qml:451
 #, kde-format
 msgctxt "@item:inmenu automatic bus"
 msgid "Nothing"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:447
+#: src/app/qml/BusStrip.qml:465
 #, kde-format
 msgctxt "@action:inmenu"
 msgid "Centre Balance"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:455
+#: src/app/qml/BusStrip.qml:473
 #, kde-format
 msgctxt "@action:inmenu"
 msgid "Duplicate"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:463
+#: src/app/qml/BusStrip.qml:481
 #, kde-format
 msgctxt "@action:inmenu"
 msgid "Remove…"
@@ -2558,12 +2967,14 @@ msgctxt "@action:button"
 msgid "Advanced nodes"
 msgstr ""
 
-#: src/app/qml/DevicesPage.qml:141 src/app/qml/ObsPage.qml:342
+#: src/app/qml/DevicesPage.qml:141 src/app/qml/MicFiltersPage.qml:147
+#: src/app/qml/ObsPage.qml:342
 #, kde-format
 msgid "Expanded"
 msgstr ""
 
-#: src/app/qml/DevicesPage.qml:141 src/app/qml/ObsPage.qml:342
+#: src/app/qml/DevicesPage.qml:141 src/app/qml/MicFiltersPage.qml:147
+#: src/app/qml/ObsPage.qml:342
 #, kde-format
 msgid "Collapsed"
 msgstr ""
@@ -2799,6 +3210,181 @@ msgstr ""
 #, kde-format
 msgctxt "@action:button"
 msgid "Choose Mic…"
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:24
+#, kde-format
+msgctxt "@info:placeholder"
+msgid "Mic filters are not available"
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:47
+#, kde-format
+msgid ""
+"Mic gain is above 100 %, so the limiter works harder than it should. Turn "
+"the gain down on the mixer and raise the compressor's makeup gain instead."
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:51
+#, kde-format
+msgctxt "@title:group"
+msgid "Mic Filters"
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:55
+#, kde-format
+msgctxt "@option:check"
+msgid "Clean up my mic"
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:58
+#, kde-format
+msgid ""
+"Noise removal, EQ and compression for your stream mic and the apps you talk "
+"in. Your mic itself is never changed."
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:62
+#, kde-format
+msgid "Starting…"
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:64
+#, kde-format
+msgid "Running inside PipeWire, so they keep working while Rostrum is closed."
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:66
+#, kde-format
+msgid "Your mic is used without filters."
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:76
+#, kde-format
+msgctxt "@label:listbox"
+msgid "Preset"
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:77
+#, kde-format
+msgid "Your own settings. Picking a preset replaces them."
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:79
+#, kde-format
+msgctxt "@item:inlistbox mic filter preset"
+msgid "Custom"
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:90
+#, kde-format
+msgctxt "@label:listbox"
+msgid "Filter the mic for"
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:92
+#, kde-format
+msgid ""
+"Discord, browsers and other apps that record your mic get the filtered mic. "
+"Audio tools and recorders keep your plain mic unless you choose otherwise "
+"below."
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:93
+#, kde-format
+msgid ""
+"Only your stream mic is filtered. Apps record your plain mic unless you "
+"choose otherwise below."
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:94
+#, kde-format
+msgctxt "@item:inlistbox mic filter scope"
+msgid "The stream and every app"
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:95
+#, kde-format
+msgctxt "@item:inlistbox mic filter scope"
+msgid "Only the stream"
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:119
+#, kde-format
+msgctxt "@option:check mic filter module"
+msgid "On"
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:144
+#, kde-format
+msgctxt "@action:button"
+msgid "Fewer settings"
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:144
+#, kde-format
+msgctxt "@action:button"
+msgid "More settings"
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:185
+#, kde-format
+msgctxt "@action:button"
+msgid "Reset %1"
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:186
+#, kde-format
+msgid "Back to the Streaming preset's settings for this filter."
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:195 src/app/qml/SettingsPage.qml:329
+#, kde-format
+msgctxt "@title:group"
+msgid "Apps"
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:200
+#, kde-format
+msgid "Apps that record your mic show up here while they run."
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:219
+#, kde-format
+msgid "Not running. Your choice is kept for next time."
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:220
+#, kde-format
+msgid "Hears the filtered mic."
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:221
+#, kde-format
+msgid "Hears your plain mic."
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:223
+#, kde-format
+msgid "An audio tool, so it gets the plain mic unless you turn this on."
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:225
+#, kde-format
+msgid "Your choice."
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:231
+#, kde-format
+msgctxt "@option:check accessible"
+msgid "Filtered mic for %1"
+msgstr ""
+
+#: src/app/qml/MicFiltersPage.qml:237
+#, kde-format
+msgid ""
+"Apps can also pick “Rostrum Filtered Mic” or your own mic in their settings. "
+"OBS is set up on the OBS page."
 msgstr ""
 
 #: src/app/qml/MixDiagram.qml:12
@@ -4249,12 +4835,6 @@ msgctxt "@item:inlistbox ducking release"
 msgid "%1 ms"
 msgstr ""
 
-#: src/app/qml/SettingsPage.qml:329
-#, kde-format
-msgctxt "@title:group"
-msgid "Apps"
-msgstr ""
-
 #: src/app/qml/SettingsPage.qml:333
 #, kde-format
 msgctxt "@option:check"
@@ -4706,16 +5286,22 @@ msgstr ""
 #: src/app/qml/Shell.qml:15
 #, kde-format
 msgctxt "@title page"
-msgid "OBS"
+msgid "Mic Filters"
 msgstr ""
 
 #: src/app/qml/Shell.qml:16
 #, kde-format
 msgctxt "@title page"
+msgid "OBS"
+msgstr ""
+
+#: src/app/qml/Shell.qml:17
+#, kde-format
+msgctxt "@title page"
 msgid "Settings"
 msgstr ""
 
-#: src/app/qml/Shell.qml:100
+#: src/app/qml/Shell.qml:102
 #, kde-format
 msgid "Connecting to PipeWire"
 msgstr ""

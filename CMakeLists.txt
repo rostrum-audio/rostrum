@@ -35,6 +35,12 @@ add_compile_definitions(
     ROSTRUM_APP_ID="${ROSTRUM_APP_ID}"
 )
 
+option(ROSTRUM_BUILD_DSP "Build the mic filter plugin (loaded into PipeWire)" ON)
+set(ROSTRUM_DSP_DENOISE OFF)
+if(ROSTRUM_BUILD_DSP)
+    add_subdirectory(src/dsp)
+endif()
+
 add_subdirectory(src/core)
 add_subdirectory(src/pw)
 add_subdirectory(src/engine)

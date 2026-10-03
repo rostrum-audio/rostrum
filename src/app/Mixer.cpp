@@ -208,12 +208,12 @@ Mixer *Mixer::create(QQmlEngine *, QJSEngine *)
     return s_instance;
 }
 
-// The mic strip meters the hardware mic, summed to mono like rostrum.mic, and applies the gain
-// fader itself: rostrum.mic is muted whenever the mic does not feed Stream, but the strip must
-// still show the voice going to sidetone.
+// The mic strip meters the hardware mic (the filtered mic while filters run), summed to mono like
+// rostrum.mic, and applies the gain fader itself: rostrum.mic is muted whenever the mic does not
+// feed Stream, but the strip must still show the voice going to sidetone.
 void Mixer::updateTargets()
 {
-    m_micMeterNode = m_engine->resolvedSourceName();
+    m_micMeterNode = m_engine->micMeterNode();
     QStringList targets{QString::fromLatin1(engine::kPhonesNode), QString::fromLatin1(engine::kStreamNode)};
     QStringList summed;
     if (!m_micMeterNode.isEmpty()) {

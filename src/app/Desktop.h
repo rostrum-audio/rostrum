@@ -77,6 +77,7 @@ private:
     void showFeedback(const QString &iconName, const QString &text);
     void notifyFeedback(const QString &iconName, const QString &text);
     void notifyMicLost(const QString &description);
+    void notifyMicFiltersTripped();
 
     static Desktop *s_instance;
     AppController *m_app = nullptr;
@@ -89,6 +90,7 @@ private:
     uint m_goLiveNotificationId = 0;
     uint m_feedbackNotificationId = 0;
     uint m_micNotificationId = 0;
+    uint m_micFiltersNotificationId = 0;
 };
 
 } // namespace rostrum::app

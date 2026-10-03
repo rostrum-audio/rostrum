@@ -61,8 +61,8 @@ DBusControl::DBusControl(AppController *app, QObject *parent) : QObject(parent),
     qDBusRegisterMetaType<BusInfoList>();
     qDBusRegisterMetaType<ActionInfo>();
     qDBusRegisterMetaType<ActionInfoList>();
-    for (auto sig :
-         {&AppController::levelsChanged, &AppController::scenesChanged, &AppController::statusChanged}) {
+    for (auto sig : {&AppController::levelsChanged, &AppController::scenesChanged, &AppController::statusChanged,
+                     &AppController::settingsChanged}) {
         connect(m_app, sig, this, &DBusControl::publishChanges);
     }
 }
@@ -106,6 +106,10 @@ bool DBusControl::connected() const
 {
     return m_app->connected();
 }
+bool DBusControl::micFilters() const
+{
+    return m_app->engine()->micFilters().enabled;
+}
 
 // The PropertiesChanged signal for the properties above, sent only when one changed.
 void DBusControl::publishChanges()
@@ -114,7 +118,8 @@ void DBusControl::publishChanges()
                           {QStringLiteral("StreamMuted"), streamMuted()},
                           {QStringLiteral("Panic"), panic()},
                           {QStringLiteral("CurrentScene"), currentScene()},
-                          {QStringLiteral("Connected"), connected()}};
+                          {QStringLiteral("Connected"), connected()},
+                          {QStringLiteral("MicFilters"), micFilters()}};
     QVariantMap changed;
     for (auto it = now.cbegin(); it != now.cend(); ++it) {
         if (m_published.value(it.key()) != it.value()) {
@@ -284,6 +289,15 @@ void DBusControl::toggleMicMute()
     setMicMuted(!micMuted());
 }
 
+void DBusControl::setMicFilters(bool on)
+{
+    const auto before = m_app->snapshot();
+    micfx::Settings fx = m_app->engine()->micFilters();
+    fx.enabled = on;
+    m_app->engine()->setMicFilters(fx);
+    m_app->reportChange(before);
+}
+
 BusInfoList DBusControl::busesOf(const Scene &s)
 {
     BusInfoList out{
@@ -393,6 +407,10 @@ void DBusControl::SetMicMuted(bool muted)
 void DBusControl::ToggleMicMute()
 {
     toggleMicMute();
+}
+void DBusControl::SetMicFilters(bool on)
+{
+    setMicFilters(on);
 }
 QStringList DBusControl::ListScenes()
 {

@@ -7,6 +7,7 @@
 #include "pw/Graph.h"
 #include "pw/PwContext.h"
 
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -468,6 +469,48 @@ private Q_SLOTS:
         QVERIFY(!engine.micSilenced());
         QCOMPARE(engine.micDevice(), QStringLiteral("alsa_input.usb-headset"));
         QCOMPARE(engine.missingMicLabel(), QStringLiteral("alsa_input.usb-headset"));
+    }
+
+    void micFilterSettingsAndAppChoices()
+    {
+        pw::PwContext pw; // never started
+        engine::Engine engine(&pw);
+        QSignalSpy changed(&engine, &engine::Engine::micFiltersChanged);
+
+        // Without a plugin there is a reason to show instead of the feature.
+        QVERIFY(!engine.micFiltersUnavailable().isEmpty());
+        engine.setMicFilterPlugin(QString(), true, QStringLiteral("The plugin is missing."));
+        QCOMPARE(engine.micFiltersUnavailable(), QStringLiteral("The plugin is missing."));
+        QVERIFY(!engine.micFiltersHaveDenoise());
+        engine.setMicFilterPlugin(QStringLiteral("/opt/rostrum/lib/rostrum/librostrum-dsp.so"), true, QString());
+        QVERIFY(engine.micFiltersUnavailable().isEmpty());
+        QVERIFY(engine.micFiltersHaveDenoise());
+
+        // Settings are sanitized, and only a real change is announced.
+        micfx::Settings s;
+        s.enabled = true;
+        s.compRatio = 500;
+        engine.setMicFilters(s);
+        QCOMPARE(changed.count(), 1);
+        QCOMPARE(engine.micFilters(), micfx::sanitize(s));
+        QVERIFY(engine.micFilters().compRatio < 500);
+        engine.setMicFilters(s);
+        QCOMPARE(changed.count(), 1);
+
+        const AppKey discord{MatchKey::Binary, QStringLiteral("Discord")};
+        engine.setMicAppChoice(discord, micfx::AppChoice::Raw);
+        QCOMPARE(changed.count(), 2);
+        QCOMPARE(micfx::appChoice(engine.micFilters(), discord.toString()), micfx::AppChoice::Raw);
+        engine.setMicAppChoice(discord, micfx::AppChoice::Raw);
+        QCOMPARE(changed.count(), 2);
+        engine.setMicAppChoice(discord, micfx::AppChoice::Default);
+        QCOMPARE(micfx::appChoice(engine.micFilters(), discord.toString()), micfx::AppChoice::Default);
+        QVERIFY(engine.micFilters().rawApps.isEmpty());
+
+        // Nothing runs without an audio server or a mix: the meter reads the plain mic.
+        QCOMPARE(engine.micFiltersState(), engine::Engine::MicFxState::Off);
+        QVERIFY(engine.micApps().isEmpty());
+        QCOMPARE(engine.micMeterNode(), engine.resolvedSourceName());
     }
 };
 

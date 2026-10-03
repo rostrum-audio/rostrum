@@ -24,7 +24,7 @@ QStringList all()
         for (const char *id :
              {kMuteMic, kMuteStream, kPrevScene, kNextScene, kScene1, kScene2, kScene3, kScene4, kPushToTalk,
               kPushToMute, kPanicMute, kToggleSidetone, kMuteHeadphones, kStreamVolumeUp, kStreamVolumeDown,
-              kScene5, kScene6, kScene7, kScene8}) {
+              kScene5, kScene6, kScene7, kScene8, kToggleMicFilters}) {
             out << QString::fromLatin1(id);
         }
         return out;
@@ -46,6 +46,7 @@ QString label(const QString &id)
         {QString::fromLatin1(kMuteHeadphones), QStringLiteral("Mute headphones")},
         {QString::fromLatin1(kStreamVolumeUp), QStringLiteral("Stream volume up")},
         {QString::fromLatin1(kStreamVolumeDown), QStringLiteral("Stream volume down")},
+        {QString::fromLatin1(kToggleMicFilters), QStringLiteral("Mic filters on or off")},
     };
     if (labels.contains(id)) {
         return labels.value(id);
@@ -68,7 +69,7 @@ Group group(const QString &id)
 {
     if (id == QLatin1String(kMuteMic) || id == QLatin1String(kPushToTalk) ||
         id == QLatin1String(kPushToMute) || id == QLatin1String(kPanicMute) ||
-        id == QLatin1String(kToggleSidetone)) {
+        id == QLatin1String(kToggleSidetone) || id == QLatin1String(kToggleMicFilters)) {
         return Group::Mic;
     }
     if (id == QLatin1String(kPrevScene) || id == QLatin1String(kNextScene) || sceneSlot(id) > 0) {
@@ -167,6 +168,76 @@ QString getStr(const toml::table &t, std::string_view section, std::string_view 
     return fallback;
 }
 
+toml::array stringArray(const QStringList &list)
+{
+    toml::array out;
+    for (const auto &s : list) {
+        out.push_back(s.toStdString());
+    }
+    return out;
+}
+
+QStringList stringList(const toml::node_view<const toml::node> &node)
+{
+    QStringList out;
+    if (const auto *array = node.as_array()) {
+        for (const auto &v : *array) {
+            if (auto s = v.value<std::string>(); s && !s->empty()) {
+                out << QString::fromStdString(*s);
+            }
+        }
+    }
+    return out;
+}
+
+toml::table micFiltersTable(const micfx::Settings &m)
+{
+    toml::table t{
+        {"enabled", m.enabled},
+        {"scope", micfx::scopeName(m.scope).toStdString()},
+        {"filtered_apps", stringArray(m.filteredApps)},
+        {"raw_apps", stringArray(m.rawApps)},
+    };
+    for (const auto module : micfx::kModules) {
+        toml::table section;
+        for (const auto &sw : micfx::switches()) {
+            if (sw.module == module) {
+                section.insert(sw.key, m.*sw.field);
+            }
+        }
+        for (const auto &p : micfx::params()) {
+            if (p.module == module) {
+                section.insert(p.key, m.*p.field);
+            }
+        }
+        t.insert(micfx::moduleName(module).toStdString(), section);
+    }
+    return t;
+}
+
+micfx::Settings parseMicFilters(const toml::table &root)
+{
+    micfx::Settings m;
+    const auto t = root["mic_filters"];
+    if (!t.as_table()) {
+        return m;
+    }
+    m.enabled = t["enabled"].value_or(m.enabled);
+    m.scope = micfx::scopeFromString(QString::fromStdString(t["scope"].value_or(std::string())))
+                  .value_or(m.scope);
+    m.filteredApps = stringList(t["filtered_apps"]);
+    m.rawApps = stringList(t["raw_apps"]);
+    for (const auto &sw : micfx::switches()) {
+        const auto section = micfx::moduleName(sw.module).toStdString();
+        m.*sw.field = t[section][sw.key].value_or(m.*sw.field);
+    }
+    for (const auto &p : micfx::params()) {
+        const auto section = micfx::moduleName(p.module).toStdString();
+        m.*p.field = t[section][p.key].value_or(m.*p.field);
+    }
+    return micfx::sanitize(m);
+}
+
 } // namespace
 
 QString serializeSettings(const Settings &s)
@@ -241,6 +312,7 @@ QString serializeSettings(const Settings &s)
              {"mic_fallback", s.micFallback},
              {"mono_headphones", s.monoHeadphones},
          }},
+        {"mic_filters", micFiltersTable(s.micFilters)},
         {"hotkeys", hotkeys},
         {"window",
          toml::table{
@@ -356,6 +428,7 @@ Settings parseSettings(const QString &text, QString *error)
     s.mic = getStr(t, "devices", "mic", s.mic);
     s.micFallback = get(t, "devices", "mic_fallback", s.micFallback);
     s.monoHeadphones = get(t, "devices", "mono_headphones", s.monoHeadphones);
+    s.micFilters = parseMicFilters(t);
     if (const auto *hk = t["hotkeys"].as_table()) {
         for (auto &&[k, v] : *hk) {
             const QString id = QString::fromStdString(std::string(k.str()));

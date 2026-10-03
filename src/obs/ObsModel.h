@@ -10,6 +10,8 @@ namespace rostrum::obs {
 
 // Device ids OBS's built-in PulseAudio sources use for Rostrum's nodes.
 inline constexpr char kMicDevice[] = "rostrum.mic";
+// The filtered mic for apps: the voice again, not part of the Stream Mix.
+inline constexpr char kFilteredMicDevice[] = "rostrum.filtered";
 inline constexpr char kStreamDevice[] = "rostrum.stream.monitor";
 // Names Rostrum gives the sources it creates.
 inline constexpr char kMicInputName[] = "Rostrum Mic";
@@ -62,7 +64,7 @@ enum class Capture {
     RostrumMic,    // rostrum.mic
     RostrumStream, // rostrum.stream's monitor
     RostrumBus,    // another Rostrum node: its audio is already in the Stream Mix
-    Mic,           // a hardware mic: the voice skips Rostrum and doubles with Rostrum Mic
+    Mic,           // a hardware mic or the filtered mic: the voice doubles with Rostrum Mic
     Output,        // a hardware output's monitor: everything you hear, Phones-only buses too
     App,           // one app captured directly, bypassing its bus
 };

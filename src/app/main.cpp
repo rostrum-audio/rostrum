@@ -7,6 +7,7 @@
 #include "app/Devices.h"
 #include "app/History.h"
 #include "app/Logging.h"
+#include "app/MicFilters.h"
 #include "app/Mixer.h"
 #include "app/Obs.h"
 #include "app/Preferences.h"
@@ -126,6 +127,7 @@ int main(int argc, char *argv[])
     rostrum::app::Scenes scenes(&controller, nullptr);
     rostrum::app::History history(&controller, nullptr);
     rostrum::app::Devices devices(&controller, nullptr);
+    rostrum::app::MicFilters micFilters(&controller, nullptr);
     // Before Desktop: the tray shows OBS's live state.
     rostrum::app::Obs obs(&controller, nullptr);
     rostrum::app::Desktop desktop(&controller, nullptr);

@@ -9,6 +9,8 @@ add_library(rostrum_core STATIC
     AppClassifier.cpp AppClassifier.h
     AppFacts.cpp AppFacts.h
     Ducking.cpp Ducking.h
+    MicFilters.cpp MicFilters.h
+    DspPlugin.cpp DspPlugin.h
     DesktopEntries.cpp DesktopEntries.h
     Remote.cpp Remote.h
     RuleExport.cpp RuleExport.h
@@ -24,3 +26,16 @@ add_library(rostrum_core STATIC
 
 target_include_directories(rostrum_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(rostrum_core PUBLIC Qt6::Core PRIVATE tomlplusplus::tomlplusplus)
+
+if(TARGET rostrum-dsp)
+    set(dsp_defines
+        ROSTRUM_DSP_BUILD_PATH="$<TARGET_FILE:rostrum-dsp>"
+        ROSTRUM_BINARY_DIR="${CMAKE_BINARY_DIR}"
+        ROSTRUM_INSTALL_LIBDIR="${CMAKE_INSTALL_LIBDIR}"
+        ROSTRUM_DSP_INSTALL_PATH="${CMAKE_INSTALL_FULL_LIBDIR}/rostrum/librostrum-dsp.so")
+    if(ROSTRUM_DSP_DENOISE)
+        list(APPEND dsp_defines ROSTRUM_DSP_DENOISE)
+    endif()
+    set_source_files_properties(DspPlugin.cpp PROPERTIES COMPILE_DEFINITIONS "${dsp_defines}")
+    add_dependencies(rostrum_core rostrum-dsp)
+endif()

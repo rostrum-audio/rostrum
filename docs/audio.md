@@ -14,6 +14,14 @@ Hardware mic ---> rostrum.mic (virtual source, "Rostrum Mic")      (OBS captures
              \--> rostrum.sidetone ---> rostrum.phones             (optional, default off)
 ```
 
+With mic filters on, the voice goes through one filter node first, and apps record its output:
+
+```
+Hardware mic ---> rostrum.micfx ---> rostrum.mic, rostrum.sidetone   (as above)
+                                \--> rostrum.filtered ("Rostrum Filtered Mic")
+                                         ^ app capture streams are moved here
+```
+
 ## Nodes
 
 Every Rostrum node is a `support.null-audio-sink` adapter created in the PipeWire daemon with
@@ -26,6 +34,8 @@ Every Rostrum node is a `support.null-audio-sink` adapter created in the PipeWir
 | `rostrum.stream` | `Audio/Sink` | FL FR | `Rostrum Stream Mix` | Sum of everything bound for the stream. Volume = Master Stream. OBS captures its monitor. |
 | `rostrum.mic` | `Audio/Source/Virtual` | MONO | `Rostrum Mic` | The hardware mic after Rostrum's gain and mute. OBS captures this. |
 | `rostrum.sidetone` | `Audio/Sink` | MONO | `Rostrum Sidetone` | Mic monitoring into headphones. Volume = sidetone fader. |
+| `rostrum.micfx` | none | MONO | `Rostrum Mic Filters` | Only while mic filters are on. Runs the filter chain (below). |
+| `rostrum.filtered` | `Audio/Source/Virtual` | MONO | `Rostrum Filtered Mic` | Only while mic filters are on. The filtered voice for apps, at unity gain. |
 
 Properties set on every node:
 
@@ -36,8 +46,11 @@ Properties set on every node:
   which is what makes a bus fader or the Master Stream fader audible to OBS.
 - `priority.session = 0`, `priority.driver = 0`: WirePlumber should not pick a Rostrum node as
   the system default device.
-- `rostrum.role` (`bus`, `phones`, `stream`, `mic`, `sidetone`) and `rostrum.bus`: Rostrum only
-  ever destroys nodes that carry these.
+- `rostrum.role` (`bus`, `phones`, `stream`, `mic`, `sidetone`, `micfx`, `filtered`) and
+  `rostrum.bus`: Rostrum only ever destroys nodes that carry these.
+
+`rostrum.micfx` is the exception to the null-sink rule: it is a bare `audio.convert` node made with
+`spa-node-factory`, because a filter graph runs inside audioconvert. It lingers like the others.
 
 Limitation and workaround: the spec asked for "loopback nodes". An in-process
 `libpipewire-module-loopback` would put Rostrum's own process in the audio path, so a Rostrum
@@ -57,12 +70,14 @@ Rostrum creates links port by port with `link-factory` (`object.linger = true`),
 | `rostrum.<bus>` monitor | `rostrum.phones` | bus destination is Headphones or Both |
 | `rostrum.<bus>` monitor | `rostrum.stream` | bus destination is Stream or Both |
 | `rostrum.phones` monitor | headphone device | always; with mono headphones each side also goes into the other front channel |
-| hardware mic | `rostrum.mic` | always (mute/destination act on the node, not the link) |
-| hardware mic | `rostrum.sidetone` | always |
+| hardware mic | `rostrum.mic` | mic filters off (mute/destination act on the node, not the link) |
+| hardware mic | `rostrum.sidetone` | mic filters off |
+| hardware mic | `rostrum.micfx` | mic filters on |
+| `rostrum.micfx` | `rostrum.mic`, `rostrum.sidetone`, `rostrum.filtered` | mic filters on |
 | `rostrum.sidetone` monitor | `rostrum.phones` | always (muted unless sidetone is on) |
 
 Rostrum only removes links it manages: links that start at a Rostrum node and end at a Rostrum node
-or a hardware sink, and links into `rostrum.mic` / `rostrum.sidetone`. App streams going into a bus
+or a hardware sink, and links into `rostrum.mic`, `rostrum.sidetone` and `rostrum.micfx`. App streams going into a bus
 and OBS capturing a Rostrum monitor are never touched. A link you patch by hand from a Rostrum node
 to a hardware sink will be removed.
 
@@ -194,6 +209,133 @@ returns`. When the saved mic returns, it is relinked and its mute and gain come 
 scene. Devices → "Use another mic while mine is unplugged" (`[devices] mic_fallback`, off by
 default) brings back the fallback to the default source, the way headphones work. Either way the
 saved mic is never rewritten.
+
+## Mic filters
+
+The Mic Filters page ("Clean up my mic", `[mic_filters] enabled`, off by default), the FX button on
+the mic strip, the `toggle_mic_filters` action and D-Bus `SetMicFilters` switch one filter chain
+on the mic. It is a setting, not part of a scene, so a scene switch never changes how the voice
+sounds. The hardware mic and the system default source are never changed.
+
+The chain, in signal order (`micfx::kModules`):
+
+| Module | Default | What it does |
+| --- | --- | --- |
+| Rumble filter (`highpass`) | on, 80 Hz | High-pass, 12 dB/octave or 24 with "steep" |
+| Noise removal (`denoise`) | on, 100 % | RNNoise, mixed with the dry signal by strength; optional voice threshold |
+| Noise gate (`gate`) | off | Threshold, range, attack, hold, release |
+| Tone (`eq`) | on | Low and high shelves (low, air), peaking mud cut and presence lift |
+| Compressor (`compressor`) | on, 3:1 at −20 dB | Soft knee, makeup gain |
+| Limiter (`limiter`) | on, −1 dBFS | Peak limiter with 1.5 ms lookahead |
+
+Presets (Light, Streaming, Noisy room, Broadcast) set every module value and keep the scope, the app
+choices and the master switch. The defaults are the Streaming preset; any other value shows as
+Custom. Values are clamped and snapped to the page's steps when loaded (`micfx::sanitize`).
+
+### The plugin
+
+The modules are one LADSPA plugin, `librostrum-dsp.so` (`src/dsp/`, plain C). The PipeWire daemon
+loads it itself, so the processing runs in the daemon like every other Rostrum mix, and a Rostrum
+crash never touches it. The `run` callbacks allocate nothing and take no locks. Parameter changes
+are smoothed, and a module switched off fades to bypass instead of clicking.
+
+`ROSTRUM_RNNOISE` picks where noise removal comes from: `auto` (the default) uses a system rnnoise
+found by pkg-config, else downloads the pinned RNNoise 0.2 release and compiles it in; `system`
+and `bundled` force one or the other; `off` builds the plugin without noise removal and the page
+hides that module. Official builds use `bundled`, because the AppImage's plugin is loaded into the
+host's PipeWire process and may link nothing but libc and libm; `tools/appimage/build-appimage.sh`
+refuses one with any other dependency. A bundled build installs RNNoise's licence as
+`share/licenses/rostrum/RNNoise-COPYING`.
+
+RNNoise works on 10 ms frames at 48 kHz, so noise removal adds 10 ms, and the dry path is delayed
+to match. At any other graph rate it passes audio through. The other modules work at any rate.
+
+Rostrum looks for the plugin in `ROSTRUM_DSP_PLUGIN`, then the build tree (a binary run from the
+build directory), then `../lib/rostrum/` next to the binary, then the install path. An AppImage's
+files vanish when it quits, and the daemon keeps the graph after that, so the AppImage copies its
+plugin to `$XDG_DATA_HOME/rostrum/dsp/<hash>/` and removes older copies.
+
+### The filter node
+
+Mic filters need PipeWire 1.4 or newer (filter graphs in audioconvert) and `spa-node-factory`,
+which PipeWire loads by default. Otherwise the page says why, and the mic works as before.
+
+1. Rostrum creates `rostrum.micfx` and `rostrum.filtered`, and adopts them when they already exist
+   (duplicates from a race are removed, oldest wins).
+2. A new `audio.convert` node starts in convert mode with one port per side and no channel.
+   Rostrum sends a mono DSP `PortConfig` for both directions, and only uses the node once it has
+   `MONO` ports on both sides. If they do not show up within 4 s the filters fail (below).
+3. The graph goes into the `audioconvert.filter-graph.0` property, once per session per node, with
+   the current values as the initial controls. A node lingering from an earlier run gets the graph
+   again, so it picks up this run's plugin, in the same pass that makes the links. Later changes
+   are control values only (`rostrum_gate:Threshold` and so on), which change the sound without a
+   glitch.
+4. audioconvert builds the graph only while the node runs, that is while something records the mic.
+   Audio passes through unfiltered until then, so the path is used at once.
+5. Rostrum checks the graph loaded by reading the node's Props: index 0 holds audioconvert's own
+   settings, index 1 and up each graph's controls. Props events may carry one index at a time, so
+   the indexes are merged. PipeWire caches the params a node reports, and audioconvert refreshes
+   them when a control is set but not when the graph starts. So while the node runs and the graph
+   is not yet seen, Rostrum sends the controls every 250 ms, which brings it into view.
+6. A running node that shows no graph after 4 s has failed: the filters go off for this session,
+   the nodes are removed, and the page says "Your mic is used without filters". A graph that ran
+   and then disappeared is sent again, keeping the links and app moves in place.
+
+A control changed by another tool is set back at most once a second, like volumes. audioconvert
+keeps whatever number of channel volumes it was last sent, so the channel count of every node is
+taken from its channel map, not from its volumes.
+
+### Which apps get the filtered mic
+
+Apps record `rostrum.filtered` at unity gain. `rostrum.mic` (the stream) takes the filtered signal
+and applies the mic gain after it. A mic gain above 100 % with the limiter on pushes the stream
+past the ceiling, and the page warns about it.
+
+`[mic_filters] scope` decides the default:
+
+- `"all"` (the default, "The stream and every app"): every app that records the mic gets the
+  filtered mic, except audio tools and recorders (the apps automatic assignment leaves alone:
+  Audacity, DAWs, mixers, anything with the `production` media role), which keep the plain mic.
+- `"stream"` ("Only the stream"): apps keep the plain mic.
+
+Each app's switch on the page overrides that, saved by app key in `filtered_apps` or `raw_apps`.
+A choice made while the app is not running is kept for next time.
+
+The router moves a capture stream the same way it moves a playback stream: `target.object`
+metadata with the serial of `rostrum.filtered`, after recording the previous target. Turning the
+filters off, or an app to plain, restores that target or clears it. It moves:
+
+- only streams that record the mic apps use (the saved mic, or the default source). A stream that
+  picked another source keeps it.
+- only once `rostrum.filtered` carries sound (mic, filter and filtered mic linked), so an app is
+  never cut off for a moment.
+- never OBS (the OBS plan decides what OBS records), Rostrum's own streams, streams that record a
+  sink's monitor, or streams with `node.dont-move`.
+
+Once moved, a stream the user moves elsewhere stays there. WirePlumber remembers where a stream
+was moved and puts the app back there when it next starts (by `application.name`, or `media.role`
+when set). When an app set to plain comes back on the filtered mic that way, Rostrum clears the
+target, which also makes WirePlumber forget it. An app that picked "Rostrum Filtered Mic" in its
+own settings carries `target.object` in its own properties; WirePlumber and Rostrum leave it alone.
+
+### Meters, ducking and OBS
+
+While the filters run, the mic strip's meter and the ducking mic trigger read `rostrum.filtered`
+times the mic gain, so they show what the stream hears, after noise removal. OBS treats
+`rostrum.filtered` like the hardware mic: a source recording it doubles the voice that Rostrum Mic
+already carries, so Set Up OBS points it at `rostrum.mic` or mutes it.
+
+### Quitting, crashes and turning off
+
+Like every Rostrum node, both nodes and their links linger. If Rostrum quits or crashes, apps keep
+the filtered mic with the last settings, and the next start adopts the nodes without moving an
+app. Turning the filters off moves apps back, links the hardware mic straight to `rostrum.mic` and
+`rostrum.sidetone` again, and removes both nodes. While the mix is off they are left alone, like
+the others.
+
+If PipeWire goes away twice within 10 s of a graph load, the graph is taken to be crashing the
+daemon: Rostrum turns the filters off, saves that, and sends one notification ("Mic filters
+turned off"). They stay off until switched on again.
 
 ## Moving app streams
 
@@ -362,6 +504,9 @@ The Apps page meters each running app the same way, by capturing the app's own p
 playback stream's output ports without moving the app, so the app keeps playing where it was.
 The Devices page and the wizard meter every input.
 
+While mic filters run, the mic strip reads `rostrum.filtered` instead of the hardware mic, still
+times the mic gain, so it shows the voice after the filters.
+
 Auto-ducking has its own meters (below), which run whenever ducking is on, whatever is on screen.
 Otherwise, meter streams exist only while the page that shows them is visible and the window is
 shown. They carry
@@ -383,7 +528,8 @@ OBS should record exactly two things: `Rostrum Mic` (`rostrum.mic`) and `Rostrum
 (PulseAudio name `rostrum.stream.monitor`). Any OBS audio source type works, PulseAudio or the
 PipeWire plugin, as long as it records one of those. The failures come from sources that record
 something else: "Default" or the headphones (everything you hear, including buses you keep off
-stream), the hardware mic (a doubled voice), or one app (that app doubled, its bus ignored).
+stream), the hardware mic or `Rostrum Filtered Mic` (a doubled voice), or one app (that app
+doubled, its bus ignored).
 
 ### Status
 
@@ -467,7 +613,7 @@ outlives OBS.
 
 All configuration is TOML under `$XDG_CONFIG_HOME/rostrum/` (default `~/.config/rostrum/`):
 
-- `settings.toml`: general options, mixer options, ducking, default scene, saved headphone and
+- `settings.toml`: general options, mixer options, ducking, mic filters, default scene, saved headphone and
   mic `node.name`, shortcuts, window size, last page, OBS options and the OBS scene map
   (`[obs.scene_map]`).
 - `scenes/<slug>.toml`: one scene per file. The `name` inside the file wins over the file name.
@@ -498,7 +644,8 @@ Outside `~/.config/rostrum/`, Rostrum writes only the two PipeWire rule fragment
 while "Launch at login" is on, `$XDG_CONFIG_HOME/autostart/dev.getrostrum.Rostrum.desktop`
 (`Exec=… --autostart`, pointing at `$APPIMAGE` when running from an AppImage, as Restart does;
 "Start in tray" only applies to that launch). That file is the source of
-truth: removing it in System Settings → Autostart turns the switch off. Set Up OBS, when pressed
+truth: removing it in System Settings → Autostart turns the switch off. An AppImage with mic
+filters on also keeps a copy of the filter plugin in `$XDG_DATA_HOME/rostrum/dsp/`. Set Up OBS, when pressed
 with OBS closed, edits OBS's scene collection after backing it up.
 
 ## Desktop integration
@@ -530,7 +677,7 @@ with OBS closed, edits OBS's scene collection after backing it up.
 - Actions (`[hotkeys]` keys, `src/core/Settings.cpp`): `mute_mic`, `mute_stream`,
   `previous_scene`, `next_scene`, `scene_1` … `scene_8`, `push_to_talk`, `push_to_mute`,
   `panic_mute`, `toggle_sidetone`, `mute_headphones`, `stream_volume_up`, `stream_volume_down`
-  (±5 % on the Stream master), and `mute_bus_<bus id>` for every playback bus of the saved scenes.
+  (±5 % on the Stream master), `toggle_mic_filters`, and `mute_bus_<bus id>` for every playback bus of the saved scenes.
   Only the first eight have default shortcuts. `scene_<n>` loads the n-th scene in the Scenes page
   order (`[scenes] scene_order`), which the header, the tray, Previous/Next and `ListScenes` share.
   A bus action whose bus is not in the live scene says so and does nothing.
@@ -573,8 +720,9 @@ it.
 | `SetBusVolume(s bus, d position)` | Fader travel 0–1, mic gain 0–1.5 |
 | `SetBusMuted(s bus, b)`, `ToggleBusMuted(s bus)` | Mute a bus, the mic or a master |
 | `SetMicMuted(b)`, `ToggleMicMute()` | The mic, as the header button |
+| `SetMicFilters(b)` | Mic filters on or off, saved (`toggle_mic_filters` toggles) |
 | `ListScenes() → as`, `ListBuses() → a(ssdb)`, `ListActions() → a(ss)` | Scene names; id, name, position, muted; id, label |
-| Properties `MicMuted`, `StreamMuted`, `Panic`, `CurrentScene`, `Connected` | Read-only, with `PropertiesChanged` |
+| Properties `MicMuted`, `StreamMuted`, `Panic`, `CurrentScene`, `Connected`, `MicFilters` | Read-only, with `PropertiesChanged` |
 
 Bus arguments take a bus id or a bus name (any case), `mic`, and `stream` or `phones` for the
 masters; those two can never be bus ids. Errors are `dev.getrostrum.Rostrum1.Error.UnknownAction`,

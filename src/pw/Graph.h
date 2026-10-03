@@ -4,7 +4,9 @@
 #include <QList>
 #include <QMap>
 #include <QString>
+#include <QVariant>
 
+#include <algorithm>
 #include <cstdint>
 
 namespace rostrum::pw {
@@ -26,6 +28,8 @@ struct Node
     int channels = 0;             // from the Props param, 0 = unknown
     bool muted = false;
     QList<float> volumes;
+    QVariantMap params; // the Props "params" struct (audioconvert settings, filter-graph controls)
+    bool running = false; // processing audio, for nodes Rostrum binds
 
     QString prop(const char *key) const { return props.value(QString::fromUtf8(key)); }
     QString label() const;
@@ -70,7 +74,9 @@ struct Graph
     QHash<uint32_t, Port> ports;
     QHash<uint32_t, Link> links;
     QHash<uint32_t, Client> clients;
+    QHash<uint32_t, QString> factories; // global id -> factory.name
 
+    bool hasFactory(const QString &name) const { return std::find(factories.cbegin(), factories.cend(), name) != factories.cend(); }
     const Node *node(uint32_t id) const;
     const Node *nodeByName(const QString &name) const;
     // Ports carrying the node's audio out: monitor ports for sinks, capture ports otherwise.

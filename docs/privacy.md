@@ -5,6 +5,10 @@ after a crash, and it checks once a day for a new version. Both are chosen durin
 and can be changed later in Settings → Privacy and Settings → Updates. Nothing else in Rostrum
 touches the network, apart from obs-websocket on `localhost` (see [OBS](#obs) below).
 
+Your audio never leaves your computer. Mic filters, noise removal included, run inside PipeWire on
+your machine; RNNoise's model is part of the plugin, and no audio, level or transcript is stored or
+sent.
+
 ## Crash reports
 
 Crash reports go to [Sentry](https://sentry.io) (sentry.io, US region), a crash reporting
@@ -212,7 +216,8 @@ Runs with `QT_QPA_PLATFORM=offscreen` or `ROSTRUM_SCREENSHOT` never connect in t
 ## Builds and testing
 
 Official builds use the `official` preset, which turns crash reports on with the DSN of Rostrum's
-Sentry project (US region) and builds with debug info:
+Sentry project (US region), builds with debug info, and compiles RNNoise 0.2 into the mic filter
+plugin (downloaded at configure time and checked against a pinned SHA-256, like sentry-native):
 
 ```sh
 cmake --preset official

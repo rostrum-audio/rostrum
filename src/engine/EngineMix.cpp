@@ -262,7 +262,7 @@ QString Engine::addBus(const QString &name, const QString &color)
     }
     // Reserved node names.
     taken << QStringLiteral("phones") << QStringLiteral("stream") << QStringLiteral("sidetone")
-          << QStringLiteral("mic");
+          << QStringLiteral("mic") << QStringLiteral("micfx") << QStringLiteral("filtered");
     Bus b;
     b.name = name.trimmed().isEmpty() ? QStringLiteral("Bus") : name.trimmed();
     b.id = makeSlug(b.name, taken);
@@ -505,7 +505,7 @@ void Engine::reconcileDevices()
         Q_EMIT micRestored();
     }
     const QString sig = QStringList{resolvedSinkName(), resolvedSourceName(), missing ? QStringLiteral("1") : QString(),
-                                    micGone ? QStringLiteral("1") : QString()}
+                                    micGone ? QStringLiteral("1") : QString(), micMeterNode()}
                             .join(QLatin1Char('|'));
     if (sig != m_devicesSignature) {
         m_devicesSignature = sig;
@@ -560,7 +560,7 @@ void Engine::reconcileDucking()
         // A source meter keeps the mic open, so it runs only while the mic can be heard on stream.
         const Bus *micBus = m_scene.micBus();
         if (micBus && !effectiveMicMuted() && feedsStream(micBus->destination) && !micSilenced()) {
-            mic = resolvedSourceName();
+            mic = micMeterNode();
         }
     }
     if (on && m_ducking.trigger != ducking::Trigger::Mic) {
@@ -663,11 +663,24 @@ void Engine::reconcileLinks()
     if (phones && hwSink) {
         nodePairs.append(qMakePair(phones, hwSink));
     }
+    // With filters running the stream mic and sidetone hear the filtered signal. hwSource, when
+    // there is one, is the mic apps use too; without it the stream mic stays silent (no fallback)
+    // while apps still get the filtered default mic.
+    const pw::Node *micFx = micFxRunning() ? micFxNode() : nullptr;
+    const pw::Node *filtered = micFx ? filteredNode() : nullptr;
+    const pw::Node *appsSource = micFx ? appsMic() : nullptr;
+    if (micFx && appsSource) {
+        nodePairs.append(qMakePair(appsSource, micFx));
+        if (filtered) {
+            nodePairs.append(qMakePair(micFx, filtered));
+        }
+    }
+    const pw::Node *voice = micFx && appsSource ? micFx : hwSource;
     if (hwSource && mic) {
-        nodePairs.append(qMakePair(hwSource, mic));
+        nodePairs.append(qMakePair(voice, mic));
     }
     if (hwSource && sidetone) {
-        nodePairs.append(qMakePair(hwSource, sidetone));
+        nodePairs.append(qMakePair(voice, sidetone));
     }
     if (sidetone && phones) {
         nodePairs.append(qMakePair(sidetone, phones));
@@ -699,8 +712,9 @@ void Engine::reconcileLinks()
     }
 
     // A link is Rostrum's to manage if it starts at a Rostrum node and ends at a Rostrum node or a
-    // hardware sink, or if it feeds the mic or sidetone node. App streams into buses and OBS
-    // capturing a Rostrum monitor are never touched.
+    // hardware sink, or if it feeds the mic, sidetone or mic filter node. App streams into buses
+    // and OBS capturing a Rostrum monitor are never touched.
+    const pw::Node *micFxAny = g.nodeByName(QString::fromLatin1(kMicFxNode));
     auto managed = [&](const pw::Link &l) {
         const pw::Node *out = g.node(l.outNode);
         const pw::Node *in = g.node(l.inNode);
@@ -711,7 +725,7 @@ void Engine::reconcileLinks()
         if (m_pendingDestroy.contains(out->id) || m_pendingDestroy.contains(in->id)) {
             return false;
         }
-        if (in == mic || in == sidetone) {
+        if (in == mic || in == sidetone || (in == micFxAny && isOwnedNode(*in))) {
             return true;
         }
         if (!isOwnedNode(*out)) {

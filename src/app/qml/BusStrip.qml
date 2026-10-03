@@ -257,6 +257,24 @@ QQC2.Control {
                 QQC2.ToolTip.text: i18nc("@info:tooltip", "Solo (S). Not saved in the scene.")
                 onClicked: Mixer.toggleSolo(strip.busId)
             }
+            StripToggle {
+                id: fxToggle
+                Layout.fillWidth: true
+                visible: strip.isInput && MicFilters.available
+                text: i18nc("@action:button short for mic filters (effects)", "FX")
+                on: MicFilters.enabled
+                activeColor: MicFilters.state === "failed" ? Kirigami.Theme.neutralTextColor : Kirigami.Theme.positiveTextColor
+                Accessible.name: i18nc("@action:button accessible", "Mic filters")
+                QQC2.ToolTip.text: MicFilters.state === "failed" ? MicFilters.error
+                                 : MicFilters.enabled ? i18nc("@info:tooltip", "Mic filters on (FX). Right-click to set them up.")
+                                                      : i18nc("@info:tooltip", "Mic filters off (FX). Right-click to set them up.")
+                onClicked: MicFilters.enabled = !MicFilters.enabled
+                TapHandler {
+                    acceptedButtons: Qt.RightButton
+                    onTapped: App.lastPage = "filters"
+                }
+                Keys.onMenuPressed: App.lastPage = "filters"
+            }
         }
 
         DestinationControl {

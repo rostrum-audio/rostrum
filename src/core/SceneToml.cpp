@@ -189,7 +189,8 @@ Scene sanitize(Scene scene)
     static const QRegularExpression hex(QStringLiteral("^#[0-9a-fA-F]{6}$"));
     static const QRegularExpression idChars(QStringLiteral("^[a-z0-9][a-z0-9-]{0,31}$"));
     static const QSet<QString> reserved = {QStringLiteral("phones"), QStringLiteral("stream"),
-                                           QStringLiteral("sidetone")};
+                                           QStringLiteral("sidetone"), QStringLiteral("micfx"),
+                                           QStringLiteral("filtered")};
     const Scene defaults = defaults::scene();
 
     scene.name = scene.name.trimmed().isEmpty() ? QString::fromLatin1(kDefaultSceneName) : scene.name.trimmed();

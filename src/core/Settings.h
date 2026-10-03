@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/Ducking.h"
+#include "core/MicFilters.h"
 
 #include <QMap>
 #include <QString>
@@ -30,6 +31,7 @@ inline constexpr const char *kScene5 = "scene_5";
 inline constexpr const char *kScene6 = "scene_6";
 inline constexpr const char *kScene7 = "scene_7";
 inline constexpr const char *kScene8 = "scene_8";
+inline constexpr const char *kToggleMicFilters = "toggle_mic_filters";
 // "mute_bus_<bus id>" toggles one playback bus. There is one per bus id found in any scene, so
 // these are not in all().
 inline constexpr const char *kMuteBusPrefix = "mute_bus_";
@@ -118,6 +120,8 @@ struct Settings
     QString mic;
     bool micFallback = false; // another mic stands in while the saved one is unplugged
     bool monoHeadphones = false;
+    // Mic filters
+    micfx::Settings micFilters;
     // Shortcuts: action id -> portable key sequence ("Meta+Alt+M"); empty = unbound
     QMap<QString, QString> hotkeys;
     // Window

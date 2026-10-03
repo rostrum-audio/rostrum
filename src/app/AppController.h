@@ -94,6 +94,7 @@ public:
         bool streamMuted = false;
         bool panic = false;
         QString scene;
+        bool micFilters = false;
     };
 
     // No default argument: QML must get the one instance through create(), never construct it.
@@ -239,6 +240,7 @@ Q_SIGNALS:
     // A hotkey or remote change the user may not have seen; Desktop decides whether to show it.
     void feedbackRequested(const QString &iconName, const QString &text);
     void micLost(const QString &description);
+    void micFiltersTripped(const QString &reason);
 
 private:
     void updateStatus();

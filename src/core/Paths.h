@@ -7,6 +7,7 @@ namespace rostrum::paths {
 // All paths honour the XDG base directory variables and fall back to the spec defaults.
 QString configHome();
 QString stateHome();
+QString dataHome();
 
 QString configDir();   // $XDG_CONFIG_HOME/rostrum
 QString scenesDir();   // $XDG_CONFIG_HOME/rostrum/scenes
@@ -17,6 +18,7 @@ QString stateDir();    // $XDG_STATE_HOME/rostrum
 QString logFile();     // $XDG_STATE_HOME/rostrum/rostrum.log
 QString crashDir();    // $XDG_STATE_HOME/rostrum/crashes
 QString sentryDir();   // $XDG_STATE_HOME/rostrum/sentry
+QString dspDir();      // $XDG_DATA_HOME/rostrum/dsp (AppImage copies of the mic filter plugin)
 QString autostartFile();
 
 QString pipewirePulseFragment(); // ~/.config/pipewire/pipewire-pulse.conf.d/50-rostrum.conf

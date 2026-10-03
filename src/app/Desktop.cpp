@@ -108,6 +108,7 @@ Desktop::Desktop(AppController *app, QObject *parent) : QObject(parent), m_app(a
     connect(m_app, &AppController::headphonesLost, this, &Desktop::notifyHeadphonesLost);
     connect(m_app, &AppController::feedbackRequested, this, &Desktop::showFeedback);
     connect(m_app, &AppController::micLost, this, &Desktop::notifyMicLost);
+    connect(m_app, &AppController::micFiltersTripped, this, &Desktop::notifyMicFiltersTripped);
     applyHotkeys();
 
     if (m_enabled) {
@@ -362,6 +363,14 @@ void Desktop::notifyMicLost(const QString &description)
                i18n("%1 went away. Using %2 until it comes back.", description, m_app->micText()), 1,
                &m_micNotificationId);
     }
+}
+
+void Desktop::notifyMicFiltersTripped()
+{
+    notify(i18n("Mic filters turned off"),
+           i18n("PipeWire stopped twice right after they started. Your mic works without them; you can "
+                "turn them on again on the Mic Filters page."),
+           1, &m_micFiltersNotificationId);
 }
 
 void Desktop::notify(const QString &summary, const QString &body, uchar urgency, uint *id)

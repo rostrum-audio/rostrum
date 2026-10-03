@@ -27,6 +27,10 @@
   Music can play for viewers without playing in your ears.
 - 🔴 **OBS in one click.** OBS captures one clean `Rostrum Stream Mix` and one `Rostrum Mic`.
   Rostrum sets it up, mutes the sources that would double your audio, and can undo every change.
+- 🎙️ **A cleaner mic, everywhere.** Optional mic filters remove fans, keyboards and room noise
+  (RNNoise), cut rumble and even out your level. The stream and every app that records your mic,
+  Discord included, hear the clean voice; audio tools keep the plain mic, and any app can be
+  switched. It all runs inside PipeWire, so it keeps working if Rostrum quits.
 - 🎬 **Scenes.** Recall every level, mute and destination at once, from the header or a global shortcut.
 - 🪄 **Apps find their bus on their own.** Discord goes to Voice, Spotify to Music, Steam and Proton
   games to Game, and Streamer.bot to Alerts. Every placement shows why it was made, and OBS and audio
@@ -128,6 +132,14 @@ Five minutes to a split stream:
    rules. Switch with Meta+Alt+PgDown or the scene menu in the header. Move Up and Move Down set
    the order that the header, the tray and the scene hotkeys follow; the badge shows each scene's
    hotkey number.
+7. **Clean up your mic (optional).** Open Mic Filters and turn on "Clean up my mic", or press FX
+   on the mic strip. Pick a preset (Light, Streaming, Noisy room, Broadcast) and adjust each
+   filter if you like. "Filter the mic for" chooses between the stream and every app, or only the
+   stream; the Apps list below it switches single apps, and remembers apps that are not running.
+   Discord and browsers get the filtered mic, audio tools such as Audacity keep the plain one. Your
+   mic and the system's default input are never changed: apps are moved to "Rostrum Filtered Mic",
+   which you can also pick in an app's own settings. OBS keeps recording Rostrum Mic, which is
+   filtered too.
 
 ### ⌨️ Shortcuts
 
@@ -142,8 +154,8 @@ Default global shortcuts, rebindable in Settings or in System Settings → Keybo
 
 More actions are there to bind in Settings → Hotkeys, with no shortcut by default: push to talk
 and push to mute (act while the keys are held), panic mute (mic and stream at once; press again to
-bring both back), sidetone on or off, mute headphones, Stream volume up and down (5 %), load scene
-5–8, and a mute for each playback bus. Push to talk, push to mute and panic are never saved.
+bring both back), sidetone on or off, mute headphones, Stream volume up and down (5 %), mic
+filters on or off, load scene 5–8, and a mute for each playback bus. Push to talk, push to mute and panic are never saved.
 When the Rostrum window is not in front, a hotkey that mutes, unmutes or switches scenes shows a
 short on-screen message (Settings → General → "Show hotkey changes on screen").
 
@@ -169,6 +181,7 @@ options start Rostrum first.
 rostrum --toggle-mic                 # also --mute-mic, --unmute-mic
 rostrum --scene "Just Chatting"
 rostrum --action panic_mute          # any id from --list-actions
+rostrum --action toggle_mic_filters
 rostrum --set-volume game=0.8        # or game=80%; stream and phones are the masters
 rostrum --list-scenes                # also --list-actions, --list-buses
 ```
@@ -190,6 +203,8 @@ listener.
 - Solo is not saved in the scene.
 - Scene fade: off (scenes switch at once). Auto-ducking: off; when on, your mic turns Music down by
   12 dB while you speak. Neither is saved in scenes.
+- Mic filters: off. When on: the Streaming preset, for the stream and every app except audio tools.
+  A setting, not part of a scene.
 - If your chosen mic is unplugged, the stream mic stays silent until it comes back. No other mic
   goes live unless you turn on "Use another mic while mine is unplugged" on the Devices page.
 - Closing the window hides it to the tray (when the desktop has one); minimizing just minimizes.
@@ -281,9 +296,15 @@ Installing into `~/.local` adds the app menu entry, the icon and the System Sett
 ### 📋 Requirements
 
 - Linux with PipeWire 1.0 or newer and WirePlumber 0.5 or newer. PulseAudio is not used or required.
+  Mic filters need PipeWire 1.4 or newer; on older versions the Mic Filters page says so and
+  everything else works.
 - Qt 6.5+ (Base, Declarative, WebSockets and SVG), KDE Frameworks 6.8+ (Kirigami, CoreAddons,
   DBusAddons, GlobalAccel, I18n, StatusNotifierItem, and at run time KDeclarative, KItemModels and
-  QQC2 Desktop Style), Kirigami Addons, toml++ 3, CMake 3.22+ and a C++20 compiler.
+  QQC2 Desktop Style), Kirigami Addons, toml++ 3, CMake 3.22+ and C and C++20 compilers.
+- Noise removal uses RNNoise. With your distro's rnnoise development package installed it links
+  that; otherwise CMake downloads the pinned RNNoise 0.2 release at configure time and compiles it
+  in. `-DROSTRUM_RNNOISE=system`, `bundled` or `off` choose explicitly (`off` builds the mic
+  filters without noise removal).
 
 On another distro, install the same components under its own package names. CI builds the app on
 Ubuntu, Fedora and Arch with the lists above, runs the tests and starts it once to catch missing
@@ -337,3 +358,6 @@ for both, and for testing against a local server.
 ## 📄 License
 
 Apache-2.0. See [LICENSE](LICENSE).
+
+The mic filter plugin can include [RNNoise](https://github.com/xiph/rnnoise) (BSD-3-Clause); such
+builds install its licence as `share/licenses/rostrum/RNNoise-COPYING`.

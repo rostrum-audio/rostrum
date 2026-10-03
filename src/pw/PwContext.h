@@ -43,6 +43,13 @@ public:
 
     // Creates a support.null-audio-sink adapter node in the daemon with the given properties.
     void createNullNode(const QMap<QString, QString> &props);
+    // Creates a bare SPA node (props must carry factory.name) through spa-node-factory. It has
+    // no ports until setPortConfig.
+    void createSpaNode(const QMap<QString, QString> &props);
+    // Puts a node's input or output side in DSP mode with this many channels (1 = MONO, 2 = FL FR).
+    void setPortConfig(uint32_t nodeId, bool output, int channels);
+    // Sets entries of a node's Props "params" struct. Values may be bool, numbers or strings.
+    void setNodeParams(uint32_t nodeId, const QList<QPair<QString, QVariant>> &params);
     void destroyObject(uint32_t id);
     void createLink(uint32_t outPort, uint32_t inPort);
     void setNodeVolume(uint32_t nodeId, float linear, bool mute);
@@ -65,7 +72,8 @@ Q_SIGNALS:
     void nodeRemoved(uint32_t id, const QString &name);
     void metadataChanged(uint32_t subject, const QString &key);
     void defaultsChanged();
-    void createFailed(const QString &message);
+    // nodeName: the node.name of a node that could not be created, empty for links.
+    void createFailed(const QString &message, const QString &nodeName);
 
 public:
     struct Impl;
@@ -74,6 +82,7 @@ public:
 private:
     // volumes: one per channel, a single value for all, or empty to leave them; mute: -1 untouched, 0/1
     void sendProps(uint32_t nodeId, const QList<float> &volumes, int mute);
+    void createObject(const char *factory, const char *type, uint32_t version, const QMap<QString, QString> &props);
     std::unique_ptr<Impl> d;
 };
 

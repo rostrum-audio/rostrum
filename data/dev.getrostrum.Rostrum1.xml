@@ -37,6 +37,11 @@
     <property name="Connected" type="b" access="read">
       <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
     </property>
+    <!-- Mic filters are switched on (toggle_mic_filters). Saved. They may still be starting, or
+         unable to run on this system; the Mic Filters page says which. -->
+    <property name="MicFilters" type="b" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
+    </property>
 
     <!-- Runs a hotkey action by id, as if its shortcut was pressed. See ListActions. -->
     <method name="TriggerAction">
@@ -68,6 +73,9 @@
       <arg name="muted" type="b" direction="in"/>
     </method>
     <method name="ToggleMicMute"/>
+    <method name="SetMicFilters">
+      <arg name="on" type="b" direction="in"/>
+    </method>
     <method name="ListScenes">
       <arg type="as" direction="out"/>
     </method>

@@ -103,6 +103,14 @@ check "StreamMuted after panic" "(<false>,)" "$(prop StreamMuted)"
 check "masters by reserved id" "0" "$(status gdbus call --session --dest $DEST --object-path $OBJ --method $IFACE.SetBusMuted stream true)"
 check "StreamMuted property" "(<true>,)" "$(prop StreamMuted)"
 gdbus call --session --dest $DEST --object-path $OBJ --method $IFACE.SetBusMuted stream false >/dev/null
+check "MicFilters off by default" "(<false>,)" "$(prop MicFilters)"
+check "mic filters on" "0" "$(status gdbus call --session --dest $DEST --object-path $OBJ --method $IFACE.SetMicFilters true)"
+check "MicFilters property" "(<true>,)" "$(prop MicFilters)"
+check "mic filter action" "0" "$(status "$B" --action toggle_mic_filters)"
+check "MicFilters after toggle" "(<false>,)" "$(prop MicFilters)"
+"$B" --action toggle_mic_filters
+sleep 0.8
+check "mic filters saved" "1" "$(sed -n '/^\[mic_filters\]/,/^\[/p' "$XDG_CONFIG_HOME/rostrum/settings.toml" | grep -c '^enabled = true')"
 
 # A client that presses push to talk and leaves must not leave the mic live.
 "$B" --mute-mic

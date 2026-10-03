@@ -7,14 +7,18 @@
 
 #include <pipewire/extensions/metadata.h>
 #include <pipewire/pipewire.h>
+#include <spa/param/audio/format-utils.h>
 #include <spa/param/audio/raw.h>
+#include <spa/param/port-config.h>
 #include <spa/param/props.h>
 #include <spa/pod/builder.h>
 #include <spa/pod/iter.h>
+#include <spa/pod/parser.h>
 #include <spa/utils/result.h>
 
 #include <cstring>
 #include <list>
+#include <map>
 #include <unordered_map>
 
 Q_LOGGING_CATEGORY(lcPw, "rostrum.pw")
@@ -71,6 +75,9 @@ struct BoundNode
     pw_node *proxy = nullptr;
     spa_hook listener{};
     bool subscribed = false;
+    // audioconvert reports its own settings as Props 0 and each filter graph's controls as Props 1
+    // and up, and does not always resend them all together.
+    std::map<uint32_t, QVariantMap> paramsByIndex;
 };
 
 struct CreatedProxy
@@ -79,6 +86,7 @@ struct CreatedProxy
     pw_proxy *proxy = nullptr;
     spa_hook listener{};
     uint32_t globalId = SPA_ID_INVALID;
+    QString nodeName;
 };
 
 struct PwContext::Impl
@@ -133,6 +141,17 @@ void onNodeInfo(void *data, const pw_node_info *info)
 {
     auto *b = static_cast<BoundNode *>(data);
     auto *impl = b->impl;
+    if (info->change_mask & PW_NODE_CHANGE_MASK_STATE) {
+        const uint32_t id = b->id;
+        const bool running = info->state == PW_NODE_STATE_RUNNING;
+        impl->post([impl, id, running] {
+            auto it = impl->graph.nodes.find(id);
+            if (it != impl->graph.nodes.end() && it->running != running) {
+                it->running = running;
+                impl->q->scheduleChanged();
+            }
+        });
+    }
     if (!(info->change_mask & PW_NODE_CHANGE_MASK_PROPS)) {
         return;
     }
@@ -154,7 +173,7 @@ void onNodeInfo(void *data, const pw_node_info *info)
     });
 }
 
-void onNodeParam(void *data, int, uint32_t id, uint32_t, uint32_t, const spa_pod *param)
+void onNodeParam(void *data, int, uint32_t id, uint32_t index, uint32_t, const spa_pod *param)
 {
     auto *b = static_cast<BoundNode *>(data);
     if (id != SPA_PARAM_Props || !param || !spa_pod_is_object(param)) {
@@ -163,34 +182,87 @@ void onNodeParam(void *data, int, uint32_t id, uint32_t, uint32_t, const spa_pod
     QList<float> volumes;
     bool mute = false;
     bool haveVolumes = false;
+    int mapChannels = 0;
+    QVariantMap params;
+    bool haveParams = false;
     const auto *obj = reinterpret_cast<const spa_pod_object *>(param);
     const spa_pod_prop *prop;
     SPA_POD_OBJECT_FOREACH(obj, prop)
     {
-        if (prop->key == SPA_PROP_channelVolumes) {
+        if (prop->key == SPA_PROP_params && spa_pod_is_struct(&prop->value)) {
+            haveParams = true;
+            spa_pod_parser prs;
+            spa_pod_frame f;
+            spa_pod_parser_pod(&prs, &prop->value);
+            if (spa_pod_parser_push_struct(&prs, &f) < 0) {
+                continue;
+            }
+            const char *name = nullptr;
+            spa_pod *value = nullptr;
+            while (spa_pod_parser_get_string(&prs, &name) >= 0 && spa_pod_parser_get_pod(&prs, &value) >= 0) {
+                float fl;
+                double db;
+                int32_t i32;
+                int64_t i64;
+                bool bl;
+                const char *str;
+                QVariant v;
+                if (spa_pod_get_bool(value, &bl) >= 0) {
+                    v = bl;
+                } else if (spa_pod_get_float(value, &fl) >= 0) {
+                    v = double(fl);
+                } else if (spa_pod_get_double(value, &db) >= 0) {
+                    v = db;
+                } else if (spa_pod_get_int(value, &i32) >= 0) {
+                    v = i32;
+                } else if (spa_pod_get_long(value, &i64) >= 0) {
+                    v = qint64(i64);
+                } else if (spa_pod_get_string(value, &str) >= 0) {
+                    v = QString::fromUtf8(str);
+                }
+                params.insert(QString::fromUtf8(name), v);
+            }
+        } else if (prop->key == SPA_PROP_channelVolumes) {
             float vols[SPA_AUDIO_MAX_CHANNELS];
             const uint32_t n = spa_pod_copy_array(&prop->value, SPA_TYPE_Float, vols, SPA_AUDIO_MAX_CHANNELS);
             for (uint32_t i = 0; i < n; ++i) {
                 volumes.append(vols[i]);
             }
             haveVolumes = n > 0;
+        } else if (prop->key == SPA_PROP_channelMap) {
+            uint32_t map[SPA_AUDIO_MAX_CHANNELS];
+            mapChannels = int(spa_pod_copy_array(&prop->value, SPA_TYPE_Id, map, SPA_AUDIO_MAX_CHANNELS));
         } else if (prop->key == SPA_PROP_mute) {
             spa_pod_get_bool(&prop->value, &mute);
         }
     }
-    if (!haveVolumes) {
+    if (!haveVolumes && !haveParams) {
         return;
+    }
+    if (haveParams) {
+        b->paramsByIndex[index] = params;
+        params.clear();
+        for (const auto &[i, p] : b->paramsByIndex) {
+            params.insert(p);
+        }
     }
     auto *impl = b->impl;
     const uint32_t nodeId = b->id;
-    impl->post([impl, nodeId, volumes, mute] {
+    impl->post([impl, nodeId, volumes, mute, haveVolumes, mapChannels, params, haveParams] {
         auto it = impl->graph.nodes.find(nodeId);
         if (it == impl->graph.nodes.end()) {
             return;
         }
-        it->channels = int(volumes.size());
-        it->volumes = volumes;
-        it->muted = mute;
+        if (haveVolumes) {
+            // audioconvert keeps whatever number of volumes it was last sent, so a stale write
+            // (a restored state, an older layout) can disagree with the real channel layout.
+            it->channels = mapChannels > 0 ? mapChannels : int(volumes.size());
+            it->volumes = volumes;
+            it->muted = mute;
+        }
+        if (haveParams) {
+            it->params = params;
+        }
         impl->q->scheduleChanged();
     });
 }
@@ -285,11 +357,13 @@ void onCreatedDestroy(void *data)
 
 void onCreatedError(void *data, int, int res, const char *message)
 {
-    auto *impl = static_cast<CreatedProxy *>(data)->impl;
+    auto *created = static_cast<CreatedProxy *>(data);
+    auto *impl = created->impl;
     const QString msg = QStringLiteral("%1 %2").arg(QString::fromUtf8(spa_strerror(res)),
                                                     QString::fromUtf8(message ? message : ""));
-    qCWarning(lcPw) << "create failed:" << msg;
-    impl->post([impl, msg] { Q_EMIT impl->q->createFailed(msg.trimmed()); });
+    const QString nodeName = created->nodeName;
+    qCWarning(lcPw) << "create failed:" << nodeName << msg;
+    impl->post([impl, msg, nodeName] { Q_EMIT impl->q->createFailed(msg.trimmed(), nodeName); });
 }
 
 const pw_proxy_events kCreatedEvents = {
@@ -363,6 +437,12 @@ void onGlobal(void *data, uint32_t id, uint32_t, const char *type, uint32_t, con
                 Q_EMIT impl->q->stateChanged();
             }
         });
+    } else if (std::strcmp(type, PW_TYPE_INTERFACE_Factory) == 0) {
+        const QString name = props.value(QStringLiteral(PW_KEY_FACTORY_NAME));
+        impl->post([impl, id, name] {
+            impl->graph.factories.insert(id, name);
+            impl->q->scheduleChanged();
+        });
     } else if (std::strcmp(type, PW_TYPE_INTERFACE_Metadata) == 0) {
         if (props.value(QStringLiteral(PW_KEY_METADATA_NAME)) == QLatin1String("default") && !impl->metadata) {
             impl->metadata = static_cast<pw_metadata *>(
@@ -400,6 +480,7 @@ void onGlobalRemove(void *data, uint32_t id)
         g.ports.remove(id);
         g.links.remove(id);
         g.clients.remove(id);
+        g.factories.remove(id);
         impl->q->scheduleChanged();
     });
 }
@@ -613,24 +694,122 @@ void PwContext::scheduleChanged()
     });
 }
 
-void PwContext::createNullNode(const QMap<QString, QString> &props)
+void PwContext::createObject(const char *factory, const char *type, uint32_t version,
+                             const QMap<QString, QString> &props)
 {
     if (!d->core) {
         return;
     }
     pw_thread_loop_lock(d->loop);
-    auto *p = pw_properties_new(PW_KEY_FACTORY_NAME, "support.null-audio-sink", nullptr);
+    auto *p = pw_properties_new(nullptr, nullptr);
     for (auto it = props.cbegin(); it != props.cend(); ++it) {
         pw_properties_set(p, it.key().toUtf8().constData(), it.value().toUtf8().constData());
     }
     auto c = std::make_unique<CreatedProxy>();
     c->impl = d.get();
-    c->proxy = static_cast<pw_proxy *>(
-        pw_core_create_object(d->core, "adapter", PW_TYPE_INTERFACE_Node, PW_VERSION_NODE, &p->dict, 0));
+    if (std::strcmp(type, PW_TYPE_INTERFACE_Node) == 0) {
+        c->nodeName = props.value(QStringLiteral(PW_KEY_NODE_NAME));
+    }
+    c->proxy = static_cast<pw_proxy *>(pw_core_create_object(d->core, factory, type, version, &p->dict, 0));
     pw_properties_free(p);
     if (c->proxy) {
         pw_proxy_add_listener(c->proxy, &c->listener, &kCreatedEvents, c.get());
         d->created.push_back(std::move(c));
+    }
+    pw_thread_loop_unlock(d->loop);
+}
+
+void PwContext::createNullNode(const QMap<QString, QString> &props)
+{
+    auto p = props;
+    p.insert(QStringLiteral(PW_KEY_FACTORY_NAME), QStringLiteral("support.null-audio-sink"));
+    createObject("adapter", PW_TYPE_INTERFACE_Node, PW_VERSION_NODE, p);
+}
+
+void PwContext::createSpaNode(const QMap<QString, QString> &props)
+{
+    createObject("spa-node-factory", PW_TYPE_INTERFACE_Node, PW_VERSION_NODE, props);
+}
+
+void PwContext::setPortConfig(uint32_t nodeId, bool output, int channels)
+{
+    if (!d->loop) {
+        return;
+    }
+    spa_audio_info_raw info{};
+    info.format = SPA_AUDIO_FORMAT_F32P;
+    if (channels <= 1) {
+        info.channels = 1;
+        info.position[0] = SPA_AUDIO_CHANNEL_MONO;
+    } else {
+        info.channels = 2;
+        info.position[0] = SPA_AUDIO_CHANNEL_FL;
+        info.position[1] = SPA_AUDIO_CHANNEL_FR;
+    }
+    pw_thread_loop_lock(d->loop);
+    if (auto it = d->boundNodes.find(nodeId); it != d->boundNodes.end()) {
+        uint8_t buffer[1024];
+        spa_pod_builder b = SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
+        spa_pod_frame f;
+        spa_pod_builder_push_object(&b, &f, SPA_TYPE_OBJECT_ParamPortConfig, SPA_PARAM_PortConfig);
+        spa_pod_builder_add(&b, SPA_PARAM_PORT_CONFIG_direction,
+                            SPA_POD_Id(output ? SPA_DIRECTION_OUTPUT : SPA_DIRECTION_INPUT),
+                            SPA_PARAM_PORT_CONFIG_mode, SPA_POD_Id(SPA_PARAM_PORT_CONFIG_MODE_dsp), 0);
+        spa_pod_builder_prop(&b, SPA_PARAM_PORT_CONFIG_format, 0);
+        spa_format_audio_raw_build(&b, SPA_PARAM_Format, &info);
+        auto *pod = static_cast<spa_pod *>(spa_pod_builder_pop(&b, &f));
+        pw_node_set_param(it->second->proxy, SPA_PARAM_PortConfig, 0, pod);
+    }
+    pw_thread_loop_unlock(d->loop);
+}
+
+void PwContext::setNodeParams(uint32_t nodeId, const QList<QPair<QString, QVariant>> &params)
+{
+    if (!d->loop || params.isEmpty()) {
+        return;
+    }
+    QList<QByteArray> keys;
+    QList<QByteArray> strings;
+    qsizetype size = 1024;
+    for (const auto &[key, value] : params) {
+        keys << key.toUtf8();
+        size += keys.last().size() + 32;
+        if (value.typeId() == QMetaType::QString) {
+            strings << value.toString().toUtf8();
+            size += strings.last().size() + 32;
+        }
+    }
+    std::vector<uint8_t> buffer(size_t(size) * 2);
+    spa_pod_builder b = SPA_POD_BUILDER_INIT(buffer.data(), uint32_t(buffer.size()));
+    spa_pod_frame f[2];
+    spa_pod_builder_push_object(&b, &f[0], SPA_TYPE_OBJECT_Props, SPA_PARAM_Props);
+    spa_pod_builder_prop(&b, SPA_PROP_params, 0);
+    spa_pod_builder_push_struct(&b, &f[1]);
+    qsizetype nextString = 0;
+    for (qsizetype i = 0; i < params.size(); ++i) {
+        const QVariant &value = params[i].second;
+        spa_pod_builder_string(&b, keys[i].constData());
+        switch (value.typeId()) {
+        case QMetaType::Bool:
+            spa_pod_builder_bool(&b, value.toBool());
+            break;
+        case QMetaType::QString:
+            spa_pod_builder_string(&b, strings[nextString++].constData());
+            break;
+        default:
+            spa_pod_builder_float(&b, value.toFloat());
+            break;
+        }
+    }
+    spa_pod_builder_pop(&b, &f[1]);
+    auto *pod = static_cast<spa_pod *>(spa_pod_builder_pop(&b, &f[0]));
+    if (!pod) {
+        qCWarning(lcPw) << "params for node" << nodeId << "did not fit";
+        return;
+    }
+    pw_thread_loop_lock(d->loop);
+    if (auto it = d->boundNodes.find(nodeId); it != d->boundNodes.end()) {
+        pw_node_set_param(it->second->proxy, SPA_PARAM_Props, 0, pod);
     }
     pw_thread_loop_unlock(d->loop);
 }
@@ -668,23 +847,10 @@ void PwContext::destroyObject(uint32_t id)
 
 void PwContext::createLink(uint32_t outPort, uint32_t inPort)
 {
-    if (!d->core) {
-        return;
-    }
-    pw_thread_loop_lock(d->loop);
-    auto *p = pw_properties_new(PW_KEY_OBJECT_LINGER, "true", nullptr);
-    pw_properties_setf(p, PW_KEY_LINK_OUTPUT_PORT, "%u", outPort);
-    pw_properties_setf(p, PW_KEY_LINK_INPUT_PORT, "%u", inPort);
-    auto c = std::make_unique<CreatedProxy>();
-    c->impl = d.get();
-    c->proxy = static_cast<pw_proxy *>(
-        pw_core_create_object(d->core, "link-factory", PW_TYPE_INTERFACE_Link, PW_VERSION_LINK, &p->dict, 0));
-    pw_properties_free(p);
-    if (c->proxy) {
-        pw_proxy_add_listener(c->proxy, &c->listener, &kCreatedEvents, c.get());
-        d->created.push_back(std::move(c));
-    }
-    pw_thread_loop_unlock(d->loop);
+    createObject("link-factory", PW_TYPE_INTERFACE_Link, PW_VERSION_LINK,
+                 {{QStringLiteral(PW_KEY_OBJECT_LINGER), QStringLiteral("true")},
+                  {QStringLiteral(PW_KEY_LINK_OUTPUT_PORT), QString::number(outPort)},
+                  {QStringLiteral(PW_KEY_LINK_INPUT_PORT), QString::number(inPort)}});
 }
 
 void PwContext::setNodeVolume(uint32_t nodeId, float linear, bool mute)

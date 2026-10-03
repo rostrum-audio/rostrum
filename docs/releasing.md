@@ -1,7 +1,7 @@
 # Releasing
 
 A tag that starts with `v` runs [.github/workflows/release.yml](../.github/workflows/release.yml).
-It builds the `official` preset (crash reports on, debug info), runs the tests, packages
+It builds the `official` preset (crash reports on, debug info, RNNoise compiled in), runs the tests, packages
 `Rostrum-<version>-x86_64.AppImage`, starts the packaged app once offscreen, writes the update
 feed and a checksum file, and publishes a GitHub release with all three.
 
@@ -82,6 +82,12 @@ plugins and the SVG icon engine. It does not bundle an icon theme: icons come fr
 theme (Breeze on Plasma). linuxdeploy's exclude list leaves PipeWire's client library, OpenGL,
 fontconfig and HarfBuzz to the system; every desktop that can run Rostrum has them, and
 `libpipewire` must match the system's PipeWire modules anyway.
+
+The mic filter plugin (`usr/lib/rostrum/librostrum-dsp.so`) is the exception to bundling: the
+host's PipeWire daemon loads it into its own process, from a copy outside the AppImage, so it can
+use nothing the AppImage carries. The `official` preset compiles RNNoise into it
+(`ROSTRUM_RNNOISE=bundled`), and the script fails if the plugin is missing or needs anything
+besides libc and libm. RNNoise's BSD licence ships as `usr/share/licenses/rostrum/RNNoise-COPYING`.
 
 The AppImage is built on Ubuntu 26.04, so it needs a system with glibc 2.43 or newer (Ubuntu 26.04
 and distributions of the same age or newer). Building on an older base would need Qt 6.5+ and KDE Frameworks 6.8+ built for it

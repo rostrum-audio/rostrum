@@ -88,6 +88,11 @@ also captures `Rostrum Mic`. Run this with the real mic and OBS.
       The result must be the same: one mic meter, and it belongs to a source on Rostrum Mic.
 5. **Sidetone.** Turn sidetone on and raise its fader: you hear yourself in the headphones. The
    stream-mix capture from step 3 is still silent.
+6. **With mic filters.** Turn on Mic Filters. `pw-link -l` shows the hardware source linked only
+   into `rostrum.micfx:input_MONO`, and `rostrum.micfx:output_MONO` linked into `rostrum.mic`,
+   `rostrum.sidetone` and `rostrum.filtered`. Repeat steps 2 to 5: same results, with the filtered
+   voice. In OBS, exactly one mic meter still moves. If OBS has a source on "Rostrum Filtered
+   Mic", the OBS page lists it as doubling the voice and Set Up OBS fixes it.
 
 ## 5. Headphones unplugged
 
@@ -616,6 +621,47 @@ audio.position=[MONO] }'` set as default with `wpctl set-default`.
    `share/locale/de/LC_MESSAGES/rostrum.mo` in the prefix, and `LANGUAGE=de` shows that string in
    German while the rest stays English.
 
+## 28. Mic filters
+
+Use the real mic, Discord (or any voice chat app) and Audacity. A fan or keyboard near the mic
+makes noise removal easy to hear.
+
+1. **Off by default.** `wpctl status` lists no Rostrum Filtered Mic and `pw-dump | grep
+   rostrum.micfx` finds nothing. The FX button on the mic strip is not lit.
+2. **On.** Press FX. Within a second the Mic Filters page shows the filters as on (not
+   "starting"), and the log says `mic filter graph running in <id>` once. Sources now include
+   "Rostrum Filtered Mic". The hardware mic and `wpctl inspect @DEFAULT_SOURCE@` are unchanged.
+3. **Sound.** Record `pw-record --target rostrum.mic on.wav` with the fan running, then turn the
+   filters off and record `off.wav`: the fan is gone or much quieter in `on.wav`, and speech is
+   steady in level. Moving a slider (Noise removal strength, Tone) changes the sound at once,
+   without a click or dropout.
+4. **Apps.** Join a Discord voice channel and open Audacity's recording meter. The Apps list on
+   the page shows Discord "Hears the filtered mic" and Audacity "Hears your plain mic … An audio
+   tool". `pw-link -l` agrees. Discord's own input test sounds filtered.
+5. **Per-app choice.** Switch Discord off in the list: Discord moves to the plain mic without
+   leaving the call, and `filtered_apps`/`raw_apps` in `settings.toml` record the choice. Quit and
+   restart Discord: it comes back on the plain mic (WirePlumber's remembered target is cleared;
+   the log says `(remembered by WirePlumber)`). Switch it on again, and Audacity on: both move.
+6. **Scope.** "Only the stream": Discord goes back to the plain mic, Audacity keeps your choice.
+   Back to "The stream and every app".
+7. **Quit and crash.** Quit Rostrum: Discord stays on the filtered mic and still sounds filtered.
+   Start Rostrum: the log has no `filter mic for` line for Discord (nothing is moved again), and
+   no `creating` line for the two nodes. Repeat with `kill -9`: the same.
+8. **Off restores.** Turn the filters off: Discord and Audacity return to the plain mic, the
+   hardware mic is linked straight to `rostrum.mic` and `rostrum.sidetone` again, and both filter
+   nodes are gone.
+9. **Command line and D-Bus.** `rostrum --action toggle_mic_filters` toggles them, the FX button
+   and page follow, and `gdbus call --session --dest dev.getrostrum.Rostrum --object-path
+   /dev/getrostrum/Rostrum/Control --method dev.getrostrum.Rostrum1.SetMicFilters true` turns them
+   on. The `MicFilters` property changes with `PropertiesChanged`. A hotkey bound to "Mic filters
+   on or off" works.
+10. **Outside changes.** With the filters on, change a control with
+    `pw-cli set-param <micfx id> Props '{ params = [ "rostrum_limiter:Ceiling" -20.0 ] }'`: within
+    about a second it is back to the page's value.
+11. **Gain warning.** Raise the mic gain above 100 % with the limiter on: the page warns.
+12. **Meters and ducking.** With the fan running and filters on, the mic strip's meter stays low
+    between words. With ducking on, the fan alone does not duck Music.
+
 ## Smoke test log
 
 Kubuntu 26.04, Plasma 6.6 Wayland, PipeWire 1.6.2, WirePlumber 0.5.13, build 0.1.0. The checks
@@ -646,6 +692,9 @@ nested KWin with a fake tray host, or offscreen rendering. Fake devices were nul
 | Unit tests | 11 of 11 pass |
 | `tests/dbus-control.sh` (ctest `dbus_control`): Rostrum on a private bus with no service directories, offscreen, no PipeWire | Every CLI option and D-Bus method answers with the right exit status or error name; `PropertiesChanged` sent; introspection matches the XML; a hold is dropped when its caller leaves; nothing about holds or panic saved |
 | Settings → Hotkeys rendered offscreen at 1100 px | Grouped as Mic, Stream and Headphones, Scenes, Buses; every row has a name and a description; new actions show None |
+| Mic filters in a private PipeWire 1.6.2 + WirePlumber 0.5.13 (own runtime dir, fake mic fed by a tone, stand-in Discord, a stand-in chat app set to plain, Audacity), Rostrum offscreen on a private D-Bus | Both nodes created and adopted; graph loaded once and verified; links as in test 4 step 6; the processed mic measurably different from the bypassed one; Discord moved to the filtered mic, the plain-mic app and Audacity left on the hardware mic, including after WirePlumber restored an old target; D-Bus off and on restored and re-made every move; a control changed with `pw-cli` set back; quit and `kill -9` left the filtered mic running, and the next start moved nothing |
+| Mic Filters page and the mixer's FX button, rendered offscreen at 1280×720 | No QML warnings, no overlap |
+| Unit tests (with `tst_dsp` and `tst_micfilters`) | 22 of 22 pass |
 
 Still manual (needs hardware or a real session): tests 4 (mic path), 6 and 7 (quit and reboot
 routing with Discord), OBS capture, OBS while live (test 15) against a real OBS, the real headset

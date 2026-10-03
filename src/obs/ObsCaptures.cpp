@@ -53,6 +53,8 @@ QList<Recording> obsRecordings(const pw::Graph &g)
                 r.capture = Capture::RostrumMic;
             } else if (src->name == QLatin1String("rostrum.stream")) {
                 r.capture = Capture::RostrumStream;
+            } else if (src->name == QLatin1String(kFilteredMicDevice)) {
+                r.capture = Capture::Mic;
             } else if (src->isRostrum()) {
                 r.capture = Capture::RostrumBus;
             } else if (src->isSource()) {

@@ -25,6 +25,10 @@ Controls::Outcome Controls::press(const QString &id)
         e.setPanic(!e.panic());
     } else if (id == QLatin1String(kToggleSidetone)) {
         e.setSidetoneEnabled(!e.sidetoneEnabled());
+    } else if (id == QLatin1String(kToggleMicFilters)) {
+        micfx::Settings fx = e.micFilters();
+        fx.enabled = !fx.enabled;
+        e.setMicFilters(fx);
     } else if (id == QLatin1String(kMuteStream)) {
         e.setMasterStreamMuted(!e.effectiveStreamMuted());
     } else if (id == QLatin1String(kMuteHeadphones)) {

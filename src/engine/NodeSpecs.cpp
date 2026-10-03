@@ -15,6 +15,10 @@ QString roleName(NodeRole role)
         return QStringLiteral("mic");
     case NodeRole::Sidetone:
         return QStringLiteral("sidetone");
+    case NodeRole::MicFx:
+        return QStringLiteral("micfx");
+    case NodeRole::Filtered:
+        return QStringLiteral("filtered");
     }
     return {};
 }
@@ -67,6 +71,26 @@ QList<NodeSpec> desiredNodes(const Scene &scene)
         out.append({b.nodeName(), QStringLiteral("Rostrum %1").arg(b.name), NodeRole::Bus, b.id});
     }
     return out;
+}
+
+NodeSpec filteredMicSpec()
+{
+    return {QString::fromLatin1(kFilteredNode), QString::fromLatin1(kFilteredDescription), NodeRole::Filtered,
+            QString(), true, true};
+}
+
+QMap<QString, QString> micFxProperties()
+{
+    return {
+        {QStringLiteral("factory.name"), QStringLiteral("audio.convert")},
+        {QStringLiteral("node.name"), QString::fromLatin1(kMicFxNode)},
+        {QStringLiteral("node.description"), QStringLiteral("Rostrum Mic Filters")},
+        {QStringLiteral("audio.channels"), QStringLiteral("1")},
+        {QStringLiteral("audio.position"), QStringLiteral("[ MONO ]")},
+        {QStringLiteral("object.linger"), QStringLiteral("true")},
+        {QStringLiteral("node.virtual"), QStringLiteral("true")},
+        {QStringLiteral("rostrum.role"), roleName(NodeRole::MicFx)},
+    };
 }
 
 } // namespace rostrum::engine

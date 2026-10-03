@@ -12,6 +12,7 @@ Kirigami.Page {
         { id: "apps", label: i18nc("@title page", "Apps"), icon: "applications-multimedia" },
         { id: "scenes", label: i18nc("@title page", "Scenes"), icon: "view-media-playlist" },
         { id: "devices", label: i18nc("@title page", "Devices"), icon: "audio-card" },
+        { id: "filters", label: i18nc("@title page", "Mic Filters"), icon: "audio-input-microphone" },
         { id: "obs", label: i18nc("@title page", "OBS"), icon: "media-record" },
         { id: "settings", label: i18nc("@title page", "Settings"), icon: "settings-configure" }
     ]
@@ -80,6 +81,7 @@ Kirigami.Page {
                 AppsPage {}
                 ScenesPage {}
                 DevicesPage {}
+                MicFiltersPage {}
                 ObsPage {}
                 SettingsPage {}
             }
