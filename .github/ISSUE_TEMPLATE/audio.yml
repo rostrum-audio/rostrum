@@ -1,0 +1,36 @@
+name: Audio routing
+description: A bus, app rule, headset, or OBS capture did the wrong thing.
+title: ""
+labels: ["audio"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What you expected, and what you heard
+    validations:
+      required: true
+  - type: input
+    id: distro
+    attributes:
+      label: Distro and version
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Headset or sound card
+  - type: dropdown
+    id: obs
+    attributes:
+      label: OBS capture
+      options:
+        - Not using OBS
+        - Rostrum Stream Mix
+        - Rostrum Mic
+        - Whole desktop monitor
+        - Not sure
+  - type: textarea
+    id: nodes
+    attributes:
+      label: Relevant wpctl status or pw-link output
+      render: text
