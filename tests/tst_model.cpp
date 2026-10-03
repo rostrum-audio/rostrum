@@ -85,6 +85,14 @@ private Q_SLOTS:
         const auto mic = std::find_if(specs.cbegin(), specs.cend(),
                                       [](const auto &s) { return s.name == QLatin1String("rostrum.mic"); });
         QCOMPARE(mic->description, QStringLiteral("Rostrum Mic"));
+        const auto phones = std::find_if(specs.cbegin(), specs.cend(),
+                                         [](const auto &s) { return s.name == QLatin1String("rostrum.phones"); });
+        QCOMPARE(phones->description, QStringLiteral("Rostrum Headphones Mix"));
+        QVERIFY(engine::needsRename(*phones, QStringLiteral("Rostrum Phones Mix")));
+        QVERIFY(!engine::needsRename(*phones, phones->description));
+        // Apps and OBS link to these by name, so an old description is left alone.
+        QVERIFY(!engine::needsRename(*stream, QStringLiteral("Old Stream")));
+        QVERIFY(!engine::needsRename(*mic, QStringLiteral("Old Mic")));
         const auto props = mic->properties();
         QCOMPARE(props.value(QStringLiteral("media.class")), QStringLiteral("Audio/Source/Virtual"));
         QCOMPARE(props.value(QStringLiteral("object.linger")), QStringLiteral("true"));

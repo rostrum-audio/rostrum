@@ -43,7 +43,9 @@ Limitation and workaround: the spec asked for "loopback nodes". An in-process
 `libpipewire-module-loopback` would put Rostrum's own process in the audio path, so a Rostrum
 crash would cut the stream. Null-sink adapters plus explicit links give the same topology with the
 processing inside the PipeWire daemon. Bus renames change the description only after
-"Rebuild virtual devices", because a live node's `node.description` is fixed at creation.
+"Rebuild virtual devices", because a live node's `node.description` is fixed at creation. The
+headphones mix and sidetone are the exception: only Rostrum links to them, so on start Rostrum
+recreates either one whose description is out of date (the headphone mix drops for a moment).
 
 ## Destinations and links
 

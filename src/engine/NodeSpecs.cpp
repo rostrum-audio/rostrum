@@ -45,6 +45,12 @@ QMap<QString, QString> NodeSpec::properties() const
     return p;
 }
 
+bool needsRename(const NodeSpec &spec, const QString &currentDescription)
+{
+    return (spec.role == NodeRole::Phones || spec.role == NodeRole::Sidetone) &&
+           currentDescription != spec.description;
+}
+
 QList<NodeSpec> desiredNodes(const Scene &scene)
 {
     QList<NodeSpec> out;

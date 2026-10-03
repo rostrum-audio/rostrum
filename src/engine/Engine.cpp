@@ -167,8 +167,12 @@ void Engine::reconcileNodes()
     QSet<QString> wanted;
     for (const auto &spec : specs) {
         wanted.insert(spec.name);
-        if (graph.nodeByName(spec.name)) {
+        if (const pw::Node *n = graph.nodeByName(spec.name)) {
             m_pendingCreate.remove(spec.name);
+            if (isOwnedNode(*n) && !m_pendingDestroy.contains(n->id) && needsRename(spec, n->description)) {
+                qCInfo(lcEngine) << "recreating" << spec.name << "as" << spec.description;
+                destroyOnce(n->id);
+            }
             continue;
         }
         auto it = m_pendingCreate.find(spec.name);
