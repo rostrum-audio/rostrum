@@ -30,7 +30,8 @@ Packages to install before building:
 | Fedora | `pipewire` `pipewire-pulseaudio` `wireplumber` `qt6-qtbase-devel` `pipewire-devel` `tomlplusplus-devel` `cmake` `ninja-build` `pkgconf-pkg-config` |
 | Arch | `pipewire` `pipewire-pulse` `wireplumber` `qt6-base` `pipewire` `tomlplusplus` `cmake` `ninja` `pkgconf` |
 
-Kirigami and the other KDE Frameworks packages are only needed once the UI target exists.
+The app itself also needs Kirigami and the KDE Frameworks packages listed under Build. Configure
+with `-DROSTRUM_BUILD_APP=OFF` to build only the engine, tools, and tests (CI does this).
 Headset, OBS, and reboot checks stay manual. See [docs/manual-tests.md](docs/manual-tests.md).
 
 ## Build
