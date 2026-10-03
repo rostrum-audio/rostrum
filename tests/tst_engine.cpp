@@ -5,6 +5,7 @@
 #include "engine/Engine.h"
 #include "engine/SceneManager.h"
 #include "pw/Graph.h"
+#include "pw/MicCheck.h"
 #include "pw/PwContext.h"
 
 #include <QSignalSpy>
@@ -511,6 +512,37 @@ private Q_SLOTS:
         QCOMPARE(engine.micFiltersState(), engine::Engine::MicFxState::Off);
         QVERIFY(engine.micApps().isEmpty());
         QCOMPARE(engine.micMeterNode(), engine.resolvedSourceName());
+    }
+
+    void micCheckVerdict()
+    {
+        using namespace pw::miccheck;
+        QCOMPARE(verdict(toDb(0.0f)), Verdict::Silent);
+        QCOMPARE(verdict(toDb(0.0005f)), Verdict::Silent); // about -66 dBFS: room noise
+        QCOMPARE(verdict(toDb(0.03f)), Verdict::Quiet);    // about -30 dBFS
+        QCOMPARE(verdict(toDb(0.5f)), Verdict::Good);      // about -6 dBFS
+        // The mic limiter's default -1 dB ceiling is a good level, not clipping.
+        QCOMPARE(verdict(-1.0), Verdict::Good);
+        QCOMPARE(verdict(toDb(1.0f)), Verdict::Loud);
+        QCOMPARE(verdict(toDb(1.4f)), Verdict::Loud);
+        QVERIFY(std::isinf(toDb(0.0f)));
+    }
+
+    void sidetoneTurnedOnIsAudible()
+    {
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        Scene scene = engine.scene();
+        scene.sidetoneVolume = 0.0;
+        engine.setScene(scene);
+        engine.setSidetoneEnabled(true);
+        QVERIFY(engine.sidetoneEnabled());
+        QCOMPARE(engine.scene().sidetoneVolume, engine::Engine::kDefaultSidetoneVolume);
+        // A level the user chose is kept.
+        engine.setSidetoneVolume(0.8);
+        engine.setSidetoneEnabled(false);
+        engine.setSidetoneEnabled(true);
+        QCOMPARE(engine.scene().sidetoneVolume, 0.8);
     }
 };
 

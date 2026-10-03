@@ -24,7 +24,7 @@ QStringList all()
         for (const char *id :
              {kMuteMic, kMuteStream, kPrevScene, kNextScene, kScene1, kScene2, kScene3, kScene4, kPushToTalk,
               kPushToMute, kPanicMute, kToggleSidetone, kMuteHeadphones, kStreamVolumeUp, kStreamVolumeDown,
-              kScene5, kScene6, kScene7, kScene8, kToggleMicFilters}) {
+              kScene5, kScene6, kScene7, kScene8, kToggleMicFilters, kMicCheck}) {
             out << QString::fromLatin1(id);
         }
         return out;
@@ -47,6 +47,7 @@ QString label(const QString &id)
         {QString::fromLatin1(kStreamVolumeUp), QStringLiteral("Stream volume up")},
         {QString::fromLatin1(kStreamVolumeDown), QStringLiteral("Stream volume down")},
         {QString::fromLatin1(kToggleMicFilters), QStringLiteral("Mic filters on or off")},
+        {QString::fromLatin1(kMicCheck), QStringLiteral("Check mic")},
     };
     if (labels.contains(id)) {
         return labels.value(id);
@@ -69,7 +70,8 @@ Group group(const QString &id)
 {
     if (id == QLatin1String(kMuteMic) || id == QLatin1String(kPushToTalk) ||
         id == QLatin1String(kPushToMute) || id == QLatin1String(kPanicMute) ||
-        id == QLatin1String(kToggleSidetone) || id == QLatin1String(kToggleMicFilters)) {
+        id == QLatin1String(kToggleSidetone) || id == QLatin1String(kToggleMicFilters) ||
+        id == QLatin1String(kMicCheck)) {
         return Group::Mic;
     }
     if (id == QLatin1String(kPrevScene) || id == QLatin1String(kNextScene) || sceneSlot(id) > 0) {

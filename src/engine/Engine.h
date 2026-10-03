@@ -40,6 +40,9 @@ struct AppStream
     QStringList iconNames;    // theme icon names or absolute paths, best first
     double volume = 1.0;
     bool muted = false;
+    // Where the app really plays when another program moved it off its bus (for example
+    // "Easy Effects Sink"); empty while it plays into its bus, or has no bus.
+    QString divertedTo;
 };
 
 // An app recording the mic, for the mic filter app list.
@@ -51,6 +54,7 @@ struct MicApp
     micfx::AppChoice choice = micfx::AppChoice::Default;
     bool excludedByDefault = false; // an audio tool or recorder: the untouched mic unless chosen
     bool filtered = false;          // records the filtered mic
+    QString recordsFrom;            // another program's source it was moved to, empty if none
 };
 
 // The device Rostrum links for headphones (sink) or the mic: the saved node.name if present,
@@ -106,6 +110,7 @@ public:
     void setSidetoneEnabled(bool on); // the mic destination's Phones half
     bool sidetoneEnabled() const;
     void setSidetoneVolume(double volume);
+    static constexpr double kDefaultSidetoneVolume = 0.5; // fader position used when turned on at zero
 
     // Solo is session-only. It is applied as an effective mute and never stored in the scene.
     void setSolo(const QString &id, bool soloed);
@@ -174,6 +179,8 @@ public:
     void assignApp(const AppKey &key, const QString &busId, bool always);
     void unassignApp(const AppKey &key);
     void unassignStream(uint32_t nodeId);
+    // Moves a stream another program took off its bus back onto it.
+    void reclaimStream(uint32_t nodeId);
     void setAppVolume(const AppKey &key, double volume);
     double appVolume(const AppKey &key) const;
     // Saved in the app's rule like its volume; for apps without a rule, until Rostrum quits.
@@ -289,12 +296,24 @@ protected:
     bool isRostrumTarget(const QString &target) const;
     bool isPlainTarget(const QString &target) const;
     void skipAuto(const AppKey &key, bool skip);
+    // The node a stream's ports are linked to that is not `expected`, if any.
+    const pw::Node *divertedNode(const pw::Node &stream, uint32_t expected, bool output) const;
+    QString describeTarget(const QString &target) const;
+    const pw::Node *nodeNamed(const QString &target) const; // by serial or node.name
+    static bool isEffectsNode(const pw::Node *n);           // Easy Effects' virtual sink or source
 
+    // A program that moves every new stream to itself (Easy Effects does, by default) races
+    // Rostrum when an app starts. A move away this soon after Rostrum's is taken back, a few
+    // times per stream; later moves are the user's and are left alone.
+    static constexpr qint64 kReclaimWindowMs = 5000;
+    static constexpr int kMaxReclaims = 3;
     struct Routed
     {
         QString busId;
         QString previousTarget; // metadata target.object before Rostrum moved it, empty if none
         QString requested;      // the bus serial Rostrum last asked for
+        QElapsedTimer since;    // when Rostrum first asked for `requested`
+        int reclaims = 0;
     };
     QHash<uint32_t, Routed> m_routed;
     QHash<QString, QString> m_sessionAssign;    // AppKey string -> bus id
@@ -377,6 +396,8 @@ protected:
     {
         QString previousTarget; // metadata target.object before Rostrum moved it, empty if none
         QString requested;      // the filtered mic's serial Rostrum asked for
+        QElapsedTimer since;
+        int reclaims = 0;
     };
     QHash<uint32_t, MicRouted> m_micRouted;
     struct MicRecognised
@@ -390,6 +411,7 @@ protected:
     bool isMicCapture(const pw::Node &n) const;
     bool linked(uint32_t outNode, uint32_t inNode) const;
     mutable QHash<uint32_t, MicRecognised> m_micRecognised;
+    QHash<uint32_t, QElapsedTimer> m_micFirstSeen;
 
     bool isOwnedNode(const pw::Node &n) const;
     void destroyOnce(uint32_t id);

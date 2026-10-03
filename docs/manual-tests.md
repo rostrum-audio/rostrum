@@ -662,6 +662,43 @@ makes noise removal easy to hear.
 12. **Meters and ducking.** With the fan running and filters on, the mic strip's meter stays low
     between words. With ducking on, the fan alone does not duck Music.
 
+## 29. Mic check
+
+1. **Record and play back.** On Mic Filters, press Check Mic and talk for 5 seconds. The progress
+   bar counts down, then the recording plays once in the headphones only: OBS's audio meter for
+   Rostrum Stream Mix stays still during playback apart from your live mic. It sounds filtered
+   when the filters are on and plain when they are off.
+2. **Verdict.** Talk normally: "Good level". Whisper far from the mic: "Too quiet". Mute the mic
+   on the device itself (not in Rostrum): "Rostrum heard almost nothing". Gain at 150 % with the
+   limiter off and shouting: "Too loud".
+3. **Refusals.** With the mic muted in Rostrum, Check Mic says so and records nothing. With no
+   headphones chosen and none available, it says so too.
+4. **Hotkey.** Bind "Check mic" in Settings → Hotkeys, hide the window and press it: an on-screen
+   message says "Mic check: talk now", and after 5 s the verdict. Pressing it again during a check
+   stops it.
+5. **Hear yourself live.** Turn on "Hear yourself live" with sidetone at 0: you hear yourself at
+   once (the volume jumps to 50 %). The mixer's Sidetone expander shows the same state.
+
+## 30. Easy Effects
+
+Needs Easy Effects 7 or 8 with "Process all output streams" and "Process all input streams" on
+(the defaults).
+
+1. **Reclaimed at start.** With Easy Effects running, start YouTube Music, Spotify or a browser
+   video. Within a second the app is on Music, its strip meter moves, and Mute on Music silences
+   it. `journalctl --user` or `~/.local/state/rostrum/rostrum.log` shows `reclaim … from "Easy
+   Effects Sink"`.
+2. **A later move is yours.** Ten seconds later, move the app to Easy Effects Sink in pavucontrol.
+   It stays there. Its chip on Music gets an orange outline and a warning icon, its tooltip says
+   "Not on this bus: another program moved it to Easy Effects Sink", the Apps row says "Another
+   program moved it to Easy Effects Sink", and the Music meter does not move.
+3. **Move Back.** Chip menu → Move Back to This Bus (or Move Back on the Apps row): the app is on
+   Music again and the warning goes away.
+4. **Mic apps.** With the filters on, join a Discord voice channel: Discord records Rostrum
+   Filtered Mic, not Easy Effects Source, and the Mic Filters page says "Hears the filtered mic".
+5. **Own streams.** The Devices page test chime and the mic check play in the headphones, never
+   through Easy Effects.
+
 ## Smoke test log
 
 Kubuntu 26.04, Plasma 6.6 Wayland, PipeWire 1.6.2, WirePlumber 0.5.13, build 0.1.0. The checks

@@ -370,6 +370,32 @@ bool Engine::isPlainTarget(const QString &target) const
            names(m_pw->graph().nodeByName(m_pw->defaultSinkName()));
 }
 
+const pw::Node *Engine::divertedNode(const pw::Node &stream, uint32_t expected, bool output) const
+{
+    const auto &g = m_pw->graph();
+    const pw::Node *other = nullptr;
+    for (const auto &l : g.links) {
+        const uint32_t self = output ? l.outNode : l.inNode;
+        const uint32_t peer = output ? l.inNode : l.outNode;
+        if (self != stream.id) {
+            continue;
+        }
+        if (peer == expected) {
+            return nullptr;
+        }
+        if (!other) {
+            other = g.node(peer);
+        }
+    }
+    return other;
+}
+
+QString Engine::describeTarget(const QString &target) const
+{
+    const pw::Node *n = nodeNamed(target);
+    return n ? n->label() : target;
+}
+
 const Engine::Recognised &Engine::recognise(const pw::Node &n, const StreamProps &props, const AppIdentity &id) const
 {
     const QString signature =
@@ -444,6 +470,17 @@ QList<AppStream> Engine::appStreams() const
         if (s.identity.unnamed && !s.detectedName.isEmpty()) {
             s.identity.displayName = s.detectedName;
             s.identity.unnamed = false;
+        }
+        if (const Bus *bus = m_scene.bus(s.busId); bus && !bus->isInput()) {
+            const pw::Node *busNode = m_pw->graph().nodeByName(bus->nodeName());
+            const QString current = m_pw->metadataValue(n.id, QStringLiteral("target.object"));
+            // Rostrum's own move shows in the metadata before the links follow, so a stream
+            // being moved onto its bus is not reported.
+            if (busNode && current != busNode->serial) {
+                if (const pw::Node *other = divertedNode(n, busNode->id, true)) {
+                    s.divertedTo = other->label();
+                }
+            }
         }
         s.volume = s.ruleKey.isValid() ? appVolume(s.ruleKey) : appVolume(s.identity.key);
         s.muted = s.ruleKey.isValid() ? appMuted(s.ruleKey) : appMuted(s.identity.key);
@@ -545,6 +582,14 @@ void Engine::unassignStream(uint32_t nodeId)
         return;
     }
     Q_EMIT appsChanged();
+    scheduleReconcile();
+}
+
+void Engine::reclaimStream(uint32_t nodeId)
+{
+    if (auto it = m_routed.find(nodeId); it != m_routed.end()) {
+        it->requested.clear();
+    }
     scheduleReconcile();
 }
 
@@ -776,19 +821,28 @@ void Engine::reconcileRoutes()
             // right after a bus node appears. Never wait for a WirePlumber rescan.
             // `requested` stops re-sending while the metadata event is in flight, and leaves a
             // stream alone if the user later moves it by hand in another mixer.
-            const auto routed = m_routed.constFind(n.id);
+            auto routed = m_routed.find(n.id);
             if (current != busNode->serial &&
-                (routed == m_routed.cend() || routed->requested != busNode->serial)) {
-                if (routed == m_routed.cend()) {
+                (routed == m_routed.end() || routed->requested != busNode->serial)) {
+                if (routed == m_routed.end()) {
                     const bool currentIsOurs =
                         std::any_of(graph.nodes.cbegin(), graph.nodes.cend(),
                                     [&](const pw::Node &o) { return o.serial == current && isOwnedNode(o); });
-                    m_routed.insert(n.id, {busId, currentIsOurs ? QString() : current, QString()});
+                    routed = m_routed.insert(n.id, {busId, currentIsOurs ? QString() : current, QString()});
                 }
-                m_routed[n.id].busId = busId;
-                m_routed[n.id].requested = busNode->serial;
+                routed->busId = busId;
+                routed->requested = busNode->serial;
+                routed->since.start();
+                routed->reclaims = 0;
                 qCInfo(lcEngine) << "route" << id.displayName << n.id << "->" << bus->nodeName()
                                  << (placement.automatic ? "(automatic)" : "");
+                m_pw->setMetadata(n.id, QStringLiteral("target.object"), QStringLiteral("Spa:Id"), busNode->serial);
+            } else if (current != busNode->serial && !current.isEmpty() && routed != m_routed.end() &&
+                       routed->since.isValid() && routed->since.elapsed() < kReclaimWindowMs &&
+                       routed->reclaims < kMaxReclaims) {
+                ++routed->reclaims;
+                qCInfo(lcEngine) << "reclaim" << id.displayName << n.id << "from" << describeTarget(current)
+                                 << "->" << bus->nodeName() << "(moved by another program as it started)";
                 m_pw->setMetadata(n.id, QStringLiteral("target.object"), QStringLiteral("Spa:Id"), busNode->serial);
             }
         } else if (busId.isEmpty() && m_routed.contains(n.id)) {

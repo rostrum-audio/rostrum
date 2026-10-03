@@ -110,16 +110,26 @@ void BusModel::refresh()
     }
 
     m_apps.clear();
-    QHash<QString, QSet<QString>> seen;
+    QHash<QString, QHash<QString, qsizetype>> seen; // bus id -> app key -> chip index
     for (const auto &a : m_engine->appStreams()) {
         if (a.busId.isEmpty()) {
             continue;
         }
         const QString key = a.identity.key.toString();
-        if (seen[a.busId].contains(key)) {
+        QVariantList diverted;
+        if (!a.divertedTo.isEmpty()) {
+            diverted << a.nodeId;
+        }
+        if (auto it = seen[a.busId].constFind(key); it != seen[a.busId].cend()) {
+            QVariantMap chip = m_apps[a.busId].at(*it).toMap();
+            if (!diverted.isEmpty()) {
+                chip.insert(QStringLiteral("divertedTo"), a.divertedTo);
+                chip.insert(QStringLiteral("divertedIds"), chip.value(QStringLiteral("divertedIds")).toList() + diverted);
+                m_apps[a.busId][*it] = chip;
+            }
             continue;
         }
-        seen[a.busId].insert(key);
+        seen[a.busId].insert(key, m_apps[a.busId].size());
         m_apps[a.busId].append(QVariantMap{
             {QStringLiteral("key"), key},
             {QStringLiteral("name"), a.identity.displayName},
@@ -127,6 +137,8 @@ void BusModel::refresh()
             {QStringLiteral("session"), a.sessionOnly},
             {QStringLiteral("automatic"), a.automatic},
             {QStringLiteral("reason"), a.automatic ? Apps::reason(a) : QString()},
+            {QStringLiteral("divertedTo"), a.divertedTo},
+            {QStringLiteral("divertedIds"), diverted},
         });
     }
 
@@ -375,6 +387,13 @@ void Mixer::assignApp(const QString &appKey, const QString &busId)
 }
 
 void Mixer::unassignApp(const QString &appKey) { m_engine->unassignApp(AppKey::fromString(appKey)); }
+
+void Mixer::reclaimStreams(const QVariantList &nodeIds)
+{
+    for (const QVariant &id : nodeIds) {
+        m_engine->reclaimStream(id.toUInt());
+    }
+}
 
 QString Mixer::formatDb(double position) const
 {

@@ -137,6 +137,8 @@ public:
     Q_INVOKABLE int assignedCount(const QString &busId) const; // rules plus running apps
     Q_INVOKABLE void assignApp(const QString &appKey, const QString &busId);
     Q_INVOKABLE void unassignApp(const QString &appKey);
+    // Moves app streams another program took off their bus back onto it.
+    Q_INVOKABLE void reclaimStreams(const QVariantList &nodeIds);
     Q_INVOKABLE QString formatDb(double position) const;
 
 Q_SIGNALS:

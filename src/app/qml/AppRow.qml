@@ -116,6 +116,20 @@ QQC2.Control {
             }
         }
 
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: (row.app.divertedTo ?? "") !== ""
+            type: Kirigami.MessageType.Warning
+            text: i18nc("@info %1 is a device or program, e.g. Easy Effects Sink, %2 a bus",
+                        "Another program moved it to %1, so it plays there instead of on %2. Its bus meter, fader and mute do not reach it.",
+                        row.app.divertedTo ?? "", row.app.busName)
+            actions: Kirigami.Action {
+                text: i18nc("@action:button", "Move Back")
+                icon.name: "go-previous"
+                onTriggered: Mixer.reclaimStreams(row.app.divertedIds)
+            }
+        }
+
         RowLayout {
             spacing: Kirigami.Units.largeSpacing
             PeakMeter {

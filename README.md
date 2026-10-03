@@ -140,6 +140,18 @@ Five minutes to a split stream:
    mic and the system's default input are never changed: apps are moved to "Rostrum Filtered Mic",
    which you can also pick in an app's own settings. OBS keeps recording Rostrum Mic, which is
    filtered too.
+8. **Check how you sound.** Under "Check Your Mic" (on Mic Filters and Devices, or Check Mic in
+   the header's mic popup), press **Check Mic** and talk for 5 seconds. Rostrum plays the
+   recording back in your headphones only, exactly as the stream gets it, with gain and filters,
+   and says whether the level is good, too quiet or too loud. "Hear yourself live" turns on
+   sidetone, so you hear your mic as you talk.
+
+If an app sits on a bus but its meter stays still and Mute does nothing, another program has moved
+its audio somewhere else, usually Easy Effects with "Process all output streams" on. The app's chip
+gets a warning outline and the Apps page says where it really plays; **Move Back** puts it on its
+bus. Rostrum takes back such moves by itself in the first seconds after an app starts. To keep
+Easy Effects on what you hear, choose Easy Effects Sink as Headphones on the Devices page: the
+whole headphone mix then goes through it.
 
 ### ⌨️ Shortcuts
 
@@ -155,7 +167,7 @@ Default global shortcuts, rebindable in Settings or in System Settings → Keybo
 More actions are there to bind in Settings → Hotkeys, with no shortcut by default: push to talk
 and push to mute (act while the keys are held), panic mute (mic and stream at once; press again to
 bring both back), sidetone on or off, mute headphones, Stream volume up and down (5 %), mic
-filters on or off, load scene 5–8, and a mute for each playback bus. Push to talk, push to mute and panic are never saved.
+filters on or off, check mic, load scene 5–8, and a mute for each playback bus. Push to talk, push to mute and panic are never saved.
 When the Rostrum window is not in front, a hotkey that mutes, unmutes or switches scenes shows a
 short on-screen message (Settings → General → "Show hotkey changes on screen").
 

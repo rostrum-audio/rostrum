@@ -184,6 +184,11 @@ void Apps::rebuild()
             QVariantList ids = row.value(QStringLiteral("nodeIds")).toList();
             ids << a.nodeId;
             row.insert(QStringLiteral("nodeIds"), ids);
+            if (!a.divertedTo.isEmpty()) {
+                row.insert(QStringLiteral("divertedTo"), a.divertedTo);
+                row.insert(QStringLiteral("divertedIds"),
+                           row.value(QStringLiteral("divertedIds")).toList() + QVariantList{a.nodeId});
+            }
             running[*it] = row;
             continue;
         }
@@ -219,6 +224,8 @@ void Apps::rebuild()
             {QStringLiteral("nodeIds"), QVariantList{a.nodeId}},
             {QStringLiteral("automatic"), a.automatic},
             {QStringLiteral("detail"), detail},
+            {QStringLiteral("divertedTo"), a.divertedTo},
+            {QStringLiteral("divertedIds"), a.divertedTo.isEmpty() ? QVariantList{} : QVariantList{a.nodeId}},
         };
     }
 

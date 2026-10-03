@@ -312,7 +312,13 @@ filters off, or an app to plain, restores that target or clears it. It moves:
 - never OBS (the OBS plan decides what OBS records), Rostrum's own streams, streams that record a
   sink's monitor, or streams with `node.dont-move`.
 
-Once moved, a stream the user moves elsewhere stays there. WirePlumber remembers where a stream
+Once moved, a stream the user moves elsewhere stays there. As with playback streams, a move within
+5 s of Rostrum's is taken back up to 3 times. For capture streams that also covers Easy Effects
+moving an app to Easy Effects Source before Rostrum got to it ("Process all input streams"): a
+stream first seen less than 5 s ago on Easy Effects' source (`application.id` =
+`com.github.wwmm.easyeffects`, or the node names `easyeffects_source` / `easyeffects_sink`) is
+treated as recording the mic. The page shows an app Easy Effects holds as "Easy Effects moved it to
+Easy Effects Source". WirePlumber remembers where a stream
 was moved and puts the app back there when it next starts (by `application.name`, or `media.role`
 when set). When an app set to plain comes back on the filtered mic that way, Rostrum clears the
 target, which also makes WirePlumber forget it. An app that picked "Rostrum Filtered Mic" in its
@@ -354,7 +360,19 @@ stream. No `pactl`, no `module-move`.
   property).
 - Once Rostrum has asked for a target, it does not re-send it unless the bus serial changes. If the
   user moves the stream in another mixer afterwards, Rostrum leaves it there.
-- Streams from Rostrum's own process (meters, test tones) and any `rostrum.*` node are ignored.
+- The exception is a move within 5 s of Rostrum's own request. Easy Effects, with "Process all
+  output streams" on (its default), moves every new stream to its own sink as the stream appears,
+  so it and Rostrum race when an app starts. A move that soon is taken back, up to 3 times per
+  stream, and logged as `reclaim … (moved by another program as it started)`. A program that keeps
+  fighting wins after that; a later move is the user's choice and stays. To keep Easy Effects on
+  what they hear, users choose Easy Effects Sink as the headphone device, so `rostrum.phones` feeds
+  it.
+- A stream placed on a bus but playing somewhere else bypasses the bus: its meter, fader and mute
+  do not reach it. Its chip on the mixer and its row on the Apps page say so ("Not on this bus:
+  another program moved it to Easy Effects Sink…"), and Move Back asks for the bus again, which
+  also resets the reclaim count.
+- Streams from Rostrum's own process (meters, test tones, the mic check) and any `rostrum.*` node
+  are ignored.
 
 ### Per-app volume and mute
 
@@ -519,8 +537,29 @@ another device. These keys are allowed here because meters are Rostrum's own int
 The Devices page and the wizard play a short chime on the chosen sink: four rising bell-like notes
 (C5, E5, G5, C6) over about 1.4 s, peaking near −10 dBFS. The first note leans left and the second
 leans right, so one press also shows that both ear cups work. It plays through an internal
-`pw_stream` (`rostrum-test-tone`, `rostrum.internal = true`), so the router never moves it onto a
-bus. `rostrum-graphtest --tone <sink>` plays the same chime from a terminal.
+`pw_stream` (`rostrum-test-tone`, `rostrum.internal = true`, `node.dont-move = true`), so neither
+the router nor another program (Easy Effects, for one) moves it onto a bus or an effects sink.
+`rostrum-graphtest --tone <sink>` plays the same chime from a terminal.
+
+## Mic check
+
+"Check Your Mic" on the Mic Filters and Devices pages, Check Mic in the header's mic popup, and the
+`mic_check` action (no default shortcut) record 5 s of `rostrum.mic`, which is what the stream gets:
+after the mic gain, the mute and the mic filters. Then the recording plays back once, mono to both
+ears, on the headphone device in use (`rostrum-mic-check-record`, then `rostrum-mic-check-play`,
+both internal with `node.dont-move`, `node.dont-fallback` and `node.dont-reconnect`). Playback goes
+straight to the hardware sink and never to the default sink, which may be a Rostrum bus and so
+reach the stream. A muted mic, no mic or no headphones refuses with a message instead of recording
+silence.
+
+The loudest sample picks the verdict: below −60 dBFS "nothing heard", below −24 dBFS "too quiet",
+from −0.5 dBFS "too loud", anything else "good level". "Too loud" starts above the limiter's
+default −1 dB ceiling, so a limiter doing its job is not called clipping. Started from a hotkey or
+the command line, the start and the verdict show as on-screen feedback. The recording is kept in
+memory only and dropped when playback ends.
+
+"Hear yourself live" next to it is sidetone (the mic destination's Headphones half). Turned on at
+zero volume, sidetone starts at fader position 0.5 so it is audible.
 
 ## OBS
 
@@ -677,7 +716,8 @@ with OBS closed, edits OBS's scene collection after backing it up.
 - Actions (`[hotkeys]` keys, `src/core/Settings.cpp`): `mute_mic`, `mute_stream`,
   `previous_scene`, `next_scene`, `scene_1` … `scene_8`, `push_to_talk`, `push_to_mute`,
   `panic_mute`, `toggle_sidetone`, `mute_headphones`, `stream_volume_up`, `stream_volume_down`
-  (±5 % on the Stream master), `toggle_mic_filters`, and `mute_bus_<bus id>` for every playback bus of the saved scenes.
+  (±5 % on the Stream master), `toggle_mic_filters`, `mic_check` (start or stop a mic check), and
+  `mute_bus_<bus id>` for every playback bus of the saved scenes.
   Only the first eight have default shortcuts. `scene_<n>` loads the n-th scene in the Scenes page
   order (`[scenes] scene_order`), which the header, the tray, Previous/Next and `ListScenes` share.
   A bus action whose bus is not in the live scene says so and does nothing.

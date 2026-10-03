@@ -103,11 +103,6 @@ Tray::Tray(AppController *app, QObject *parent) : QObject(parent), m_app(app)
     rebuildScenes();
 }
 
-Tray::~Tray()
-{
-    delete m_menu;
-}
-
 void Tray::setWindow(QWindow *window)
 {
     m_window = window;

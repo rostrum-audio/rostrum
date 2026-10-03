@@ -166,7 +166,7 @@ bool TestTone::play(const QString &nodeName)
         PW_KEY_MEDIA_TYPE, "Audio", PW_KEY_MEDIA_CATEGORY, "Playback", PW_KEY_MEDIA_ROLE, "Notification",
         PW_KEY_NODE_NAME, "rostrum-test-tone", PW_KEY_NODE_DESCRIPTION, "Rostrum test tone",
         PW_KEY_APP_NAME, "Rostrum", "state.restore-props", "false", "state.restore-target", "false",
-        "rostrum.internal", "true", nullptr);
+        "node.dont-move", "true", "rostrum.internal", "true", nullptr);
     if (!target.isEmpty()) {
         pw_properties_set(props, PW_KEY_TARGET_OBJECT, target.constData());
     }

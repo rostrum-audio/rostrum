@@ -136,6 +136,10 @@ void Engine::setSidetoneEnabled(bool on)
         return;
     }
     const bool stream = feedsStream(mic->destination);
+    // On at zero volume would sound like it is broken.
+    if (on && m_scene.sidetoneVolume <= 0.0) {
+        m_scene.sidetoneVolume = kDefaultSidetoneVolume;
+    }
     // Turning sidetone off never leaves the mic going nowhere: it falls back to Stream.
     setBusDestination(mic->id, on ? (stream ? Destination::Both : Destination::Phones) : Destination::Stream);
 }

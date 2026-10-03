@@ -148,6 +148,47 @@ QQC2.AbstractButton {
                 onMoved: App.sidetoneVolume = value
             }
 
+            RowLayout {
+                Layout.topMargin: Kirigami.Units.smallSpacing
+                spacing: Kirigami.Units.smallSpacing
+                QQC2.Button {
+                    readonly property bool busy: MicCheck.phase !== "idle"
+                    text: busy ? i18nc("@action:button", "Stop") : i18nc("@action:button", "Check Mic")
+                    icon.name: busy ? "media-playback-stop" : "media-record"
+                    enabled: busy || App.hasMic
+                    onClicked: busy ? MicCheck.stop() : MicCheck.start()
+                    QQC2.ToolTip.visible: hovered
+                    QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                    QQC2.ToolTip.text: i18np("Record %1 second of your stream mic and hear it back in your headphones",
+                                             "Record %1 seconds of your stream mic and hear it back in your headphones",
+                                             MicCheck.seconds)
+                }
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    elide: Text.ElideRight
+                    opacity: 0.8
+                    text: {
+                        switch (MicCheck.phase) {
+                        case "recording":
+                            return i18nc("@info:status mic check", "Recording… talk now")
+                        case "playing":
+                            return i18nc("@info:status mic check", "Playing back…")
+                        }
+                        switch (MicCheck.result) {
+                        case "silent":
+                            return i18nc("@info:status mic check", "Nothing heard")
+                        case "quiet":
+                            return i18nc("@info:status mic check", "Too quiet")
+                        case "loud":
+                            return i18nc("@info:status mic check", "Too loud")
+                        case "good":
+                            return i18nc("@info:status mic check", "Good level")
+                        }
+                        return ""
+                    }
+                }
+            }
+
             QQC2.Button {
                 text: i18nc("@action:button", "Choose Mic…")
                 icon.name: "audio-input-microphone"

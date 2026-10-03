@@ -427,6 +427,7 @@ void MicFilters::rebuildApps()
                             {QStringLiteral("icon"), Apps::iconFor(a.iconNames)},
                             {QStringLiteral("running"), true},
                             {QStringLiteral("filtered"), a.filtered},
+                            {QStringLiteral("recordsFrom"), a.recordsFrom},
                             {QStringLiteral("choice"), choiceName(a.choice)},
                             {QStringLiteral("excludedByDefault"), a.excludedByDefault},
                             {QStringLiteral("wantsFiltered"), micfx::useFiltered(on, a.choice, a.excludedByDefault)}};

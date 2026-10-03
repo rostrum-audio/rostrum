@@ -42,6 +42,9 @@ private Q_SLOTS:
         QTest::newRow("discord pings") << "Chromium" << "Discord" << AppCategory::Voice;
         QTest::newRow("vesktop") << "Vesktop" << "electron" << AppCategory::Voice;
         QTest::newRow("spotify") << "spotify" << "spotify" << AppCategory::Music;
+        // Its desktop entry says AudioVideo;Audio; without Player, so only the catalog knows.
+        QTest::newRow("youtube music desktop") << "YouTube Music Desktop App" << "youtube-music-desktop-app"
+                                               << AppCategory::Music;
         QTest::newRow("streamer.bot") << "Streamer.bot" << "Streamer.bot.exe" << AppCategory::Alerts;
         QTest::newRow("firefox") << "Firefox" << "firefox" << AppCategory::Desktop;
         QTest::newRow("steam client") << "Steam" << "steamwebhelper" << AppCategory::Desktop;

@@ -128,6 +128,10 @@ QQC2.ScrollView {
             }
         }
 
+        MicCheckCard {
+            Layout.bottomMargin: Kirigami.Units.largeSpacing
+        }
+
         Kirigami.Separator {
             Layout.fillWidth: true
         }

@@ -233,6 +233,7 @@ Q_SIGNALS:
     void appsFilterChanged();
     void toast(const QString &message);
     void raiseRequested();
+    void micCheckRequested(); // the mic_check action: start a check, or stop the running one
     void sceneSwitchConfirmRequested(const QString &name);
     void headphonesLost(const QString &description);
     // The list from actionIds() or a bus name in it changed.

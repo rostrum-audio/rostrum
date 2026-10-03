@@ -417,6 +417,7 @@ void Engine::micFxConnectionChanged()
         m_fxTimer.stop();
         m_micRouted.clear();
         m_micRecognised.clear();
+        m_micFirstSeen.clear();
         setMicFxState(m_micFx.enabled && !m_fxFailed ? MicFxState::Starting : MicFxState::Off, m_fxError);
     }
 }
@@ -488,6 +489,10 @@ void Engine::reconcileMicRoutes()
             continue;
         }
         present.insert(n.id);
+        QElapsedTimer &firstSeen = m_micFirstSeen[n.id];
+        if (!firstSeen.isValid()) {
+            firstSeen.start();
+        }
         const MicRecognised &r = recogniseCapture(n);
         const micfx::AppChoice choice = micfx::appChoice(m_micFx, r.identity.key.toString());
         const bool want = filtered && micfx::useFiltered(m_micFx, choice, r.excluded);
@@ -500,21 +505,34 @@ void Engine::reconcileMicRoutes()
                 if (current != filtered->serial && routed->requested != filtered->serial &&
                     (current == routed->requested || current.isEmpty())) {
                     routed->requested = filtered->serial;
+                    routed->since.start();
+                    routed->reclaims = 0;
+                    m_pw->setMetadata(n.id, targetKey, QStringLiteral("Spa:Id"), filtered->serial);
+                } else if (current != filtered->serial && !current.isEmpty() && routed->requested == filtered->serial &&
+                           routed->since.isValid() && routed->since.elapsed() < kReclaimWindowMs &&
+                           routed->reclaims < kMaxReclaims) {
+                    ++routed->reclaims;
+                    qCInfo(lcEngine) << "reclaim" << r.identity.displayName << n.id << "from" << describeTarget(current)
+                                     << "-> filtered mic (moved by another program as it started)";
                     m_pw->setMetadata(n.id, targetKey, QStringLiteral("Spa:Id"), filtered->serial);
                 }
                 continue;
             }
             if (current == filtered->serial) {
                 // Moved by an earlier run that quit or crashed.
-                m_micRouted.insert(n.id, {QString(), filtered->serial});
+                m_micRouted.insert(n.id, {QString(), filtered->serial, {}, 0});
                 continue;
             }
             // Only streams recording the mic apps use; a stream that picked another source keeps it.
-            if (!linked(mic->id, n.id) || (!current.isEmpty() && !names(mic, current))) {
+            // Easy Effects moves every new recording stream to its own source, which is not a choice.
+            const bool takenByEffects = isEffectsNode(nodeNamed(current)) && firstSeen.elapsed() < kReclaimWindowMs;
+            if (!takenByEffects && (!linked(mic->id, n.id) || (!current.isEmpty() && !names(mic, current)))) {
                 continue;
             }
             qCInfo(lcEngine) << "filter mic for" << r.identity.displayName << n.id;
-            m_micRouted.insert(n.id, {current, filtered->serial});
+            MicRouted moved{current, filtered->serial, {}, 0};
+            moved.since.start();
+            m_micRouted.insert(n.id, moved);
             m_pw->setMetadata(n.id, targetKey, QStringLiteral("Spa:Id"), filtered->serial);
         } else if (routed != m_micRouted.end()) {
             const MicRouted was = m_micRouted.take(n.id);
@@ -544,6 +562,28 @@ void Engine::reconcileMicRoutes()
     for (auto it = m_micRecognised.begin(); it != m_micRecognised.end();) {
         it = present.contains(it.key()) ? std::next(it) : m_micRecognised.erase(it);
     }
+    for (auto it = m_micFirstSeen.begin(); it != m_micFirstSeen.end();) {
+        it = present.contains(it.key()) ? std::next(it) : m_micFirstSeen.erase(it);
+    }
+}
+
+const pw::Node *Engine::nodeNamed(const QString &target) const
+{
+    if (target.isEmpty()) {
+        return nullptr;
+    }
+    for (const auto &n : m_pw->graph().nodes) {
+        if (n.serial == target || n.name == target) {
+            return &n;
+        }
+    }
+    return nullptr;
+}
+
+bool Engine::isEffectsNode(const pw::Node *n)
+{
+    return n && (n->prop("application.id") == QLatin1String("com.github.wwmm.easyeffects") ||
+                 n->name == QLatin1String("easyeffects_sink") || n->name == QLatin1String("easyeffects_source"));
 }
 
 QList<MicApp> Engine::micApps() const
@@ -556,9 +596,20 @@ QList<MicApp> Engine::micApps() const
         if (!isMicCapture(n)) {
             continue;
         }
-        const bool fromFiltered = (filtered && linked(filtered->id, n.id)) || m_micRouted.contains(n.id);
-        if (!fromFiltered && !(mic && linked(mic->id, n.id))) {
-            continue;
+        const bool fromMic = mic && linked(mic->id, n.id);
+        const bool linkedFiltered = filtered && linked(filtered->id, n.id);
+        // Before its links appear, a stream Rostrum just moved counts as filtered.
+        const auto routed = m_micRouted.constFind(n.id);
+        const bool movedHere = routed != m_micRouted.cend() &&
+                               m_pw->metadataValue(n.id, QStringLiteral("target.object")) == routed->requested;
+        const bool fromFiltered = linkedFiltered || movedHere;
+        const pw::Node *effects = nullptr;
+        if (!fromFiltered && !fromMic) {
+            // Shown only when Easy Effects took it from the mic, not for streams recording other things.
+            effects = divertedNode(n, 0, false);
+            if (!isEffectsNode(effects)) {
+                continue;
+            }
         }
         const MicRecognised &r = recogniseCapture(n);
         const QString key = r.identity.key.toString();
@@ -571,9 +622,13 @@ QList<MicApp> Engine::micApps() const
             a.choice = micfx::appChoice(m_micFx, key);
             a.excludedByDefault = r.excluded;
             a.filtered = fromFiltered;
+            a.recordsFrom = effects ? effects->label() : QString();
             byKey.insert(key, a);
         } else {
             it->filtered = it->filtered || fromFiltered;
+            if (effects && it->recordsFrom.isEmpty() && !it->filtered) {
+                it->recordsFrom = effects->label();
+            }
         }
     }
     QList<MicApp> out = byKey.values();

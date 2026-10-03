@@ -301,6 +301,8 @@ QQC2.Control {
                     appIcon: modelData.icon
                     automatic: modelData.automatic
                     reason: modelData.reason
+                    divertedTo: modelData.divertedTo ?? ""
+                    divertedIds: modelData.divertedIds ?? []
                     busId: strip.busId
                     busColor: strip.busColor
                 }

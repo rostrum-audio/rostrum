@@ -358,6 +358,10 @@ engine::Controls::Outcome AppController::runAction(const QString &id, Origin ori
     if (sceneAction && !remote && !connected()) {
         return {Result::Done, {}};
     }
+    if (id == QLatin1String(actions::kMicCheck)) {
+        Q_EMIT micCheckRequested();
+        return {Result::Done, {}};
+    }
     const Snapshot before = snapshot();
     const auto out = m_controls.press(id);
     switch (out.result) {

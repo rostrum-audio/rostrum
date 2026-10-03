@@ -174,6 +174,7 @@ QString Preferences::actionLabel(const QString &id, const QString &busName)
          ki18nc("@label shortcut action", "Sidetone on or off")},
         {QString::fromLatin1(actions::kToggleMicFilters),
          ki18nc("@label shortcut action", "Mic filters on or off")},
+        {QString::fromLatin1(actions::kMicCheck), ki18nc("@label shortcut action", "Check mic")},
         {QString::fromLatin1(actions::kMuteHeadphones), ki18nc("@label shortcut action", "Mute headphones")},
         {QString::fromLatin1(actions::kStreamVolumeUp), ki18nc("@label shortcut action", "Stream volume up")},
         {QString::fromLatin1(actions::kStreamVolumeDown),
@@ -211,6 +212,10 @@ QString Preferences::actionDescription(const QString &id)
         {QString::fromLatin1(actions::kToggleMicFilters),
          ki18nc("@info shortcut action",
                 "Turns noise removal and the other mic filters on or off, for the stream and for apps.")},
+        {QString::fromLatin1(actions::kMicCheck),
+         ki18nc("@info shortcut action",
+                "Records a few seconds of your stream mic and plays them back in your headphones. Press "
+                "again to stop.")},
         {QString::fromLatin1(actions::kMuteStream),
          ki18nc("@info shortcut action",
                 "Mutes or unmutes the Stream master. Your headphones are not affected.")},

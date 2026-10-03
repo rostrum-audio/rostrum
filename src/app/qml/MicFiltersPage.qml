@@ -98,6 +98,8 @@ QQC2.ScrollView {
             }
         }
 
+        MicCheckCard {}
+
         Repeater {
             model: MicFilters.modules.filter(m => !m.needsDenoise || MicFilters.hasDenoise)
             delegate: ColumnLayout {
@@ -218,6 +220,8 @@ QQC2.ScrollView {
                             const m = appRow.modelData
                             let state = !m.running ? i18n("Not running. Your choice is kept for next time.")
                                       : m.filtered ? i18n("Hears the filtered mic.")
+                                      : (m.recordsFrom ?? "") !== "" ? i18nc("@info %1 is a device, e.g. Easy Effects Source",
+                                                                             "Easy Effects moved it to %1.", m.recordsFrom)
                                                    : i18n("Hears your plain mic.")
                             if (m.running && m.choice === "default" && m.excludedByDefault) {
                                 state += " " + i18n("An audio tool, so it gets the plain mic unless you turn this on.")

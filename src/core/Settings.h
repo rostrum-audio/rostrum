@@ -32,6 +32,8 @@ inline constexpr const char *kScene6 = "scene_6";
 inline constexpr const char *kScene7 = "scene_7";
 inline constexpr const char *kScene8 = "scene_8";
 inline constexpr const char *kToggleMicFilters = "toggle_mic_filters";
+// Starts a mic check, or stops the one running. Handled by the app, not the engine.
+inline constexpr const char *kMicCheck = "mic_check";
 // "mute_bus_<bus id>" toggles one playback bus. There is one per bus id found in any scene, so
 // these are not in all().
 inline constexpr const char *kMuteBusPrefix = "mute_bus_";

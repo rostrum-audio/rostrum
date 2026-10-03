@@ -20,7 +20,6 @@ class Tray : public QObject
     Q_OBJECT
 public:
     Tray(AppController *app, QObject *parent = nullptr);
-    ~Tray() override;
 
     void setWindow(QWindow *window);
 
@@ -30,7 +29,7 @@ private:
 
     AppController *m_app = nullptr;
     KStatusNotifierItem *m_item = nullptr;
-    QMenu *m_menu = nullptr;
+    QMenu *m_menu = nullptr; // owned and deleted by m_item
     QMenu *m_scenesMenu = nullptr;
     QAction *m_show = nullptr;
     QAction *m_mute = nullptr;

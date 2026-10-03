@@ -24,6 +24,7 @@ qt_add_qml_module(rostrum
         History.cpp History.h
         Hotkeys.cpp Hotkeys.h
         MeterBallistics.h
+        MicCheck.cpp MicCheck.h
         MicFilters.cpp MicFilters.h
         Mixer.cpp Mixer.h
         Obs.cpp Obs.h
@@ -66,6 +67,7 @@ qt_add_qml_module(rostrum
         qml/DevicesPage.qml
         qml/DeviceList.qml
         qml/MicFiltersPage.qml
+        qml/MicCheckCard.qml
         qml/ObsPage.qml
         qml/ObsSetupDialog.qml
         qml/ObsChoices.qml
