@@ -51,7 +51,8 @@ JSON. A real example, shortened:
   "level": "fatal",
   "release": "rostrum@0.1.0",
   "environment": "production",
-  "sdk": { "name": "sentry.native", "version": "0.17.1" },
+  "sdk": { "name": "sentry.native", "version": "0.17.1", "settings": { "infer_ip": "never" } },
+  "user": { "geo": {} },
   "exception": { "values": [ {
     "type": "SIGSEGV",
     "value": "Segfault",
@@ -88,10 +89,15 @@ JSON. A real example, shortened:
 | `contexts.rostrum` | Install type, CPU architecture, desktop, session type, Qt, KDE Frameworks, PipeWire and WirePlumber versions; sanitized |
 | `debug_meta.images` | Only libraries the stack runs through. File name only, plus address, size and build IDs. |
 
+Two fields are always added, not copied. Sentry sees the IP address every upload comes from, and
+by default it stores it as the user's address and looks up a city from it. `"infer_ip": "never"`
+stops the first. The empty `user.geo` stops the second: Sentry only looks up a location for events
+that have none, and its "Prevent Storing of IP Addresses" setting does not stop the lookup.
+
 "Sanitized" means letters, digits, space and `. _ : + ( ) / -` only, at most 64 characters. A
 file name with anything other than letters, digits and `. _ + -` becomes `?`.
 
-Dropped, among everything else: `user` (sentry-native fills it with the installation ID), the
+Dropped, among everything else: sentry-native's `user` (the installation ID), the
 timestamp, CPU registers, trace IDs, tags, extras, breadcrumbs, the host name, and the list of
 other libraries loaded into Rostrum (it would show what else is installed, such as overlays).
 
@@ -122,6 +128,10 @@ Set these in the Sentry project so the promise in the app holds on the server to
 - **Security & Privacy → Prevent Storing of IP Addresses:** on. Reports never contain an IP
   address, but every HTTP request has one.
 - **Security & Privacy → Data Scrubber** and **Use Default Scrubbers:** on.
+- **Security & Privacy → Advanced Data Scrubbing:** add `[Remove] [Anything] from [$user.geo.**]`,
+  as a server-side backup to the empty `user.geo` Rostrum sends.
+- **Client Keys (DSN) → Rate limit:** the DSN is public inside every build, so cap it (for example
+  500 events an hour) so nobody can use up the quota.
 - **Data retention:** as short as the plan allows.
 - Upload debug symbols for each release so Rostrum's own frames get function names and lines.
 

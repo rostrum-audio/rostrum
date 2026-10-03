@@ -52,7 +52,8 @@ QJsonObject sentryEvent()
         {QStringLiteral("release"), QStringLiteral("rostrum@0.1.0")},
         {QStringLiteral("environment"), QStringLiteral("production")},
         {QStringLiteral("server_name"), QStringLiteral("alex-desktop")},
-        {QStringLiteral("user"), QJsonObject{{QStringLiteral("id"), QStringLiteral("6daf31dc-4224-4fad-0344-c33cb701c3af")}}},
+        {QStringLiteral("user"), QJsonObject{{QStringLiteral("id"), QStringLiteral("6daf31dc-4224-4fad-0344-c33cb701c3af")},
+                                             {QStringLiteral("ip_address"), QStringLiteral("{{auto}}")}}},
         {QStringLiteral("sdk"), QJsonObject{{QStringLiteral("name"), QStringLiteral("sentry.native")}, {QStringLiteral("version"), QStringLiteral("0.17.1")}}},
         {QStringLiteral("contexts"),
          QJsonObject{{QStringLiteral("os"), QJsonObject{{QStringLiteral("build"), QStringLiteral("38-generic")},
@@ -138,9 +139,14 @@ private Q_SLOTS:
         QVERIFY(!json.contains("alex"));
         QVERIFY(!json.contains("HyperX"));
         QVERIFY(!json.contains("Ubuntu 26.04.1 LTS"));
-        for (const char *key : {"user", "timestamp", "tags", "extra", "breadcrumbs", "server_name", "modules", "request"}) {
+        for (const char *key : {"timestamp", "tags", "extra", "breadcrumbs", "server_name", "modules", "request"}) {
             QVERIFY2(!report.contains(QLatin1String(key)), key);
         }
+        QVERIFY(!json.contains("auto"));
+        // Sentry must neither attach the upload's IP address nor look up a location from it.
+        QCOMPARE(report.value(QStringLiteral("user")).toObject(), (QJsonObject{{QStringLiteral("geo"), QJsonObject{}}}));
+        QCOMPARE(report.value(QStringLiteral("sdk")).toObject().value(QStringLiteral("settings")).toObject()
+                     .value(QStringLiteral("infer_ip")).toString(), QStringLiteral("never"));
         QVERIFY(!json.contains("registers"));
         QVERIFY(!json.contains("trace_id"));
         QVERIFY(!json.contains("sample_rand"));

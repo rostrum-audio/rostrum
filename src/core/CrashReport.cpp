@@ -186,9 +186,11 @@ QJsonObject scrubEvent(const QJsonObject &event)
     QJsonObject sdk;
     copySanitized(sdk, sdkIn, "name");
     copySanitized(sdk, sdkIn, "version");
-    if (!sdk.isEmpty()) {
-        out.insert(QStringLiteral("sdk"), sdk);
-    }
+    sdk.insert(QStringLiteral("settings"), QJsonObject{{QStringLiteral("infer_ip"), QStringLiteral("never")}});
+    out.insert(QStringLiteral("sdk"), sdk);
+    // Sentry looks up a location from the upload's IP address unless the event already has one,
+    // even with IP storage turned off. An empty one stops the lookup.
+    out.insert(QStringLiteral("user"), QJsonObject{{QStringLiteral("geo"), QJsonObject{}}});
 
     QJsonArray exceptions;
     for (const QJsonValue &v : event.value(QStringLiteral("exception")).toObject().value(QStringLiteral("values")).toArray()) {
