@@ -24,7 +24,10 @@ add_compile_definitions(
 )
 
 add_subdirectory(src/core)
+add_subdirectory(src/pw)
+add_subdirectory(src/engine)
 add_subdirectory(tools/rostrum-probe)
+add_subdirectory(tools/rostrum-graphtest)
 
 if(ROSTRUM_BUILD_TESTS)
     enable_testing()
