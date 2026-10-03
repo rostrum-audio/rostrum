@@ -6,6 +6,7 @@ qt_policy(SET QTP0004 NEW)
 
 qt_add_executable(rostrum
     main.cpp
+    Cli.cpp Cli.h
     CrashCapture.cpp CrashCapture.h
     DBusControl.cpp DBusControl.h
     Logging.cpp Logging.h
