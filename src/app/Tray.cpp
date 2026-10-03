@@ -17,6 +17,9 @@ QIcon trayIcon(bool muted)
     return QIcon(muted ? QStringLiteral(":/icons/" ROSTRUM_APP_ID "-tray-muted.svg")
                        : QStringLiteral(":/icons/" ROSTRUM_APP_ID "-tray.svg"));
 }
+
+// Fader travel per wheel notch (120 units) on the tray icon.
+constexpr double kScrollStep = 0.02;
 } // namespace
 
 Tray::Tray(AppController *app, QObject *parent) : QObject(parent), m_app(app)
@@ -41,10 +44,23 @@ Tray::Tray(AppController *app, QObject *parent) : QObject(parent), m_app(app)
     m_menu->addSeparator();
     m_mute = m_menu->addAction(QString());
     connect(m_mute, &QAction::triggered, m_app, &AppController::toggleMicMute);
+    m_muteStream = m_menu->addAction(QIcon::fromTheme(QStringLiteral("audio-volume-muted")),
+                                     i18nc("@action:inmenu", "Mute Stream"));
+    m_muteStream->setCheckable(true);
+    connect(m_muteStream, &QAction::triggered, this, [this] {
+        m_app->runAction(QString::fromLatin1(actions::kMuteStream), AppController::Origin::Tray);
+    });
+    m_menu->addSeparator();
+    m_previous = m_menu->addAction(QIcon::fromTheme(QStringLiteral("go-previous")),
+                                   i18nc("@action:inmenu", "Previous Scene"));
+    connect(m_previous, &QAction::triggered, this, [this] {
+        m_app->runAction(QString::fromLatin1(actions::kPrevScene), AppController::Origin::Tray);
+    });
     m_next =
         m_menu->addAction(QIcon::fromTheme(QStringLiteral("go-next")), i18nc("@action:inmenu", "Next Scene"));
-    connect(m_next, &QAction::triggered, this,
-            [this] { m_app->triggerAction(QString::fromLatin1(actions::kNextScene)); });
+    connect(m_next, &QAction::triggered, this, [this] {
+        m_app->runAction(QString::fromLatin1(actions::kNextScene), AppController::Origin::Tray);
+    });
     m_scenesMenu = m_menu->addMenu(QIcon::fromTheme(QStringLiteral("view-media-playlist")),
                                    i18nc("@title:menu", "Scenes"));
     m_menu->addSeparator();
@@ -52,6 +68,20 @@ Tray::Tray(AppController *app, QObject *parent) : QObject(parent), m_app(app)
                                       i18nc("@action:inmenu", "Quit"));
     connect(quit, &QAction::triggered, m_app, &AppController::quit);
     m_item->setContextMenu(m_menu);
+
+    connect(m_item, &KStatusNotifierItem::secondaryActivateRequested, this, [this] {
+        if (m_app->hasMic()) {
+            m_app->toggleMicMute();
+        }
+    });
+    connect(m_item, &KStatusNotifierItem::scrollRequested, this,
+            [this](int delta, Qt::Orientation orientation) {
+                if (orientation != Qt::Vertical || !m_app->connected()) {
+                    return;
+                }
+                auto *engine = m_app->engine();
+                engine->setMasterStream(engine->scene().masterStream + kScrollStep * delta / 120.0);
+            });
 
     connect(m_app, &AppController::levelsChanged, this, &Tray::updateState);
     connect(m_app, &AppController::devicesChanged, this, &Tray::updateState);
@@ -85,13 +115,17 @@ void Tray::updateState()
         m_lastMuted = muted;
         m_iconSet = true;
     }
+    const bool streamMuted = m_app->engine()->effectiveStreamMuted();
     const QString mic = !m_app->connected() ? i18nc("@info:tooltip", "PipeWire missing")
                         : !m_app->hasMic() ? i18nc("@info:tooltip", "No mic")
                         : muted          ? i18nc("@info:tooltip", "Mic muted")
                                          : i18nc("@info:tooltip", "Mic live");
     // Levels change many times a second while a fader moves; only talk to the tray host on news.
     const QString tip =
-        i18nc("@info:tooltip mic state, scene name", "%1 · Scene: %2", mic, m_app->currentScene());
+        m_app->connected() && streamMuted
+            ? i18nc("@info:tooltip mic state, scene name", "%1 · Stream muted · Scene: %2", mic,
+                    m_app->currentScene())
+            : i18nc("@info:tooltip mic state, scene name", "%1 · Scene: %2", mic, m_app->currentScene());
     if (tip != m_item->toolTipSubTitle()) {
         m_item->setToolTipSubTitle(tip);
     }
@@ -102,7 +136,10 @@ void Tray::updateState()
     m_mute->setIcon(QIcon::fromTheme(muted ? QStringLiteral("microphone-sensitivity-high")
                                            : QStringLiteral("microphone-sensitivity-muted")));
     m_mute->setEnabled(m_app->hasMic());
+    m_muteStream->setChecked(streamMuted);
+    m_muteStream->setEnabled(m_app->connected());
     const bool scenes = m_app->sceneNames().size() > 1;
+    m_previous->setEnabled(scenes && m_app->connected());
     m_next->setEnabled(scenes && m_app->connected());
     m_scenesMenu->setEnabled(m_app->connected());
 }
