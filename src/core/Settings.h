@@ -78,6 +78,8 @@ struct Settings
     int setupVersion = 0;
     bool launchAtLogin = false;
     bool startInTray = false;
+    bool closeToTray = true;     // closing the window hides it while a tray is shown
+    bool minimizeToTray = false; // minimizing hides it to the tray instead of the task bar
     bool autoSaveScenes = true; // level changes save to the live scene by themselves
     bool confirmSceneSwitch = false; // only asked while auto-save is off
     bool scrollToAdjust = true;

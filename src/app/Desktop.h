@@ -26,6 +26,9 @@ class Desktop : public QObject
     Q_PROPERTY(bool trayAvailable READ trayAvailable NOTIFY trayChanged)
     Q_PROPERTY(bool launchAtLogin READ launchAtLogin WRITE setLaunchAtLogin NOTIFY changed)
     Q_PROPERTY(bool startInTray READ startInTray WRITE setStartInTray NOTIFY changed)
+    // Only while a tray is shown; without one, closing quits and minimizing minimizes.
+    Q_PROPERTY(bool closeToTray READ closeToTray WRITE setCloseToTray NOTIFY changed)
+    Q_PROPERTY(bool minimizeToTray READ minimizeToTray WRITE setMinimizeToTray NOTIFY changed)
     // Hide the window at launch: start in tray is on, a tray exists and the wizard is done.
     Q_PROPERTY(bool startHidden READ startHidden CONSTANT)
     // "kglobalaccel", "portal" or "none"
@@ -46,6 +49,10 @@ public:
     void setLaunchAtLogin(bool on);
     bool startInTray() const;
     void setStartInTray(bool on);
+    bool closeToTray() const;
+    void setCloseToTray(bool on);
+    bool minimizeToTray() const;
+    void setMinimizeToTray(bool on);
     bool startHidden() const { return m_startHidden; }
     QString shortcutBackend() const;
     // A stream started with a problem: `body` says what it is.
@@ -55,10 +62,14 @@ Q_SIGNALS:
     void trayChanged();
     void changed();
 
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
 private Q_SLOTS:
     void checkTray();
 
 private:
+    void hideMinimized();
     void applyHotkeys();
     void notifyHeadphonesLost(const QString &description);
     // Replaces the earlier notification with the same `id`, and stores the new id there.

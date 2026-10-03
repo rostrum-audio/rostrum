@@ -39,6 +39,25 @@ QQC2.ScrollView {
             }
             FormCard.FormDelegateSeparator {}
             FormCard.FormSwitchDelegate {
+                text: i18nc("@option:check", "Hide to tray when closed")
+                description: !Desktop.trayAvailable ? i18n("Needs a system tray. Without one, closing the window quits Rostrum.")
+                           : checked ? i18n("Closing the window keeps Rostrum running in the tray, with hotkeys working.")
+                                     : i18n("Closing the window quits Rostrum. Audio keeps flowing through the mix, but hotkeys stop.")
+                enabled: Desktop.trayAvailable
+                checked: Desktop.closeToTray
+                onToggled: Desktop.closeToTray = checked
+            }
+            FormCard.FormDelegateSeparator {}
+            FormCard.FormSwitchDelegate {
+                text: i18nc("@option:check", "Hide to tray when minimized")
+                description: Desktop.trayAvailable ? i18n("Minimizing the window hides it from the task bar. Click the tray icon to show it.")
+                                                   : i18n("Needs a system tray, and this desktop does not show one.")
+                enabled: Desktop.trayAvailable
+                checked: Desktop.minimizeToTray
+                onToggled: Desktop.minimizeToTray = checked
+            }
+            FormCard.FormDelegateSeparator {}
+            FormCard.FormSwitchDelegate {
                 text: i18nc("@option:check", "Save scene changes automatically")
                 description: i18n("Fader, mute and destination changes save to the live scene a moment after you make them. Turn off to keep scenes fixed until you press Save.")
                 checked: Preferences.autoSaveScenes
@@ -83,7 +102,7 @@ QQC2.ScrollView {
             FormCard.FormDelegateSeparator {}
             FormCard.FormButtonDelegate {
                 text: i18nc("@action:button", "Quit Rostrum")
-                description: Desktop.trayAvailable ? i18n("Closing the window keeps Rostrum in the tray. After quitting, audio keeps flowing through the mix, but hotkeys and the tray stop.")
+                description: Desktop.trayAvailable ? i18n("After quitting, audio keeps flowing through the mix, but hotkeys and the tray stop.")
                                                    : i18n("Audio keeps flowing through the mix, but hotkeys stop.")
                 icon.name: "application-exit"
                 onClicked: App.quit()

@@ -44,14 +44,13 @@ Kirigami.ApplicationWindow {
     onHeightChanged: if (visibility === Window.Windowed) App.windowHeight = height
     onClosing: close => {
         App.saveSettingsNow()
-        if (Desktop.trayAvailable) {
+        if (Desktop.trayAvailable && Desktop.closeToTray) {
             close.accepted = false
             root.hide()
         } else {
             App.quit()
         }
     }
-
     Connections {
         target: App
         function onToast(message) {

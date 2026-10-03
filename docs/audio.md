@@ -503,7 +503,13 @@ with OBS closed, edits OBS's scene collection after backing it up.
 ## Desktop integration
 
 - Tray: a StatusNotifierItem, shown only when a tray host is registered
-  (`org.kde.StatusNotifierWatcher`). Without a tray, closing the window quits instead of hiding.
+  (`org.kde.StatusNotifierWatcher`). Closing the window hides it to the tray (`[general]
+  close_to_tray = true`); off, or without a tray, closing quits. With `minimize_to_tray = true`
+  (default off), minimizing hides the window to the tray too. X11 reports minimizing as a window
+  state; Wayland does not, so there Rostrum takes "the active window stopped being shown" as a
+  minimize. A switch to another virtual desktop also stops showing it, but takes focus away
+  first, so it is left alone. Minimizing an inactive window (from a task bar menu) just
+  minimizes.
   The menu has Mute Mic, Mute Stream, Previous Scene, Next Scene, a Scenes submenu, Restart Rostrum
   and Quit.
 - Restart (tray, or Settings → General): quits as Quit does, then starts the same program again

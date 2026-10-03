@@ -224,6 +224,10 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
    the header button turns back too. The tray, the header and the hotkey drive the same state.
 3. Close the window with the title bar button. Rostrum stays in the tray (`pgrep rostrum`), and
    audio keeps flowing. Left-click the tray icon: the window comes back. Tray menu → Quit exits.
+   Turn off Settings → General → "Hide to tray when closed" and close the window: Rostrum quits.
+   Turn on "Hide to tray when minimized" and minimize from the title bar or the task bar: the
+   window leaves the task bar and the tray icon brings it back, not minimized. Switch virtual
+   desktops with the window open: it stays where it is.
 4. Settings → Hotkeys: each row is plain (no warning). System Settings → Keyboard → Shortcuts
    lists Rostrum with the same eight actions. Press Meta+Alt+M with another app focused: the mic
    mutes. Rebind "Mute mic" to Meta+D (Peek at Desktop): the row warns that KWin already uses it,

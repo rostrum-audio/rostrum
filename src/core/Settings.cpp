@@ -181,6 +181,8 @@ QString serializeSettings(const Settings &s)
              {"setup_version", s.setupVersion},
              {"launch_at_login", s.launchAtLogin},
              {"start_in_tray", s.startInTray},
+             {"close_to_tray", s.closeToTray},
+             {"minimize_to_tray", s.minimizeToTray},
              {"auto_save_scenes", s.autoSaveScenes},
              {"confirm_scene_switch", s.confirmSceneSwitch},
              {"scroll_to_adjust", s.scrollToAdjust},
@@ -252,6 +254,8 @@ Settings parseSettings(const QString &text, QString *error)
     s.setupVersion = int(get<int64_t>(t, "general", "setup_version", s.wizardDone ? 1 : 0));
     s.launchAtLogin = get(t, "general", "launch_at_login", s.launchAtLogin);
     s.startInTray = get(t, "general", "start_in_tray", s.startInTray);
+    s.closeToTray = get(t, "general", "close_to_tray", s.closeToTray);
+    s.minimizeToTray = get(t, "general", "minimize_to_tray", s.minimizeToTray);
     s.autoSaveScenes = get(t, "general", "auto_save_scenes", s.autoSaveScenes);
     s.confirmSceneSwitch = get(t, "general", "confirm_scene_switch", s.confirmSceneSwitch);
     s.scrollToAdjust = get(t, "general", "scroll_to_adjust", s.scrollToAdjust);

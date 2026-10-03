@@ -148,6 +148,38 @@ void Desktop::setWindow(QQuickWindow *window)
     if (m_tray) {
         m_tray->setWindow(window);
     }
+    if (window) {
+        window->installEventFilter(this);
+    }
+}
+
+bool Desktop::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == m_window && m_tray && m_app->settings().minimizeToTray && m_window->isVisible()) {
+        // X11 reports minimizing as a window state. Wayland does not: the compositor only stops
+        // showing the window, as it also does on a switch to another virtual desktop. Minimizing
+        // happens to the active window, while a desktop switch takes focus away first.
+        const bool minimized =
+            (event->type() == QEvent::WindowStateChange && (m_window->windowStates() & Qt::WindowMinimized)) ||
+            (event->type() == QEvent::Expose && !m_window->isExposed() && m_window->isActive() &&
+             QGuiApplication::platformName() == QLatin1String("wayland"));
+        if (minimized) {
+            QMetaObject::invokeMethod(this, &Desktop::hideMinimized, Qt::QueuedConnection);
+        }
+    }
+    return QObject::eventFilter(watched, event);
+}
+
+void Desktop::hideMinimized()
+{
+    if (!m_window || !m_window->isVisible()) {
+        return;
+    }
+    qCDebug(lcDesktop) << "minimized: hiding to the tray";
+    m_app->saveSettingsNow();
+    // Shown again from the tray, the window comes back as it was before, not minimized.
+    m_window->setWindowStates(m_window->windowStates() & ~Qt::WindowMinimized);
+    m_window->hide();
 }
 
 void Desktop::checkTray()
@@ -203,6 +235,36 @@ void Desktop::setStartInTray(bool on)
         return;
     }
     m_app->settings().startInTray = on;
+    m_app->saveSettingsSoon();
+    Q_EMIT changed();
+}
+
+bool Desktop::closeToTray() const
+{
+    return m_app->settings().closeToTray;
+}
+
+void Desktop::setCloseToTray(bool on)
+{
+    if (m_app->settings().closeToTray == on) {
+        return;
+    }
+    m_app->settings().closeToTray = on;
+    m_app->saveSettingsSoon();
+    Q_EMIT changed();
+}
+
+bool Desktop::minimizeToTray() const
+{
+    return m_app->settings().minimizeToTray;
+}
+
+void Desktop::setMinimizeToTray(bool on)
+{
+    if (m_app->settings().minimizeToTray == on) {
+        return;
+    }
+    m_app->settings().minimizeToTray = on;
     m_app->saveSettingsSoon();
     Q_EMIT changed();
 }
