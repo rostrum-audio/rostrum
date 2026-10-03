@@ -110,7 +110,7 @@ QString Scene::summary() const
         }
         parts << QStringLiteral("%1 → %2").arg(b.name, b.destination == Destination::Stream
                                                            ? QStringLiteral("Stream")
-                                                           : QStringLiteral("Phones"));
+                                                           : QStringLiteral("Headphones"));
     }
     if (const Bus *mic = micBus(); mic && mic->muted) {
         parts << QStringLiteral("mic muted");

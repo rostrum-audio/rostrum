@@ -42,6 +42,9 @@ qt_add_qml_module(rostrum
         qml/PlainSlider.qml
         qml/PeakMeter.qml
         qml/DestinationControl.qml
+        qml/StripToggle.qml
+        qml/StreamDot.qml
+        qml/Chevron.qml
         qml/AppChip.qml
         qml/ColorPopup.qml
         qml/AppsPage.qml

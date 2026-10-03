@@ -54,7 +54,7 @@ QQC2.ScrollView {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     opacity: 0.7
-                    text: i18n("Where you hear the mix. Buses set to Phones or Both play here.")
+                    text: i18n("Where you hear the mix. Buses set to Headphones or Both play here.")
                 }
                 DeviceList {
                     Layout.fillWidth: true

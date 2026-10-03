@@ -4,7 +4,7 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import Rostrum
 
-// "Scene: Live ⌄" with a dot while faders have moved since the last save.
+// "SCENE Live ⌄" pill with a dot while faders have moved since the last save.
 QQC2.ToolButton {
     id: button
 
@@ -20,11 +20,29 @@ QQC2.ToolButton {
     Accessible.name: i18nc("@action:button", "Scene")
     Accessible.description: App.sceneDirty ? i18n("%1, unsaved fader moves", App.currentScene) : App.currentScene
 
+    hoverEnabled: true
+    leftPadding: Kirigami.Units.largeSpacing * 1.5
+    rightPadding: Kirigami.Units.largeSpacing * 1.5
+    topPadding: Kirigami.Units.smallSpacing * 1.5
+    bottomPadding: Kirigami.Units.smallSpacing * 1.5
+
+    background: Rectangle {
+        radius: height / 2
+        color: button.down ? Qt.alpha(Kirigami.Theme.textColor, 0.16)
+             : button.hovered ? Qt.alpha(Kirigami.Theme.textColor, 0.1)
+             : Qt.alpha(Kirigami.Theme.textColor, 0.05)
+        border.width: button.visualFocus ? 2 : 1
+        border.color: button.visualFocus ? Kirigami.Theme.focusColor : Qt.alpha(Kirigami.Theme.textColor, 0.15)
+    }
+
     contentItem: RowLayout {
-        spacing: Kirigami.Units.smallSpacing
+        spacing: Kirigami.Units.smallSpacing * 1.5
         QQC2.Label {
-            text: i18nc("@label followed by the scene name", "Scene:")
-            opacity: 0.7
+            text: i18nc("@label followed by the scene name", "Scene")
+            font.pointSize: Kirigami.Theme.smallFont.pointSize
+            font.capitalization: Font.AllUppercase
+            font.letterSpacing: 0.8
+            opacity: 0.6
         }
         QQC2.Label {
             text: App.currentScene
@@ -44,10 +62,11 @@ QQC2.ToolButton {
                 id: dotHover
             }
         }
-        Kirigami.Icon {
-            source: "arrow-down"
-            implicitWidth: Kirigami.Units.iconSizes.small
-            implicitHeight: implicitWidth
+        Chevron {
+            Layout.alignment: Qt.AlignVCenter
+            Layout.leftMargin: 2
+            opacity: 0.75
+            up: menu.visible
         }
     }
 

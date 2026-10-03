@@ -4,7 +4,7 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import Rostrum
 
-// One bus: color bar and name, meter and fader, M/S, destination, app chips. The mic strip
+// One bus: color band and name, meter and fader, M/S, destination, app chips. The mic strip
 // shows gain instead, takes no app drops and hides sidetone behind an expander.
 QQC2.Control {
     id: strip
@@ -36,27 +36,29 @@ QQC2.Control {
     }
 
     implicitWidth: Kirigami.Units.gridUnit * 8
-    leftPadding: Kirigami.Units.smallSpacing + 4 + Kirigami.Units.smallSpacing
-    rightPadding: Kirigami.Units.smallSpacing
-    topPadding: Kirigami.Units.smallSpacing
-    bottomPadding: Kirigami.Units.smallSpacing
+    leftPadding: Kirigami.Units.smallSpacing * 2
+    rightPadding: Kirigami.Units.smallSpacing * 2
+    topPadding: Kirigami.Units.smallSpacing * 2 + 3
+    bottomPadding: Kirigami.Units.smallSpacing * 2
 
     Kirigami.Theme.colorSet: Kirigami.Theme.View
     Kirigami.Theme.inherit: false
 
     background: Rectangle {
-        radius: Kirigami.Units.cornerRadius
-        color: strip.isInput ? Qt.alpha(strip.busColor, 0.06) : Kirigami.Theme.backgroundColor
+        radius: Kirigami.Units.cornerRadius * 1.5
+        color: strip.isInput ? Qt.tint(Kirigami.Theme.backgroundColor, Qt.alpha(strip.busColor, 0.05))
+                             : Kirigami.Theme.backgroundColor
         border.width: strip.dropHover ? 2 : 1
-        border.color: strip.dropHover ? Kirigami.Theme.highlightColor : Qt.alpha(Kirigami.Theme.textColor, 0.15)
+        border.color: strip.dropHover ? Kirigami.Theme.highlightColor : Qt.alpha(Kirigami.Theme.textColor, 0.12)
 
         Rectangle {
             anchors.left: parent.left
+            anchors.right: parent.right
             anchors.top: parent.top
-            anchors.bottom: parent.bottom
             anchors.margins: 1
-            width: 4
-            radius: 2
+            height: 3
+            topLeftRadius: Kirigami.Units.cornerRadius * 1.5 - 1
+            topRightRadius: Kirigami.Units.cornerRadius * 1.5 - 1
             color: strip.busColor
         }
     }
@@ -71,6 +73,8 @@ QQC2.Control {
             Kirigami.Icon {
                 visible: strip.isInput
                 source: "audio-input-microphone"
+                isMask: true
+                color: Kirigami.Theme.textColor
                 implicitWidth: Kirigami.Units.iconSizes.small
                 implicitHeight: implicitWidth
             }
@@ -119,7 +123,7 @@ QQC2.Control {
             implicitHeight: stateLabel.implicitHeight
             QQC2.Label {
                 id: stateLabel
-                font.pointSize: Kirigami.Theme.smallFont.pointSize
+                font: Kirigami.Theme.smallFont
                 text: strip.muted ? i18nc("@info:status", "Muted")
                     : strip.dimmed ? i18nc("@info:status", "Dimmed by solo")
                     : strip.soloed ? i18nc("@info:status", "Solo")
@@ -128,7 +132,6 @@ QQC2.Control {
                 color: strip.muted ? Kirigami.Theme.negativeTextColor
                      : strip.soloed ? Kirigami.Theme.neutralTextColor
                      : Kirigami.Theme.disabledTextColor
-                font.weight: strip.muted || strip.soloed ? Font.Bold : Font.Normal
             }
         }
 
@@ -141,7 +144,11 @@ QQC2.Control {
                 Layout.fillWidth: true
             }
             PeakMeter {
+                id: meter
                 Layout.fillHeight: true
+                // Lines the lit track up with the fader groove; the clip mark sits just above it.
+                Layout.topMargin: Math.max(0, fader.topPadding + fader.capHeight / 2 - meter.clipSize - 1)
+                Layout.bottomMargin: fader.bottomPadding + fader.capHeight / 2
                 value: strip.peak
                 clip: strip.clip
                 color: strip.busColor
@@ -150,9 +157,10 @@ QQC2.Control {
             Fader {
                 id: fader
                 Layout.fillHeight: true
-                Layout.preferredWidth: 48
+                Layout.preferredWidth: Kirigami.Units.gridUnit * 3.2
                 Layout.minimumHeight: Kirigami.Units.gridUnit * 4
                 orientation: Qt.Vertical
+                accentColor: strip.busColor
                 to: strip.isInput ? 1.5 : 1.0
                 value: strip.volume
                 dimmed: strip.muted || strip.dimmed
@@ -178,41 +186,31 @@ QQC2.Control {
         QQC2.Label {
             Layout.alignment: Qt.AlignHCenter
             text: Mixer.formatDb(strip.volume)
-            font: Kirigami.Theme.smallFont
+            font.features: { "tnum": 1 }
             opacity: (Mixer.showDb || fader.hovered || fader.activeFocus) ? 0.8 : 0
         }
 
         RowLayout {
             Layout.fillWidth: true
             spacing: Kirigami.Units.smallSpacing
-            QQC2.Button {
+            StripToggle {
                 Layout.fillWidth: true
                 text: i18nc("@action:button short for mute", "M")
-                checkable: true
-                checked: strip.muted
+                on: strip.muted
+                activeColor: Kirigami.Theme.negativeTextColor
                 Accessible.name: i18nc("@action:button accessible", "%1 mute", strip.name)
                 QQC2.ToolTip.text: strip.muted ? i18nc("@info:tooltip", "Unmute (M)") : i18nc("@info:tooltip", "Mute (M)")
-                QQC2.ToolTip.visible: hovered
-                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
-                onClicked: {
-                    checked = Qt.binding(() => strip.muted)
-                    Mixer.toggleMuted(strip.busId)
-                }
+                onClicked: Mixer.toggleMuted(strip.busId)
             }
-            QQC2.Button {
+            StripToggle {
                 Layout.fillWidth: true
                 visible: !strip.isInput
                 text: i18nc("@action:button short for solo", "S")
-                checkable: true
-                checked: strip.soloed
+                on: strip.soloed
+                activeColor: Kirigami.Theme.neutralTextColor
                 Accessible.name: i18nc("@action:button accessible", "%1 solo", strip.name)
                 QQC2.ToolTip.text: i18nc("@info:tooltip", "Solo (S). Not saved in the scene.")
-                QQC2.ToolTip.visible: hovered
-                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
-                onClicked: {
-                    checked = Qt.binding(() => strip.soloed)
-                    Mixer.toggleSolo(strip.busId)
-                }
+                onClicked: Mixer.toggleSolo(strip.busId)
             }
         }
 
@@ -248,14 +246,24 @@ QQC2.Control {
                 text: i18nc("@action:button more apps", "+%1 more", strip.apps.length - strip.maxChips)
                 onClicked: strip.overflowRequested(strip.busId)
             }
-            QQC2.Label {
+            Rectangle {
                 visible: strip.apps.length === 0
                 Layout.fillWidth: true
-                text: i18nc("@info placeholder", "Drop an app here")
-                font: Kirigami.Theme.smallFont
-                color: Kirigami.Theme.disabledTextColor
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.Wrap
+                implicitHeight: Kirigami.Units.gridUnit * 2.2
+                radius: Kirigami.Units.cornerRadius
+                color: strip.dropHover ? Qt.alpha(Kirigami.Theme.highlightColor, 0.12) : "transparent"
+                border.width: 1
+                border.color: strip.dropHover ? Kirigami.Theme.highlightColor : Qt.alpha(Kirigami.Theme.textColor, 0.15)
+                QQC2.Label {
+                    anchors.fill: parent
+                    anchors.margins: Kirigami.Units.smallSpacing
+                    text: i18nc("@info placeholder", "Drop an app here")
+                    font: Kirigami.Theme.smallFont
+                    color: Kirigami.Theme.disabledTextColor
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    wrapMode: Text.Wrap
+                }
             }
             Item {
                 Layout.fillHeight: true
@@ -269,15 +277,43 @@ QQC2.Control {
             Layout.preferredHeight: Kirigami.Units.gridUnit * 4.6
             spacing: 2
 
-            QQC2.ToolButton {
+            QQC2.AbstractButton {
+                id: sidetoneToggle
                 Layout.fillWidth: true
                 text: i18nc("@action:button", "Sidetone")
-                icon.name: strip.expanded ? "arrow-up" : "arrow-down"
-                font: Kirigami.Theme.smallFont
                 checkable: true
                 checked: strip.expanded
+                hoverEnabled: true
+                focusPolicy: Qt.StrongFocus
+                padding: Kirigami.Units.smallSpacing
                 onToggled: strip.expanded = checked
                 Accessible.name: i18nc("@action:button accessible", "Show sidetone")
+                background: Rectangle {
+                    radius: Kirigami.Units.cornerRadius
+                    color: sidetoneToggle.down ? Qt.alpha(Kirigami.Theme.textColor, 0.16)
+                         : sidetoneToggle.hovered ? Qt.alpha(Kirigami.Theme.textColor, 0.1)
+                         : "transparent"
+                    border.width: sidetoneToggle.visualFocus ? 2 : 0
+                    border.color: Kirigami.Theme.focusColor
+                }
+                contentItem: RowLayout {
+                    spacing: Kirigami.Units.smallSpacing
+                    Chevron {
+                        Layout.alignment: Qt.AlignVCenter
+                        up: strip.expanded
+                        opacity: 0.75
+                    }
+                    QQC2.Label {
+                        text: sidetoneToggle.text
+                        font: Kirigami.Theme.smallFont
+                        Layout.fillWidth: true
+                    }
+                    QQC2.Label {
+                        text: App.sidetoneEnabled ? i18nc("@info:status sidetone", "On") : i18nc("@info:status sidetone", "Off")
+                        font: Kirigami.Theme.smallFont
+                        opacity: 0.6
+                    }
+                }
             }
             QQC2.Switch {
                 visible: strip.expanded

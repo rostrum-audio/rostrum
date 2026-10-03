@@ -192,7 +192,7 @@ QQC2.Pane {
                                     Layout.fillWidth: true
                                 }
                                 QQC2.Label {
-                                    text: destination === 0 ? i18nc("destination", "Phones")
+                                    text: destination === 0 ? i18nc("destination", "Headphones")
                                         : destination === 1 ? i18nc("destination", "Stream")
                                         : i18nc("destination", "Both")
                                     opacity: 0.7

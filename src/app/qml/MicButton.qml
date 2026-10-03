@@ -40,21 +40,33 @@ QQC2.AbstractButton {
         onTapped: popup.open()
     }
 
+    readonly property bool live: !noMic && !muted
+
     background: Rectangle {
-        radius: Kirigami.Units.cornerRadius
-        color: mic.muted && !mic.noMic ? Kirigami.Theme.negativeTextColor
-             : mic.down ? Qt.alpha(Kirigami.Theme.textColor, 0.15)
-             : mic.hovered ? Qt.alpha(Kirigami.Theme.textColor, 0.08)
-             : "transparent"
+        radius: height / 2
+        color: mic.muted && !mic.noMic ? (mic.down ? Qt.darker(Kirigami.Theme.negativeTextColor, 1.15)
+                                                   : Kirigami.Theme.negativeTextColor)
+             : mic.down ? Qt.alpha(Kirigami.Theme.textColor, 0.16)
+             : mic.hovered ? Qt.alpha(Kirigami.Theme.textColor, 0.1)
+             : mic.live ? Qt.alpha(Kirigami.Theme.positiveTextColor, 0.08)
+             : Qt.alpha(Kirigami.Theme.textColor, 0.05)
         border.width: mic.visualFocus ? 2 : 1
         border.color: mic.visualFocus ? Kirigami.Theme.focusColor
                     : mic.muted && !mic.noMic ? Kirigami.Theme.negativeTextColor
-                    : Qt.alpha(Kirigami.Theme.textColor, 0.3)
+                    : mic.live ? Qt.alpha(Kirigami.Theme.positiveTextColor, 0.45)
+                    : Qt.alpha(Kirigami.Theme.textColor, 0.25)
     }
 
     contentItem: RowLayout {
-        spacing: Kirigami.Units.smallSpacing
+        spacing: Kirigami.Units.smallSpacing * 1.5
         opacity: mic.noMic ? 0.6 : 1
+        Rectangle {
+            visible: mic.live
+            implicitWidth: Kirigami.Units.smallSpacing * 2
+            implicitHeight: implicitWidth
+            radius: width / 2
+            color: Kirigami.Theme.positiveTextColor
+        }
         Kirigami.Icon {
             source: mic.noMic ? "dialog-warning" : mic.muted ? "microphone-sensitivity-muted" : "microphone-sensitivity-high"
             color: mic.muted && !mic.noMic ? "white" : Kirigami.Theme.textColor

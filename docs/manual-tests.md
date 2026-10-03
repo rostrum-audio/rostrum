@@ -16,7 +16,7 @@ $B --seconds 0         # create/adopt the mix and keep running until Ctrl-C
 1. `$B --teardown`, then `wpctl status | grep Rostrum` prints nothing.
 2. `$B --seconds 3`. It logs `creating` for nine nodes and prints `Mix ready.`
 3. `wpctl status | grep Rostrum` lists, under Sinks: Rostrum Game, Voice, Music, Alerts, Desktop,
-   Sidetone, Stream Mix, Phones Mix; under Sources: Rostrum Mic.
+   Sidetone, Stream Mix, Headphones Mix; under Sources: Rostrum Mic.
 4. The nodes are still listed after the tool exits (`object.linger`).
 5. Run `$B --seconds 2` again. It logs no `creating` lines, and the count from step 3 is unchanged
    (existing nodes are adopted, not duplicated).
@@ -226,7 +226,7 @@ nested KWin with a fake tray host, or offscreen rendering. Fake devices were nul
 | Keyboard only: F6 to the page, Tab to Game, Page Down ×2, M, 2, Ctrl+S | Saved scene has Game at 0.8, muted, destination Stream |
 | First-run wizard by mouse: Start, Next, Next, Create Mix (Test not pressed) | Mixer opens with the six default buses; `wizard_done = true`, `scenes/live.toml` written |
 | 200 % scale (`QT_SCALE_FACTOR=2`), window 1280×720 | All six strips fit, no overlapping controls |
-| Unplug the saved headset (fake), then plug it back | Banner and "PipeWire degraded"; Phones fall back to the default sink; app keeps running; routes come back and the banner clears |
+| Unplug the saved headset (fake), then plug it back | Banner and "PipeWire degraded"; Headphones fall back to the default sink; app keeps running; routes come back and the banner clears |
 | Tray | Tooltip and menu follow the mic state and scene; Mute Mic from the tray mutes the header too; Show/Hide works |
 | Close the window (KWin closes it) | App keeps running in the tray |
 | Start in tray (`--autostart`) | No window until Show |

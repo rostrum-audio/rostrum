@@ -48,7 +48,7 @@ QString Scenes::summary(const Scene &scene)
             continue;
         }
         parts << (b.destination == Destination::Stream ? i18nc("@info scene summary", "%1 → Stream", b.name)
-                                                       : i18nc("@info scene summary", "%1 → Phones", b.name));
+                                                       : i18nc("@info scene summary", "%1 → Headphones", b.name));
     }
     if (const Bus *mic = scene.micBus(); mic && mic->muted) {
         parts << i18nc("@info scene summary", "mic muted");

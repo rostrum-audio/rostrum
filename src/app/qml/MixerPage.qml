@@ -54,39 +54,34 @@ QQC2.Pane {
         visible: App.mixEnabled
         spacing: Kirigami.Units.largeSpacing
 
-        QQC2.Frame {
+        RowLayout {
             Layout.fillWidth: true
-            padding: Kirigami.Units.largeSpacing
+            spacing: Kirigami.Units.largeSpacing
 
-            RowLayout {
-                anchors.fill: parent
-                spacing: Kirigami.Units.gridUnit
-
-                MasterFader {
-                    Layout.fillWidth: true
-                    label: i18nc("@label master", "Phones")
-                    iconName: "audio-headphones"
-                    value: Mixer.masterPhones
-                    muted: Mixer.masterPhonesMuted
-                    peak: Mixer.phonesPeak
-                    clip: Mixer.phonesClip
-                    onEdited: v => Mixer.masterPhones = v
-                    onMuteToggled: Mixer.masterPhonesMuted = !Mixer.masterPhonesMuted
-                }
-                Kirigami.Separator {
-                    Layout.fillHeight: true
-                }
-                MasterFader {
-                    Layout.fillWidth: true
-                    label: i18nc("@label master", "Stream")
-                    iconName: "media-record"
-                    value: Mixer.masterStream
-                    muted: Mixer.masterStreamMuted
-                    peak: Mixer.streamPeak
-                    clip: Mixer.streamClip
-                    onEdited: v => Mixer.masterStream = v
-                    onMuteToggled: Mixer.masterStreamMuted = !Mixer.masterStreamMuted
-                }
+            MasterFader {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                label: i18nc("@label master", "Headphones")
+                caption: i18nc("@label master caption", "What you hear")
+                iconName: "audio-headphones"
+                value: Mixer.masterPhones
+                muted: Mixer.masterPhonesMuted
+                peak: Mixer.phonesPeak
+                clip: Mixer.phonesClip
+                onEdited: v => Mixer.masterPhones = v
+                onMuteToggled: Mixer.masterPhonesMuted = !Mixer.masterPhonesMuted
+            }
+            MasterFader {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                label: i18nc("@label master", "Stream")
+                caption: i18nc("@label master caption", "What your audience hears")
+                value: Mixer.masterStream
+                muted: Mixer.masterStreamMuted
+                peak: Mixer.streamPeak
+                clip: Mixer.streamClip
+                onEdited: v => Mixer.masterStream = v
+                onMuteToggled: Mixer.masterStreamMuted = !Mixer.masterStreamMuted
             }
         }
 
@@ -108,7 +103,7 @@ QQC2.Pane {
             Layout.fillWidth: true
             Layout.fillHeight: true
             orientation: ListView.Horizontal
-            spacing: Kirigami.Units.smallSpacing
+            spacing: Kirigami.Units.smallSpacing * 2
             clip: true
             boundsBehavior: Flickable.StopAtBounds
             model: Mixer.buses

@@ -48,7 +48,7 @@ QMap<QString, QString> NodeSpec::properties() const
 QList<NodeSpec> desiredNodes(const Scene &scene)
 {
     QList<NodeSpec> out;
-    out.append({QString::fromLatin1(kPhonesNode), QStringLiteral("Rostrum Phones Mix"), NodeRole::Phones});
+    out.append({QString::fromLatin1(kPhonesNode), QStringLiteral("Rostrum Headphones Mix"), NodeRole::Phones});
     out.append({QString::fromLatin1(kStreamNode), QString::fromLatin1(kStreamDescription), NodeRole::Stream});
     out.append({QString::fromLatin1(kMicNode), QString::fromLatin1(kMicDescription), NodeRole::Mic, QString(),
                 true, true});

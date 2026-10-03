@@ -36,7 +36,7 @@ machine, not the only supported system. Plasma, GNOME, and other desktops are in
 
    ![The Apps page: what is playing now, and the saved rules](docs/screenshots/apps.png)
 
-4. **Pick destinations.** Each bus goes to Phones, Stream or Both. Defaults: Music → Stream (your
+4. **Pick destinations.** Each bus goes to Headphones, Stream or Both. Defaults: Music → Stream (your
    viewers hear it, you don't), the other playback buses → Both, Mic → Stream with sidetone off.
 5. **Add Rostrum to OBS.** Open the OBS page and press **Set Up OBS**. A preview lists every
    change: your mic source switches to **Rostrum Mic**, a **Rostrum Stream Mix** source joins
@@ -60,7 +60,7 @@ Default global shortcuts, rebindable in Settings or in System Settings → Short
 | Previous / next scene | Meta+Alt+PgUp / Meta+Alt+PgDown |
 | Load scene 1–4 | Meta+Alt+1 … Meta+Alt+4 |
 
-With a fader focused: Up/Down 1 %, Page Up/Down 10 %, M mute, S solo, 1/2/3 Phones/Stream/Both.
+With a fader focused: Up/Down 1 %, Page Up/Down 10 %, M mute, S solo, 1/2/3 Headphones/Stream/Both.
 F6 moves focus between the header, the sidebar and the page.
 
 ## Defaults

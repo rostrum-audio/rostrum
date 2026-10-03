@@ -22,7 +22,7 @@ Every Rostrum node is a `support.null-audio-sink` adapter created in the PipeWir
 | Node | media.class | Channels | Description | Purpose |
 |------|-------------|----------|-------------|---------|
 | `rostrum.<bus>` | `Audio/Sink` | FL FR | `Rostrum <Name>` | One per playback bus. Apps are moved here. |
-| `rostrum.phones` | `Audio/Sink` | FL FR | `Rostrum Phones Mix` | Sum of everything bound for headphones. Volume = Master Phones. |
+| `rostrum.phones` | `Audio/Sink` | FL FR | `Rostrum Headphones Mix` | Sum of everything bound for headphones. Volume = Master Headphones. |
 | `rostrum.stream` | `Audio/Sink` | FL FR | `Rostrum Stream Mix` | Sum of everything bound for the stream. Volume = Master Stream. OBS captures its monitor. |
 | `rostrum.mic` | `Audio/Source/Virtual` | MONO | `Rostrum Mic` | The hardware mic after Rostrum's gain and mute. OBS captures this. |
 | `rostrum.sidetone` | `Audio/Sink` | MONO | `Rostrum Sidetone` | Mic monitoring into headphones. Volume = sidetone fader. |
@@ -52,7 +52,7 @@ Rostrum creates links port by port with `link-factory` (`object.linger = true`),
 
 | From | To | When |
 |------|----|------|
-| `rostrum.<bus>` monitor | `rostrum.phones` | bus destination is Phones or Both |
+| `rostrum.<bus>` monitor | `rostrum.phones` | bus destination is Headphones or Both |
 | `rostrum.<bus>` monitor | `rostrum.stream` | bus destination is Stream or Both |
 | `rostrum.phones` monitor | headphone device | always |
 | hardware mic | `rostrum.mic` | always (mute/destination act on the node, not the link) |
@@ -73,11 +73,11 @@ Fader positions are perceptual: linear gain = position³, as in pavucontrol. The
 `SPA_PROP_channelVolumes` and `SPA_PROP_mute` on the node's `Props` param.
 
 - Bus node: fader, muted if the bus is muted or dimmed by solo.
-- `rostrum.phones` / `rostrum.stream`: Master Phones / Master Stream. These multiply every bus send.
+- `rostrum.phones` / `rostrum.stream`: Master Headphones / Master Stream. These multiply every bus send.
   "Mute all playback to stream" mutes `rostrum.stream`.
 - `rostrum.mic`: mic gain (0 to 150%, 100% = 0 dB), muted if the mic is muted or the mic
   destination does not include Stream.
-- `rostrum.sidetone`: sidetone fader, muted unless the mic destination includes Phones, the mic is
+- `rostrum.sidetone`: sidetone fader, muted unless the mic destination includes Headphones, the mic is
   live, and the fader is above zero.
 
 If something else changes a Rostrum node's volume (WirePlumber's state restore, another mixer),

@@ -24,10 +24,32 @@ QQC2.ToolBar {
         anchors.fill: parent
         spacing: Kirigami.Units.largeSpacing
 
-        Kirigami.Heading {
-            level: 2
-            text: i18nc("@title app name", "Rostrum")
+        RowLayout {
+            spacing: Kirigami.Units.smallSpacing * 1.5
             Accessible.ignored: true
+
+            Image {
+                source: "qrc:/icons/dev.getrostrum.Rostrum-tray.svg"
+                sourceSize.width: Kirigami.Units.iconSizes.smallMedium * 2
+                sourceSize.height: Kirigami.Units.iconSizes.smallMedium * 2
+                Layout.preferredWidth: Kirigami.Units.iconSizes.smallMedium
+                Layout.preferredHeight: Kirigami.Units.iconSizes.smallMedium
+                smooth: true
+                mipmap: true
+            }
+            QQC2.Label {
+                text: i18nc("@title app name", "Rostrum")
+                font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.25
+                font.weight: Font.Bold
+                font.letterSpacing: -0.3
+            }
+        }
+
+        Kirigami.Separator {
+            Layout.fillHeight: true
+            Layout.topMargin: Kirigami.Units.smallSpacing
+            Layout.bottomMargin: Kirigami.Units.smallSpacing
+            Layout.leftMargin: Kirigami.Units.smallSpacing
         }
 
         SceneSwitcher {
