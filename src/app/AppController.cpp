@@ -93,6 +93,7 @@ void AppController::start()
     m_engine.setMicDevice(m_settings.mic);
     m_engine.setAutoAssign(m_settings.autoAssign);
     m_engine.setAutoSkip(m_settings.autoSkip);
+    m_scenes.setAutoSave(m_settings.autoSaveScenes);
     m_scenes.load(m_settings.defaultScene);
     if (m_settings.wizardDone) {
         m_engine.createMix();
@@ -260,7 +261,7 @@ void AppController::requestSceneSwitch(const QString &name)
     if (name.isEmpty() || name == m_scenes.currentName()) {
         return;
     }
-    if (m_settings.confirmSceneSwitch && m_scenes.dirty()) {
+    if (m_settings.confirmSceneSwitch && !m_scenes.autoSave() && m_scenes.dirty()) {
         Q_EMIT raiseRequested();
         Q_EMIT sceneSwitchConfirmRequested(name);
         return;
@@ -410,6 +411,7 @@ void AppController::saveSettingsNow()
 
 void AppController::quit()
 {
+    m_scenes.flush();
     saveSettingsNow();
     QGuiApplication::quit();
 }

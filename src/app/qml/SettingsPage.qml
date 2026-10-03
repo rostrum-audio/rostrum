@@ -38,8 +38,17 @@ QQC2.ScrollView {
             }
             FormCard.FormDelegateSeparator {}
             FormCard.FormSwitchDelegate {
+                text: i18nc("@option:check", "Save scene changes automatically")
+                description: i18n("Fader, mute and destination changes save to the live scene a moment after you make them. Turn off to keep scenes fixed until you press Save.")
+                checked: Preferences.autoSaveScenes
+                onToggled: Preferences.autoSaveScenes = checked
+            }
+            FormCard.FormDelegateSeparator {}
+            FormCard.FormSwitchDelegate {
                 text: i18nc("@option:check", "Confirm before switching scenes")
-                description: i18n("Ask before a scene switch discards fader moves you have not saved.")
+                description: Preferences.autoSaveScenes ? i18n("Not needed while scene changes save automatically.")
+                                                        : i18n("Ask before a scene switch discards fader moves you have not saved.")
+                enabled: !Preferences.autoSaveScenes
                 checked: Preferences.confirmSceneSwitch
                 onToggled: Preferences.confirmSceneSwitch = checked
             }

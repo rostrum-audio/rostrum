@@ -17,6 +17,21 @@ QQC2.Pane {
     property string selectedName: App.currentScene
     readonly property var selected: Scenes.rows.find(r => r.name === selectedName) ?? null
 
+    Component {
+        id: presetActionComponent
+        Kirigami.Action {
+            required property var preset
+            text: i18nc("@action:inmenu scene preset", "%1…", preset.name)
+            icon.name: preset.icon
+            tooltip: preset.description
+            onTriggered: presetDialog.openPreset(preset)
+        }
+    }
+    Component.onCompleted: {
+        const items = Scenes.presets.map(p => presetActionComponent.createObject(page, { preset: p }))
+        newAction.children = Array.from(newAction.children).concat(items)
+    }
+
     Connections {
         target: Scenes
         function onChanged() {
@@ -40,11 +55,23 @@ QQC2.Pane {
                     onTriggered: applicationWindow().requestSceneSwitch(page.selectedName)
                 },
                 Kirigami.Action {
+                    id: newAction
                     text: i18nc("@action:button", "New")
                     icon.name: "list-add"
-                    onTriggered: {
-                        newDialog.except = ""
-                        newDialog.openWith(Scenes.uniqueName(i18nc("default name for a new scene", "New scene")))
+                    Kirigami.Action {
+                        text: i18nc("@action:inmenu", "Empty Scene…")
+                        icon.name: "document-new"
+                        onTriggered: {
+                            newDialog.except = ""
+                            newDialog.openWith(Scenes.uniqueName(i18nc("default name for a new scene", "New scene")))
+                        }
+                    }
+                    Kirigami.Action {
+                        separator: true
+                    }
+                    Kirigami.Action {
+                        text: i18nc("@title:menu section", "From a Preset")
+                        enabled: false
                     }
                 },
                 Kirigami.Action {
@@ -147,8 +174,9 @@ QQC2.Pane {
                                 }
                                 QQC2.Label {
                                     visible: row.modelData.isCurrent
-                                    text: App.sceneDirty ? i18nc("@info scene state", "Live, unsaved fader moves")
-                                                         : i18nc("@info scene state", "Live")
+                                    text: App.sceneDirty && !Preferences.autoSaveScenes
+                                          ? i18nc("@info scene state", "Live, unsaved fader moves")
+                                          : i18nc("@info scene state", "Live")
                                     font.pointSize: Kirigami.Theme.smallFont.pointSize
                                     font.weight: Font.DemiBold
                                     color: row.highlighted ? row.textColor : Kirigami.Theme.positiveTextColor
@@ -185,7 +213,9 @@ QQC2.Pane {
             wrapMode: Text.WordWrap
             opacity: 0.7
             font: Kirigami.Theme.smallFont
-            text: i18n("Selecting a scene does not change your mix. Press Load, or switch from the header. The default scene loads when Rostrum starts.")
+            text: Preferences.autoSaveScenes
+                  ? i18n("Selecting a scene does not change your mix. Press Load, or switch from the header. Changes to the live scene save automatically, and the default scene loads when Rostrum starts.")
+                  : i18n("Selecting a scene does not change your mix. Press Load, or switch from the header. Save keeps fader moves in the live scene, and the default scene loads when Rostrum starts.")
         }
     }
 
@@ -195,6 +225,28 @@ QQC2.Pane {
         actionText: i18nc("@action:button", "Create")
         onNameChosen: name => {
             const created = Scenes.createScene(name)
+            if (created) {
+                page.selectedName = created
+            }
+        }
+    }
+
+    SceneNameDialog {
+        id: presetDialog
+        property string presetId
+        title: i18nc("@title:dialog", "New Scene from Preset")
+        actionText: i18nc("@action:button", "Create")
+        note: i18n("Uses your current buses and app rules. Only levels, mutes and destinations come from the preset.")
+        function openPreset(preset) {
+            presetId = preset.id
+            heading = preset.name
+            description = preset.description
+            iconName = preset.icon
+            except = ""
+            openWith(Scenes.uniqueName(preset.name))
+        }
+        onNameChosen: name => {
+            const created = Scenes.createFromPreset(presetDialog.presetId, name)
             if (created) {
                 page.selectedName = created
             }

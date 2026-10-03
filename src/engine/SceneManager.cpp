@@ -17,6 +17,28 @@ SceneManager::SceneManager(Engine *engine, const QString &dir, QObject *parent)
 {
     connect(m_engine, &Engine::sceneChanged, this, &SceneManager::onEngineSceneChanged);
     connect(m_engine, &Engine::structureChanged, this, &SceneManager::onStructureChanged);
+    // Long enough that a fader drag is one write, short enough that a crash loses little.
+    m_autoSaveTimer.setSingleShot(true);
+    m_autoSaveTimer.setInterval(1000);
+    connect(&m_autoSaveTimer, &QTimer::timeout, this, &SceneManager::flush);
+}
+
+void SceneManager::setAutoSave(bool on)
+{
+    m_autoSave = on;
+    if (!on) {
+        m_autoSaveTimer.stop();
+    } else if (m_dirty) {
+        m_autoSaveTimer.start();
+    }
+}
+
+void SceneManager::flush()
+{
+    m_autoSaveTimer.stop();
+    if (m_autoSave && m_dirty && indexOf(m_current) >= 0) {
+        save();
+    }
 }
 
 void SceneManager::fail(const QString &message)
@@ -100,6 +122,7 @@ bool SceneManager::switchTo(const QString &name)
         fail(QStringLiteral("There is no scene called \"%1\".").arg(name));
         return false;
     }
+    flush();
     m_current = m_saved.at(i).name;
     m_engine->setScene(m_saved.at(i));
     m_dirty = false;
@@ -141,6 +164,9 @@ void SceneManager::onEngineSceneChanged()
     if (dirty != m_dirty) {
         m_dirty = dirty;
         Q_EMIT dirtyChanged();
+    }
+    if (m_autoSave && m_dirty) {
+        m_autoSaveTimer.start();
     }
 }
 
@@ -204,9 +230,12 @@ bool SceneManager::saveAs(const QString &name)
     return true;
 }
 
-bool SceneManager::create(const QString &name)
+bool SceneManager::create(const QString &name) { return create(defaults::scene(name)); }
+
+bool SceneManager::create(const Scene &scene)
 {
-    Scene s = defaults::scene(uniqueName(name));
+    Scene s = scene;
+    s.name = uniqueName(scene.name);
     if (!write(s)) {
         return false;
     }

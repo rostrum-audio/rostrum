@@ -1,3 +1,4 @@
+#include "core/ScenePresets.h"
 #include "core/SceneStore.h"
 #include "core/SceneToml.h"
 #include "core/Settings.h"
@@ -251,12 +252,97 @@ bus = "game"
         QCOMPARE(again.names().size(), 4);
     }
 
+    void presetsKeepStructure()
+    {
+        Scene base = sample();
+        base.bus(QStringLiteral("mic"))->volume = 0.6;
+        base.bus(QStringLiteral("game"))->name = QStringLiteral("Ranked");
+        Bus custom;
+        custom.id = QStringLiteral("extra");
+        custom.name = QStringLiteral("Soundboard");
+        custom.volume = 0.3;
+        base.buses.append(custom);
+        base = toml_io::sanitize(base);
+
+        for (const QString &id : presets::ids()) {
+            const Scene s = presets::apply(id, base);
+            QCOMPARE(s.buses.size(), base.buses.size());
+            QCOMPARE(s.rules, base.rules);
+            QCOMPARE(s.sidetoneVolume, base.sidetoneVolume);
+            QCOMPARE(s.bus(QStringLiteral("game"))->name, QStringLiteral("Ranked"));
+            QCOMPARE(s.bus(QStringLiteral("alerts"))->color, base.bus(QStringLiteral("alerts"))->color);
+            QCOMPARE(s.bus(QStringLiteral("mic"))->volume, 0.6); // mic gain is the user's, not the preset's
+            QCOMPARE(s.bus(QStringLiteral("extra"))->volume, 0.3);
+            QVERIFY(!s.masterStreamMuted);
+            QCOMPARE(s.masterPhones, 1.0);
+            QCOMPARE(toml_io::sanitize(s), s);
+        }
+
+        const Scene gaming = presets::apply(QString::fromLatin1(presets::kGaming), base);
+        QVERIFY(!gaming.bus(QStringLiteral("mic"))->muted);
+        QVERIFY(!gaming.bus(QStringLiteral("voice"))->muted);
+        QCOMPARE(gaming.bus(QStringLiteral("game"))->volume, 1.0);
+        QCOMPARE(gaming.bus(QStringLiteral("music"))->destination, Destination::Stream);
+
+        const Scene brb = presets::apply(QString::fromLatin1(presets::kBreak), base);
+        QVERIFY(brb.bus(QStringLiteral("mic"))->muted);
+        QVERIFY(brb.bus(QStringLiteral("game"))->muted);
+        QCOMPARE(brb.bus(QStringLiteral("voice"))->destination, Destination::Phones);
+
+        QCOMPARE(presets::apply(QStringLiteral("nope"), base), base);
+    }
+
+    void autoSaveWritesLevels()
+    {
+        QTemporaryDir dir;
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        engine::SceneManager scenes(&engine, dir.path());
+        scenes.setAutoSave(true);
+        scenes.load(QStringLiteral("Live"));
+        QVERIFY(scenes.saveAs(QStringLiteral("Ranked")));
+
+        engine.setBusVolume(QStringLiteral("game"), 0.2);
+        QVERIFY(scenes.dirty());
+        QTRY_VERIFY(!scenes.dirty()); // after the debounce
+        auto onDisk = [&](const QString &name) {
+            const auto all = SceneStore(dir.path()).loadAll();
+            return *std::find_if(all.begin(), all.end(), [&](const Scene &s) { return s.name == name; });
+        };
+        QCOMPARE(onDisk(QStringLiteral("Ranked")).bus(QStringLiteral("game"))->volume, 0.2);
+
+        // A switch right after a move keeps the move in the scene being left.
+        engine.setBusMuted(QStringLiteral("music"), true);
+        QVERIFY(scenes.switchTo(QStringLiteral("Live")));
+        QVERIFY(onDisk(QStringLiteral("Ranked")).bus(QStringLiteral("music"))->muted);
+        QVERIFY(!onDisk(QStringLiteral("Live")).bus(QStringLiteral("music"))->muted);
+
+        // A scene made from a preset starts from the live structure.
+        Scene preset = presets::apply(QString::fromLatin1(presets::kBreak), engine.scene());
+        preset.name = QStringLiteral("BRB");
+        QVERIFY(scenes.create(preset));
+        QVERIFY(onDisk(QStringLiteral("BRB")).bus(QStringLiteral("mic"))->muted);
+        QCOMPARE(scenes.currentName(), QStringLiteral("Live"));
+
+        // With auto-save off, moves wait for Save again.
+        scenes.setAutoSave(false);
+        engine.setBusVolume(QStringLiteral("voice"), 0.4);
+        QTest::qWait(1300);
+        QVERIFY(scenes.dirty());
+        scenes.flush();
+        QCOMPARE(onDisk(QStringLiteral("Live")).bus(QStringLiteral("voice"))->volume, 1.0);
+    }
+
     void settingsRoundTrip()
     {
         Settings s = defaultSettings();
         QCOMPARE(s.hotkeys.value(QStringLiteral("mute_mic")), QStringLiteral("Meta+Alt+M"));
         QVERIFY(s.scrollToAdjust);
         QVERIFY(!s.confirmSceneSwitch);
+        QVERIFY(s.autoSaveScenes);
+        s.autoSaveScenes = false;
+        QCOMPARE(parseSettings(serializeSettings(s)).autoSaveScenes, false);
+        s.autoSaveScenes = true;
         s.wizardDone = true;
         s.headphones = QStringLiteral("alsa_output.usb-HyperX");
         s.hotkeys[QStringLiteral("next_scene")] = QString();

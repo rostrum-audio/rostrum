@@ -104,8 +104,10 @@ Five minutes to a split stream:
 
    ![The OBS page: OBS is set up, and the list of what OBS records right now](docs/screenshots/obs.png)
 
-6. **Save the scene** (Ctrl+S or the scene menu in the header). Scenes recall every level, mute and
-   destination. Make a second one for "Just Chatting" and switch with Meta+Alt+PgDown.
+6. **Make more scenes.** Scenes recall every level, mute and destination, and changes save to the
+   live scene by themselves. On the Scenes page, **New** starts an empty scene or one from a preset
+   (Gaming, Just Chatting, Music Stream, Podcast, Be Right Back) that keeps your buses and app
+   rules. Switch with Meta+Alt+PgDown or the scene menu in the header.
 
 ### ⌨️ Shortcuts
 

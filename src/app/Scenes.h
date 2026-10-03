@@ -25,6 +25,8 @@ class Scenes : public QObject
 
     // Rows: {name, summary, isDefault, isCurrent}
     Q_PROPERTY(QVariantList rows READ rows NOTIFY changed)
+    // Rows: {id, name, description, icon}
+    Q_PROPERTY(QVariantList presets READ presets CONSTANT)
 
 public:
     Scenes(AppController *app, QObject *parent);
@@ -33,9 +35,12 @@ public:
     static Scenes *create(QQmlEngine *, QJSEngine *);
 
     QVariantList rows() const { return m_rows; }
+    QVariantList presets() const;
 
     // Each returns the resulting scene name, or empty on failure (with a toast).
     Q_INVOKABLE QString createScene(const QString &name);
+    // The live scene's buses and app rules with the preset's levels.
+    Q_INVOKABLE QString createFromPreset(const QString &presetId, const QString &name);
     Q_INVOKABLE QString duplicate(const QString &name);
     Q_INVOKABLE QString rename(const QString &oldName, const QString &newName);
     Q_INVOKABLE QString saveAs(const QString &name);

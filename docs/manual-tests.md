@@ -181,7 +181,10 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
    matched by binary.
 4. Scenes: New, Duplicate, Rename and Set as Default all update the list. Selecting a row does
    not change the mix; Load does. Export, delete a scene, then Import: it comes back, with
-   " 2" added if the name is taken.
+   " 2" added if the name is taken. New → Be Right Back… creates "Be Right Back" with your buses
+   and rules, the mic muted and Game muted; the live scene is unchanged until you Load it.
+   Move a fader, wait a second, and quit with `kill -TERM`: the scene file has the new level.
+   With "Save scene changes automatically" off, the header shows the unsaved dot again.
 5. Devices: the input meters move only while the page is open (`pw-cli ls Node | rg rostrum-meter`
    lists them only then). Picking another output moves Rostrum's headphone mix there.
 6. OBS, live: with OBS running and obs-websocket on, the page says "Connected to OBS …" and lists
@@ -217,8 +220,8 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
    and Meta+D still works inside Rostrum's window only. Press Backspace on a focused shortcut
    button: the binding clears.
 5. Make a second scene. Meta+Alt+PgDown switches to it from any app; the tray's Scenes submenu
-   checks it. With "Confirm before switching scenes" on and a fader moved, the hotkey raises the
-   window and asks first.
+   checks it. With "Save scene changes automatically" off, "Confirm before switching scenes" on
+   and a fader moved, the hotkey raises the window and asks first.
 6. Turn on "Launch at login": `~/.config/autostart/dev.getrostrum.Rostrum.desktop` exists
    and `desktop-file-validate` passes on it. Turn on "Start in tray", log out and in: Rostrum is
    in the tray with no window. Starting it from the app menu while it runs raises the window.

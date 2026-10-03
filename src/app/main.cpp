@@ -54,8 +54,10 @@ int main(int argc, char *argv[])
     rostrum::app::AppController controller(nullptr);
     QObject::connect(&service, &KDBusService::activateRequested, &controller,
                      &rostrum::app::AppController::raiseRequested);
-    QObject::connect(&app, &QCoreApplication::aboutToQuit, &controller,
-                     &rostrum::app::AppController::saveSettingsNow);
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, &controller, [&controller] {
+        controller.scenes()->flush();
+        controller.saveSettingsNow();
+    });
     controller.start();
     rostrum::app::Mixer mixer(&controller, nullptr);
     QObject::connect(&controller, &rostrum::app::AppController::settingsChanged, &mixer,

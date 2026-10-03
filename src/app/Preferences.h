@@ -20,6 +20,7 @@ class Preferences : public QObject
     QML_ELEMENT
     QML_SINGLETON
 
+    Q_PROPERTY(bool autoSaveScenes READ autoSaveScenes WRITE setAutoSaveScenes NOTIFY changed)
     Q_PROPERTY(bool confirmSceneSwitch READ confirmSceneSwitch WRITE setConfirmSceneSwitch NOTIFY changed)
     Q_PROPERTY(bool scrollToAdjust READ scrollToAdjust WRITE setScrollToAdjust NOTIFY changed)
     Q_PROPERTY(bool lowMeterSpeed READ lowMeterSpeed WRITE setLowMeterSpeed NOTIFY changed)
@@ -44,6 +45,8 @@ public:
     static Preferences *create(QQmlEngine *, QJSEngine *);
     static QString actionLabel(const QString &id);
 
+    bool autoSaveScenes() const;
+    void setAutoSaveScenes(bool on);
     bool confirmSceneSwitch() const;
     void setConfirmSceneSwitch(bool on);
     bool scrollToAdjust() const;

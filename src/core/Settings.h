@@ -39,7 +39,8 @@ struct Settings
     int setupVersion = 0;
     bool launchAtLogin = false;
     bool startInTray = false;
-    bool confirmSceneSwitch = false;
+    bool autoSaveScenes = true; // level changes save to the live scene by themselves
+    bool confirmSceneSwitch = false; // only asked while auto-save is off
     bool scrollToAdjust = true;
     // Mixer
     QString meterSpeed = QStringLiteral("normal"); // "low" or "normal"

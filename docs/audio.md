@@ -324,9 +324,16 @@ Loading is forgiving. Unreadable files are skipped with a message. Missing field
 The mic bus is always present and first, ids must be unique slugs, there are at most 12 buses, bad
 colors are replaced from the palette, levels are clamped, and rules for unknown buses are dropped.
 
-Fader moves make the scene dirty until Save. Bus renames, colors, adding or removing a bus and app
-rules are written to the current scene file right away, merged onto its saved levels, so they
-survive a quit without saving faders. Switching scenes discards unsaved fader moves.
+Bus renames, colors, adding or removing a bus and app rules are written to the current scene file
+right away, merged onto its saved levels. Levels (faders, mutes, destinations, masters, sidetone)
+are saved to the live scene one second after the last change, before a scene switch and on quit,
+while "Save scene changes automatically" is on (the default; `[general] auto_save_scenes`). With
+it off, level changes make the scene dirty until Save, and switching scenes discards them.
+
+New → From a Preset makes a scene from the live one: same buses, names, colors and app rules,
+with the preset's levels for buses that have an automatic category (Game, Voice, Music, Alerts,
+Desktop). Masters go to 0 dB, the mic keeps its gain (only Be Right Back mutes it), and buses
+without a category keep their levels. The presets live in `src/core/ScenePresets.cpp`.
 
 The log is `$XDG_STATE_HOME/rostrum/rostrum.log`.
 

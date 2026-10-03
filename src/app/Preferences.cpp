@@ -51,6 +51,14 @@ void Preferences::update(T &field, const T &value)
     Q_EMIT m_app->settingsChanged();
 }
 
+bool Preferences::autoSaveScenes() const { return m_app->settings().autoSaveScenes; }
+
+void Preferences::setAutoSaveScenes(bool on)
+{
+    update(m_app->settings().autoSaveScenes, on);
+    m_app->scenes()->setAutoSave(on);
+}
+
 bool Preferences::confirmSceneSwitch() const { return m_app->settings().confirmSceneSwitch; }
 void Preferences::setConfirmSceneSwitch(bool on) { update(m_app->settings().confirmSceneSwitch, on); }
 bool Preferences::scrollToAdjust() const { return m_app->settings().scrollToAdjust; }

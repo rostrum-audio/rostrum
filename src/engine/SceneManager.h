@@ -4,13 +4,15 @@
 #include "core/SceneStore.h"
 
 #include <QObject>
+#include <QTimer>
 
 namespace rostrum::engine {
 
 class Engine;
 
-// Saved scenes, the current scene name and the dirty flag. Fader moves stay unsaved until
-// Save; structure (bus names, colors, bus list, app rules) is written to disk right away.
+// Saved scenes, the current scene name and the dirty flag. Structure (bus names, colors, bus
+// list, app rules) is written to disk right away. Levels (faders, mutes, destinations, masters)
+// stay unsaved until Save, or, with auto-save on, are saved shortly after they stop changing.
 class SceneManager : public QObject
 {
     Q_OBJECT
@@ -33,9 +35,16 @@ public:
     bool next();
     bool previous();
 
+    // Off by default. On: level changes are saved after a short pause, and before a switch.
+    void setAutoSave(bool on);
+    bool autoSave() const { return m_autoSave; }
+    // With auto-save on, writes pending level changes now (before quitting).
+    void flush();
+
     bool save();
     bool saveAs(const QString &name);
     bool create(const QString &name); // a fresh scene with the default buses
+    bool create(const Scene &scene);  // under a unique version of scene.name
     bool duplicate(const QString &name, const QString &newName = QString());
     bool rename(const QString &oldName, const QString &newName);
     bool remove(const QString &name);
@@ -71,6 +80,8 @@ private:
     QString m_current;
     QString m_default;
     bool m_dirty = false;
+    bool m_autoSave = false;
+    QTimer m_autoSaveTimer;
     QString m_error;
     QString m_pulseFragment;
     QString m_clientFragment;

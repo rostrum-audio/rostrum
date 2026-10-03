@@ -18,7 +18,9 @@ QQC2.ToolButton {
 
     Accessible.role: Accessible.ButtonMenu
     Accessible.name: i18nc("@action:button", "Scene")
-    Accessible.description: App.sceneDirty ? i18n("%1, unsaved fader moves", App.currentScene) : App.currentScene
+    readonly property bool showDirty: App.sceneDirty && !Preferences.autoSaveScenes
+
+    Accessible.description: button.showDirty ? i18n("%1, unsaved fader moves", App.currentScene) : App.currentScene
 
     hoverEnabled: true
     leftPadding: Kirigami.Units.largeSpacing * 1.5
@@ -51,7 +53,7 @@ QQC2.ToolButton {
             Layout.maximumWidth: Kirigami.Units.gridUnit * 12
         }
         Rectangle {
-            visible: App.sceneDirty
+            visible: button.showDirty
             implicitWidth: Kirigami.Units.smallSpacing * 2
             implicitHeight: implicitWidth
             radius: width / 2
@@ -87,6 +89,8 @@ QQC2.ToolButton {
         }
         QQC2.MenuSeparator {}
         QQC2.MenuItem {
+            visible: !Preferences.autoSaveScenes
+            height: visible ? implicitHeight : 0
             text: i18nc("@action:inmenu", "Save Scene")
             icon.name: "document-save"
             onTriggered: App.saveScene()

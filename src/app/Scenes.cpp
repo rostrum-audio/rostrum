@@ -1,6 +1,7 @@
 #include "app/Scenes.h"
 
 #include "app/AppController.h"
+#include "core/ScenePresets.h"
 
 #include <KLocalizedString>
 
@@ -101,6 +102,58 @@ QString Scenes::createScene(const QString &name)
 {
     const QString n = uniqueName(name.trimmed().isEmpty() ? i18nc("default name for a new scene", "New scene") : name);
     return m_app->scenes()->create(n) ? n : QString();
+}
+
+QVariantList Scenes::presets() const
+{
+    struct Text
+    {
+        KLocalizedString name;
+        KLocalizedString description;
+        const char *icon;
+    };
+    static const QMap<QString, Text> texts = {
+        {QString::fromLatin1(rostrum::presets::kGaming),
+         {ki18nc("@item scene preset", "Gaming"),
+          ki18n("Game and voice chat on stream, music low under your voice."), "input-gaming"}},
+        {QString::fromLatin1(rostrum::presets::kChatting),
+         {ki18nc("@item scene preset", "Just Chatting"),
+          ki18n("Your voice up front with music as a bed. Game muted."), "dialog-messages"}},
+        {QString::fromLatin1(rostrum::presets::kMusic),
+         {ki18nc("@item scene preset", "Music Stream"),
+          ki18n("Music at full level on stream. Voice chat only in your headphones."), "media-playlist-audio"}},
+        {QString::fromLatin1(rostrum::presets::kPodcast),
+         {ki18nc("@item scene preset", "Podcast"),
+          ki18n("Guests on Voice at full level. Game, music and alerts muted."), "audio-input-microphone"}},
+        {QString::fromLatin1(rostrum::presets::kBreak),
+         {ki18nc("@item scene preset", "Be Right Back"),
+          ki18n("Mic muted and music on stream. Voice chat stays in your headphones."), "media-playback-pause"}},
+    };
+    QVariantList out;
+    for (const QString &id : rostrum::presets::ids()) {
+        const Text t = texts.value(id);
+        out << QVariantMap{
+            {QStringLiteral("id"), id},
+            {QStringLiteral("name"), t.name.toString()},
+            {QStringLiteral("description"), t.description.toString()},
+            {QStringLiteral("icon"), QString::fromLatin1(t.icon)},
+        };
+    }
+    return out;
+}
+
+QString Scenes::createFromPreset(const QString &presetId, const QString &name)
+{
+    if (!rostrum::presets::ids().contains(presetId)) {
+        return {};
+    }
+    if (const QString problem = nameProblem(name); !problem.isEmpty()) {
+        Q_EMIT m_app->toast(problem);
+        return {};
+    }
+    Scene s = rostrum::presets::apply(presetId, m_app->engine()->scene());
+    s.name = name.trimmed();
+    return m_app->scenes()->create(s) ? s.name : QString();
 }
 
 QString Scenes::duplicate(const QString &name)

@@ -10,6 +10,7 @@ add_library(rostrum_core STATIC
     AppFacts.cpp AppFacts.h
     DesktopEntries.cpp DesktopEntries.h
     RuleExport.cpp RuleExport.h
+    ScenePresets.cpp ScenePresets.h
     SceneToml.cpp SceneToml.h
     SceneStore.cpp SceneStore.h
     Settings.cpp Settings.h
