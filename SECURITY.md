@@ -2,7 +2,9 @@
 
 ## Reporting a vulnerability
 
-Email **security@getrostrum.dev**. Please do not open a public issue for a security problem.
+Report it privately through GitHub
+([Report a vulnerability](https://github.com/rostrum-audio/rostrum/security/advisories/new)) or by
+email to **security@getrostrum.dev**. Please do not open a public issue for a security problem.
 
 Include what you found, the Rostrum version (Settings → About), your
 distribution, and the steps to reproduce it. You will get a reply from a person, and you will be
@@ -22,5 +24,9 @@ Rostrum runs as your user and never asks for root. The areas that matter most:
 - The OBS integration: Rostrum reads the obs-websocket password from OBS's own config and only
   connects to `127.0.0.1`.
 - Parsing of scene files, imported scene bundles, and OBS scene collections.
+- Self-updates: the release feed parser, and the AppImage download, which must match its SHA-256
+  before it replaces the running file.
+- Crash reports: anything personal getting past the scrubber in `src/core/CrashReport.cpp`.
+  [docs/privacy.md](docs/privacy.md) lists what a report may contain.
 
 General questions go to **hello@getrostrum.dev**.
