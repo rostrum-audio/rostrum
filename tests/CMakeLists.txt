@@ -9,3 +9,4 @@ function(rostrum_add_test name)
 endfunction()
 
 rostrum_add_test(tst_paths)
+rostrum_add_test(tst_requirements)

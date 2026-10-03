@@ -15,6 +15,7 @@ option(ROSTRUM_BUILD_TESTS "Build unit tests" ON)
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core)
 find_package(PkgConfig REQUIRED)
 find_package(tomlplusplus 3 REQUIRED)
+pkg_check_modules(PipeWire REQUIRED IMPORTED_TARGET libpipewire-0.3>=1.0)
 
 add_compile_definitions(
     QT_NO_KEYWORDS
@@ -23,6 +24,7 @@ add_compile_definitions(
 )
 
 add_subdirectory(src/core)
+add_subdirectory(tools/rostrum-probe)
 
 if(ROSTRUM_BUILD_TESTS)
     enable_testing()
