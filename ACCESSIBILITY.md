@@ -70,7 +70,12 @@ Page Down twice, M, 2, Ctrl+S) is part of the smoke tests in
 A fader's tooltip lists its keys when it has focus. Global shortcuts (mute mic, mute all playback
 to stream, previous and next scene, load scenes 1–4) work from any app and can be rebound in
 Settings, or in System Settings → Shortcuts on Plasma. The Shortcuts section of the
-[README](README.md) lists the defaults.
+[README](README.md) lists the defaults. More actions can be bound there, including push to talk,
+panic mute, a mute for each bus and Stream volume steps. Push to talk and push to mute act while
+held; where holding keys is hard, bind Mute mic instead, or use the in-window shortcut, where
+each press turns the hold on or off. Everything a hotkey does can also be run from the command
+line (`rostrum --toggle-mic`, `rostrum --action <id>`) or over D-Bus, for switch access and
+voice-control tools.
 
 Dragging an app chip between buses is mouse-only, but there are keyboard routes to the same result:
 each chip has an options button with **Move to** and **Unassign**, and every app on the Apps page
@@ -80,6 +85,9 @@ has a button to assign it to a bus.
 
 - A muted strip says "Muted", and a strip silenced by another bus's solo says "Dimmed by solo".
 - A muted mic shows a slashed-mic badge on the tray icon, and the tray tooltip says "Mic muted".
+  A muted stream adds "Stream muted" to the tooltip.
+- A hotkey change made while the window is in the background is also given as on-screen text
+  with an icon ("Mic muted", "Scene: Live"): Plasma's OSD, or a short notification without it.
 - Meter clipping is also given in words to screen readers.
 
 ### Other

@@ -347,15 +347,75 @@ with OBS closed, edits OBS's scene collection after backing it up.
 
 - Tray: a StatusNotifierItem, shown only when a tray host is registered
   (`org.kde.StatusNotifierWatcher`). Without a tray, closing the window quits instead of hiding.
+  The menu has Mute Mic, Mute Stream, Previous Scene, Next Scene and a Scenes submenu.
+  Middle-click toggles the mic; scrolling moves the Stream master 2 % per wheel step. The tooltip
+  adds "Stream muted" while it is. Tray scene changes go through the same confirm dialog as the
+  window.
 - Global shortcuts: through KGlobalAccel when `org.kde.kglobalaccel` is running (Plasma), as the
   component `dev.getrostrum.Rostrum`, so they show up in System Settings → Keyboard → Shortcuts and
   can be rebound there too. Otherwise through the XDG GlobalShortcuts portal. A shortcut the
   desktop refuses, or one another component already owns, stays active inside the window and
   Settings says why. There is no X11 key grab.
-- The one notification is "Headphones disconnected, scene held.", sent straight to
-  `org.freedesktop.Notifications`. Mute changes never notify.
-- Offscreen runs (`QT_QPA_PLATFORM=offscreen` or `ROSTRUM_SCREENSHOT`) skip the tray, shortcuts
-  and notifications. `ROSTRUM_NO_GLOBAL_SHORTCUTS=1` skips only the shortcuts.
+- Actions (`[hotkeys]` keys, `src/core/Settings.cpp`): `mute_mic`, `mute_stream`,
+  `previous_scene`, `next_scene`, `scene_1` … `scene_8`, `push_to_talk`, `push_to_mute`,
+  `panic_mute`, `toggle_sidetone`, `mute_headphones`, `stream_volume_up`, `stream_volume_down`
+  (±5 % on the Stream master), and `mute_bus_<bus id>` for every playback bus of the saved scenes.
+  Only the first eight have default shortcuts. A bus action whose bus is not in the live scene
+  says so and does nothing.
+- Push to talk, push to mute and panic are holds in the engine, like solo: session-only, never in
+  TOML, never make the scene dirty. They change what reaches PipeWire, not the scene's mute
+  flags. Push to talk unmutes a muted mic while held; push to mute mutes it while held. Panic mutes
+  the mic and the Stream master; pressing it again lifts both holds, so the mic and stream come
+  back to what the scene says. Panic outlives a scene switch. Choosing mute or unmute for the mic
+  or the stream directly (button, tray, hotkey, D-Bus) clears the holds that contradict it. On
+  quit, holds are dropped and the scene's own mutes are applied before Rostrum disconnects.
+- Releasing a hold: KGlobalAccel reports the keys going up (`globalShortcutActiveChanged`), and
+  so does the portal (`Deactivated`). A desktop that never reports the release makes a second
+  press end the hold. Inside the window each press turns a hold on or off. Over D-Bus,
+  `PressAction`/`ReleaseAction` hold, and a hold is dropped when the caller leaves the bus.
+- On-screen feedback: when the window is not in front, a hotkey or D-Bus change to the mic, the
+  stream, panic or the scene shows Plasma's OSD (`org.kde.plasmashell /org/kde/osdService
+  showText`). Without plasmashell, a transient notification (`org.freedesktop.Notifications`,
+  urgency low, 2 s, replacing the previous one). Holds show nothing. Off with `[general]
+  osd_feedback = false` (Settings → General → "Show hotkey changes on screen").
+- The other notification is "Headphones disconnected, scene held.", sent straight to
+  `org.freedesktop.Notifications`. Changes made in the window never notify.
+- Offscreen runs (`QT_QPA_PLATFORM=offscreen` or `ROSTRUM_SCREENSHOT`) skip the tray, shortcuts,
+  notifications and on-screen feedback. `ROSTRUM_NO_GLOBAL_SHORTCUTS=1` skips only the shortcuts.
+
+### D-Bus and the command line
+
+The running instance owns `dev.getrostrum.Rostrum` (KDBusService, which also holds
+`/dev/getrostrum/Rostrum`) and exports `dev.getrostrum.Rostrum1` at
+`/dev/getrostrum/Rostrum/Control`. `data/dev.getrostrum.Rostrum1.xml` is the reference and is
+installed to `share/dbus-1/interfaces/`; `tests/dbus-control.sh` checks the live interface against
+it.
+
+| Member | What it does |
+| --- | --- |
+| `TriggerAction(s id)` | Runs an action as a shortcut press. Hold actions are refused (`Error.HoldAction`) |
+| `PressAction(s id)`, `ReleaseAction(s id)` | Start and end a hold (or press any other action) |
+| `SwitchScene(s name)` | Switches at once, name matched without case |
+| `SetBusVolume(s bus, d position)` | Fader travel 0–1, mic gain 0–1.5 |
+| `SetBusMuted(s bus, b)`, `ToggleBusMuted(s bus)` | Mute a bus, the mic or a master |
+| `SetMicMuted(b)`, `ToggleMicMute()` | The mic, as the header button |
+| `ListScenes() → as`, `ListBuses() → a(ssdb)`, `ListActions() → a(ss)` | Scene names; id, name, position, muted; id, label |
+| Properties `MicMuted`, `StreamMuted`, `Panic`, `CurrentScene`, `Connected` | Read-only, with `PropertiesChanged` |
+
+Bus arguments take a bus id or a bus name (any case), `mic`, and `stream` or `phones` for the
+masters; those two can never be bus ids. Errors are `dev.getrostrum.Rostrum1.Error.UnknownAction`,
+`NoSuchScene`, `NoSuchBus`, `InvalidValue` and `HoldAction`. Calls never open a dialog: with
+"Confirm scene switch" on, a D-Bus or command-line switch still happens at once, and with "Save
+scene changes automatically" off, unsaved moves in the scene being left are dropped, as the
+dialog's Switch button does. A script has no one to answer a dialog.
+
+`rostrum --scene`, `--action` (repeatable), `--mute-mic`, `--unmute-mic`, `--toggle-mic` and
+`--set-volume bus=level` call these methods on the running instance and exit 0 (done), 1
+(refused, with the reason on stderr) or 2 (unreachable). `--list-scenes`, `--list-actions` and
+`--list-buses` print plain lines (tab-separated fields) and, with no instance running, read the
+saved scenes without writing anything. A control option with no instance running starts Rostrum
+and applies it once the scenes are loaded. Nothing listens on the network: D-Bus is local to the
+session.
 
 ## Solo is never persisted
 

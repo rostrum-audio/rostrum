@@ -122,8 +122,38 @@ Default global shortcuts, rebindable in Settings or in System Settings → Keybo
 | Previous / next scene | Meta+Alt+PgUp / Meta+Alt+PgDown |
 | Load scene 1–4 | Meta+Alt+1 … Meta+Alt+4 |
 
+More actions are there to bind in Settings → Hotkeys, with no shortcut by default: push to talk
+and push to mute (act while the keys are held), panic mute (mic and stream at once; press again to
+bring both back), sidetone on or off, mute headphones, Stream volume up and down (5 %), load scene
+5–8, and a mute for each playback bus. Push to talk, push to mute and panic are never saved.
+When the Rostrum window is not in front, a hotkey that mutes, unmutes or switches scenes shows a
+short on-screen message (Settings → General → "Show hotkey changes on screen").
+
+The tray menu has Mute Mic, Mute Stream, Previous and Next Scene and a Scenes submenu.
+Middle-click the tray icon to mute or unmute the mic, scroll on it to change the Stream master.
+
 With a fader focused: Up/Down 1 %, Page Up/Down 10 %, M mute, S solo, 1/2/3 Headphones/Stream/Both.
 F6 moves focus between the header, the sidebar and the page.
+
+### 🎛️ Command line and D-Bus
+
+The `rostrum` command drives the running instance, for Stream Deck buttons, KDE Connect commands
+or scripts. Without a running instance, the list options read the saved scenes and the other
+options start Rostrum first.
+
+```sh
+rostrum --toggle-mic                 # also --mute-mic, --unmute-mic
+rostrum --scene "Just Chatting"
+rostrum --action panic_mute          # any id from --list-actions
+rostrum --set-volume game=0.8        # or game=80%; stream and phones are the masters
+rostrum --list-scenes                # also --list-actions, --list-buses
+```
+
+Exit status: 0 done, 1 refused (unknown scene, bus or action, bad level), 2 Rostrum could not be
+reached. The same controls are on the session bus as `dev.getrostrum.Rostrum1` at
+`/dev/getrostrum/Rostrum/Control`, described in
+[data/dev.getrostrum.Rostrum1.xml](data/dev.getrostrum.Rostrum1.xml). There is no network
+listener.
 
 ### ⚙️ Defaults
 
