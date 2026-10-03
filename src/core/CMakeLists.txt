@@ -9,6 +9,7 @@ add_library(rostrum_core STATIC
     AppClassifier.cpp AppClassifier.h
     AppFacts.cpp AppFacts.h
     DesktopEntries.cpp DesktopEntries.h
+    Remote.cpp Remote.h
     RuleExport.cpp RuleExport.h
     ScenePresets.cpp ScenePresets.h
     SceneToml.cpp SceneToml.h

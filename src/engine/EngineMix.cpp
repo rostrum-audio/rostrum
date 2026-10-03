@@ -42,7 +42,20 @@ void Engine::setBusVolume(const QString &id, double volume)
 void Engine::setBusMuted(const QString &id, bool muted)
 {
     Bus *b = m_scene.bus(id);
-    if (!b || b->muted == muted) {
+    if (!b) {
+        return;
+    }
+    bool released = false;
+    if (b->isInput()) {
+        bool &contrary = muted ? m_pushToTalk : m_pushToMute;
+        released = contrary || (!muted && m_panicMic);
+        contrary = false;
+        m_panicMic = m_panicMic && muted;
+    }
+    if (b->muted == muted) {
+        if (released) {
+            holdsChanged();
+        }
         return;
     }
     b->muted = muted;
@@ -79,6 +92,7 @@ void Engine::setMasterStream(double volume)
 
 void Engine::setMasterStreamMuted(bool muted)
 {
+    m_panicStream = m_panicStream && muted;
     m_scene.masterStreamMuted = muted;
     levelChanged();
 }
@@ -151,6 +165,62 @@ void Engine::clearSolo()
     Q_EMIT soloChanged();
     Q_EMIT levelsChanged();
     scheduleReconcile();
+}
+
+// ---- holds ------------------------------------------------------------------------------
+
+void Engine::holdsChanged()
+{
+    Q_EMIT levelsChanged();
+    scheduleReconcile();
+}
+
+void Engine::setPushToTalk(bool held)
+{
+    if (m_pushToTalk != held) {
+        m_pushToTalk = held;
+        holdsChanged();
+    }
+}
+
+void Engine::setPushToMute(bool held)
+{
+    if (m_pushToMute != held) {
+        m_pushToMute = held;
+        holdsChanged();
+    }
+}
+
+void Engine::setPanic(bool on)
+{
+    if (m_panicMic == on && m_panicStream == on) {
+        return;
+    }
+    m_panicMic = on;
+    m_panicStream = on;
+    holdsChanged();
+}
+
+bool Engine::effectiveMicMuted() const
+{
+    return m_panicMic || m_pushToMute || (micMuted() && !m_pushToTalk);
+}
+
+bool Engine::effectiveStreamMuted() const
+{
+    return m_panicStream || m_scene.masterStreamMuted;
+}
+
+void Engine::releaseHolds()
+{
+    if (!m_pushToTalk && !m_pushToMute && !panic()) {
+        return;
+    }
+    m_pushToTalk = m_pushToMute = m_panicMic = m_panicStream = false;
+    Q_EMIT levelsChanged();
+    if (m_pw->state() == pw::PwContext::State::Ready) {
+        reconcileVolumes();
+    }
 }
 
 // ---- structure --------------------------------------------------------------------------
@@ -514,11 +584,12 @@ void Engine::reconcileVolumes()
         apply(b.nodeName(), b.volume, b.muted || dimmedBySolo(b.id));
     }
     apply(QString::fromLatin1(kPhonesNode), m_scene.masterPhones, m_scene.masterPhonesMuted);
-    apply(QString::fromLatin1(kStreamNode), m_scene.masterStream, m_scene.masterStreamMuted);
+    apply(QString::fromLatin1(kStreamNode), m_scene.masterStream, effectiveStreamMuted());
     if (const Bus *mic = m_scene.micBus()) {
-        apply(QString::fromLatin1(kMicNode), mic->volume, mic->muted || !feedsStream(mic->destination));
+        const bool micMuted = effectiveMicMuted();
+        apply(QString::fromLatin1(kMicNode), mic->volume, micMuted || !feedsStream(mic->destination));
         apply(QString::fromLatin1(kSidetoneNode), m_scene.sidetoneVolume,
-              mic->muted || !feedsPhones(mic->destination) || m_scene.sidetoneVolume <= 0.0);
+              micMuted || !feedsPhones(mic->destination) || m_scene.sidetoneVolume <= 0.0);
     }
     for (auto it = m_sentVolume.begin(); it != m_sentVolume.end();) {
         it = g.node(it.key()) ? std::next(it) : m_sentVolume.erase(it);

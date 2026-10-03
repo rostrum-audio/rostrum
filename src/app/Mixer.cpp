@@ -73,7 +73,7 @@ QVariant BusModel::data(const QModelIndex &index, int role) const
     case VolumeRole:
         return b->volume;
     case MutedRole:
-        return b->muted;
+        return b->isInput() ? m_engine->effectiveMicMuted() : b->muted;
     case SoloedRole:
         return m_engine->isSoloed(id);
     case DimmedRole:
@@ -263,11 +263,13 @@ void Mixer::tick()
                          : m_micMeterNode.isEmpty() ? 0.0f
                          : m_meters.takePeak(m_micMeterNode) * float(volume::faderToLinear(b->volume));
         MeterState &st = m_busMeters[id];
-        meters::advance(st, peak, b->muted || m_engine->dimmedBySolo(id), dt, now);
+        const bool muted = b->isInput() ? m_engine->effectiveMicMuted() : b->muted;
+        meters::advance(st, peak, muted || m_engine->dimmedBySolo(id), dt, now);
         m_model.setMeter(row, st.fraction, st.clip);
     }
     meters::advance(m_phones, m_meters.takePeak(QString::fromLatin1(engine::kPhonesNode)), s.masterPhonesMuted, dt, now);
-    meters::advance(m_stream, m_meters.takePeak(QString::fromLatin1(engine::kStreamNode)), s.masterStreamMuted, dt, now);
+    meters::advance(m_stream, m_meters.takePeak(QString::fromLatin1(engine::kStreamNode)),
+                    m_engine->effectiveStreamMuted(), dt, now);
     Q_EMIT metersChanged();
 }
 
@@ -277,7 +279,7 @@ bool Mixer::masterPhonesMuted() const { return m_engine->scene().masterPhonesMut
 void Mixer::setMasterPhonesMuted(bool m) { m_engine->setMasterPhonesMuted(m); }
 double Mixer::masterStream() const { return m_engine->scene().masterStream; }
 void Mixer::setMasterStream(double v) { m_engine->setMasterStream(v); }
-bool Mixer::masterStreamMuted() const { return m_engine->scene().masterStreamMuted; }
+bool Mixer::masterStreamMuted() const { return m_engine->effectiveStreamMuted(); }
 void Mixer::setMasterStreamMuted(bool m) { m_engine->setMasterStreamMuted(m); }
 bool Mixer::canAddBus() const { return m_engine->canAddBus(); }
 bool Mixer::anySolo() const { return m_engine->anySolo(); }
@@ -308,7 +310,7 @@ void Mixer::setMuted(const QString &busId, bool muted) { m_engine->setBusMuted(b
 void Mixer::toggleMuted(const QString &busId)
 {
     if (const Bus *b = m_engine->scene().bus(busId)) {
-        m_engine->setBusMuted(busId, !b->muted);
+        m_engine->setBusMuted(busId, !(b->isInput() ? m_engine->effectiveMicMuted() : b->muted));
     }
 }
 

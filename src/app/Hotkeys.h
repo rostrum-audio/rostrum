@@ -4,6 +4,7 @@
 #include <QHash>
 #include <QMap>
 #include <QObject>
+#include <QSet>
 #include <QVariantMap>
 
 class QAction;
@@ -37,7 +38,9 @@ public:
     QString problem(const QString &id) const { return m_problem.value(id); }
 
 Q_SIGNALS:
+    // A key went down. For hold actions (actions::isHold) released() follows when it goes up.
     void triggered(const QString &id);
+    void released(const QString &id);
     void statusChanged();
     // The user rebound an action in System Settings.
     void changedExternally(const QString &id, const QString &portableSequence);
@@ -46,8 +49,12 @@ private Q_SLOTS:
     void onPortalResponse(uint response, const QVariantMap &results);
     void onPortalActivated(const QDBusObjectPath &session, const QString &id, qulonglong timestamp,
                            const QVariantMap &options);
+    void onPortalDeactivated(const QDBusObjectPath &session, const QString &id, qulonglong timestamp,
+                             const QVariantMap &options);
 
 private:
+    void keyDown(const QString &id);
+    void keyUp(const QString &id);
     void applyKGlobalAccel();
     void applyPortal();
     void portalCreateSession();
@@ -63,6 +70,8 @@ private:
     QHash<QString, bool> m_global;
     QHash<QString, QString> m_problem;
     bool m_applying = false;
+    QSet<QString> m_held;
+    bool m_releaseSeen = false; // the desktop reports keys going up
 
     enum class PortalStep
     {

@@ -60,6 +60,13 @@ QQC2.ScrollView {
                 onToggled: Preferences.scrollToAdjust = checked
             }
             FormCard.FormDelegateSeparator {}
+            FormCard.FormSwitchDelegate {
+                text: i18nc("@option:check", "Show hotkey changes on screen")
+                description: i18n("When a hotkey or another app mutes the mic, sets off panic mute or switches scenes while Rostrum's window is hidden or in the background, show it briefly on screen.")
+                checked: Preferences.osdFeedback
+                onToggled: Preferences.osdFeedback = checked
+            }
+            FormCard.FormDelegateSeparator {}
             FormCard.FormButtonDelegate {
                 text: i18nc("@action:button", "Quit Rostrum")
                 description: Desktop.trayAvailable ? i18n("Closing the window keeps Rostrum in the tray. After quitting, audio keeps flowing through the mix, but hotkeys and the tray stop.")
@@ -82,64 +89,102 @@ QQC2.ScrollView {
                                : ""
                 textItem.wrapMode: Text.WordWrap
             }
-            Repeater {
-                model: Preferences.hotkeys
-                delegate: FormCard.AbstractFormDelegate {
-                    id: hotkeyRow
-                    required property var modelData
-                    readonly property string conflict: Preferences.hotkeyConflict(modelData.id, modelData.shortcut)
-                    Layout.fillWidth: true
-                    background: null
-                    focusPolicy: Qt.NoFocus
-                    contentItem: RowLayout {
-                        spacing: Kirigami.Units.largeSpacing
-                        ColumnLayout {
+            FormCard.FormTextDelegate {
+                text: i18n("Push to talk and push to mute act while the keys are held. Where the desktop does not report the keys going up, and in the window, each press turns them on or off instead.")
+                textItem.wrapMode: Text.WordWrap
+                textItem.font: Kirigami.Theme.smallFont
+                textItem.opacity: 0.7
+            }
+        }
+
+        Repeater {
+            model: [
+                { group: "mic", title: i18nc("@title:group hotkeys", "Mic") },
+                { group: "stream", title: i18nc("@title:group hotkeys", "Stream and Headphones") },
+                { group: "scenes", title: i18nc("@title:group hotkeys", "Scenes") },
+                { group: "buses", title: i18nc("@title:group hotkeys", "Buses") }
+            ]
+            delegate: ColumnLayout {
+                id: hotkeyGroup
+                required property var modelData
+                readonly property var rows: Preferences.hotkeys.filter(row => row.group === modelData.group)
+                visible: rows.length > 0
+                Layout.fillWidth: true
+                spacing: 0
+
+                FormCard.FormHeader {
+                    title: hotkeyGroup.modelData.title
+                }
+                FormCard.FormCard {
+                    Repeater {
+                        model: hotkeyGroup.rows
+                        delegate: FormCard.AbstractFormDelegate {
+                            id: hotkeyRow
+                            required property var modelData
+                            readonly property string conflict: Preferences.hotkeyConflict(modelData.id, modelData.shortcut)
                             Layout.fillWidth: true
-                            spacing: 0
-                            QQC2.Label {
-                                text: hotkeyRow.modelData.label
-                                Layout.fillWidth: true
-                                elide: Text.ElideRight
-                            }
-                            QQC2.Label {
-                                visible: hotkeyRow.conflict !== ""
-                                text: i18nc("@info", "Also used by “%1”", hotkeyRow.conflict)
-                                color: Kirigami.Theme.neutralTextColor
-                                font: Kirigami.Theme.smallFont
-                                Layout.fillWidth: true
-                                wrapMode: Text.WordWrap
-                            }
-                            QQC2.Label {
-                                visible: hotkeyRow.conflict === "" && hotkeyRow.modelData.problem !== ""
-                                text: hotkeyRow.modelData.problem
-                                color: Kirigami.Theme.neutralTextColor
-                                font: Kirigami.Theme.smallFont
-                                Layout.fillWidth: true
-                                wrapMode: Text.WordWrap
-                            }
-                        }
-                        KQuickControls.KeySequenceItem {
-                            keySequence: hotkeyRow.modelData.shortcut
-                            modifierlessAllowed: false
-                            multiKeyShortcutsAllowed: false
-                            onKeySequenceModified: Preferences.setHotkeySequence(hotkeyRow.modelData.id, keySequence)
-                            Keys.onPressed: event => {
-                                if (event.key === Qt.Key_Backspace && event.modifiers === Qt.NoModifier) {
-                                    Preferences.setHotkey(hotkeyRow.modelData.id, "")
-                                    event.accepted = true
+                            background: null
+                            focusPolicy: Qt.NoFocus
+                            contentItem: RowLayout {
+                                spacing: Kirigami.Units.largeSpacing
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 0
+                                    QQC2.Label {
+                                        text: hotkeyRow.modelData.label
+                                        Layout.fillWidth: true
+                                        elide: Text.ElideRight
+                                    }
+                                    QQC2.Label {
+                                        visible: text !== ""
+                                        text: hotkeyRow.modelData.description
+                                        font: Kirigami.Theme.smallFont
+                                        opacity: 0.7
+                                        Layout.fillWidth: true
+                                        wrapMode: Text.WordWrap
+                                    }
+                                    QQC2.Label {
+                                        visible: hotkeyRow.conflict !== ""
+                                        text: i18nc("@info", "Also used by “%1”", hotkeyRow.conflict)
+                                        color: Kirigami.Theme.neutralTextColor
+                                        font: Kirigami.Theme.smallFont
+                                        Layout.fillWidth: true
+                                        wrapMode: Text.WordWrap
+                                    }
+                                    QQC2.Label {
+                                        visible: hotkeyRow.conflict === "" && hotkeyRow.modelData.problem !== ""
+                                        text: hotkeyRow.modelData.problem
+                                        color: Kirigami.Theme.neutralTextColor
+                                        font: Kirigami.Theme.smallFont
+                                        Layout.fillWidth: true
+                                        wrapMode: Text.WordWrap
+                                    }
+                                }
+                                KQuickControls.KeySequenceItem {
+                                    keySequence: hotkeyRow.modelData.shortcut
+                                    modifierlessAllowed: false
+                                    multiKeyShortcutsAllowed: false
+                                    onKeySequenceModified: Preferences.setHotkeySequence(hotkeyRow.modelData.id, keySequence)
+                                    Keys.onPressed: event => {
+                                        if (event.key === Qt.Key_Backspace && event.modifiers === Qt.NoModifier) {
+                                            Preferences.setHotkey(hotkeyRow.modelData.id, "")
+                                            event.accepted = true
+                                        }
+                                    }
+                                    Accessible.name: i18nc("@label accessible", "Shortcut for %1", hotkeyRow.modelData.label)
+                                    Accessible.description: hotkeyRow.modelData.description
+                                }
+                                QQC2.ToolButton {
+                                    icon.name: "edit-undo"
+                                    text: i18nc("@action:button", "Reset to default")
+                                    display: QQC2.AbstractButton.IconOnly
+                                    enabled: hotkeyRow.modelData.shortcut !== hotkeyRow.modelData.defaultShortcut
+                                    onClicked: Preferences.resetHotkey(hotkeyRow.modelData.id)
+                                    Accessible.name: i18nc("@action:button accessible", "Reset the shortcut for %1", hotkeyRow.modelData.label)
+                                    QQC2.ToolTip.visible: hovered
+                                    QQC2.ToolTip.text: text
                                 }
                             }
-                            Accessible.name: i18nc("@label accessible", "Shortcut for %1", hotkeyRow.modelData.label)
-                        }
-                        QQC2.ToolButton {
-                            icon.name: "edit-undo"
-                            text: i18nc("@action:button", "Reset to default")
-                            display: QQC2.AbstractButton.IconOnly
-                            enabled: hotkeyRow.modelData.shortcut !== hotkeyRow.modelData.defaultShortcut
-                            onClicked: Preferences.resetHotkey(hotkeyRow.modelData.id)
-                            Accessible.name: i18nc("@action:button accessible", "Reset the shortcut for %1", hotkeyRow.modelData.label)
-                            QQC2.ToolTip.visible: hovered
-                            QQC2.ToolTip.text: text
                         }
                     }
                 }

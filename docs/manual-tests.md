@@ -237,7 +237,11 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
    in the tray with no window. Starting it from the app menu while it runs raises the window.
    Turn "Launch at login" off: the file is gone.
 7. Unplug the headset while Rostrum runs: one notification, "Headphones disconnected, scene
-   held." Mute and unmute never notify.
+   held." Mute and unmute from the window never notify.
+8. Tray menu → Mute Stream: the Stream master strip shows Muted, the item is checked, and the
+   tooltip adds "Stream muted". Previous Scene and Next Scene step through the scenes.
+   Middle-click the tray icon: the mic toggles. Scroll on the tray icon: the Stream master moves
+   a little per wheel step, and the headphones level does not.
 
 Tray, hotkeys, start in tray and close to tray were checked with a script that runs Rostrum in a
 private D-Bus session with a headless nested KWin and a fake tray host, so nothing reaches the
@@ -366,6 +370,36 @@ anything, or OBS's "Record" only for the REC steps). obs-websocket on, Rostrum s
     toast and nothing in `rostrum.log`. Opening the OBS page tries at once and shows the error.
     Kill the stand-in.
 
+## 16. Hold actions, panic, on-screen feedback, command line and D-Bus
+
+Bind Push to talk, Push to mute and Panic mute in Settings → Hotkeys (they start unbound), and
+keep a recording app (or `pw-record --target "Rostrum Stream Mix"`) on the stream so you can hear
+what reaches it. The mic path itself is test 4; do it first.
+
+1. Mute the mic. Hold Push to talk with another app focused: the header says live and the stream
+   hears you. Let go: muted again. The scene is not marked changed, and `scenes/*.toml` and
+   `settings.toml` do not change.
+2. With the mic live, hold Push to mute: muted while held, live after.
+3. Press Panic mute: Plasma's OSD says "Panic mute: mic and stream muted", and the stream hears
+   nothing, mic or apps. Switch scenes: still silent. Press Panic again: the mic and stream come
+   back as the scene has them. Quit during panic and start again: nothing is muted that the scene
+   does not mute.
+4. Bind Mute Game bus and Stream volume up, press them with the window in the background: the
+   Game strip mutes, the Stream master rises 5 % per press (and repeats while held). With the
+   Rostrum window in front, the same keys show no OSD. Turn off Settings → General → "Show hotkey
+   changes on screen": no OSD at all. Stop plasmashell (or try another desktop): a short
+   notification shows instead, each one replacing the last.
+5. From a terminal while Rostrum runs: `rostrum --toggle-mic` toggles the mic and exits 0;
+   `rostrum --scene nowhere` prints "There is no scene called" and exits 1;
+   `rostrum --set-volume game=50%` moves the Game fader; `rostrum --list-buses` prints it as
+   `game	0.50	…`. With "Confirm before switching scenes" on, `rostrum --scene <other>` switches
+   without a dialog.
+6. Quit Rostrum. `rostrum --list-scenes` still prints the scenes and starts nothing (`pgrep
+   rostrum`). `rostrum --mute-mic` starts Rostrum with the mic muted.
+7. `qdbus6 dev.getrostrum.Rostrum /dev/getrostrum/Rostrum/Control` lists the methods of
+   `data/dev.getrostrum.Rostrum1.xml`. `gdbus monitor --session --dest dev.getrostrum.Rostrum`
+   shows `PropertiesChanged` with `MicMuted` when the header mic button is pressed.
+
 ## Smoke test log
 
 Kubuntu 26.04, Plasma 6.6 Wayland, PipeWire 1.6.2, WirePlumber 0.5.13, build 0.1.0. The checks
@@ -394,7 +428,10 @@ nested KWin with a fake tray host, or offscreen rendering. Fake devices were nul
 | Fake obs-websocket server (`tst_obs`): stream, record and pause events, program scene changes, scene list changes, OBS going away | Live status follows each event and starts the LIVE clock from OBS's duration; nothing is left when OBS goes away; scene mapping ignores unknown targets; go-live problems found for a muted mic, a silent stream mix (solo included) and missing captures |
 | LIVE and REC badges, go-live banner, OBS scene map, setup's OBS step and the setup version 1 → 3 and 2 → 3 dialogs, rendered offscreen with stand-in data | No QML warnings, no overlap |
 | Unit tests | 11 of 11 pass |
+| `tests/dbus-control.sh` (ctest `dbus_control`): Rostrum on a private bus with no service directories, offscreen, no PipeWire | Every CLI option and D-Bus method answers with the right exit status or error name; `PropertiesChanged` sent; introspection matches the XML; a hold is dropped when its caller leaves; nothing about holds or panic saved |
+| Settings → Hotkeys rendered offscreen at 1100 px | Grouped as Mic, Stream and Headphones, Scenes, Buses; every row has a name and a description; new actions show None |
 
 Still manual (needs hardware or a real session): tests 4 (mic path), 6 and 7 (quit and reboot
-routing with Discord), OBS capture, OBS while live (test 15) against a real OBS, the real headset unplug, the GlobalShortcuts portal on a
-non-Plasma desktop, and updates against the real getrostrum.dev feed.
+routing with Discord), OBS capture, OBS while live (test 15) against a real OBS, the real headset
+unplug, the GlobalShortcuts portal on a non-Plasma desktop, updates against the real
+getrostrum.dev feed, and test 16 (holds, panic and the OSD in a real session).

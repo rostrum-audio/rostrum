@@ -88,14 +88,19 @@ Desktop::Desktop(AppController *app, QObject *parent) : QObject(parent), m_app(a
         dropOldShortcuts();
     }
     m_hotkeys = new Hotkeys(this);
-    connect(m_hotkeys, &Hotkeys::triggered, m_app, &AppController::triggerAction);
+    connect(m_hotkeys, &Hotkeys::triggered, m_app,
+            [this](const QString &id) { m_app->runAction(id, AppController::Origin::Hotkey); });
+    connect(m_hotkeys, &Hotkeys::released, m_app,
+            [this](const QString &id) { m_app->releaseAction(id, AppController::Origin::Hotkey); });
     connect(m_hotkeys, &Hotkeys::changedExternally, this, [this](const QString &id, const QString &portable) {
         m_app->settings().hotkeys.insert(id, portable);
         m_app->saveSettingsSoon();
         Q_EMIT m_app->settingsChanged();
     });
     connect(m_app, &AppController::settingsChanged, this, &Desktop::applyHotkeys);
+    connect(m_app, &AppController::actionsChanged, this, &Desktop::applyHotkeys);
     connect(m_app, &AppController::headphonesLost, this, &Desktop::notifyHeadphonesLost);
+    connect(m_app, &AppController::feedbackRequested, this, &Desktop::showFeedback);
     applyHotkeys();
 
     if (m_enabled) {
@@ -216,11 +221,51 @@ void Desktop::applyHotkeys()
     QMap<QString, QString> bindings;
     QMap<QString, QString> labels;
     const auto &keys = m_app->settings().hotkeys;
-    for (const QString &id : actions::all()) {
+    for (const QString &id : m_app->actionIds()) {
         bindings.insert(id, keys.value(id, actions::defaultShortcut(id)));
         labels.insert(id, Preferences::actionLabel(id));
     }
     m_hotkeys->apply(bindings, labels);
+}
+
+void Desktop::showFeedback(const QString &iconName, const QString &text)
+{
+    if (!m_enabled || !m_app->settings().osdFeedback ||
+        (m_window && m_window->isVisible() && m_window->isActive())) {
+        return;
+    }
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        QStringLiteral("org.kde.plasmashell"), QStringLiteral("/org/kde/osdService"),
+        QStringLiteral("org.kde.osdService"), QStringLiteral("showText"));
+    msg << iconName << text;
+    auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(msg, 2000), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this,
+            [this, iconName, text](QDBusPendingCallWatcher *w) {
+                if (QDBusPendingReply<> reply = *w; reply.isError()) {
+                    notifyFeedback(iconName, text);
+                }
+                w->deleteLater();
+            });
+}
+
+// Without Plasma's OSD: a short transient notification that replaces the previous one.
+void Desktop::notifyFeedback(const QString &iconName, const QString &text)
+{
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        QStringLiteral("org.freedesktop.Notifications"), QStringLiteral("/org/freedesktop/Notifications"),
+        QStringLiteral("org.freedesktop.Notifications"), QStringLiteral("Notify"));
+    msg << i18n("Rostrum") << m_feedbackNotificationId << iconName << text << QString() << QStringList()
+        << QVariantMap{{QStringLiteral("desktop-entry"), QStringLiteral(ROSTRUM_APP_ID)},
+                       {QStringLiteral("transient"), true},
+                       {QStringLiteral("urgency"), QVariant::fromValue<uchar>(0)}}
+        << 2000;
+    auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(msg), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *w) {
+        if (QDBusPendingReply<uint> reply = *w; reply.isValid()) {
+            m_feedbackNotificationId = reply.value();
+        }
+        w->deleteLater();
+    });
 }
 
 void Desktop::notifyHeadphonesLost(const QString &description)
