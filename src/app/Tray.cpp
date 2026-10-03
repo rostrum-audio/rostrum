@@ -14,8 +14,8 @@ namespace rostrum::app {
 namespace {
 QIcon trayIcon(bool muted)
 {
-    return QIcon(muted ? QStringLiteral(":/icons/" ROSTRUM_APP_ID "-muted.svg")
-                       : QStringLiteral(":/icons/" ROSTRUM_APP_ID ".svg"));
+    return QIcon(muted ? QStringLiteral(":/icons/" ROSTRUM_APP_ID "-tray-muted.svg")
+                       : QStringLiteral(":/icons/" ROSTRUM_APP_ID "-tray.svg"));
 }
 } // namespace
 

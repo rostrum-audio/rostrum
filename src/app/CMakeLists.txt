@@ -64,7 +64,8 @@ qt_add_resources(rostrum "icons"
     BASE ${PROJECT_SOURCE_DIR}/data/icons
     FILES
         ${PROJECT_SOURCE_DIR}/data/icons/${ROSTRUM_APP_ID}.svg
-        ${PROJECT_SOURCE_DIR}/data/icons/${ROSTRUM_APP_ID}-muted.svg
+        ${PROJECT_SOURCE_DIR}/data/icons/${ROSTRUM_APP_ID}-tray.svg
+        ${PROJECT_SOURCE_DIR}/data/icons/${ROSTRUM_APP_ID}-tray-muted.svg
 )
 
 # Shared system Qt: QML imports resolve at runtime, no static plugin import scan needed.
@@ -93,4 +94,8 @@ install(TARGETS rostrum RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES ${PROJECT_SOURCE_DIR}/data/${ROSTRUM_APP_ID}.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(FILES ${PROJECT_SOURCE_DIR}/data/icons/${ROSTRUM_APP_ID}.svg
     DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+foreach(size 16x16 22x22)
+    install(FILES ${PROJECT_SOURCE_DIR}/data/icons/${size}/${ROSTRUM_APP_ID}.svg
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/${size}/apps)
+endforeach()
 install(FILES ${PROJECT_SOURCE_DIR}/README.md ${PROJECT_SOURCE_DIR}/LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR})
