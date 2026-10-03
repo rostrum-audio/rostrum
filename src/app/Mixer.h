@@ -150,6 +150,7 @@ private:
     engine::Engine *m_engine = nullptr;
     BusModel m_model;
     pw::MeterBank m_meters;
+    QString m_micMeterNode;
     QTimer m_timer;
     QElapsedTimer m_clock;
     qint64 m_lastTick = 0;

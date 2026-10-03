@@ -178,6 +178,7 @@ Mixer::Mixer(AppController *app, QObject *parent)
     connect(m_engine, &engine::Engine::levelsChanged, this, levels);
     connect(m_engine, &engine::Engine::soloChanged, this, levels);
     connect(m_engine, &engine::Engine::appsChanged, this, [this] { m_model.refresh(); });
+    connect(m_engine, &engine::Engine::devicesChanged, this, &Mixer::updateTargets);
 
     connect(&m_timer, &QTimer::timeout, this, &Mixer::tick);
     m_model.refresh();
@@ -195,13 +196,24 @@ Mixer *Mixer::create(QQmlEngine *, QJSEngine *)
     return s_instance;
 }
 
+// The mic strip meters the hardware mic, summed to mono like rostrum.mic, and applies the gain
+// fader itself: rostrum.mic is muted whenever the mic does not feed Stream, but the strip must
+// still show the voice going to sidetone.
 void Mixer::updateTargets()
 {
+    m_micMeterNode = m_engine->resolvedSourceName();
     QStringList targets{QString::fromLatin1(engine::kPhonesNode), QString::fromLatin1(engine::kStreamNode)};
-    for (const auto &b : m_engine->scene().buses) {
-        targets << (b.isInput() ? QString::fromLatin1(engine::kMicNode) : b.nodeName());
+    QStringList summed;
+    if (!m_micMeterNode.isEmpty()) {
+        targets << m_micMeterNode;
+        summed << m_micMeterNode;
     }
-    m_meters.setTargets(targets);
+    for (const auto &b : m_engine->scene().buses) {
+        if (!b.isInput()) {
+            targets << b.nodeName();
+        }
+    }
+    m_meters.setTargets(targets, summed);
 }
 
 void Mixer::setMetersActive(bool active)
@@ -241,9 +253,11 @@ void Mixer::tick()
         if (!b) {
             continue;
         }
-        const QString node = b->isInput() ? QString::fromLatin1(engine::kMicNode) : b->nodeName();
+        const float peak = !b->isInput() ? m_meters.takePeak(b->nodeName())
+                         : m_micMeterNode.isEmpty() ? 0.0f
+                         : m_meters.takePeak(m_micMeterNode) * float(volume::faderToLinear(b->volume));
         MeterState &st = m_busMeters[id];
-        meters::advance(st, m_meters.takePeak(node), b->muted || m_engine->dimmedBySolo(id), dt, now);
+        meters::advance(st, peak, b->muted || m_engine->dimmedBySolo(id), dt, now);
         m_model.setMeter(row, st.fraction, st.clip);
     }
     meters::advance(m_phones, m_meters.takePeak(QString::fromLatin1(engine::kPhonesNode)), s.masterPhonesMuted, dt, now);

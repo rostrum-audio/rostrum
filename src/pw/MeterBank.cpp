@@ -4,20 +4,39 @@
 
 #include <pipewire/pipewire.h>
 #include <spa/param/audio/format-utils.h>
+#include <spa/param/format-utils.h>
 #include <spa/pod/builder.h>
+
+#include <QLoggingCategory>
 
 #include <algorithm>
 #include <atomic>
 #include <cmath>
 
+Q_DECLARE_LOGGING_CATEGORY(lcPw)
+
 namespace rostrum::pw {
+
+namespace {
+constexpr int kWatchdogMs = 1000;
+// Source meters are active streams, so the graph must run them every quantum. Three silent
+// checks in a row (2 to 3 s) means the stream is stuck and is rebuilt.
+constexpr int kStuckChecks = 3;
+} // namespace
 
 struct MeterBank::Meter
 {
     pw_stream *stream = nullptr;
     spa_hook listener{};
     std::atomic<float> peak{0.0f};
+    std::atomic<uint32_t> channels{1};
+    std::atomic<uint64_t> cycles{0};
+    std::atomic<bool> failed{false};
     uint32_t nodeId = 0;
+    bool sum = false;
+    bool expectsCycles = false;
+    uint64_t seenCycles = 0;
+    int silentChecks = 0;
 };
 
 namespace {
@@ -30,6 +49,7 @@ void onProcess(void *data)
     if (!b) {
         return;
     }
+    const uint32_t frameSize = m->sum ? std::max<uint32_t>(1, m->channels.load(std::memory_order_relaxed)) : 1;
     float loudest = 0.0f;
     const spa_buffer *buf = b->buffer;
     for (uint32_t i = 0; i < buf->n_datas; ++i) {
@@ -40,20 +60,54 @@ void onProcess(void *data)
         const uint32_t offset = std::min(d.chunk->offset, d.maxsize);
         const uint32_t size = std::min(d.chunk->size, d.maxsize - offset);
         const auto *samples = reinterpret_cast<const float *>(static_cast<const uint8_t *>(d.data) + offset);
-        for (uint32_t n = 0; n < size / sizeof(float); ++n) {
-            loudest = std::max(loudest, std::fabs(samples[n]));
+        const uint32_t count = size / sizeof(float);
+        for (uint32_t n = 0; n + frameSize <= count; n += frameSize) {
+            float s = samples[n];
+            for (uint32_t c = 1; c < frameSize; ++c) {
+                s += samples[n + c];
+            }
+            loudest = std::max(loudest, std::fabs(s));
         }
     }
     float prev = m->peak.load(std::memory_order_relaxed);
     while (loudest > prev && !m->peak.compare_exchange_weak(prev, loudest, std::memory_order_relaxed)) {
     }
+    m->cycles.fetch_add(1, std::memory_order_relaxed);
     pw_stream_queue_buffer(m->stream, b);
+}
+
+void onParamChanged(void *data, uint32_t id, const spa_pod *param)
+{
+    auto *m = static_cast<MeterBank::Meter *>(data);
+    if (!param || id != SPA_PARAM_Format) {
+        return;
+    }
+    uint32_t mediaType = 0;
+    uint32_t mediaSubtype = 0;
+    if (spa_format_parse(param, &mediaType, &mediaSubtype) < 0 || mediaType != SPA_MEDIA_TYPE_audio ||
+        mediaSubtype != SPA_MEDIA_SUBTYPE_raw) {
+        return;
+    }
+    spa_audio_info_raw info{};
+    if (spa_format_audio_raw_parse(param, &info) >= 0 && info.channels > 0) {
+        m->channels.store(info.channels, std::memory_order_relaxed);
+    }
+}
+
+void onStateChanged(void *data, pw_stream_state old, pw_stream_state state, const char *)
+{
+    auto *m = static_cast<MeterBank::Meter *>(data);
+    if (state == PW_STREAM_STATE_ERROR || (state == PW_STREAM_STATE_UNCONNECTED && old != PW_STREAM_STATE_UNCONNECTED)) {
+        m->failed.store(true, std::memory_order_relaxed);
+    }
 }
 
 pw_stream_events makeEvents()
 {
     pw_stream_events e{};
     e.version = PW_VERSION_STREAM_EVENTS;
+    e.state_changed = onStateChanged;
+    e.param_changed = onParamChanged;
     e.process = onProcess;
     return e;
 }
@@ -69,6 +123,8 @@ MeterBank::MeterBank(PwContext *pw, QObject *parent)
     connect(m_pw, &PwContext::graphChanged, this, &MeterBank::sync);
     connect(m_pw, &PwContext::stateChanged, this, &MeterBank::sync);
     connect(m_pw, &PwContext::aboutToStop, this, &MeterBank::destroyAll);
+    m_watchdog.setInterval(kWatchdogMs);
+    connect(&m_watchdog, &QTimer::timeout, this, &MeterBank::checkHealth);
 }
 
 MeterBank::~MeterBank()
@@ -76,12 +132,21 @@ MeterBank::~MeterBank()
     destroyAll();
 }
 
-void MeterBank::setTargets(const QStringList &nodeNames)
+void MeterBank::setTargets(const QStringList &nodeNames, const QStringList &summed)
 {
-    if (nodeNames == m_targets) {
+    if (nodeNames == m_targets && summed == m_summed) {
         return;
     }
+    if (summed != m_summed) {
+        // A meter's summing is fixed when it is created.
+        for (const QString &name : std::as_const(m_summed) + summed) {
+            if (m_summed.contains(name) != summed.contains(name)) {
+                destroyMeter(name);
+            }
+        }
+    }
     m_targets = nodeNames;
+    m_summed = summed;
     sync();
 }
 
@@ -91,7 +156,36 @@ void MeterBank::setActive(bool active)
         return;
     }
     m_active = active;
+    if (active) {
+        m_watchdog.start();
+    } else {
+        m_watchdog.stop();
+    }
     sync();
+}
+
+void MeterBank::checkHealth()
+{
+    QStringList stuck;
+    for (auto it = m_meters.cbegin(); it != m_meters.cend(); ++it) {
+        Meter *m = it.value();
+        const uint64_t cycles = m->cycles.load(std::memory_order_relaxed);
+        m->silentChecks = (m->expectsCycles && cycles == m->seenCycles) ? m->silentChecks + 1 : 0;
+        m->seenCycles = cycles;
+        if (m->failed.load(std::memory_order_relaxed) || m->silentChecks >= kStuckChecks) {
+            stuck << it.key();
+        }
+    }
+    for (const QString &name : std::as_const(stuck)) {
+        if (!m_reported.contains(name)) {
+            m_reported.insert(name);
+            qCWarning(lcPw) << "meter for" << name << "stopped receiving audio; reconnecting";
+        }
+        destroyMeter(name);
+    }
+    if (!stuck.isEmpty()) {
+        sync();
+    }
 }
 
 float MeterBank::takePeak(const QString &nodeName)
@@ -131,6 +225,8 @@ void MeterBank::sync()
         }
         auto *m = new Meter;
         m->nodeId = n->id;
+        m->sum = m_summed.contains(name);
+        m->expectsCycles = n->isSource();
         const QByteArray streamName = "rostrum-meter." + n->name.toUtf8();
         const QByteArray target = (n->serial.isEmpty() ? n->name : n->serial).toUtf8();
 

@@ -177,12 +177,17 @@ If Discord stays on the default sink until it is restarted, that is a router bug
 
 Each strip's meter is a `pw_stream` capture named `rostrum-meter.<node>`, targeted at the
 node's serial. Playback buses and the masters are read from their monitor
-(`stream.capture.sink`), the mic from the source itself. Sink and app-stream meters are passive
+(`stream.capture.sink`). The Mixer's mic strip reads the hardware mic, with every channel summed
+to mono as `rostrum.mic` does, and applies the mic gain itself. It does not read `rostrum.mic`,
+because that node is muted whenever the mic's destination leaves out Stream, and the strip must
+still show a voice that only goes to sidetone. Sink and app-stream meters are passive
 (`node.passive = true`), because the audio playing through them already keeps them running. Mic
 and other source meters are not passive. A passive link never wakes a suspended source, so before
 anything else records the mic (the wizard, the Devices page) its meter would stay flat. While a
 mic meter is on screen, Plasma's microphone indicator shows that Rostrum is listening. The meters
-stop when the page is hidden. The realtime callback only keeps the
+stop when the page is hidden. A watchdog checks every second: a meter whose stream fails, or a
+source meter that gets no buffers for about 3 s, is torn down and rebuilt, and the first time
+that happens for a node it is logged. The realtime callback only keeps the
 peak sample in an atomic. The UI takes it every 40 ms (80 ms with low meter speed), falls off at
 20 dB/s and holds a clip mark for 1.5 s.
 
