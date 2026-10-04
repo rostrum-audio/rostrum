@@ -220,8 +220,9 @@ restart, explicit fallback or compatibility on other environments.
 
 Before publishing, complete the remaining artifact-specific gates in the candidate release plan.
 Reuse the confirmed passes above rather than treating the full historical manual checklist as
-new work. Interactive first-run setup, remaining desktop checks and a real disposable AppImage
-update/restart remain open. Confirm the public feed redirect, release notes/licenses and the
+new work. Interactive first-run setup through Create Mix and runnable local-fixture AppImage
+replacement/Restart Now passed in isolation; remaining desktop and real public-version
+update checks remain open. Confirm the public feed redirect, release notes/licenses and the
 exact-build Sentry-symbol decision. The release workflow now
 requires the separate runtime-only AppImage check before its publishing job; local validation
 does not constitute a run of the hosted workflow.

@@ -34,9 +34,9 @@ instructions. The docs commit is separate from the artifact's application source
 | Tray Quit/relaunch | User-confirmed settings preserved; not an autostart/reboot or all-tray-actions pass |
 | Mic/headphone unplug/reconnect | User-confirmed recovery for their devices; not proof of explicit fallback, every device or reboot behavior |
 | Narrow/scaled rendering and accessible metadata | Automated component and initial-page checks passed; manual 200% and screen-reader behavior unreported |
-| First-run setup | Wizard rendering passed; interactive completion through Create Mix remains open |
+| First-run setup | Actual candidate wizard navigated through Create Mix on private Xvfb; Mixer opened, setup version 3/scene saved and fake-output route verified; OBS setup skipped |
 | DSP/plugin | Host daemon loading, deterministic delivery, rumble attenuation and RNNoise chain loading passed; subjective voice quality unreported |
-| Updates | Local feed/checksum rejection/replacement passed; real replacement execution and Restart Now remain open |
+| Updates | Local checksum tests plus runnable older-image → candidate replacement and UI Restart Now passed; new PID/ELF identity and disposable settings/scenes verified; feed version synthetic, public-version upgrade still untested |
 | Bundle integrity | SHA256SUMS, 243-ELF audit, DSP libc/libm dependencies, metadata and license presence passed; AppStream uppercase-ID pedantic notice is not a failure |
 | Hosted release workflow | Not run for this local candidate; local results do not prove hosted CI completion |
 | Public feed/downloads | Not verified usable for this candidate; no public request or update in this task |
@@ -49,14 +49,14 @@ original scope. They do not automatically become passes for this artifact.
 No confirmed audio-delivery defect remains in the tested environment. The following
 are **open release gates**, not confirmed product failures:
 
-1. Complete interactive first-run setup in a disposable profile and isolated audio
-   session, then inspect the intended desktop's Mixer, Mic Filters, dialogs and
+1. Interactive first-run setup through Create Mix is now confirmed in isolation.
+   Inspect the intended desktop's remaining Mixer, Mic Filters, dialogs and
    theme icons. Confirm remaining essential tray actions, shortcuts and autostart.
    Reuse the confirmed Quit/relaunch and OBS navigation/resize tests.
-2. Exercise a real disposable AppImage replacement and Restart Now, verifying the
-   replacement executable/version and preserved test settings. Use private audio
-   and disposable configuration, separate from the user's running instance; do not substitute
-   fixture-byte replacement for a runnable update.
+2. Verify the eventual real public-version upgrade as part of the actual release
+   sequence. Runnable replacement and Restart Now already passed locally with
+   disposable settings; synthetic feed 9.9.9 and two real 0.1.0 binaries do not
+   close the public-version upgrade check.
 3. Choose the final version/date/notes, resolve metainfo consistency and remote tag
    availability, and validate the exact CI-built release artifact before publishing.
 4. Confirm publishing permissions, feed/download destinations and usable published
@@ -131,3 +131,100 @@ specific current evidence exists.
 
 No commands in this sequence have been dispatched to GitHub, and no release tag,
 public feed or website has been changed as part of finalizing these documents.
+
+## Remaining preparation after setup/restart validation
+
+The setup/update evidence has been reviewed against screenshots, saved disposable
+settings, `executable-proof.json` and successful private-session cleanup. Restart
+changed the PID and running ELF from the older image to the independently extracted
+candidate binary. This remains a synthetic 9.9.9 feed with real 0.1.0 binaries,
+not evidence of a public-version upgrade.
+
+### Essential desktop checks still unconfirmed
+
+- On the intended desktop, inspect remaining Mixer and Mic Filters interactions,
+  file/settings dialogs and theme icons for usable controls and obvious errors.
+  The private Xvfb wizard/Mixer test is narrower than the full physical desktop.
+- Check tray Show/Hide and remaining essential tray mute/scene actions. Quit and
+  relaunch with preserved settings already passed and need not be repeated.
+- Check global mute/scene shortcuts and autostart/start-hidden behavior with a
+  disposable profile. Xvfb had no tray host/global-shortcut service; those checks
+  must use a controlled desktop session without altering the user's real bindings
+  or login configuration.
+- For intended native Wayland/GPU support, confirm the window renders and relevant
+  dialogs behave on that desktop. Automated X11/software rendering does not prove
+  this. If not tested, keep native Wayland/GPU behavior explicitly unverified.
+
+Do not rerun confirmed OBS keyboard/navigation, resizing, tray Quit/relaunch,
+microphone/headphone recovery, recording isolation/mute, first-run Create Mix or
+local runnable replacement/Restart Now simply to fill this checklist. Screen-reader,
+manual 200% scaling, non-Plasma shortcut portals and broad hardware coverage remain
+limitations unless adopted as supported-release requirements.
+
+### Metadata and CI/feed review
+
+- Version: CMake, candidate filename and actual executable all identify 0.1.0.
+  No version bump is required merely for this documentation update.
+- Date: metainfo still has 2026-10-03; draft notes leave publication date unassigned.
+  Select the actual release date later and update metadata before the release build.
+  The current candidate keeps its original embedded metadata.
+- Description: metainfo's existing first-release paragraph lists the older broad
+  feature set and omits stream readiness. Review/add readiness and the delivery
+  fixes when preparing release metadata. The version helper changes an existing
+  entry's final date, not its description. AppStream validation passes with one
+  pedantic uppercase-ID notice; validation does not resolve editorial consistency.
+- Regular CI: `.github/workflows/ci.yml` runs on main pushes and PRs; Ubuntu unit
+  enables isolated audio integration, app/Fedora jobs test app builds and Arch is
+  explicitly nonblocking. These jobs do not establish AppImage compatibility on
+  Fedora/Arch, nor is their current hosted status verified by local inspection.
+- Release CI: `release.yml` builds in Ubuntu 26.04 on an Ubuntu 24.04 runner, then
+  validates the AppImage in a runtime-only Ubuntu 26.04 job at the exact source
+  commit. Publication requires both jobs. Empty-tag workflow dispatch sets publish
+  false; symbols are skipped. The test build's notes default to “Rostrum 0.1.0”,
+  so final tag notes must be prepared separately.
+- Feed: CMake defaults to `https://getrostrum.dev/releases/latest.json`; stable
+  release CI generates a GitHub asset feed with the final image's size/checksum.
+  Website redirection is external to this repository's release workflow. Current
+  live redirect, assets, remote tags, secrets, permissions and hosted job status
+  have not been queried in this preparation task.
+
+### Exact future actions (not executed)
+
+1. Obtain authorization to synchronize the reviewed commits to a remote branch.
+   Select that branch/ref and record its exact commit before dispatch. A remote
+   workflow cannot test commits that exist only locally.
+2. For a nonpublishing AppImage run, use Actions → **Release** → Run workflow,
+   select that synchronized ref and leave **Tag** empty. CLI equivalent:
+
+   ```sh
+   gh workflow run release.yml --repo rostrum-audio/rostrum --ref main -f tag=
+   ```
+
+   Use `main` only after the reviewed source is actually synchronized there.
+   Identify the new run ID, inspect its checked-out source commit, wait for the
+   build and runtime jobs, and download its `rostrum-0.1.0-appimage`,
+   `rostrum-runtime-check` and `rostrum-release-notes` artifacts. Verify SHA256SUMS,
+   complete runtime results and host requirements. Confirm `publish` and symbol
+   upload were skipped. A test `latest.json` may reference nonexistent future
+   release URLs; do not install it as the public feed.
+3. Complete the remaining essential desktop checks and choose final 0.1.0 date,
+   metainfo text and short release summary. Retain the full compatibility/limits
+   notes, linking the final-tag documentation from public release materials.
+   Metadata edits require a separately reviewed release build; new bytes have
+   their own checksum, not this candidate's checksum by inheritance.
+4. After authorization, check remote tag absence and release permissions, and run
+   **Prepare release** on main with Version `0.1.0`, finalized plain-text Notes and
+   **Dry run checked**. Inspect its metadata diff and AppStream validation. If
+   metadata changed, protected-main updates require `RELEASE_TOKEN`. Decide exact-
+   build Sentry symbol handling; the upload requires `SENTRY_AUTH_TOKEN`.
+5. Only after explicit publishing authorization, run Prepare release again with
+   **Dry run unchecked**, or follow the annotated-tag procedure in releasing.md.
+   That action may commit/push metadata, create/push `v0.1.0`, invoke release CI,
+   upload symbols and publish. Require the final build/runtime checks to pass.
+6. Verify the published AppImage/checksum and stable latest.json against that
+   exact final build. Confirm the public HTTPS feed redirect and real downloadable
+   assets; test a real versioned update from an older disposable image in isolation.
+   Resolve any feed or restart problems before announcing stable auto-updates.
+
+This task executes none of those remote or publishing actions. Existing validated
+artifact and live configuration remain unchanged.

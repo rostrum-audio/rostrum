@@ -141,6 +141,19 @@ because completed test clients had not been unregistered from the temporary
 harness; this was corrected, then the full supplementary check passed. No product
 failure or audio assertion was bypassed. Passed audio campaigns were not repeated.
 
+Additional isolated UI checks navigated this candidate's actual first-run wizard
+through Create Mix on private Xvfb. The Mixer opened, setup version 3 and the Live
+scene were saved, and the output route to fake headphones was verified. OBS setup
+was skipped; no live OBS setup or real-device first-run test is inferred.
+
+A local feed replaced a disposable older runnable AppImage with this candidate.
+Clicking the actual Restart Now button exited the old process and started a new
+PID whose running ELF hash matches this candidate. All disposable settings groups
+except expected updater bookkeeping and all saved scene files were preserved.
+Both binaries report 0.1.0; synthetic feed version 9.9.9 only triggers the update.
+This proves runnable replacement/restart, not a real public-version upgrade. The
+fixture is never published. Evidence is in `interactive-checks/` beside the artifact.
+
 ## Known limitations and remaining release gates
 
 - Compatibility on other distributions, older PipeWire versions and physical
@@ -150,7 +163,7 @@ failure or audio assertion was bypassed. Passed audio campaigns were not repeate
   stale OBS observations remain Not verified. It cannot guarantee recorded tracks
   or audience sound. Silent meters and intentionally excluded/idle applications
   are not automatically failures.
-- Complete interactive first-run setup through Create Mix; review Mixer/Mic Filters/
+- Interactive first-run setup through Create Mix passed in isolation; review remaining Mixer/Mic Filters/
   dialogs and theme icons on the intended desktop, remaining tray actions, global
   shortcuts and autostart. Tray Quit/relaunch is confirmed; other tray behavior is
   not inferred from it.
@@ -162,8 +175,9 @@ failure or audio assertion was bypassed. Passed audio campaigns were not repeate
   microphone choices, subjective DSP/RNNoise voice quality, sidetone/ducking and
   relevant reboot behavior remain unverified by these manual reports.
 - Wayland/GPU/desktop integration and interactive FUSE-mounted use remain manual.
-- Exercise a real disposable AppImage update and restart. Local checksum fixtures
-  prove replacement handling, not a real replacement app's successful restart.
+- Runnable AppImage replacement and Restart Now passed with a local fixture.
+  Public-feed upgrading between real release versions remains untested and must
+  be checked on the actual release assets.
 - Before public release, verify version/tag/metainfo consistency, intended release
   notes and licenses, exact-build Sentry symbols and the hosted workflow. No hosted
   release workflow has been run for this local candidate. Verify public feed wiring
