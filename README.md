@@ -366,6 +366,7 @@ for both, and for testing against a local server.
 - [How the audio side works, and why](docs/audio.md)
 - [Crash reports and updates: what is sent, and when](docs/privacy.md)
 - [Manual test plan](docs/manual-tests.md)
+- [Isolated audio safety integration tests](tests/integration/README.md)
 - [Releasing](docs/releasing.md)
 - [Security policy](SECURITY.md)
 - [Contributing](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md)

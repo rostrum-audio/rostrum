@@ -11,6 +11,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_AUTOMOC ON)
 
 option(ROSTRUM_BUILD_TESTS "Build unit tests" ON)
+option(ROSTRUM_AUDIO_INTEGRATION_TESTS "Run isolated PipeWire/WirePlumber safety tests" OFF)
+if(ROSTRUM_AUDIO_INTEGRATION_TESTS AND NOT ROSTRUM_BUILD_TESTS)
+    message(FATAL_ERROR "Audio integration tests require ROSTRUM_BUILD_TESTS")
+endif()
 option(ROSTRUM_BUILD_APP "Build the Kirigami app" ON)
 set(ROSTRUM_UPDATE_URL "https://getrostrum.dev/releases/latest.json" CACHE STRING
     "Release feed the update check reads (Rostrum feed or a GitHub latest-release URL)")

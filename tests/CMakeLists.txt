@@ -71,3 +71,20 @@ if(DESKTOP_FILE_VALIDATE_EXECUTABLE)
     add_test(NAME desktop_file_valid
         COMMAND ${DESKTOP_FILE_VALIDATE_EXECUTABLE} ${PROJECT_SOURCE_DIR}/data/${ROSTRUM_APP_ID}.desktop)
 endif()
+
+# Explicit opt-in; a missing prerequisite is a configuration error, never a skip.
+if(ROSTRUM_AUDIO_INTEGRATION_TESTS)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    foreach(tool pipewire wireplumber pw-cat pw-cli pw-dump pw-link dbus-daemon)
+        find_program(AUDIO_${tool} NAMES ${tool} REQUIRED)
+    endforeach()
+    add_test(NAME audio_safety COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/integration/audio-safety.py
+        --driver $<TARGET_FILE:rostrum-graphtest>)
+    add_test(NAME audio_safety_fixture COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/integration/test_fixture.py
+        $<TARGET_FILE:rostrum-graphtest> -v)
+    # The fixture interruption probe inspects only its own children; serialize these tests.
+    set_tests_properties(audio_safety audio_safety_fixture PROPERTIES
+        TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
+endif()

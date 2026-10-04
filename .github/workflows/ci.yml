@@ -25,9 +25,10 @@ jobs:
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             ca-certificates build-essential cmake ninja-build pkg-config \
-            qt6-base-dev qt6-websockets-dev libpipewire-0.3-dev libtomlplusplus-dev
+            qt6-base-dev qt6-websockets-dev libpipewire-0.3-dev libtomlplusplus-dev \
+            pipewire-bin wireplumber dbus python3
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DROSTRUM_BUILD_APP=OFF
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DROSTRUM_BUILD_APP=OFF -DROSTRUM_AUDIO_INTEGRATION_TESTS=ON
       - name: Build
         run: cmake --build build
       - name: Test
