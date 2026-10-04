@@ -97,9 +97,13 @@
   </screenshots>
 
   <releases>
-    <release version="0.1.0" date="2026-10-03">
+    <!-- Development preparation date only. Publication date remains pending.
+         When publication is scheduled, set the actual date and type="stable". -->
+    <release version="0.1.0" date="2026-10-04" type="development">
       <description>
         <p>First release: buses, two mixes, scenes, OBS setup and live status, mic filters and mic check, global shortcuts and remote control, automatic app assignment, undo, a compact window, private crash reports and updates.</p>
+        <p>Stream readiness checks show controls, devices, routing and observed OBS captures with scoped results and expandable evidence. Live output exclusions and microphone delivery across PipeWire quantum changes are fixed and validated in isolated audio sessions.</p>
+        <p>The x86_64 AppImage was validated on Ubuntu 26.04 with glibc 2.43, PipeWire 1.6.2 and WirePlumber 0.5.13. Compatibility with other environments is not established.</p>
       </description>
     </release>
   </releases>

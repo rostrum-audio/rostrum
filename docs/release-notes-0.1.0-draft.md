@@ -2,6 +2,10 @@
 
 **Local candidate only; not published.** Source commit:
 `ef7ea69036c89340e7387761a1b1ebc598a3e3d2`. Release date is not assigned.
+The source metainfo entry is explicitly development preparation dated 2026-10-04,
+not a scheduled or completed publication. Set its stable type and actual release
+date only when publication is scheduled. The retained candidate embeds its original
+metadata; these documentation/metadata edits do not rebuild it.
 
 Rostrum routes application audio into separate buses for headphones and streaming,
 with local microphone filtering and OBS integration. This candidate includes live
@@ -121,6 +125,13 @@ on 2026-10-04:
 The complete manual-session environment and test duration were not reported.
 These passes do not imply every release-check item or filter-quality check passed.
 
+The user subsequently confirmed the listed remaining desktop checks in their
+current setup: remaining Mixer/Mic Filters/dialog interactions and theme icons,
+tray Show/Hide and essential mute/scene actions, global shortcuts, autostart/
+start-hidden behavior, and native window/rendering/dialog behavior. This is a
+user-reported pass for that setup only; no other desktop, GPU or hardware is
+inferred and the exact desktop/GPU details were not supplied.
+
 Supplementary isolated/offline checks passed on the development host:
 
 - QML component keyboard, accessible-metadata and narrow-layout checks at 100%
@@ -163,10 +174,9 @@ fixture is never published. Evidence is in `interactive-checks/` beside the arti
   stale OBS observations remain Not verified. It cannot guarantee recorded tracks
   or audience sound. Silent meters and intentionally excluded/idle applications
   are not automatically failures.
-- Interactive first-run setup through Create Mix passed in isolation; review remaining Mixer/Mic Filters/
-  dialogs and theme icons on the intended desktop, remaining tray actions, global
-  shortcuts and autostart. Tray Quit/relaunch is confirmed; other tray behavior is
-  not inferred from it.
+- Interactive first-run setup through Create Mix passed in isolation. The user
+  confirmed the remaining listed desktop interactions in their current setup;
+  they need not be repeated for this unchanged candidate.
 - OBS-page keyboard navigation and window resizing are confirmed. Keyboard use
   elsewhere, manual 200% scaling and a real screen reader remain unreported.
   Component tests cover accessible metadata, not screen-reader behavior.
@@ -174,7 +184,8 @@ fixture is never published. Evidence is in `interactive-checks/` beside the arti
   Other hardware combinations, explicitly enabled microphone fallback, per-app
   microphone choices, subjective DSP/RNNoise voice quality, sidetone/ducking and
   relevant reboot behavior remain unverified by these manual reports.
-- Wayland/GPU/desktop integration and interactive FUSE-mounted use remain manual.
+- Broader Wayland/GPU/desktop compatibility and additional hardware combinations
+  remain unverified beyond the user's current setup and the isolated checks.
 - Runnable AppImage replacement and Restart Now passed with a local fixture.
   Public-feed upgrading between real release versions remains untested and must
   be checked on the actual release assets.

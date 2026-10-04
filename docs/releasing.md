@@ -209,6 +209,9 @@ The user confirmed these specific checks for
 - Window resizing without clipped or unreachable controls.
 - Tray Quit and relaunch with settings preserved.
 - Microphone/headphone unplug and reconnect recovery.
+- The remaining listed desktop checks in the user's current setup: Mixer/Mic Filters/
+  dialog interactions and theme icons, remaining essential tray actions, global
+  shortcuts, autostart/start-hidden and native rendering/dialog behavior.
 
 These are specific user-reported passes for this artifact. They do not establish
 all microphone-filter quality, hardware, desktop or accessibility checks, and the
@@ -221,8 +224,11 @@ restart, explicit fallback or compatibility on other environments.
 Before publishing, complete the remaining artifact-specific gates in the candidate release plan.
 Reuse the confirmed passes above rather than treating the full historical manual checklist as
 new work. Interactive first-run setup through Create Mix and runnable local-fixture AppImage
-replacement/Restart Now passed in isolation; remaining desktop and real public-version
-update checks remain open. Confirm the public feed redirect, release notes/licenses and the
+replacement/Restart Now passed in isolation; the user confirmed the remaining listed desktop
+checks for their current setup. Real public-version updates and broader compatibility remain
+unverified. Source metainfo is a development preparation entry: its date is not the pending
+publication date. Set the actual date and stable type when scheduling publication, before the
+final build. Confirm the public feed redirect, release notes/licenses and the
 exact-build Sentry-symbol decision. The release workflow now
 requires the separate runtime-only AppImage check before its publishing job; local validation
 does not constitute a run of the hosted workflow.

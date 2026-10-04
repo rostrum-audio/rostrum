@@ -34,6 +34,7 @@ instructions. The docs commit is separate from the artifact's application source
 | Tray Quit/relaunch | User-confirmed settings preserved; not an autostart/reboot or all-tray-actions pass |
 | Mic/headphone unplug/reconnect | User-confirmed recovery for their devices; not proof of explicit fallback, every device or reboot behavior |
 | Narrow/scaled rendering and accessible metadata | Automated component and initial-page checks passed; manual 200% and screen-reader behavior unreported |
+| Remaining listed desktop interactions | User confirmed all listed checks in their current setup; no other desktop/GPU/hardware compatibility inferred |
 | First-run setup | Actual candidate wizard navigated through Create Mix on private Xvfb; Mixer opened, setup version 3/scene saved and fake-output route verified; OBS setup skipped |
 | DSP/plugin | Host daemon loading, deterministic delivery, rumble attenuation and RNNoise chain loading passed; subjective voice quality unreported |
 | Updates | Local checksum tests plus runnable older-image → candidate replacement and UI Restart Now passed; new PID/ELF identity and disposable settings/scenes verified; feed version synthetic, public-version upgrade still untested |
@@ -49,16 +50,17 @@ original scope. They do not automatically become passes for this artifact.
 No confirmed audio-delivery defect remains in the tested environment. The following
 are **open release gates**, not confirmed product failures:
 
-1. Interactive first-run setup through Create Mix is now confirmed in isolation.
-   Inspect the intended desktop's remaining Mixer, Mic Filters, dialogs and
-   theme icons. Confirm remaining essential tray actions, shortcuts and autostart.
-   Reuse the confirmed Quit/relaunch and OBS navigation/resize tests.
+1. Desktop checks are complete for the user's current setup, and first-run Create
+   Mix passed in isolation. Do not treat these as remaining gates or as broader
+   compatibility evidence. Retain their scope when reviewing future CI-built bytes.
 2. Verify the eventual real public-version upgrade as part of the actual release
    sequence. Runnable replacement and Restart Now already passed locally with
    disposable settings; synthetic feed 9.9.9 and two real 0.1.0 binaries do not
    close the public-version upgrade check.
-3. Choose the final version/date/notes, resolve metainfo consistency and remote tag
-   availability, and validate the exact CI-built release artifact before publishing.
+3. Version 0.1.0 and notes are prepared. Publication date is explicitly pending;
+   source metainfo is a development preparation entry dated 2026-10-04. Set its
+   actual publication date and stable type only when scheduled. Recheck remote tag
+   availability and validate the exact CI-built release artifact before publishing.
 4. Confirm publishing permissions, feed/download destinations and usable published
    assets, plus release-license review and the symbol-upload decision. Public feed
    usability is a stable auto-update release gate; it cannot be proved by local
@@ -78,13 +80,16 @@ specific current evidence exists.
 
 1. **Freeze scope and identity.** Preserve this candidate and checksum as the tested
    baseline. Choose `0.1.0` for this first release unless requirements change.
-   CMake currently says `0.1.0`; metainfo has a `0.1.0` entry dated `2026-10-03`.
-   The actual publication date is not chosen. No local tags exist; remote tag
-   availability has not been checked in this task.
+   CMake says `0.1.0`; source metainfo has a development `0.1.0` entry with
+   preparation date `2026-10-04`. The actual publication date remains pending.
+   No local tags exist; the read-only remote query returned no `v0.1.0` tag.
+   Recheck tag availability immediately before any future publication action.
 2. **Prepare metadata and notes.** On the future release branch/main, confirm release
-   date and metainfo description. `tools/release/set-version.py` updates the date
-   of an existing final entry but does not rewrite that entry's description; review
-   the existing text explicitly. Validate with `appstreamcli validate --no-net`.
+   date and change the metainfo entry from development to stable. AppStream
+   requires a date, so the current date is explicitly a preparation snapshot.
+   `tools/release/set-version.py` updates the date of an existing final entry but
+   does not change its type or description; set stable type separately. The
+   description now includes readiness, microphone scheduling and the tested host. Validate with `appstreamcli validate --no-net`.
    The full draft documents compatibility; the tag/Prepare release input needs a
    short plain-text summary, for example: “Rostrum's first x86_64 AppImage includes
    stream readiness checks and local microphone filters. Live output exclusions
@@ -140,7 +145,7 @@ changed the PID and running ELF from the older image to the independently extrac
 candidate binary. This remains a synthetic 9.9.9 feed with real 0.1.0 binaries,
 not evidence of a public-version upgrade.
 
-### Essential desktop checks still unconfirmed
+### Desktop checks confirmed in the current setup
 
 - On the intended desktop, inspect remaining Mixer and Mic Filters interactions,
   file/settings dialogs and theme icons for usable controls and obvious errors.
@@ -155,6 +160,10 @@ not evidence of a public-version upgrade.
   dialogs behave on that desktop. Automated X11/software rendering does not prove
   this. If not tested, keep native Wayland/GPU behavior explicitly unverified.
 
+The user confirmed all four listed groups above passed in their current setup.
+Exact desktop/GPU details were not supplied; this is not evidence for another
+desktop or hardware. These checks are no longer open for this candidate/setup.
+
 Do not rerun confirmed OBS keyboard/navigation, resizing, tray Quit/relaunch,
 microphone/headphone recovery, recording isolation/mute, first-run Create Mix or
 local runnable replacement/Restart Now simply to fill this checklist. Screen-reader,
@@ -165,14 +174,14 @@ limitations unless adopted as supported-release requirements.
 
 - Version: CMake, candidate filename and actual executable all identify 0.1.0.
   No version bump is required merely for this documentation update.
-- Date: metainfo still has 2026-10-03; draft notes leave publication date unassigned.
-  Select the actual release date later and update metadata before the release build.
-  The current candidate keeps its original embedded metadata.
-- Description: metainfo's existing first-release paragraph lists the older broad
-  feature set and omits stream readiness. Review/add readiness and the delivery
-  fixes when preparing release metadata. The version helper changes an existing
-  entry's final date, not its description. AppStream validation passes with one
-  pedantic uppercase-ID notice; validation does not resolve editorial consistency.
+- Date: source metainfo has type development and preparation date 2026-10-04;
+  publication date is explicitly pending. AppStream rejects a missing date. Set
+  type stable and the actual date only when publication is scheduled, before the
+  final release build. The unchanged candidate keeps its original embedded metadata.
+- Description: metainfo now includes stream readiness, live output exclusions,
+  microphone delivery across quantum changes and the tested environment, matching
+  the release notes. The helper changes an existing entry's date, not its type or
+  description. AppStream validation passes with one pedantic uppercase-ID notice.
 - Regular CI: `.github/workflows/ci.yml` runs on main pushes and PRs; Ubuntu unit
   enables isolated audio integration, app/Fedora jobs test app builds and Arch is
   explicitly nonblocking. These jobs do not establish AppImage compatibility on
@@ -185,8 +194,10 @@ limitations unless adopted as supported-release requirements.
 - Feed: CMake defaults to `https://getrostrum.dev/releases/latest.json`; stable
   release CI generates a GitHub asset feed with the final image's size/checksum.
   Website redirection is external to this repository's release workflow. Current
-  live redirect, assets, remote tags, secrets, permissions and hosted job status
-  have not been queried in this preparation task.
+  live redirect, assets, secrets, permissions and hosted job status remain
+  unqueried. Read-only git ls-remote verified remote main at
+  e50972a384086e611bc4954e39441478990230a2 and returned no v0.1.0 tag; no fetch,
+  push or ref mutation was performed.
 
 ### Exact future actions (not executed)
 
@@ -207,8 +218,9 @@ limitations unless adopted as supported-release requirements.
    complete runtime results and host requirements. Confirm `publish` and symbol
    upload were skipped. A test `latest.json` may reference nonexistent future
    release URLs; do not install it as the public feed.
-3. Complete the remaining essential desktop checks and choose final 0.1.0 date,
-   metainfo text and short release summary. Retain the full compatibility/limits
+3. Reuse the completed current-setup desktop checks. Once publication is scheduled,
+   set its actual date and change metainfo type to stable. Keep the prepared
+   0.1.0 description/notes unless requirements change. Retain the full compatibility/limits
    notes, linking the final-tag documentation from public release materials.
    Metadata edits require a separately reviewed release build; new bytes have
    their own checksum, not this candidate's checksum by inheritance.
@@ -228,3 +240,21 @@ limitations unless adopted as supported-release requirements.
 
 This task executes none of those remote or publishing actions. Existing validated
 artifact and live configuration remain unchanged.
+
+
+## Publication-date status and source synchronization
+
+Publication date is **pending**, not 2026-10-04. That is the development
+preparation date required by AppStream validation. Neither Prepare release nor
+Release currently enforces changing development type to stable; this is an explicit
+maintainer step before a final publication run. Do not dispatch a nonempty Tag
+while the date/type remains in preparation state. An empty-Tag test run is safe
+from publication and may build this development metadata.
+
+At the read-only remote inspection, local main was eight commits ahead and zero
+behind remote main e50972a (the same as origin/main). This final documentation/
+metadata commit adds a ninth commit. The future push would be local main →
+origin refs/heads/main, including all nine commits, not just the docs commit.
+Recheck the remote immediately before pushing; this statement does not authorize
+a push. Branch main push triggers regular CI, not Release; only v* tag pushes or
+explicit Release dispatch/call trigger Release. No remote workflow was run here.
