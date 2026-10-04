@@ -226,9 +226,10 @@ Reuse the confirmed passes above rather than treating the full historical manual
 new work. Interactive first-run setup through Create Mix and runnable local-fixture AppImage
 replacement/Restart Now passed in isolation; the user confirmed the remaining listed desktop
 checks for their current setup. Real public-version updates and broader compatibility remain
-unverified. Source metainfo is a development preparation entry: its date is not the pending
-publication date. Set the actual date and stable type when scheduling publication, before the
-final build. Confirm the public feed redirect, release notes/licenses and the
+unverified. Source metainfo for 0.1.0 is now stable with intended release date
+2026-10-04; this is release preparation, not publication. If the intended date changes,
+review the metadata update and rebuild before publishing. Confirm the public feed
+redirect, release notes/licenses and the
 exact-build Sentry-symbol decision. The release workflow now
 requires the separate runtime-only AppImage check before its publishing job; local validation
 does not constitute a run of the hosted workflow.

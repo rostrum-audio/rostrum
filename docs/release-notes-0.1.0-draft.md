@@ -1,18 +1,18 @@
 # Rostrum 0.1.0 — draft release notes
 
-**Local candidate only; not published.** Source commit:
-`ef7ea69036c89340e7387761a1b1ebc598a3e3d2`. Release date is not assigned.
-The source metainfo entry is explicitly development preparation dated 2026-10-04,
-not a scheduled or completed publication. Set its stable type and actual release
-date only when publication is scheduled. The retained candidate embeds its original
-metadata; these documentation/metadata edits do not rebuild it.
+**Prepared for release; not published.** Intended release date: **2026-10-04**.
+Source metainfo marks 0.1.0 stable with that intended date; this does not create a
+tag, publish assets or enable a public feed. The manually tested local baseline is
+source `ef7ea69036c89340e7387761a1b1ebc598a3e3d2`; its retained bytes and embedded
+metadata are unchanged. The new hosted build's exact source, checksum and runtime
+results are recorded separately, without transferring manual passes to new bytes.
 
 Rostrum routes application audio into separate buses for headphones and streaming,
 with local microphone filtering and OBS integration. This candidate includes live
 routing-exclusion fixes, stream-readiness checks and a microphone converter fix
 that preserves delivery when PipeWire changes its graph quantum.
 
-## Changes in this candidate
+## Changes in 0.1.0
 
 - Check stream readiness on the OBS page: grouped results, summary counts,
   attention items first, corrective links where available and expandable evidence.
@@ -30,7 +30,7 @@ that preserves delivery when PipeWire changes its graph quantum.
   checksum tests. Audio remains local. Official builds offer optional crash reports
   and update checks, chosen during setup; see [privacy.md](privacy.md).
 
-## Artifact and integrity
+## Historical local baseline and integrity
 
 File: `Rostrum-0.1.0-x86_64.AppImage`
 
@@ -46,6 +46,9 @@ SHA-256:
 The companion `SHA256SUMS` verifies this exact candidate. Earlier AppImages without
 this microphone converter fix are outdated. Public download/feed URLs are not
 assigned in this draft; local feed fixtures are not production feeds.
+This checksum identifies the historical local baseline, not the newly rebuilt
+release-preparation artifact. Use that build's separate `VALIDATION.md` and
+`SHA256SUMS` for its identity; see [release-plan-0.1.0.md](release-plan-0.1.0.md).
 
 ## Tested environment and host requirements
 
@@ -190,8 +193,11 @@ fixture is never published. Evidence is in `interactive-checks/` beside the arti
   Public-feed upgrading between real release versions remains untested and must
   be checked on the actual release assets.
 - Before public release, verify version/tag/metainfo consistency, intended release
-  notes and licenses, exact-build Sentry symbols and the hosted workflow. No hosted
-  release workflow has been run for this local candidate. Verify public feed wiring
+  notes and licenses, exact-build Sentry symbols and the final artifact. A previous
+  empty-Tag hosted build passed official and clean-runtime checks at source
+  `5c0ccd4`; its regular CI failure was fixed by `0168693`, whose PR and main CI
+  both passed. The stable-metadata rebuild requires its own hosted record and
+  short artifact smoke test. Verify public feed wiring
   and usable assets as part of publishing; local fixtures do not establish them.
 
 There is no confirmed remaining audio-delivery blocker in the tested environment.
