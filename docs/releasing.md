@@ -195,10 +195,34 @@ the OBS recording, while headphone playback continued. This confirms that specif
 manual isolation test for this artifact, not the other manual release checks. The older
 AppImage directly under `build-appimage-validation/out/` is outdated and lacks the fix.
 
-Before publishing, manually complete setup through Create Mix; check the Mixer, Mic Filters and
-dialogs on X11/Wayland; verify all theme icons, HiDPI, tray/shortcuts, hardware reconnect and OBS;
-exercise mounted launch and updating/restarting a real disposable AppImage. Confirm the public
-feed redirect, release notes/licenses and exact-build Sentry symbols. The release workflow now
+### Manual confirmation for the final microphone-fixed artifact (2026-10-04)
+
+The user confirmed these specific checks for
+`build-appimage-validation/out/mic-filter-ef7ea69/Rostrum-0.1.0-x86_64.AppImage`
+(source `ef7ea69036c89340e7387761a1b1ebc598a3e3d2`, SHA-256
+`68118e2c58b6c6a88f02c31635cff0523a7beae6a4f8efb1606531759b70ada1`):
+
+- Continuous microphone audio.
+- Both → Headphones Only → Both recording isolation.
+- Rostrum mic mute in the recording.
+- OBS-page keyboard navigation.
+- Window resizing without clipped or unreachable controls.
+- Tray Quit and relaunch with settings preserved.
+- Microphone/headphone unplug and reconnect recovery.
+
+These are specific user-reported passes for this artifact. They do not establish
+all microphone-filter quality, hardware, desktop or accessibility checks, and the
+manual session's complete environment was not reported. See
+[the draft release notes](release-notes-0.1.0-draft.md) and
+[candidate release plan](release-plan-0.1.0.md) for the updated checklist. These
+passes do not establish screen-reader, interactive first-run setup, real update
+restart, explicit fallback or compatibility on other environments.
+
+Before publishing, complete the remaining artifact-specific gates in the candidate release plan.
+Reuse the confirmed passes above rather than treating the full historical manual checklist as
+new work. Interactive first-run setup, remaining desktop checks and a real disposable AppImage
+update/restart remain open. Confirm the public feed redirect, release notes/licenses and the
+exact-build Sentry-symbol decision. The release workflow now
 requires the separate runtime-only AppImage check before its publishing job; local validation
 does not constitute a run of the hosted workflow.
 
