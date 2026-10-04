@@ -70,6 +70,7 @@ Q_SIGNALS:
     void graphChanged(); // coalesced, at most once per event-loop turn
     void nodeAdded(uint32_t id);
     void nodeRemoved(uint32_t id, const QString &name);
+    void objectRemoved(uint32_t id); // registry removal boundary, before the ID can be reused in the mirror
     void metadataChanged(uint32_t subject, const QString &key);
     void defaultsChanged();
     // nodeName: the node.name of a node that could not be created, empty for links.

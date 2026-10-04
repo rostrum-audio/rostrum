@@ -12,6 +12,7 @@
 
 #include <QCommandLineParser>
 #include <QCoreApplication>
+#include <QFile>
 #include <QTextStream>
 #include <QTimer>
 
@@ -56,6 +57,9 @@ int main(int argc, char **argv)
     QCommandLineOption listApps(QStringLiteral("list-apps"), QStringLiteral("Print app streams once ready."));
     QCommandLineOption dest(QStringLiteral("dest"), QStringLiteral("Set a bus destination, e.g. game=phones."),
                             QStringLiteral("bus=phones|stream|both"));
+    QCommandLineOption destinationFile(QStringLiteral("destination-file"),
+                                       QStringLiteral("Poll a test command file: request-id bus=phones|stream|both."),
+                                       QStringLiteral("path"));
     QCommandLineOption headphones(QStringLiteral("headphones"), QStringLiteral("Headphone sink node.name."),
                                   QStringLiteral("node"));
     QCommandLineOption mic(QStringLiteral("mic"), QStringLiteral("Mic source node.name."), QStringLiteral("node"));
@@ -74,7 +78,7 @@ int main(int argc, char **argv)
     QCommandLineOption meter(QStringLiteral("meter"),
                              QStringLiteral("Print the peak level of a node (node.name) four times a second."),
                              QStringLiteral("node"));
-    parser.addOptions({seconds, teardown, rule, session, unassignAfter, listApps, dest, headphones, mic, micMuted,
+    parser.addOptions({seconds, teardown, rule, session, unassignAfter, listApps, dest, destinationFile, headphones, mic, micMuted,
                        micFallback, sidetone, solo, config, tone, meter});
     parser.process(app);
 
@@ -108,6 +112,35 @@ int main(int argc, char **argv)
     std::signal(SIGTERM, [](int) { QCoreApplication::quit(); });
 
     bool started = false;
+    QTimer destinationPoll;
+    QString lastDestinationRequest;
+    if (parser.isSet(destinationFile)) {
+        QObject::connect(&destinationPoll, &QTimer::timeout, &app, [&] {
+            if (!started || !engine.mixReady()) {
+                return;
+            }
+            QFile file(parser.value(destinationFile));
+            if (!file.open(QIODevice::ReadOnly)) {
+                return;
+            }
+            const QString request = QString::fromUtf8(file.readAll()).trimmed();
+            if (request.isEmpty() || request == lastDestinationRequest) {
+                return;
+            }
+            const auto words = request.split(QLatin1Char(' '));
+            const auto spec = words.value(1).split(QLatin1Char('='));
+            const auto destination = destinationFromString(spec.value(1));
+            if (words.size() != 2 || spec.size() != 2 || !destination || !engine.scene().bus(spec.first())) {
+                QTextStream(stderr) << "Invalid destination request: " << request << Qt::endl;
+                QCoreApplication::exit(2);
+                return;
+            }
+            engine.setBusDestination(spec.first(), *destination);
+            lastDestinationRequest = request;
+            QTextStream(stdout) << "Destination request " << words.first() << ": " << words.last() << Qt::endl;
+        });
+        destinationPoll.start(25); // Observe commands; tests wait for acknowledgement and the real graph.
+    }
     QObject::connect(&pw, &pw::PwContext::stateChanged, &app, [&] {
         if (pw.state() == pw::PwContext::State::Failed) {
             QTextStream(stderr) << pw.errorString() << "\n";

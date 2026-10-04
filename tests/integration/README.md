@@ -103,7 +103,15 @@ application's routing, microphone fallback, persistence or runtime behavior.
    starts. Active links and captures at Game and Stream verify the intended route.
 2. **Destination isolation:** Game set to phones produces a tone at fake headphones
    and recorded silence at Stream. Restarting the driver with Game set to stream
-   reverses those assertions. Positive captures accompany silence assertions.
+   reverses those assertions. Then one running engine and playback stream exercise
+   Desktop through phones, stream, both and phones twice, without restarting the
+   engine or playback client. Each change uses the real `setBusDestination` API;
+   the driver observes an atomic private command file and acknowledges the request.
+   Tests wait for that acknowledgement and observed graph state, require every
+   excluded-destination link (including inactive links) to disappear, and capture
+   both channels at the intended and excluded outputs. Positive captures accompany
+   silence assertions. This catches pending link-deletion state surviving registry
+   ID reuse, which could leave a forbidden send after a live destination change.
 3. **Saved microphone:** private saved settings select a named fake mic carrying
    330 Hz, while a higher-priority alternative carries 660 Hz. Removing the saved
    mic with fallback disabled leaves no input links and recorded silence at
@@ -126,13 +134,26 @@ verify repeated cleanup, handle a fork during SIGTERM and an incomplete process
 snapshot, reclaim descendants after status-publication and diagnostic-write failures, retain startup
 ownership, and preserve an original failure when cleanup also fails.
 
+## Manual confirmation (2026-10-04)
+
+The user confirmed a fresh OBS recording on the installed normal x86_64 build:
+Brave playing YouTube was assigned to Desktop; Both included it in the recording,
+Headphones Only excluded it, and returning to Both restored it. Headphone playback
+continued throughout. The running binary was verified against the installed build
+(SHA-256 `3640059d24b1d41e173733d19b5dc0922a7f3ef71b2adc7899eab9a14b6b1fe9`),
+with one Rostrum instance. Read-only inspection identified OBS's capture as
+`rostrum.stream.monitor`, not the headphones/default monitor. This is a user-reported
+desktop/OBS confirmation of live isolation, not an AppImage or broad hardware test.
+The prior AppImage did not include the registry-removal fix.
+
 ## Limits
 
 These are focused engine/policy integration checks, not end-to-end UI, OBS,
 PulseAudio compatibility, ALSA/Bluetooth hardware, permission-portal, DSP, latency,
 performance or subjective quality tests. Persistence coverage reads saved device
-and fallback settings; it does not exercise the UI saving them. Destination changes
-use a driver restart rather than the UI's live toggle. Observations check settled
+and fallback settings; it does not exercise the UI saving them. Live Desktop destination
+changes use the engine API, not the QML control; Game's original destination check
+still uses a driver restart. Observations check settled
 routing and short capture windows; they do not prove zero transient leakage at
 every sample during hotplug or arbitrary startup races. Fresh sessions have no
 third-party audio processors or restored user policy. No guarantee is made for

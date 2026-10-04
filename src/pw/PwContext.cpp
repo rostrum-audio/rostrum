@@ -481,6 +481,7 @@ void onGlobalRemove(void *data, uint32_t id)
         g.links.remove(id);
         g.clients.remove(id);
         g.factories.remove(id);
+        Q_EMIT impl->q->objectRemoved(id);
         impl->q->scheduleChanged();
     });
 }

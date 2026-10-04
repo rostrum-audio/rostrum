@@ -29,7 +29,9 @@ Engine::Engine(pw::PwContext *pw, QObject *parent)
     connect(m_pw, &pw::PwContext::graphChanged, this, &Engine::scheduleReconcile);
     connect(m_pw, &pw::PwContext::stateChanged, this, &Engine::scheduleReconcile);
     connect(m_pw, &pw::PwContext::stateChanged, this, &Engine::micFxConnectionChanged);
-    connect(m_pw, &pw::PwContext::nodeRemoved, this, [this](uint32_t id) { m_pendingDestroy.remove(id); });
+    // Links also reuse registry IDs. Clear at removal, not in a later reconciliation where
+    // the same ID may already name a replacement link that still needs to be managed.
+    connect(m_pw, &pw::PwContext::objectRemoved, this, [this](uint32_t id) { m_pendingDestroy.remove(id); });
     connect(m_pw, &pw::PwContext::createFailed, this, [this](const QString &msg, const QString &nodeName) {
         // The mix works without mic filters, so their failure is theirs alone.
         if (nodeName == QLatin1String(kMicFxNode) || nodeName == QLatin1String(kFilteredNode)) {

@@ -277,7 +277,7 @@ context.objects = [
         self.wait(f"tone stream {name}", lambda: self.node(self.graph(), name))
         return p
 
-    def engine(self, fallback=False, destination="both"):
+    def engine(self, fallback=False, destination="both", bus="game", live_destinations=False):
         config = self.root / "config/rostrum"
         config.mkdir(exist_ok=True)
         (config / "settings.toml").write_text(f'''format = 1
@@ -286,8 +286,24 @@ headphones = "test.headphones"
 mic = "test.saved-mic"
 mic_fallback = {str(fallback).lower()}
 ''')
-        return self.spawn([str(self.driver), "--config", "--rule", "name:SafetyPlayer=game",
-                           "--dest", f"game={destination}"])
+        args = [str(self.driver), "--config", "--rule", f"name:SafetyPlayer={bus}",
+                "--dest", f"{bus}={destination}"]
+        if live_destinations:
+            self.destination_request = 0
+            self.destination_file = self.root / "destination-request"
+            self.destination_file.write_text("")
+            args += ["--destination-file", str(self.destination_file)]
+        return self.spawn(args)
+
+    def destination(self, engine, bus, destination):
+        self.destination_request += 1
+        request = f"{self.destination_request} {bus}={destination}"
+        temporary = self.destination_file.with_suffix(".tmp")
+        temporary.write_text(request + "\n")
+        temporary.replace(self.destination_file)
+        log = next(log for child, log in self.processes if child is engine)
+        acknowledgement = f"Destination request {self.destination_request}: {bus}={destination}\n"
+        self.wait(f"applied destination request {request}", lambda: acknowledgement in log.read_text())
 
     def capture(self, name, frequency=None, channels=2):
         graph = self.graph()
@@ -409,11 +425,49 @@ def destinations(s):
     s.capture("test.headphones", 440)
     s.capture("rostrum.stream")
     s.stop(engine)
-    s.engine(destination="stream")
+    engine = s.engine(destination="stream")
     s.route("rostrum.game", "rostrum.stream")
     s.wait("headphones send removed", lambda: not s.linked(s.graph(), "rostrum.game", "rostrum.phones"))
     s.capture("rostrum.stream", 440)
     s.capture("test.headphones")
+
+    # Keep one engine and playback stream alive while changing Desktop's destination.
+    # Restarting the engine clears its pending deletion bookkeeping and hid ID reuse.
+    s.stop(engine)
+    engine = s.engine(bus="desktop", live_destinations=True)
+    s.route("SafetyPlayer", "rostrum.desktop")
+    s.route("rostrum.desktop", "rostrum.stream")
+    s.route("rostrum.desktop", "rostrum.phones")
+    s.capture("rostrum.stream", 440)
+    s.capture("test.headphones", 440)
+
+    def absent(destination):
+        graph = s.graph()
+        source = s.node(graph, "rostrum.desktop")
+        target = s.node(graph, destination)
+        return source and target and not any(
+            o["type"].endswith(":Link") and
+            o["info"].get("output-node-id") == source["id"] and
+            o["info"].get("input-node-id") == target["id"] for o in graph)
+
+    for destination in ("phones", "stream", "both", "phones") * 2:
+        print(f"  live Desktop -> {destination}", flush=True)
+        s.destination(engine, "desktop", destination)
+        if destination in ("phones", "both"):
+            s.route("rostrum.desktop", "rostrum.phones")
+        if destination in ("stream", "both"):
+            s.route("rostrum.desktop", "rostrum.stream")
+        if destination == "phones":
+            s.wait("all Desktop Stream links removed", lambda: absent("rostrum.stream"))
+            s.capture("test.headphones", 440)
+            s.capture("rostrum.stream")
+        elif destination == "stream":
+            s.wait("all Desktop headphones links removed", lambda: absent("rostrum.phones"))
+            s.capture("rostrum.stream", 440)
+            s.capture("test.headphones")
+        else:
+            s.capture("rostrum.stream", 440)
+            s.capture("test.headphones", 440)
 
 
 def microphones(s):
