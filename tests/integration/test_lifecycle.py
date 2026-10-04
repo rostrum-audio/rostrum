@@ -347,6 +347,76 @@ class LifecycleTests(unittest.TestCase):
                   'Path(sys.argv[1]).write_text(str(p.pid))')
         self.supervised_fault(mutation, worker)
 
+    def final_publication_fault(self, persistent):
+        import process_lifecycle
+        session = safety.Session(DRIVER)
+        pidfile = Path(self.temp.name) / 'final-child.pid'
+        marker = Path(self.temp.name) / 'final-write-failed'
+        wrapper = Path(self.temp.name) / 'final-wrapper.py'
+        wrapper.write_text(
+            'import sys; from pathlib import Path\n'
+            f'sys.path.insert(0,{str(HERE)!r})\n'
+            'import process_lifecycle as m\n'
+            'real=m.publish; injected=False\n'
+            'def publish(path,value):\n'
+            ' global injected\n'
+            f' if value["complete"] and ({persistent!r} or not injected):\n'
+            '  injected=True\n'
+            f'  Path({str(marker)!r}).touch()\n'
+            '  raise OSError("injected final completion publication failure")\n'
+            ' real(path,value)\n'
+            'm.publish=publish\n'
+            'm.guardian(int(sys.argv[2]),Path(sys.argv[3]),sys.argv[4:])\n')
+        # The child announces readiness only after installing its TERM handler;
+        # its leader exits, leaving an adopted descendant requiring escalation.
+        child_code = ('import os,signal,sys,time; from pathlib import Path; '
+                      'signal.signal(signal.SIGTERM,signal.SIG_IGN); '
+                      'Path(sys.argv[1]).write_text(str(os.getpid())); time.sleep(60)')
+        worker = ('import subprocess,sys; subprocess.Popen('
+                  '[sys.executable,"-c",sys.argv[2],sys.argv[1]])')
+        try:
+            with patch.object(process_lifecycle, '__file__', str(wrapper)):
+                job = session.spawn([sys.executable, '-c', worker, str(pidfile), child_code])
+            observed('descendant ready', lambda: pidfile.exists())
+            observed('group leader exited', lambda: job.poll() is not None)
+            self.assertEqual(job.returncode, 0)
+            child = int(pidfile.read_text())
+            self.assertIsNotNone(state(child))
+            expected = ('without confirming complete cleanup' if persistent else
+                        'injected final completion publication failure')
+            with self.assertRaisesRegex(safety.OwnershipError, expected):
+                job.stop()
+            self.assertTrue(marker.exists(), 'final status fault was not exercised')
+            self.assertIsNone(state(child), 'completion preceded descendant reaping')
+            self.assertFalse(descendants(), 'owned processes remain after supervisor exit')
+            if persistent:
+                self.assertFalse(job.closed)
+                self.assertFalse(job.status()['complete'], 'unpublished completion was accepted')
+                for _ in range(2):
+                    with self.assertRaisesRegex(safety.Failure, 'private resources retained'):
+                        session.close()
+                    self.assertTrue(session.root.exists())
+            else:
+                self.assertTrue(job.closed)
+                self.assertTrue(job.status()['complete'])
+                self.assertEqual(job.status()['error'],
+                                 'injected final completion publication failure')
+                job.stop()
+                session.close()
+                session.close()
+                self.assertFalse(session.root.exists())
+        finally:
+            # Persistent failure deliberately retains the private tree/handles;
+            # the outer test reaper owns recovery of this fault-injection case.
+            if not persistent or sys.exc_info()[0] is not None:
+                safety.cleanup_preserving_failure(session.close)
+
+    def test_final_status_failure_reports_error_after_complete_cleanup(self):
+        self.final_publication_fault(persistent=False)
+
+    def test_persistent_final_status_failure_cannot_acknowledge_cleanup(self):
+        self.final_publication_fault(persistent=True)
+
     def test_supervisor_interrupted_before_worker_startup(self):
         from process_lifecycle import Identity
         session = safety.Session(DRIVER)

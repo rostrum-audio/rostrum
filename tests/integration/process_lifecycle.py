@@ -128,6 +128,7 @@ def guardian(control_fd, status_path, command):
     status = {'pid': None, 'returncode': None, 'complete': False, 'error': None}
     identities, terminated = {}, set()
     deadline = None
+    completion_deadline = None
 
     def failed(error):
         nonlocal stopping
@@ -139,8 +140,10 @@ def guardian(control_fd, status_path, command):
     def notify():
         try:
             publish(status_path, status)
+            return True
         except BaseException as error:
             failed(error)  # Publication failure must never abandon the worker tree.
+            return False
 
     def reap():
         # A /proc snapshot can miss a child forked during termination. Only kernel
@@ -220,8 +223,17 @@ def guardian(control_fd, status_path, command):
                         identities.pop(pid).close()
                 if reap():
                     status['complete'] = True
-                    notify()
-                    return
+                    # Reclamation and its durable acknowledgement are separate.
+                    # Retain the first publication error even if a later write
+                    # succeeds; Job.stop must report it after confirming cleanup.
+                    if completion_deadline is None:
+                        completion_deadline = time.monotonic() + 1
+                    if notify():
+                        return
+                    if time.monotonic() >= completion_deadline:
+                        # No acknowledgement: leave the caller fail-closed with
+                        # its ownership handle and private resources retained.
+                        return
                 if time.monotonic() > deadline + 3 and status['error'] is None:
                     failed(OwnershipError('Owned descendants survived the cleanup deadline'))
                     notify()

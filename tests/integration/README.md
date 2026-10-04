@@ -76,6 +76,17 @@ diagnosis; it is never reported as successful cleanup. Cleanup attempts all jobs
 and preserves the original test exception when reporting additional cleanup errors.
 Repeated successful cleanup is safe.
 
+Reclamation and durable completion acknowledgement are separate: after kernel
+`ECHILD`, the supervisor allows up to one second to publish the final status
+atomically. A transient write failure remains recorded as the original operational
+error and is surfaced by the caller even after a later write confirms reclamation.
+The confirmed job can then be closed repeatedly and its private tree removed.
+If final publication remains unavailable, the caller cannot confirm cleanup and
+retains its handle and private resources, even if the supervisor actually reaped
+every child. This path never converts missing status into successful cleanup.
+The one-second publication window is inside the existing eight-second caller
+deadline; filesystem operations that block beyond that deadline still fail closed.
+
 TMPDIR points inside each private tree, so nested runners' resources stay under
 the enclosing fixture. The enclosing tree is removed only after its supervised
 jobs finish cleanup, and its original directory identity is checked before
@@ -136,6 +147,9 @@ ignoring SIGTERM, reject stale/mismatched identities without signaling a sentine
 verify repeated cleanup, handle a fork during SIGTERM and an incomplete process
 snapshot, reclaim descendants after status-publication and diagnostic-write failures, retain startup
 ownership, and preserve an original failure when cleanup also fails.
+Final-status regressions inject both a one-time and a persistent failure specifically
+on the completion write, require full descendant reaping, preserve the first error,
+and distinguish confirmed repeatable cleanup from unacknowledged retained resources.
 
 ## Mic-filter scheduling regression
 
