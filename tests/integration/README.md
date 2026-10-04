@@ -62,8 +62,12 @@ never stored numeric PIDs or process-group IDs. Mismatches are rejected and the
 owned tree is observed again. Reaping a leader therefore does not lose ownership
 of adopted descendants; numeric PID reuse cannot redirect a pidfd signal.
 
-SIGINT, SIGTERM and SIGHUP abort the scenario runner, fixture program and lifecycle
-regression driver. Supervisor startup inherits a blocked signal mask until its
+SIGINT, SIGTERM and SIGHUP abort live work in the scenario runner, fixture program
+and lifecycle regression driver. Once session cleanup starts, those signals are
+deliberately ignored until reclamation finishes; a first signal arriving only at
+that phase is not evidence of a live-work interruption. A dedicated fixture check
+delivers all three signals during cleanup and requires reclamation to finish.
+Supervisor startup inherits a blocked signal mask until its
 handlers are installed, so interruption during interpreter startup also cleans up.
 The fixture has an outer cleanup guarantee covering unittest interruption and its
 nested runner. Registration is protected against handled signals. Each supervisor
@@ -150,6 +154,25 @@ ownership, and preserve an original failure when cleanup also fails.
 Final-status regressions inject both a one-time and a persistent failure specifically
 on the completion write, require full descendant reaping, preserve the first error,
 and distinguish confirmed repeatable cleanup from unacknowledged retained resources.
+
+Live interruption tests use a private Unix socket inside the owned test tree.
+After positive deterministic audio delivery, the fixture (or nested startup runner)
+announces readiness, accepts the parent's arm request, acknowledges that it is held
+and cannot advance to cleanup without interruption. The parent sends through a
+pinned process identity and requires the matching live-phase signal exception,
+exit code 1, real supervisor completion statuses copied before their files are
+removed, no owned descendants and removal of the private tree. Nested runners use
+the same hold and report their cleanup separately. Socket waits are bounded to
+12 seconds; missing events fail, never skip or retry. The internal `--checkpoint`
+argument activates this test-only protocol; ordinary scenario execution is unchanged.
+Logs and process scans are not readiness synchronization. Cleanup still relies on
+the existing subreaper/pidfd ownership and kernel `ECHILD` proof.
+
+This replaces the raced log checkpoint in CI run 37190525757 (SIGINT saw exit 0).
+The original failure evidence and cleanup-phase diagnostic remain in
+`build-appimage-validation/out/hosted-97b5dd6-run37190536318/`. The exact phase of
+that historical CI signal was not observed; the new protocol proves the intended
+phase rather than assuming it from timing. No production audio behavior changed.
 
 ## Mic-filter scheduling regression
 

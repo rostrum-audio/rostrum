@@ -17,6 +17,7 @@ import time
 import uuid
 
 from process_lifecycle import Job, OwnershipError, report
+from interruption_checkpoint import hold
 
 RATE = 48000
 TIMEOUT = 12
@@ -515,6 +516,7 @@ def main():
     parser.add_argument("--driver", type=Path, required=True)
     parser.add_argument("--scenario", choices=["all", "startup", "destinations", "microphones"], default="all")
     parser.add_argument("--runs", type=int, default=1)
+    parser.add_argument('--checkpoint', type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.runs < 1 or not args.driver.resolve().is_file():
         parser.error("positive --runs and a built --driver are required")
@@ -542,6 +544,8 @@ def main():
                     signal.pthread_sigmask(signal.SIG_SETMASK, previous)
                     s.start()
                     scenario(s)
+                    if args.checkpoint:
+                        hold(s, args.checkpoint)
                 except BaseException:
                     cleanup_preserving_failure(s.diagnostics)
                     raise
