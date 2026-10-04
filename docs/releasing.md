@@ -153,8 +153,11 @@ the packaged CLI (12 live changes total). Both requires 440 Hz delivery to both 
 Stream Mix channels. Headphones Only requires headphone delivery, every Desktop → Stream link
 to disappear and both stream channels below RMS 0.00001; Stream Only checks the converse.
 Silence is checked only after positive delivery at the intended destination. The host daemon maps
-the stable DSP copy; 440 Hz reaches the filtered
-mic; a live 20 Hz input is attenuated below RMS 0.001 by the rumble filter while a nonzero 20 Hz
+the stable DSP copy; 440 Hz reaches both Filtered Mic and Rostrum Mic before,
+during and after a real capture client's low-latency request, with a positive
+fake-hardware capture in each phase. PipeWire negotiates the quantum normally;
+the validator does not force one or relax its existing signal thresholds.
+A live 20 Hz input is attenuated below RMS 0.001 by the rumble filter while a nonzero 20 Hz
 output and active routes are required (silence cannot pass); the RNNoise chain
 loads. Loopback HTTP fixtures exercise feed handling, rejection of a bad checksum without
 replacing the image, and successful verified replacement with executable permissions. That

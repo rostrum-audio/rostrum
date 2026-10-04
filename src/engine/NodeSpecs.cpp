@@ -83,6 +83,10 @@ QMap<QString, QString> micFxProperties()
 {
     return {
         {QStringLiteral("factory.name"), QStringLiteral("audio.convert")},
+        // Both sides are DSP ports in the graph clock. Merge mode consumes and
+        // flushes each input quantum; the default split mode can retain partial
+        // buffers across quantum changes and subsequently output silent blocks.
+        {QStringLiteral("convert.direction"), QStringLiteral("output")},
         {QStringLiteral("node.name"), QString::fromLatin1(kMicFxNode)},
         {QStringLiteral("node.description"), QStringLiteral("Rostrum Mic Filters")},
         {QStringLiteral("audio.channels"), QStringLiteral("1")},

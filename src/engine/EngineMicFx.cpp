@@ -192,6 +192,16 @@ void Engine::reconcileMicFx()
             continue;
         }
         if (n.name == fxName) {
+            // Creation properties cannot be changed by reloading the LADSPA graph.
+            // Upgrade a persistent pre-merge converter, keeping the public virtual
+            // microphones intact. factory.name is available in full node info;
+            // don't judge an incomplete initial registry observation.
+            if (micFxWanted() && n.props.contains(QStringLiteral("factory.name")) &&
+                n.prop("convert.direction") != QLatin1String("output")) {
+                qCInfo(lcEngine) << "replacing legacy mic filter converter" << n.id;
+                destroyOnce(n.id);
+                continue;
+            }
             fxNodes.append(&n);
         } else if (n.name == filteredName) {
             filteredNodes.append(&n);

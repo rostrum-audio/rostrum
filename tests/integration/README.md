@@ -20,6 +20,9 @@ cmake --build build
 ctest --test-dir build -L audio-integration --output-on-failure
 python3 tests/integration/audio-safety.py \
   --driver build/tools/rostrum-graphtest/rostrum-graphtest --runs 20
+# Focused mic-filter scheduling/restart regression (add --denoise for an RNNoise build):
+python3 tests/integration/mic-filter-scheduling.py \
+  build/tools/rostrum-graphtest/rostrum-graphtest build/lib/rostrum/librostrum-dsp.so
 ```
 
 `--scenario startup|destinations|microphones` selects one scenario for diagnosis;
@@ -134,6 +137,38 @@ verify repeated cleanup, handle a fork during SIGTERM and an incomplete process
 snapshot, reclaim descendants after status-publication and diagnostic-write failures, retain startup
 ownership, and preserve an original failure when cleanup also fails.
 
+## Mic-filter scheduling regression
+
+`audio_mic_filter_scheduling` is registered when the DSP plugin is built and audio
+integration tests are enabled. It uses the real engine and plugin, with high-pass
+filtering enabled and the other modules bypassed. It requires the deterministic
+440 Hz signal at the fake hardware mic, Filtered Mic and Rostrum Mic, before,
+during and after an ordinary capture client's 128/48000 latency request. Starting
+and removing the client lets PipeWire negotiate its quantum normally; no forced
+quantum, fixed bounds, sleeps or relaxed signal thresholds are used. A restart
+also installs a legacy persistent converter in the private graph and requires its
+replacement plus correct delivery. The public virtual mic nodes remain intact.
+
+The old `rostrum.micfx` bare `audio.convert` used the default input/split direction.
+After quantum changes its partial-buffer state could yield alternating silent
+blocks. This was reproduced with no filter and with PipeWire's built-in copy
+filter as well as Rostrum's DSP, ruling out RNNoise and AppImage bundling as
+necessary causes. Explicit output/merge direction consumes and flushes the DSP
+input per quantum; existing converters with the old creation properties are
+replaced on startup. Changing the fake mic's driver role alone did not fix the
+transition failure, so that candidate change was discarded. The fixture's clock
+selection and original signal oracle are unchanged.
+
+This is focused scheduling and migration coverage, not a hardware timing or
+subjective filter-quality test. The packaged validator separately checks 440 Hz
+delivery across a latency request, 20 Hz attenuation and RNNoise loading.
+
+On 2026-10-04 the user reported that the updated normal build was working in
+manual use so far. This is limited confirmation of ordinary use, not a confirmed
+pass for a specific microphone recording, hardware matrix or other release check.
+The five successful clean packaged validations are automated evidence; they do
+not turn unreported manual checks into passes.
+
 ## Manual confirmation (2026-10-04)
 
 The user confirmed a fresh OBS recording on the installed normal x86_64 build:
@@ -148,7 +183,7 @@ The prior AppImage did not include the registry-removal fix.
 
 ## Limits
 
-These are focused engine/policy integration checks, not end-to-end UI, OBS,
+The original three scenarios are focused engine/policy integration checks, not end-to-end UI, OBS,
 PulseAudio compatibility, ALSA/Bluetooth hardware, permission-portal, DSP, latency,
 performance or subjective quality tests. Persistence coverage reads saved device
 and fallback settings; it does not exercise the UI saving them. Live Desktop destination

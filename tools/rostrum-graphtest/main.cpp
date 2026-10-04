@@ -71,6 +71,10 @@ int main(int argc, char **argv)
                                   QStringLiteral("node"));
     QCommandLineOption mic(QStringLiteral("mic"), QStringLiteral("Mic source node.name."), QStringLiteral("node"));
     QCommandLineOption micMuted(QStringLiteral("mic-muted"), QStringLiteral("Start with the mic muted."));
+    QCommandLineOption micFilterPlugin(QStringLiteral("mic-filter-plugin"),
+        QStringLiteral("Load mic filters from this DSP library, using saved filter settings."), QStringLiteral("path"));
+    QCommandLineOption micFilterDenoise(QStringLiteral("mic-filter-denoise"),
+        QStringLiteral("Include the RNNoise stage (the supplied plugin must support it)."));
     QCommandLineOption micFallback(QStringLiteral("mic-fallback"),
                                    QStringLiteral("Use another mic while the chosen one is missing."));
     QCommandLineOption sidetone(QStringLiteral("sidetone"), QStringLiteral("Sidetone volume 0..1 (turns it on)."),
@@ -87,7 +91,7 @@ int main(int argc, char **argv)
                              QStringLiteral("node"));
     parser.addOptions({seconds, teardown, rule, session, unassignAfter, listApps, dest, destinationFile,
                        readinessFile, headphones, mic, micMuted, micFallback, sidetone, solo, config, tone,
-                       meter});
+                       meter, micFilterPlugin, micFilterDenoise});
     parser.process(app);
 
     pw::PwContext pw;
@@ -114,6 +118,10 @@ int main(int argc, char **argv)
     }
     if (parser.isSet(micFallback)) {
         engine.setMicFallback(true);
+    }
+    if (parser.isSet(micFilterPlugin)) {
+        engine.setMicFilterPlugin(parser.value(micFilterPlugin), parser.isSet(micFilterDenoise), {});
+        engine.setMicFilters(loadSettings(paths::settingsFile()).micFilters);
     }
 
     std::signal(SIGINT, [](int) { QCoreApplication::quit(); });

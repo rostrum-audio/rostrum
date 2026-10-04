@@ -251,6 +251,28 @@ enabled = false
         s.route("PackagedMic", "test.saved-mic")
         s.capture("test.saved-mic", 440, 1)
         s.capture("rostrum.filtered", 440, 1)
+        s.capture("rostrum.mic", 440, 1)
+        # Exercise real client-driven quantum changes, not clock.force-quantum.
+        # The default split-mode converter used to retain partial buffers and
+        # alternate signal/silence after scheduling changed.
+        low_audio = s.root / "mic-latency-request.raw"
+        with low_audio.open("wb") as output:
+            target = s.node(s.graph(), "rostrum.filtered")["info"]["props"]["object.serial"]
+            reader = s.spawn(["pw-cat", "-r", "-a", "--format", "f32", "--rate", "48000",
+                "--channels", "1", "--target", str(target), "-P", '''{
+                    node.name = PackagedMicLatency node.latency = 128/48000
+                    rostrum.internal = true node.dont-fallback = true node.dont-move = true }''', "-"], output)
+            s.route("rostrum.filtered", "PackagedMicLatency")
+            s.wait("low-latency mic buffers", lambda: low_audio.stat().st_size >= 96000)
+            s.capture("test.saved-mic", 440, 1)
+            s.capture("rostrum.filtered", 440, 1)
+            s.capture("rostrum.mic", 440, 1)
+            s.stop(reader)
+        s.wait("low-latency mic client removed", lambda: s.node(s.graph(), "PackagedMicLatency") is None)
+        s.capture("test.saved-mic", 440, 1)
+        s.capture("rostrum.filtered", 440, 1)
+        s.capture("rostrum.mic", 440, 1)
+        print("PASS packaged filtered/stream mic delivery before/during/after client latency changes (no forced quantum)", flush=True)
         s.stop(tone)
         s.tone("PackagedRumble", "0", 20, 1, internal=True)
         s.command("pw-link", "PackagedRumble:output_MONO", "test.saved-mic:input_MONO")
