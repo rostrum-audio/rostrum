@@ -135,6 +135,11 @@ Five minutes to a split stream:
    rules. Switch with Meta+Alt+PgDown or the scene menu in the header. Move Up and Move Down set
    the order that the header, the tray and the scene hotkeys follow; the badge shows each scene's
    hotkey number.
+On the OBS page, **Check stream readiness** explains effective controls, devices, channel
+routing and OBS captures with Verified, Needs attention, Intentionally excluded/idle and
+Not verified results. It reads state without changing settings or playing/recording sound.
+See [what it checks and cannot verify](docs/stream-readiness.md).
+
 7. **Clean up your mic (optional).** Open Mic Filters and turn on "Clean up my mic", or press FX
    on the mic strip. Pick a preset (Light, Streaming, Noisy room, Broadcast) and adjust each
    filter if you like. "Filter the mic for" chooses between the stream and every app, or only the

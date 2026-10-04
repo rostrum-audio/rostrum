@@ -3,6 +3,7 @@
 #include <QHash>
 #include <QJsonObject>
 #include <QList>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 
@@ -35,12 +36,17 @@ struct Input
     bool muted = false;
     quint32 tracks = 0;
     QString channel; // "desktop1", "mic1"... for OBS's global audio devices, else empty
+    bool settingsKnown = false, muteKnown = false, tracksKnown = false, gainKnown = false;
+    double gain = 1.0;
 };
 
 struct State
 {
     QList<Input> inputs;
     QStringList scenes; // top-level scenes
+    bool scopeKnown = false;
+    QString programScene;
+    QSet<QString> programInputs; // enabled direct program-scene items; groups/nesting not supported
 
     const Input *input(const QString &name) const;
     const Input *channel(const QString &channel) const;

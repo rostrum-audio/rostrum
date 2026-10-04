@@ -39,6 +39,7 @@ public:
 
     static constexpr int kEventScenes = 1 << 2;
     static constexpr int kEventInputs = 1 << 3;
+    static constexpr int kEventSceneItems = 1 << 7;
     static constexpr int kEventOutputs = 1 << 6;
 
 Q_SIGNALS:

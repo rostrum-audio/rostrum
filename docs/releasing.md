@@ -143,7 +143,9 @@ python3 -B tools/appimage/validate-runtime.py \
   /absolute/path/Rostrum-0.1.0-x86_64.AppImage --reports /absolute/path/runtime-check --x11
 ```
 
-Coverage: first-start wizard renders to a PNG offscreen and through X11/xcb with a private Xvfb
+Coverage: the shipped OBS/readiness page renders offscreen from private completed setup state;
+this is a packaged QML/resource check, not interactive readiness or live OBS verification.
+The first-start wizard renders to a PNG offscreen and through X11/xcb with a private Xvfb
 server/software rendering (when `--x11` is given; CI requires it); a saved completed setup creates the actual mix
 and links to a fake output; one packaged instance and one playback source survive four live
 Both → Headphones Only → Both cycles plus Stream Only transitions via private saved scenes and

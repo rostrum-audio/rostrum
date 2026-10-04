@@ -25,6 +25,8 @@ rostrum_add_test(tst_testtone)
 rostrum_add_test(tst_micfilters)
 rostrum_add_test(tst_obs)
 target_link_libraries(tst_obs PRIVATE rostrum_obs)
+rostrum_add_test(tst_readiness)
+target_link_libraries(tst_readiness PRIVATE rostrum_obs)
 
 if(TARGET rostrum-dsp)
     add_executable(tst_dsp tst_dsp.cpp)
@@ -87,7 +89,9 @@ if(ROSTRUM_AUDIO_INTEGRATION_TESTS)
     add_test(NAME audio_safety_lifecycle COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/integration/test_lifecycle.py
         $<TARGET_FILE:rostrum-graphtest> -v)
+    add_test(NAME audio_readiness COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/integration/readiness-routing.py $<TARGET_FILE:rostrum-graphtest>)
     # Lifecycle regressions deliberately interrupt private jobs; serialize audio tests.
-    set_tests_properties(audio_safety audio_safety_fixture audio_safety_lifecycle PROPERTIES
+    set_tests_properties(audio_safety audio_safety_fixture audio_safety_lifecycle audio_readiness PROPERTIES
         TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
 endif()

@@ -73,7 +73,8 @@ void step(const std::shared_ptr<Run> &run)
 
 } // namespace
 
-void fetchState(Client *client, std::function<void(const State &, const QString &)> done)
+void fetchState(Client *client, std::function<void(const State &, const QString &)> done,
+                bool includeUnsupported)
 {
     struct Fetch
     {
@@ -97,6 +98,15 @@ void fetchState(Client *client, std::function<void(const State &, const QString 
             f->done({}, err);
             return;
         }
+        if (includeUnsupported) {
+            for (const char *key : {"desktop1", "desktop2", "mic1", "mic2", "mic3", "mic4"}) {
+                const auto v = special.value(QLatin1String(key));
+                if (!v.isString() && !v.isNull()) {
+                    f->done({}, QStringLiteral("Global audio channels not verified."));
+                    return;
+                }
+            }
+        }
         for (auto it = special.begin(); it != special.end(); ++it) {
             if (it.value().isString()) {
                 f->channelOf.insert(it.value().toString(), it.key());
@@ -105,6 +115,10 @@ void fetchState(Client *client, std::function<void(const State &, const QString 
         c->request(QStringLiteral("GetSceneList"), {}, [=](bool ok, const QJsonObject &scenes, const QString &err) {
             if (!ok || !c) {
                 f->done({}, err);
+                return;
+            }
+            if (!scenes.value(QLatin1String("scenes")).isArray()) {
+                f->done({}, QStringLiteral("Scene list not verified."));
                 return;
             }
             const QJsonArray list = scenes.value(QLatin1String("scenes")).toArray();
@@ -117,6 +131,10 @@ void fetchState(Client *client, std::function<void(const State &, const QString 
                     f->done({}, err);
                     return;
                 }
+                if (!inputs.value(QLatin1String("inputs")).isArray()) {
+                    f->done({}, QStringLiteral("Input list not verified."));
+                    return;
+                }
                 for (const auto &v : inputs.value(QLatin1String("inputs")).toArray()) {
                     const QJsonObject o = v.toObject();
                     Input in;
@@ -125,7 +143,11 @@ void fetchState(Client *client, std::function<void(const State &, const QString 
                     if (in.kind.isEmpty()) {
                         in.kind = o.value(QLatin1String("inputKind")).toString();
                     }
-                    if (isAudioCaptureKind(in.kind)) {
+                    if (includeUnsupported && (in.name.isEmpty() || in.kind.isEmpty())) {
+                        f->done({}, QStringLiteral("An OBS input identity is incomplete."));
+                        return;
+                    }
+                    if (includeUnsupported || isAudioCaptureKind(in.kind)) {
                         in.channel = f->channelOf.value(in.name);
                         f->state.inputs << in;
                     }
@@ -139,18 +161,26 @@ void fetchState(Client *client, std::function<void(const State &, const QString 
                     const QJsonObject who{{QStringLiteral("inputName"), f->state.inputs.at(n).name}};
                     c->request(QStringLiteral("GetInputSettings"), who, [=](bool ok, const QJsonObject &d, const QString &) {
                         if (ok) {
+                            f->state.inputs[n].settingsKnown =
+                                d.value(QLatin1String("inputSettings")).isObject();
                             f->state.inputs[n].settings = d.value(QLatin1String("inputSettings")).toObject();
                         }
                         finishOne();
                     });
                     c->request(QStringLiteral("GetInputMute"), who, [=](bool ok, const QJsonObject &d, const QString &) {
                         if (ok) {
+                            f->state.inputs[n].muteKnown = d.value(QLatin1String("inputMuted")).isBool();
                             f->state.inputs[n].muted = d.value(QLatin1String("inputMuted")).toBool();
                         }
                         finishOne();
                     });
                     c->request(QStringLiteral("GetInputAudioTracks"), who, [=](bool ok, const QJsonObject &d, const QString &) {
                         if (ok) {
+                            const auto tracks = d.value(QLatin1String("inputAudioTracks")).toObject();
+                            bool complete = true;
+                            for (int track = 1; track <= 6; ++track)
+                                complete = complete && tracks.value(QString::number(track)).isBool();
+                            f->state.inputs[n].tracksKnown = complete;
                             f->state.inputs[n].tracks = tracksFrom(d.value(QLatin1String("inputAudioTracks")).toObject());
                         }
                         finishOne();
@@ -159,6 +189,74 @@ void fetchState(Client *client, std::function<void(const State &, const QString 
             });
         });
     });
+}
+
+void fetchReadinessState(Client *client, std::function<void(const State &, const QString &)> done)
+{
+    QPointer<Client> c(client);
+    fetchState(
+        client,
+        [c, done](const State &state, const QString &error) {
+            if (!c || !error.isEmpty()) {
+                done({}, error.isEmpty() ? QStringLiteral("OBS disconnected.") : error);
+                return;
+            }
+            auto result = std::make_shared<State>(state);
+            c->request(
+                QStringLiteral("GetCurrentProgramScene"), {},
+                [c, result, done](bool ok, const QJsonObject &d, const QString &error) {
+                    result->programScene = d.value(QLatin1String("currentProgramSceneName")).toString();
+                    if (result->programScene.isEmpty())
+                        result->programScene = d.value(QLatin1String("sceneName")).toString();
+                    if (!c || !ok || result->programScene.isEmpty()) {
+                        done(*result,
+                             error.isEmpty() ? QStringLiteral("Program scene not verified.") : error);
+                        return;
+                    }
+                    c->request(
+                        QStringLiteral("GetSceneItemList"),
+                        {{QStringLiteral("sceneName"), result->programScene}},
+                        [c, result, done](bool ok, const QJsonObject &d, const QString &error) {
+                            if (!c || !ok || !d.value(QLatin1String("sceneItems")).isArray()) {
+                                done(*result,
+                                     error.isEmpty() ? QStringLiteral("Scene items not verified.") : error);
+                                return;
+                            }
+                            result->scopeKnown = true;
+                            for (const auto &v : d.value(QLatin1String("sceneItems")).toArray()) {
+                                const auto item = v.toObject();
+                                if (item.value(QLatin1String("isGroup")).toBool() ||
+                                    item.value(QLatin1String("sourceType")).toString() ==
+                                        QLatin1String("OBS_SOURCE_TYPE_SCENE") ||
+                                    !item.value(QLatin1String("sceneItemEnabled")).isBool() ||
+                                    !item.value(QLatin1String("sourceName")).isString())
+                                    result->scopeKnown = false;
+                                if (item.value(QLatin1String("sceneItemEnabled")).toBool())
+                                    result->programInputs.insert(
+                                        item.value(QLatin1String("sourceName")).toString());
+                            }
+                            if (result->inputs.isEmpty()) {
+                                done(*result, {});
+                                return;
+                            }
+                            auto pending = std::make_shared<int>(int(result->inputs.size()));
+                            for (qsizetype n = 0; n < result->inputs.size(); ++n) {
+                                c->request(QStringLiteral("GetInputVolume"),
+                                           {{QStringLiteral("inputName"), result->inputs[n].name}},
+                                           [result, pending, done, n](bool ok, const QJsonObject &d,
+                                                                      const QString &) {
+                                               result->inputs[n].gainKnown =
+                                                   ok && d.value(QLatin1String("inputVolumeMul")).isDouble();
+                                               result->inputs[n].gain =
+                                                   d.value(QLatin1String("inputVolumeMul")).toDouble();
+                                               if (--*pending == 0)
+                                                   done(*result, {});
+                                           });
+                            }
+                        });
+                });
+        },
+        true);
 }
 
 void applyPlan(Client *client, const QList<Action> &actions, const State &before,

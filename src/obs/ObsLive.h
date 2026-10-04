@@ -9,7 +9,11 @@
 namespace rostrum::obs {
 
 // Reads the inputs Rostrum cares about and the scene list. `error` is empty on success.
-void fetchState(Client *client, std::function<void(const State &state, const QString &error)> done);
+void fetchState(Client *client, std::function<void(const State &state, const QString &error)> done,
+                bool includeUnsupported = false);
+
+// A read-only live readiness snapshot; nested scenes/groups remain unsupported.
+void fetchReadinessState(Client *client, std::function<void(const State &, const QString &)> done);
 
 // Runs the actions in order and stops at the first one OBS refuses. `applied` holds the undo
 // ops for everything that did happen, so a partial run can still be undone.

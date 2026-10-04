@@ -227,6 +227,18 @@ enabled = false
 enabled = false
 ''')
         routing_scenes(config)
+        # Render the shipped OBS/readiness page as well as the first-start wizard.
+        # This checks packaged QML/resources, not a live OBS snapshot or recording.
+        settings.write_text(settings.read_text() + '\n[window]\npage = "obs"\n')
+        readiness_shot = s.root / "readiness-page.png"
+        s.env["ROSTRUM_SCREENSHOT"] = str(readiness_shot)
+        preview = s.spawn([str(image), "--appimage-extract-and-run"])
+        if preview.wait(timeout=60) != 0 or not readiness_shot.is_file() or not readiness_shot.stat().st_size:
+            raise safety.Failure("Packaged OBS/readiness page failed to render")
+        s.stop(preview)
+        shutil.copyfile(readiness_shot, reports / "readiness-page.png")
+        del s.env["ROSTRUM_SCREENSHOT"]
+        print("PASS packaged OBS/readiness page render (not interactive readiness or live OBS verification)", flush=True)
         app = s.spawn([str(image), "--appimage-extract-and-run"])
         s.wait("packaged mix", lambda: all(s.node(s.graph(), name) for name in
                ("rostrum.game", "rostrum.stream", "rostrum.phones", "rostrum.filtered")))

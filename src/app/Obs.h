@@ -5,12 +5,13 @@
 #include "obs/ObsModel.h"
 #include "obs/ObsPlan.h"
 #include "obs/ObsStatus.h"
+#include "obs/Readiness.h"
 
+#include <QElapsedTimer>
 #include <QObject>
 #include <QTimer>
 #include <QVariantList>
 #include <QtQml/qqmlregistration.h>
-
 #include <optional>
 
 class QQmlEngine;
@@ -71,6 +72,8 @@ class Obs : public QObject
     // "noStreamCapture", "noMicCapture".
     Q_PROPERTY(QStringList warnings READ warnings NOTIFY warningsChanged)
     Q_PROPERTY(QString warningText READ warningText NOTIFY warningsChanged)
+    Q_PROPERTY(QVariantList readiness READ readiness NOTIFY readinessChanged)
+    Q_PROPERTY(bool readinessChecking READ readinessChecking NOTIFY readinessChanged)
 
 public:
     Obs(AppController *app, QObject *parent);
@@ -113,6 +116,9 @@ public:
     QStringList warnings() const;
     QString warningText() const;
 
+    QVariantList readiness() const { return m_readiness; }
+    bool readinessChecking() const { return m_readinessChecking; }
+    Q_INVOKABLE void checkReadiness();
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void setPlanItemEnabled(int index, bool enabled);
     Q_INVOKABLE void apply();
@@ -130,8 +136,12 @@ Q_SIGNALS:
     void liveChanged();
     void sceneMapChanged();
     void warningsChanged();
+    void readinessChanged();
 
 private:
+    obs::ReadinessInput readinessInput() const;
+    void rebuildReadiness();
+    void invalidateReadiness(const QString &reason);
     void updateActive();
     void updatePolling();
     void applyBackground();
@@ -180,6 +190,13 @@ private:
     bool m_havePlan = false;
     QVariantList m_recordings;
     QList<obs::GoLiveProblem> m_problems;
+    QVariantList m_readiness;
+    bool m_readinessRequested = false, m_readinessChecking = false, m_readinessFresh = false;
+    int m_readinessGeneration = 0;
+    QElapsedTimer m_readinessAge;
+    QString m_readinessError;
+    obs::State m_readinessState;
+    QTimer m_readinessRefresh;
 };
 
 } // namespace rostrum::app

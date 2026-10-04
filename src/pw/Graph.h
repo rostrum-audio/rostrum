@@ -59,6 +59,8 @@ struct Link
     uint32_t outPort = 0;
     uint32_t inNode = 0;
     uint32_t inPort = 0;
+    QString state; // empty until link info arrives; never assume active from presence
+    QString error;
 };
 
 struct Client

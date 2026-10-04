@@ -69,6 +69,7 @@ qt_add_qml_module(rostrum
         qml/MicFiltersPage.qml
         qml/MicCheckCard.qml
         qml/ObsPage.qml
+        qml/ReadinessPanel.qml
         qml/ObsSetupDialog.qml
         qml/ObsChoices.qml
         qml/SettingsPage.qml

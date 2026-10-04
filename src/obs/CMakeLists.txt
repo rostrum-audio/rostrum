@@ -7,6 +7,7 @@ add_library(rostrum_obs STATIC
     ObsLive.cpp ObsLive.h
     ObsCaptures.cpp ObsCaptures.h
     ObsStatus.cpp ObsStatus.h
+    Readiness.cpp Readiness.h
 )
 
 target_include_directories(rostrum_obs PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)

@@ -83,7 +83,7 @@ QQC2.ScrollView {
     }
 
     ColumnLayout {
-        width: Math.min(page.availableWidth - Kirigami.Units.largeSpacing * 2, Kirigami.Units.gridUnit * 42)
+        width: Math.min(page.availableWidth - Kirigami.Units.largeSpacing * 2, Kirigami.Units.gridUnit * 54)
         x: Kirigami.Units.largeSpacing
         spacing: Kirigami.Units.largeSpacing * 2
 
@@ -112,8 +112,23 @@ QQC2.ScrollView {
             ]
         }
 
+        ReadinessPanel {
+            Layout.fillWidth: true
+            results: Obs.readiness
+            checking: Obs.readinessChecking
+            enabled: !Obs.busy
+            onCheckRequested: Obs.checkReadiness()
+            onNavigateRequested: targetPage => App.lastPage = targetPage
+            onReviewObsRequested: {
+                const maximum = Math.max(0, page.contentItem.contentHeight - page.contentItem.height)
+                page.contentItem.contentY = Math.min(maximum, Math.max(0, obsSetupSection.y - Kirigami.Units.largeSpacing))
+                obsRefreshButton.forceActiveFocus(Qt.TabFocusReason)
+            }
+        }
+
         // Status and the one-click setup
         RowLayout {
+            id: obsSetupSection
             Layout.fillWidth: true
             spacing: Kirigami.Units.largeSpacing
 
@@ -174,6 +189,7 @@ QQC2.ScrollView {
                         onClicked: Obs.undo()
                     }
                     QQC2.Button {
+                        id: obsRefreshButton
                         icon.name: "view-refresh"
                         text: i18nc("@action:button", "Check Again")
                         enabled: !Obs.busy

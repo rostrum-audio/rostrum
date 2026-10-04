@@ -1,8 +1,9 @@
 #include "obs/ObsStatus.h"
 
+#include "obs/Readiness.h"
+
 #include <QDateTime>
 #include <QJsonArray>
-
 #include <algorithm>
 
 namespace rostrum::obs {
@@ -218,41 +219,16 @@ void LiveStatus::onEvent(const QString &type, const QJsonObject &data)
 }
 
 QList<GoLiveProblem> goLiveProblems(const Scene &scene, const QSet<QString> &soloed,
-                                    const QList<Recording> *recordings)
+                                    const QList<Recording> *recordings, const EffectiveMutes *mutes)
 {
-    QList<GoLiveProblem> out;
-    const Bus *mic = scene.micBus();
-    if (mic && (mic->muted || mic->volume <= 0.0 || !feedsStream(mic->destination))) {
-        out << GoLiveProblem::MicMuted;
-    }
-    bool reachesStream = false;
-    for (const auto &bus : scene.buses) {
-        if (bus.isInput() || !feedsStream(bus.destination) || bus.muted || bus.volume <= 0.0) {
-            continue;
-        }
-        if (soloed.isEmpty() || soloed.contains(bus.id)) {
-            reachesStream = true;
-            break;
-        }
-    }
-    if (scene.masterStreamMuted || scene.masterStream <= 0.0 || !reachesStream) {
-        out << GoLiveProblem::StreamMixSilent;
-    }
-    if (recordings) {
-        bool stream = false;
-        bool micCapture = false;
-        for (const auto &r : *recordings) {
-            stream = stream || r.capture == Capture::RostrumStream;
-            micCapture = micCapture || r.capture == Capture::RostrumMic;
-        }
-        if (!stream) {
-            out << GoLiveProblem::NoStreamMixCapture;
-        }
-        if (!micCapture) {
-            out << GoLiveProblem::NoMicCapture;
-        }
-    }
-    return out;
+    ReadinessInput input;
+    input.scene = scene;
+    input.soloed = soloed;
+    input.mutes =
+        mutes ? *mutes : EffectiveMutes{scene.micBus() && scene.micBus()->muted, scene.masterStreamMuted};
+    input.inspectRouting = false;
+    input.legacyRecordings = recordings;
+    return readinessWarnings(evaluateReadiness(input));
 }
 
 QString mappedScene(const QMap<QString, QString> &map, const QString &obsScene,

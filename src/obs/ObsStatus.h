@@ -73,11 +73,18 @@ enum class GoLiveProblem
     NoMicCapture,       // OBS records nothing from Rostrum Mic
 };
 
+struct EffectiveMutes
+{
+    bool mic = false;
+    bool stream = false;
+};
+
 // What would make a stream start badly. `soloed` is the engine's live solo set, which dims the
 // other buses on the stream too. `recordings` is what OBS records according to PipeWire, or null
 // when that isn't known.
 QList<GoLiveProblem> goLiveProblems(const Scene &scene, const QSet<QString> &soloed,
-                                    const QList<Recording> *recordings);
+                                    const QList<Recording> *recordings,
+                                    const EffectiveMutes *mutes = nullptr);
 
 // The Rostrum scene to switch to when OBS puts `obsScene` on program; empty for no change.
 QString mappedScene(const QMap<QString, QString> &map, const QString &obsScene,

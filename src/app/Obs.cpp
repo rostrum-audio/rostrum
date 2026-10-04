@@ -32,7 +32,8 @@ constexpr int kPollMs = 3000;
 // longest wait between attempts while its WebSocket server refuses.
 constexpr int kBackgroundPollMs = 5000;
 constexpr qint64 kMaxRetryMs = 60000;
-constexpr int kEvents = obs::Client::kEventScenes | obs::Client::kEventInputs | obs::Client::kEventOutputs;
+constexpr int kEvents = obs::Client::kEventScenes | obs::Client::kEventInputs | obs::Client::kEventOutputs |
+                        obs::Client::kEventSceneItems;
 
 QString undoFile()
 {
@@ -155,6 +156,32 @@ Obs::Obs(AppController *app, QObject *parent)
     connect(&m_live, &obs::LiveStatus::streamStarted, this, &Obs::checkGoLive);
     connect(&m_live, &obs::LiveStatus::programSceneChanged, this, &Obs::followProgramScene);
 
+    m_readinessRefresh.setInterval(5000);
+    connect(&m_readinessRefresh, &QTimer::timeout, this, [this] {
+        if (m_readinessRequested && m_pageActive && !m_readinessChecking)
+            checkReadiness();
+    });
+    connect(app->pw(), &pw::PwContext::graphChanged, this, &Obs::rebuildReadiness);
+    connect(app, &AppController::statusChanged, this, &Obs::rebuildReadiness);
+    connect(app->engine(), &engine::Engine::levelsChanged, this, &Obs::rebuildReadiness);
+    connect(app->engine(), &engine::Engine::levelsChanged, this, &Obs::refreshWarnings);
+    connect(app->engine(), &engine::Engine::soloChanged, this, &Obs::rebuildReadiness);
+    connect(app->engine(), &engine::Engine::appsChanged, this, &Obs::rebuildReadiness);
+    connect(app->engine(), &engine::Engine::devicesChanged, this, &Obs::rebuildReadiness);
+    connect(app->engine(), &engine::Engine::micFiltersStateChanged, this, &Obs::rebuildReadiness);
+    connect(&m_client, &obs::Client::statusChanged, this, [this] {
+        invalidateReadiness(i18n("OBS connection changed; a fresh capture snapshot is required."));
+        if (m_readinessRequested && m_pageActive && m_client.status() == obs::Client::Status::Connected)
+            checkReadiness();
+    });
+    connect(&m_client, &obs::Client::event, this, [this](const QString &type, const QJsonObject &) {
+        if (type.startsWith(QLatin1String("Input")) || type.startsWith(QLatin1String("Scene")) ||
+            type == QLatin1String("CurrentProgramSceneChanged")) {
+            invalidateReadiness(i18n("OBS inputs or program scene changed; the previous snapshot is stale."));
+            if (m_readinessRequested && m_pageActive)
+                m_readinessRefresh.start(300);
+        }
+    });
     updatePolling();
 }
 
@@ -173,7 +200,13 @@ void Obs::setActive(bool active)
 {
     if (active != m_pageActive) {
         m_pageActive = active;
+        if (!active) {
+            m_readinessRefresh.stop();
+            invalidateReadiness(i18n("The OBS page was closed; capture observations are stale."));
+        }
         updateActive();
+        if (active && m_readinessRequested)
+            checkReadiness();
         Q_EMIT activeChanged();
     }
 }
@@ -819,19 +852,121 @@ void Obs::followProgramScene(const QString &obsScene)
     }
 }
 
+obs::ReadinessInput Obs::readinessInput() const
+{
+    obs::ReadinessInput input;
+    const auto *engine = m_app->engine();
+    input.scene = engine->scene();
+    input.mutes = {engine->effectiveMicMuted(), engine->effectiveStreamMuted()};
+    input.panic = engine->panic();
+    input.pushToTalk = engine->pushToTalk();
+    input.pushToMute = engine->pushToMute();
+    for (const auto &bus : input.scene.buses)
+        if (engine->isSoloed(bus.id))
+            input.soloed.insert(bus.id);
+    input.graph = m_app->connected() ? &m_app->pw()->graph() : nullptr;
+    input.selectedMic = engine->micDevice();
+    input.resolvedMic = engine->resolvedSourceName();
+    input.selectedPhones = engine->headphoneDevice();
+    input.resolvedPhones = engine->resolvedSinkName();
+    input.micMissing = engine->micMissing();
+    input.phonesMissing = engine->headphonesMissing();
+    input.micFallback = engine->micFallback();
+    input.monoPhones = engine->monoHeadphones();
+    input.filtersWanted = engine->micFilters().enabled;
+    input.filtersActive = engine->micFiltersState() == engine::Engine::MicFxState::Active;
+    for (const auto &app : engine->appStreams())
+        input.apps.append({app.nodeId, app.busId});
+    input.facts = obs::factsFrom(*m_app->pw());
+    input.obsState = &m_readinessState;
+    input.obsFresh = m_readinessFresh && m_readinessAge.isValid() && m_readinessAge.elapsed() < 10000 &&
+                     m_client.status() == obs::Client::Status::Connected;
+    input.obsError = input.obsFresh ? QString() : m_readinessError;
+    return input;
+}
+
 QList<obs::GoLiveProblem> Obs::currentProblems() const
 {
-    QSet<QString> soloed;
-    for (const auto &bus : m_app->engine()->scene().buses) {
-        if (m_app->engine()->isSoloed(bus.id)) {
-            soloed.insert(bus.id);
+    // The same evaluator backs the explicit check and the existing start-only banner.
+    auto input = readinessInput();
+    // Preserve the start-only banner's observed-capture criteria. The explicit check
+    // adds configuration, scope and freshness evidence; it never restores a banner.
+    input.inspectRouting = false;
+    input.obsFresh = false; // Only legacy observed captures may supply capture warnings here.
+    const auto recordings = m_app->connected() && m_running
+                                ? std::optional(obs::obsRecordings(m_app->pw()->graph()))
+                                : std::nullopt;
+    input.legacyRecordings = recordings ? &*recordings : nullptr;
+    return obs::readinessWarnings(obs::evaluateReadiness(input));
+}
+
+void Obs::invalidateReadiness(const QString &reason)
+{
+    ++m_readinessGeneration;
+    m_readinessFresh = false;
+    m_readinessAge.invalidate();
+    m_readinessChecking = false;
+    m_readinessError = reason;
+    rebuildReadiness();
+}
+
+void Obs::checkReadiness()
+{
+    m_readinessRequested = true;
+    invalidateReadiness(i18n("A fresh live OBS capture snapshot has not been verified."));
+    if (!m_pageActive || m_client.status() != obs::Client::Status::Connected || m_busy)
+        return;
+    m_readinessChecking = true;
+    m_readinessAge.start();
+    m_readinessRefresh.start(5000);
+    Q_EMIT readinessChanged();
+    const int generation = m_readinessGeneration;
+    obs::fetchReadinessState(&m_client, [this, generation](const obs::State &state, const QString &error) {
+        if (generation != m_readinessGeneration || !m_pageActive ||
+            m_client.status() != obs::Client::Status::Connected)
+            return;
+        m_readinessChecking = false;
+        m_readinessState = state;
+        m_readinessFresh = error.isEmpty();
+        m_readinessError = error;
+        rebuildReadiness();
+        refreshWarnings();
+    });
+}
+
+void Obs::rebuildReadiness()
+{
+    if (!m_readinessRequested)
+        return;
+    QVariantList rows;
+    for (const auto &r : obs::evaluateReadiness(readinessInput())) {
+        QString status, label;
+        switch (r.status) {
+        case obs::ReadinessStatus::Verified:
+            status = QStringLiteral("verified");
+            label = i18n("Verified");
+            break;
+        case obs::ReadinessStatus::Attention:
+            status = QStringLiteral("attention");
+            label = i18n("Needs attention");
+            break;
+        case obs::ReadinessStatus::Excluded:
+            status = QStringLiteral("excluded");
+            label = i18n("Intentionally excluded/idle");
+            break;
+        case obs::ReadinessStatus::Unknown:
+            status = QStringLiteral("unknown");
+            label = i18n("Not verified");
+            break;
         }
+        rows << QVariantMap{{QStringLiteral("id"), r.id},
+                            {QStringLiteral("title"), r.title},
+                            {QStringLiteral("detail"), r.detail},
+                            {QStringLiteral("status"), status},
+                            {QStringLiteral("label"), label}};
     }
-    std::optional<QList<obs::Recording>> recordings;
-    if (m_app->connected() && m_running) {
-        recordings = obs::obsRecordings(m_app->pw()->graph());
-    }
-    return obs::goLiveProblems(m_app->engine()->scene(), soloed, recordings ? &*recordings : nullptr);
+    m_readiness = rows;
+    Q_EMIT readinessChanged();
 }
 
 void Obs::checkGoLive()

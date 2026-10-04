@@ -1,9 +1,11 @@
+#include "engine/Engine.h"
 #include "obs/ObsClient.h"
 #include "obs/ObsConfig.h"
 #include "obs/ObsLive.h"
 #include "obs/ObsPlan.h"
 #include "obs/ObsStatus.h"
 #include "obs/SceneCollection.h"
+#include "pw/PwContext.h"
 
 #include <QDateTime>
 #include <QDir>
@@ -104,6 +106,8 @@ public:
     QMap<QString, In> inputs;
     QMap<QString, QStringList> scenes;
     QHash<QString, QString> special;
+    QStringList ignored, requests;
+    bool nested = false;
     QStringList refuse; // request types to fail
     bool streaming = false;
     bool recording = false;
@@ -147,6 +151,9 @@ private:
             return;
         }
         const QString type = d.value(QLatin1String("requestType")).toString();
+        requests << type;
+        if (ignored.contains(type))
+            return;
         const QJsonObject rd = d.value(QLatin1String("requestData")).toObject();
         QJsonObject out;
         const bool ok = !refuse.contains(type) && handle(type, rd, out);
@@ -193,6 +200,15 @@ private:
                                         {QStringLiteral("unversionedInputKind"), it->kind}});
             }
             out.insert(QStringLiteral("inputs"), list);
+        } else if (type == QLatin1String("GetSceneItemList")) {
+            QJsonArray items;
+            for (const auto &name : scenes.value(programScene))
+                items.append(QJsonObject{{QStringLiteral("sourceName"), name},
+                                         {QStringLiteral("sceneItemEnabled"), true},
+                                         {QStringLiteral("isGroup"), nested}});
+            out.insert(QStringLiteral("sceneItems"), items);
+        } else if (type == QLatin1String("GetInputVolume")) {
+            out.insert(QStringLiteral("inputVolumeMul"), 1.0);
         } else if (type == QLatin1String("GetInputSettings")) {
             if (!inputs.contains(name)) {
                 return false;
@@ -207,7 +223,11 @@ private:
             if (!inputs.contains(name)) {
                 return false;
             }
-            out.insert(QStringLiteral("inputAudioTracks"), inputs[name].tracks);
+            QJsonObject tracks;
+            for (int track = 1; track <= 6; ++track)
+                tracks.insert(QString::number(track),
+                              inputs[name].tracks.value(QString::number(track)).toBool());
+            out.insert(QStringLiteral("inputAudioTracks"), tracks);
         } else if (type == QLatin1String("SetInputSettings")) {
             if (!inputs.contains(name)) {
                 return false;
@@ -622,6 +642,89 @@ private Q_SLOTS:
         QVERIFY(!live.streaming());
         QVERIFY(!live.recording());
         QVERIFY(live.programScene().isEmpty());
+    }
+
+    void readinessSnapshotIsReadOnlyAndRetainsFailures()
+    {
+        FakeObs obs(QStringLiteral("pw"));
+        populate(obs);
+        obs.programScene = QStringLiteral("Game");
+        Client client;
+        QVERIFY(connectClient(client, obs.port(), QStringLiteral("pw")));
+        State snapshot;
+        bool done = false;
+        auto fetch = [&] {
+            done = false;
+            fetchReadinessState(&client, [&](const State &s, const QString &error) {
+                QVERIFY2(error.isEmpty(), qPrintable(error));
+                snapshot = s;
+                done = true;
+            });
+        };
+        fetch();
+        QTRY_VERIFY(done);
+        QVERIFY(snapshot.scopeKnown);
+        QVERIFY(snapshot.input(QStringLiteral("Mic/Aux"))->gainKnown);
+        QVERIFY(snapshot.input(QStringLiteral("Mic/Aux"))->tracksKnown);
+        for (const auto &type : obs.requests)
+            QVERIFY(type.startsWith(QLatin1String("Get")));
+        obs.refuse << QStringLiteral("GetInputMute");
+        fetch();
+        QTRY_VERIFY(done);
+        QVERIFY(!snapshot.input(QStringLiteral("Mic/Aux"))->muteKnown);
+        obs.refuse.clear();
+        obs.nested = true;
+        fetch();
+        QTRY_VERIFY(done);
+        QVERIFY(!snapshot.scopeKnown);
+        obs.nested = false;
+        obs.ignored << QStringLiteral("GetInputSettings");
+        fetch();
+        QTRY_VERIFY_WITH_TIMEOUT(done, 7000);
+        QVERIFY(!snapshot.input(QStringLiteral("Mic/Aux"))->settingsKnown);
+    }
+
+    void readinessDisconnectCannotProduceKnownScope()
+    {
+        FakeObs obs(QStringLiteral("pw"));
+        populate(obs);
+        Client client;
+        QVERIFY(connectClient(client, obs.port(), QStringLiteral("pw")));
+        bool done = false;
+        State snapshot;
+        QString error;
+        fetchReadinessState(&client, [&](const State &state, const QString &message) {
+            snapshot = state;
+            error = message;
+            done = true;
+        });
+        client.close();
+        QTRY_VERIFY(done);
+        QVERIFY(!snapshot.scopeKnown);
+        QVERIFY(!error.isEmpty());
+    }
+
+    void effectiveMuteWarnings()
+    {
+        rostrum::pw::PwContext pw; // Never started: no live audio connection.
+        rostrum::engine::Engine engine(&pw);
+        engine.setScene(rostrum::defaults::scene(), false);
+        engine.setPanic(true);
+        QVERIFY(engine.effectiveMicMuted());
+        QVERIFY(engine.effectiveStreamMuted());
+        const EffectiveMutes mutes{engine.effectiveMicMuted(), engine.effectiveStreamMuted()};
+        const auto problems = goLiveProblems(engine.scene(), {}, nullptr, &mutes);
+        QVERIFY(problems.contains(GoLiveProblem::MicMuted));
+        QVERIFY(problems.contains(GoLiveProblem::StreamMixSilent));
+        engine.setPanic(false);
+        engine.setPushToMute(true);
+        const EffectiveMutes heldMute{engine.effectiveMicMuted(), engine.effectiveStreamMuted()};
+        QVERIFY(goLiveProblems(engine.scene(), {}, nullptr, &heldMute).contains(GoLiveProblem::MicMuted));
+        engine.setPushToMute(false);
+        engine.setMicMuted(true);
+        engine.setPushToTalk(true);
+        const EffectiveMutes heldTalk{engine.effectiveMicMuted(), engine.effectiveStreamMuted()};
+        QVERIFY(!goLiveProblems(engine.scene(), {}, nullptr, &heldTalk).contains(GoLiveProblem::MicMuted));
     }
 
     void goLiveProblemsAreFound()

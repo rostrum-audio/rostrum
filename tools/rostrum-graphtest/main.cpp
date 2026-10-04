@@ -3,19 +3,23 @@
 
 #include "core/Paths.h"
 #include "core/Settings.h"
+#include "core/Volume.h"
 #include "engine/Engine.h"
 #include "engine/SceneManager.h"
-#include "pw/PwContext.h"
-#include "core/Volume.h"
+#include "obs/Readiness.h"
 #include "pw/MeterBank.h"
+#include "pw/PwContext.h"
 #include "pw/TestTone.h"
 
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QSaveFile>
 #include <QTextStream>
 #include <QTimer>
-
 #include <csignal>
 
 using namespace rostrum;
@@ -60,6 +64,9 @@ int main(int argc, char **argv)
     QCommandLineOption destinationFile(QStringLiteral("destination-file"),
                                        QStringLiteral("Poll a test command file: request-id bus=phones|stream|both."),
                                        QStringLiteral("path"));
+    QCommandLineOption readinessFile(
+        QStringLiteral("readiness-file"),
+        QStringLiteral("Write read-only readiness snapshots for integration tests."), QStringLiteral("path"));
     QCommandLineOption headphones(QStringLiteral("headphones"), QStringLiteral("Headphone sink node.name."),
                                   QStringLiteral("node"));
     QCommandLineOption mic(QStringLiteral("mic"), QStringLiteral("Mic source node.name."), QStringLiteral("node"));
@@ -78,8 +85,9 @@ int main(int argc, char **argv)
     QCommandLineOption meter(QStringLiteral("meter"),
                              QStringLiteral("Print the peak level of a node (node.name) four times a second."),
                              QStringLiteral("node"));
-    parser.addOptions({seconds, teardown, rule, session, unassignAfter, listApps, dest, destinationFile, headphones, mic, micMuted,
-                       micFallback, sidetone, solo, config, tone, meter});
+    parser.addOptions({seconds, teardown, rule, session, unassignAfter, listApps, dest, destinationFile,
+                       readinessFile, headphones, mic, micMuted, micFallback, sidetone, solo, config, tone,
+                       meter});
     parser.process(app);
 
     pw::PwContext pw;
@@ -110,6 +118,33 @@ int main(int argc, char **argv)
 
     std::signal(SIGINT, [](int) { QCoreApplication::quit(); });
     std::signal(SIGTERM, [](int) { QCoreApplication::quit(); });
+
+    if (parser.isSet(readinessFile)) {
+        auto publish = [&] {
+            obs::ReadinessInput input;
+            input.scene = engine.scene();
+            input.graph = &pw.graph();
+            input.mutes = {engine.effectiveMicMuted(), engine.effectiveStreamMuted()};
+            input.selectedMic = engine.micDevice();
+            input.resolvedMic = engine.resolvedSourceName();
+            input.selectedPhones = engine.headphoneDevice();
+            input.resolvedPhones = engine.resolvedSinkName();
+            input.micMissing = engine.micMissing();
+            input.phonesMissing = engine.headphonesMissing();
+            input.micFallback = engine.micFallback();
+            QJsonArray rows;
+            for (const auto &r : obs::evaluateReadiness(input))
+                rows.append(
+                    QJsonObject{{QStringLiteral("id"), r.id}, {QStringLiteral("status"), int(r.status)}});
+            QSaveFile file(parser.value(readinessFile));
+            if (!file.open(QIODevice::WriteOnly) || file.write(QJsonDocument(rows).toJson()) < 0 ||
+                !file.commit())
+                QCoreApplication::exit(2);
+        };
+        QObject::connect(&pw, &pw::PwContext::graphChanged, &app, publish);
+        QObject::connect(&engine, &engine::Engine::levelsChanged, &app, publish);
+        QObject::connect(&engine, &engine::Engine::devicesChanged, &app, publish);
+    }
 
     bool started = false;
     QTimer destinationPoll;

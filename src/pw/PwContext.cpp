@@ -80,6 +80,14 @@ struct BoundNode
     std::map<uint32_t, QVariantMap> paramsByIndex;
 };
 
+struct BoundLink
+{
+    PwContext::Impl *impl = nullptr;
+    uint32_t id = 0;
+    pw_link *proxy = nullptr;
+    spa_hook listener{};
+};
+
 struct CreatedProxy
 {
     PwContext::Impl *impl = nullptr;
@@ -106,6 +114,7 @@ struct PwContext::Impl
     pw_client *wpClient = nullptr;
     spa_hook wpClientListener{};
     std::unordered_map<uint32_t, std::unique_ptr<BoundNode>> boundNodes;
+    std::unordered_map<uint32_t, std::unique_ptr<BoundLink>> boundLinks;
     std::list<std::unique_ptr<CreatedProxy>> created;
     int initialSeq = -1;
     int roundtripSeq = -1;
@@ -374,6 +383,24 @@ const pw_proxy_events kCreatedEvents = {
     .error = onCreatedError,
 };
 
+void onLinkInfo(void *data, const pw_link_info *info)
+{
+    auto *b = static_cast<BoundLink *>(data);
+    const auto state = QString::fromLatin1(pw_link_state_as_string(info->state));
+    const auto error = QString::fromUtf8(info->error ? info->error : "");
+    b->impl->post([impl = b->impl, id = b->id, state, error] {
+        auto it = impl->graph.links.find(id);
+        if (it == impl->graph.links.end())
+            return;
+        if (it->state == state && it->error == error)
+            return;
+        it->state = state;
+        it->error = error;
+        impl->q->scheduleChanged();
+    });
+}
+const pw_link_events kLinkEvents = {.version = PW_VERSION_LINK_EVENTS, .info = onLinkInfo};
+
 void onGlobal(void *data, uint32_t id, uint32_t, const char *type, uint32_t, const spa_dict *dict)
 {
     auto *impl = static_cast<PwContext::Impl *>(data);
@@ -419,6 +446,14 @@ void onGlobal(void *data, uint32_t id, uint32_t, const char *type, uint32_t, con
             impl->graph.links.insert(l.id, l);
             impl->q->scheduleChanged();
         });
+        auto b = std::make_unique<BoundLink>();
+        b->impl = impl;
+        b->id = id;
+        b->proxy = static_cast<pw_link *>(pw_registry_bind(impl->registry, id, type, PW_VERSION_LINK, 0));
+        if (b->proxy) {
+            pw_link_add_listener(b->proxy, &b->listener, &kLinkEvents, b.get());
+            impl->boundLinks[id] = std::move(b);
+        }
     } else if (std::strcmp(type, PW_TYPE_INTERFACE_Client) == 0) {
         Client c;
         c.id = id;
@@ -462,6 +497,11 @@ void onGlobalRemove(void *data, uint32_t id)
         spa_hook_remove(&it->second->listener);
         pw_proxy_destroy(reinterpret_cast<pw_proxy *>(it->second->proxy));
         impl->boundNodes.erase(it);
+    }
+    if (auto it = impl->boundLinks.find(id); it != impl->boundLinks.end()) {
+        spa_hook_remove(&it->second->listener);
+        pw_proxy_destroy(reinterpret_cast<pw_proxy *>(it->second->proxy));
+        impl->boundLinks.erase(it);
     }
     if (id == impl->metadataId && impl->metadata) {
         spa_hook_remove(&impl->metadataListener);
@@ -549,6 +589,11 @@ const pw_core_events kCoreEvents = {
 
 void PwContext::Impl::teardownLocked()
 {
+    for (auto &[id, b] : boundLinks) {
+        spa_hook_remove(&b->listener);
+        pw_proxy_destroy(reinterpret_cast<pw_proxy *>(b->proxy));
+    }
+    boundLinks.clear();
     for (auto &[id, b] : boundNodes) {
         spa_hook_remove(&b->listener);
         pw_proxy_destroy(reinterpret_cast<pw_proxy *>(b->proxy));

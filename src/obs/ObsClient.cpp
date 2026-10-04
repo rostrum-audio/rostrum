@@ -2,9 +2,9 @@
 
 #include <QCryptographicHash>
 #include <QJsonDocument>
+#include <QTimer>
 #include <QUrl>
 #include <QWebSocketHandshakeOptions>
-
 #include <utility>
 
 namespace rostrum::obs {
@@ -70,6 +70,15 @@ void Client::request(const QString &type, const QJsonObject &data, Callback done
     }
     const QString id = QString::number(m_nextId++);
     m_pending.insert(id, std::move(done));
+    // Readiness reads are bounded; preserve existing write/undo transaction behavior.
+    if (type.startsWith(QLatin1String("Get")))
+        QTimer::singleShot(5000, this, [this, id] {
+            if (!m_pending.contains(id))
+                return;
+            auto callback = m_pending.take(id);
+            if (callback)
+                callback(false, {}, tr("OBS request timed out."));
+        });
     const QJsonObject msg{{QStringLiteral("op"), Request},
                           {QStringLiteral("d"), QJsonObject{{QStringLiteral("requestType"), type},
                                                             {QStringLiteral("requestId"), id},
