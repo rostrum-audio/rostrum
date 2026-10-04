@@ -22,6 +22,7 @@
       <li>Optional mic filters remove background noise, cut rumble and even out your level, for the stream and every app</li>
       <li>Check Mic plays your stream mic back in your headphones and says if the level is right</li>
       <li>Shows when OBS is live or recording, and warns when a stream starts with the mic muted</li>
+      <li>Stream readiness checks inspect effective controls, devices, routing and observed OBS captures, with evidence and explicitly unverified results</li>
       <li>Global shortcuts, push to talk and panic mute, plus a command line and D-Bus for Stream Deck buttons</li>
       <li>Scenes recall every level, mute and destination, from the header or a global shortcut</li>
       <li>Recognised apps find their bus on their own, and remember it at the next login</li>
@@ -97,9 +98,8 @@
   </screenshots>
 
   <releases>
-    <!-- Development preparation date only. Publication date remains pending.
-         When publication is scheduled, set the actual date and type="stable". -->
-    <release version="0.1.0" date="2026-10-04" type="development">
+    <!-- Intended release date; stable metadata preparation does not publish a release. -->
+    <release version="0.1.0" date="2026-10-04" type="stable">
       <description>
         <p>First release: buses, two mixes, scenes, OBS setup and live status, mic filters and mic check, global shortcuts and remote control, automatic app assignment, undo, a compact window, private crash reports and updates.</p>
         <p>Stream readiness checks show controls, devices, routing and observed OBS captures with scoped results and expandable evidence. Live output exclusions and microphone delivery across PipeWire quantum changes are fixed and validated in isolated audio sessions.</p>
