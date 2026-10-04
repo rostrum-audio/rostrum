@@ -7,7 +7,8 @@ telemetry or audio delivery outside the private graph are introduced.
 
 ## Requirements and execution
 
-Linux, Python 3 (standard library), PipeWire 1.x with `pipewire`, `pw-cat`,
+Linux with readable `/proc`, child subreapers and pidfd support (kernel 5.3+
+with these syscalls allowed), Python 3.9+ (standard library), PipeWire 1.x with `pipewire`, `pw-cat`,
 `pw-cli`, `pw-dump`, `pw-link`, WirePlumber 0.5+ with its installed configuration
 and scripts in `/usr/share/wireplumber`, and `dbus-daemon`. On Ubuntu 26.04 the
 additional runtime packages are `pipewire-bin wireplumber dbus python3`.
@@ -26,7 +27,7 @@ the default is all three. Every run/scenario must finish; failure stops the batc
 and reports the completed clean-run count. Missing tools, incompatible policy,
 stalled recordings and timeouts fail rather than skip. CTest registration is
 opt-in; CI enables it on the existing Ubuntu 26.04 unit-test container. CTest
-also runs the fixture guard and live negative-control tests. Tests are serialized
+also runs the fixture guard, live negative-control and lifecycle regression tests. Tests are serialized
 and have a 180-second outer deadline; each observed-state wait has a 12-second
 deadline and each command has a 3-second deadline.
 
@@ -44,15 +45,56 @@ monitors, logind, portal permission store and device reservation. Its installed
 scripts are explicitly pinned to `/usr/share/wireplumber`. Both D-Bus addresses
 point to a private bus without service activation directories.
 
-Owned child process groups are registered with handled signals blocked; SIGINT,
-SIGTERM and SIGHUP produce failure and trigger cleanup. Cleanup terminates children
-in reverse order, escalates to SIGKILL after a bounded wait, closes recordings
-and removes the tree, on success and failure. SIGKILL of the harness, kernel crash
-or power loss cannot run cleanup. In that case stop orphaned test processes and
-remove their `rostrum-safety-*` tree; never target desktop audio processes.
+Every spawned job, including short-lived inspection commands and nested runners,
+has a dedicated Python supervisor. The supervisor enables Linux child-subreaper
+behavior **before** launching the worker, so descendants whose parent exits are
+adopted by that supervisor. It launches only that job. The caller pins the
+supervisor's identity before granting permission to launch the worker; unsupported
+pidfds/subreapers abort instead of running unsupervised.
+
+Cleanup closes a private control socket. The supervisor snapshots its own process
+tree, opens a pidfd for each descendant and verifies its birth identity, kernel
+pidfd identity and ancestry. It sends signals through those pinned kernel handles,
+never stored numeric PIDs or process-group IDs. Mismatches are rejected and the
+owned tree is observed again. Reaping a leader therefore does not lose ownership
+of adopted descendants; numeric PID reuse cannot redirect a pidfd signal.
+
+SIGINT, SIGTERM and SIGHUP abort the scenario runner, fixture program and lifecycle
+regression driver. Supervisor startup inherits a blocked signal mask until its
+handlers are installed, so interruption during interpreter startup also cleans up.
+The fixture has an outer cleanup guarantee covering unittest interruption and its
+nested runner. Registration is protected against handled signals. Each supervisor
+requests SIGTERM, escalates to SIGKILL after three seconds, reaps adopted children
+and acknowledges completion only when the kernel's `waitpid` reports `ECHILD`
+(no remaining children). An empty `/proc` snapshot alone is never sufficient. The caller waits
+at most eight seconds per job. A cleanup deadline failure is reported, ownership
+is retained for continued reclamation, and the private tree is retained for
+diagnosis; it is never reported as successful cleanup. Cleanup attempts all jobs
+and preserves the original test exception when reporting additional cleanup errors.
+Repeated successful cleanup is safe.
+
+TMPDIR points inside each private tree, so nested runners' resources stay under
+the enclosing fixture. The enclosing tree is removed only after its supervised
+jobs finish cleanup, and its original directory identity is checked before
+removal. No directories are rediscovered from process command lines and no broad
+process-name termination is used.
+
+These guarantees assume an ordinary Linux process tree and working kernel syscalls
+and `/proc`. Processes stuck in uninterruptible kernel sleep may outlast SIGKILL;
+cleanup reports failure and retains ownership/resources. SIGKILL of the caller
+cannot execute its directory cleanup; socket EOF still requests supervisor cleanup
+but that path is best effort. SIGKILL of a supervisor, kernel crash or power loss
+can strand descendants and private files. Hostile processes with the same UID or
+root can interfere with private files and supervisors; this harness is not a
+security sandbox against them. After such failures, inspect retained session data
+and process identities; never use old PID/group IDs, wildcard deletion, or process
+names to reclaim desktop audio processes.
+
 Failure diagnostics print only the private graph and private child logs before
-removal. `/tmp/rostrum-safety-*` contains local deterministic test audio while a
-scenario is active; no test recordings persist after normal cleanup.
+removal. Temporary trees contain deterministic test audio and supervisor status
+while active; normal successful cleanup leaves no recordings or directories.
+The supervisor is test tooling only: these changes do not alter the installed
+application's routing, microphone fallback, persistence or runtime behavior.
 
 ## Verified scenarios
 
@@ -75,8 +117,14 @@ Expected tones require RMS 0.04–0.1 and amplitude 0.07–0.13 at their known f
 Silence requires RMS at most 0.00001 (−100 dBFS). No buffers never counts as silence.
 Polling checks graph state or recording progress rather than assumed startup sleeps.
 Fixture controls reject missing/symlinked/wrong-identity sockets, discard ambient
-overrides, test child/tree cleanup and SIGTERM, reject absent expected audio, and
-prove that an injected forbidden-destination signal fails the silence assertion.
+overrides, test child/tree cleanup, reject absent expected audio, and prove that
+an injected forbidden-destination signal fails the silence assertion. Lifecycle
+regressions interrupt the fixture with SIGTERM/SIGHUP during both a live session
+and its nested runner, also check SIGINT, exercise exited leaders and descendants
+ignoring SIGTERM, reject stale/mismatched identities without signaling a sentinel,
+verify repeated cleanup, handle a fork during SIGTERM and an incomplete process
+snapshot, reclaim descendants after status-publication and diagnostic-write failures, retain startup
+ownership, and preserve an original failure when cleanup also fails.
 
 ## Limits
 

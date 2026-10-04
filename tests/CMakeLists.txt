@@ -84,7 +84,10 @@ if(ROSTRUM_AUDIO_INTEGRATION_TESTS)
     add_test(NAME audio_safety_fixture COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/integration/test_fixture.py
         $<TARGET_FILE:rostrum-graphtest> -v)
-    # The fixture interruption probe inspects only its own children; serialize these tests.
-    set_tests_properties(audio_safety audio_safety_fixture PROPERTIES
+    add_test(NAME audio_safety_lifecycle COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/integration/test_lifecycle.py
+        $<TARGET_FILE:rostrum-graphtest> -v)
+    # Lifecycle regressions deliberately interrupt private jobs; serialize audio tests.
+    set_tests_properties(audio_safety audio_safety_fixture audio_safety_lifecycle PROPERTIES
         TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
 endif()

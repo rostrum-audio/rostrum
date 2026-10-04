@@ -110,60 +110,58 @@ class FixtureTests(unittest.TestCase):
             with self.assertRaisesRegex(safety.Failure, "leaked audio"):
                 self.s.capture("rostrum.stream")
         except BaseException:
-            self.s.diagnostics()
+            safety.cleanup_preserving_failure(self.s.diagnostics)
             raise
 
     def test_interrupt_reclaims_session(self):
         log = self.s.root / "interruption.log"
-        roots, children = [], []
         with log.open("wb") as output:
-            runner = subprocess.Popen([sys.executable, str(Path(__file__).with_name("audio-safety.py")),
-                                       "--driver", str(DRIVER), "--runs", "20"],
-                                      stdout=output, stderr=subprocess.STDOUT, start_new_session=True)
-            def inventory():
-                for child in Path("/proc").glob("[0-9]*/cmdline"):
-                    try:
-                        status = (child.parent / "status").read_text()
-                        if f"PPid:\t{runner.pid}\n" not in status:
-                            continue
-                        children.append(int(child.parent.name))
-                        args = child.read_bytes().split(b"\0")
-                        if args and args[0] == b"pipewire" and len(args) > 2:
-                            path = Path(os.fsdecode(args[2])).parent.parent.parent
-                            if path.name.startswith("rostrum-safety-"):
-                                roots.append(path)
-                    except (OSError, ValueError):
-                        pass
+            runner = self.s.spawn([sys.executable, str(Path(__file__).with_name("audio-safety.py")),
+                                   "--driver", str(DRIVER)], output)
             try:
                 self.s.wait("interruption checkpoint", lambda: "test.headphones[0]" in log.read_text())
-                inventory()
-                runner.send_signal(signal.SIGTERM)
-                runner.wait(timeout=15)
-                text = log.read_text()
+                # Closing the owned job asks its supervisor to terminate the runner
+                # and reclaim all descendants, including adopted orphan supervisors.
+                error_log = next(path for child, path in self.s.processes if child is runner)
+                self.s.stop(runner)
+                text = log.read_text() + error_log.read_text()
                 self.assertEqual(runner.returncode, 1, text)
                 self.assertIn("Interrupted by signal 15", text)
-                self.assertTrue(roots, "No owned session observed")
-                self.assertTrue(all(not root.exists() for root in roots))
+                remaining = list(self.s.root.glob("rostrum-safety-*"))
+                if remaining:
+                    print(text, file=sys.stderr)
+                    for root in remaining:
+                        print({p.name: p.read_text() for p in root.glob('job-*.json')}, file=sys.stderr)
+                self.assertFalse(remaining)
             finally:
-                inventory()  # Also covers a timeout before the checkpoint.
-                if runner.poll() is None:
-                    runner.send_signal(signal.SIGTERM)
-                    try:
-                        runner.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        runner.kill()
-                        runner.wait(timeout=3)
-                # Children were observed with this runner as parent, never ambient daemons.
-                for pid in set(children):
-                    try:
-                        os.killpg(pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
-                for root in set(roots):
-                    if root.exists():
-                        safety.shutil.rmtree(root)
+                safety.cleanup_preserving_failure(lambda: self.s.stop(runner))
 
+
+
+def main():
+    def interrupted(signum, _):
+        # unittest does not swallow KeyboardInterrupt; the outer finally owns cleanup.
+        raise KeyboardInterrupt(f"Interrupted by signal {signum}")
+    for sig in safety.INTERRUPTS:
+        signal.signal(sig, interrupted)
+    code = 1
+    try:
+        result = unittest.main(exit=False).result
+        code = 0 if result.wasSuccessful() else 1
+    except KeyboardInterrupt as error:
+        safety.report(str(error))
+    finally:
+        if sys.exc_info()[1] is not None:
+            safety.cleanup_preserving_failure(safety.close_sessions)
+        else:
+            try:
+                safety.close_sessions()
+            except BaseException as error:
+                # unittest already reported the original failures; retain that result.
+                safety.report(f"Additional fixture cleanup error: {error}")
+                code = 1
+    return code
 
 
 if __name__ == "__main__":
-    unittest.main()
+    sys.exit(main())

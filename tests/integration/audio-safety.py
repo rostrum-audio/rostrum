@@ -16,25 +16,59 @@ import tempfile
 import time
 import uuid
 
+from process_lifecycle import Job, OwnershipError, report
+
 RATE = 48000
 TIMEOUT = 12
 INTERRUPTS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+SESSIONS = set()
 
 
 class Failure(RuntimeError):
     pass
 
 
+def cleanup_preserving_failure(cleanup):
+    original = sys.exc_info()[1]
+    try:
+        cleanup()
+    except BaseException as error:
+        if original is None:
+            raise
+        report(f"Additional cleanup error (original failure preserved): {error}")
+
+
+def close_sessions():
+    errors = []
+    for session in list(SESSIONS):
+        try:
+            session.close()
+        except BaseException as error:
+            errors.append(str(error))
+    if errors:
+        raise Failure("; ".join(errors))
+
+
 class Session:
     def __init__(self, driver):
+        previous = signal.pthread_sigmask(signal.SIG_BLOCK, INTERRUPTS)
+        try:
+            self.initialize(driver)
+        finally:
+            signal.pthread_sigmask(signal.SIG_SETMASK, previous)
+
+    def initialize(self, driver):
         self.driver = driver
-        self.root = Path(tempfile.mkdtemp(prefix="rostrum-safety-", dir="/tmp"))
+        self.root = Path(tempfile.mkdtemp(prefix="rostrum-safety-", dir=os.environ.get("TMPDIR", "/tmp")))
+        self.root_identity = (self.root.stat().st_dev, self.root.stat().st_ino)
+        self.sequence = 0
         self.processes = []
         self.files = []
         try:
             self.prepare_environment()
+            SESSIONS.add(self)
         except BaseException:
-            self._close()
+            cleanup_preserving_failure(self._close)
             raise
 
     def prepare_environment(self):
@@ -52,30 +86,36 @@ class Session:
                         PIPEWIRE_CONFIG_DIR=str(self.root / "config/pipewire"),
                         WIREPLUMBER_CONFIG_DIR=str(self.root / "config/wireplumber"),
                         WIREPLUMBER_DATA_DIR="/usr/share/wireplumber",
-                        QT_QPA_PLATFORM="offscreen")
+                        QT_QPA_PLATFORM="offscreen", TMPDIR=str(self.root))
 
     def spawn(self, args, output=None):
-        log = self.root / f"{len(self.processes):02d}-{Path(args[0]).name}.log"
+        self.sequence += 1
+        log = self.root / f"{self.sequence:03d}-{Path(args[0]).name}.log"
         err = log.open("wb")
         self.files.append(err)
         previous = signal.pthread_sigmask(signal.SIG_BLOCK, INTERRUPTS)
         try:
-            # The runner is single-threaded; restore the inherited signal mask in the child.
-            p = subprocess.Popen(args, env=self.env, stdin=subprocess.DEVNULL,
-                                 stdout=output if output is not None else err, stderr=err,
-                                 start_new_session=True,
-                                 preexec_fn=lambda: signal.pthread_sigmask(signal.SIG_SETMASK, previous))
+            # Register before initialization: failed startup must remain cleanup-owned.
+            p = Job.__new__(Job)
             self.processes.append((p, log))
+            Job.__init__(p, args, self.env, output if output is not None else err, err,
+                         self.root / f"job-{self.sequence}.json")
         finally:
             signal.pthread_sigmask(signal.SIG_SETMASK, previous)
         return p
 
     def command(self, *args):
-        result = subprocess.run(args, env=self.env, stdin=subprocess.DEVNULL,
-                                capture_output=True, text=True, timeout=3)
-        if result.returncode:
-            raise Failure(f"{' '.join(args)}: {result.stderr.strip()}")
-        return result.stdout
+        path = self.root / f"command-{uuid.uuid4().hex}.txt"
+        with path.open("wb") as output:
+            p = self.spawn(list(args), output)
+            try:
+                code = p.wait(timeout=3)
+                if code:
+                    log = next(log for child, log in self.processes if child is p)
+                    raise Failure(f"{' '.join(args)}: {log.read_text(errors='replace').strip()}")
+                return path.read_text()
+            finally:
+                cleanup_preserving_failure(lambda: self.stop(p))
 
     def wait(self, description, predicate):
         deadline = time.monotonic() + TIMEOUT
@@ -290,19 +330,7 @@ mic_fallback = {str(fallback).lower()}
         self.wait(f"{name} removed", lambda: self.node(self.graph(), name) is None)
 
     def stop(self, p):
-        if p.poll() is None:
-            try:
-                os.killpg(p.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-            try:
-                p.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                try:
-                    os.killpg(p.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                p.wait(timeout=3)
+        p.stop()
         self.processes = [(child, log) for child, log in self.processes if child is not p]
 
     def close(self):
@@ -320,17 +348,21 @@ mic_fallback = {str(fallback).lower()}
         for p, _ in reversed(self.processes[:]):
             try:
                 self.stop(p)
-            except (OSError, subprocess.SubprocessError) as e:
+            except (OSError, OwnershipError, subprocess.SubprocessError) as e:
                 errors.append(str(e))
         for f in self.files:
             try:
                 f.close()
             except OSError as e:
                 errors.append(str(e))
-        if self.root.exists():
-            shutil.rmtree(self.root)
         if errors:
-            raise Failure("Cleanup failed: " + "; ".join(errors))
+            raise Failure("Cleanup failed; private resources retained: " + "; ".join(errors))
+        if self.root.exists():
+            info = self.root.lstat()
+            if not stat.S_ISDIR(info.st_mode) or (info.st_dev, info.st_ino) != self.root_identity:
+                raise Failure("Refusing to remove a replaced private directory")
+            shutil.rmtree(self.root)
+        SESSIONS.discard(self)
 
     def diagnostics(self):
         if self.remote.is_socket():
@@ -457,14 +489,14 @@ def main():
                     s.start()
                     scenario(s)
                 except BaseException:
-                    s.diagnostics()
+                    cleanup_preserving_failure(s.diagnostics)
                     raise
                 finally:
-                    s.close()
+                    cleanup_preserving_failure(s.close)
                 print(f"PASS {name}", flush=True)
             completed += 1
-    except (Failure, OSError, ValueError, subprocess.SubprocessError) as e:
-        print(f"FAIL: {e}; completed clean runs: {completed}/{args.runs}", file=sys.stderr)
+    except (Failure, OwnershipError, OSError, ValueError, subprocess.SubprocessError) as e:
+        report(f"FAIL: {e}; completed clean runs: {completed}/{args.runs}")
         return 1
     print(f"PASS: {completed} clean run(s)", flush=True)
     return 0
