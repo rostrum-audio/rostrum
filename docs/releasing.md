@@ -4,6 +4,8 @@ A tag that starts with `v` runs [.github/workflows/release.yml](../.github/workf
 It builds the `official` preset (crash reports on, debug info, RNNoise compiled in), runs the tests, packages
 `Rostrum-<version>-x86_64.AppImage`, starts the packaged app once offscreen, writes the update
 feed and a checksum file, and publishes a GitHub release with all three.
+Publishing waits for a separate runtime-only private-audio validation job. That job
+checks out the build's exact source commit, including for moving branch test builds.
 
 ## Release from GitHub
 
@@ -72,16 +74,21 @@ the packages listed in the workflow:
 
 ```sh
 cmake --preset official && cmake --build --preset official
-tools/appimage/build-appimage.sh build-official 0.2.0 dist
+tools/appimage/build-appimage.sh build-official 0.1.0 dist
 ```
 
 It uses pinned releases of [linuxdeploy](https://github.com/linuxdeploy/linuxdeploy) and its Qt
 plugin and checks their SHA-256 before running them. It bundles Qt, KDE Frameworks, Kirigami, the
 QML modules the app imports, the `org.kde.desktop` style, the X11, Wayland and offscreen platform
-plugins and the SVG icon engine. It does not bundle an icon theme: icons come from the system's
-theme (Breeze on Plasma). linuxdeploy's exclude list leaves PipeWire's client library, OpenGL,
-fontconfig and HarfBuzz to the system; every desktop that can run Rostrum has them, and
-`libpipewire` must match the system's PipeWire modules anyway.
+plugins and the SVG icon engine. It also bundles Breeze as the fallback icon theme, with its
+copyright notice: a clean non-Plasma runtime otherwise renders without theme icons. Install
+`breeze-icon-theme` in the builder. Both light and dark themes are included because they
+cross-link icons; eight dangling HiDPI aliases for absent upstream animation/emote directories
+are removed from the packaged copy. Other broken icon links fail packaging. System themes can
+still take precedence.
+linuxdeploy's exclude list leaves PipeWire's client library, OpenGL, fontconfig and HarfBuzz
+to the system. These are explicit host requirements; a minimal image may not have them.
+`libpipewire` must match the system's PipeWire modules.
 
 The mic filter plugin (`usr/lib/rostrum/librostrum-dsp.so`) is the exception to bundling: the
 host's PipeWire daemon loads it into its own process, from a copy outside the AppImage, so it can
@@ -89,9 +96,106 @@ use nothing the AppImage carries. The `official` preset compiles RNNoise into it
 (`ROSTRUM_RNNOISE=bundled`), and the script fails if the plugin is missing or needs anything
 besides libc and libm. RNNoise's BSD licence ships as `usr/share/licenses/rostrum/RNNoise-COPYING`.
 
-The AppImage is built on Ubuntu 26.04, so it needs a system with glibc 2.43 or newer (Ubuntu 26.04
-and distributions of the same age or newer). Building on an older base would need Qt 6.5+ and KDE Frameworks 6.8+ built for it
-(for example with KDE Craft); that is future work. There is no aarch64 build yet.
+The x86_64 AppImage was built and functionally checked in Ubuntu 26.04 containers with glibc
+2.43, PipeWire 1.6.2 and WirePlumber 0.5.13. Its bundled ELF libraries reference glibc symbols
+through 2.43, so older glibc is unsupported. This is not a claim that every distribution with
+glibc 2.43 works. Other distributions, hardware audio, and desktop integration still need manual
+release testing. The code requires PipeWire 1.0+ and WirePlumber 0.5+; mic filters additionally
+require PipeWire 1.4+ and its audio-convert graph support. Only 1.6.2/0.5.13 was exercised for this
+artifact. No host Qt/KDE or development packages are needed. There is no aarch64 build.
+
+On Ubuntu 26.04, the clean runtime used these host packages (plus their runtime dependencies):
+`pipewire-bin wireplumber dbus libgl1 libegl1 libopengl0 libfontconfig1 libharfbuzz0b
+fonts-dejavu-core libxkbcommon0 libxcb-cursor0 libsm6 libice6`. In particular `libgl1` does not supply
+`libOpenGL.so.0`; `libopengl0` is required. A working desktop needs X11 or Wayland and a usable
+font/theme/rendering environment. Normal mounted execution needs working FUSE support; the
+extract-and-run path below does not. Building on an older base would require matching Qt/KDE
+builds and separate validation.
+
+### Local launch and runtime validation
+
+```sh
+chmod +x Rostrum-0.1.0-x86_64.AppImage
+./Rostrum-0.1.0-x86_64.AppImage
+# If FUSE is unavailable:
+./Rostrum-0.1.0-x86_64.AppImage --appimage-extract-and-run
+```
+
+Quit an existing Rostrum instance from its tray/menu before trying the AppImage against your
+normal audio session. Closing its window may only hide it. A second launch shares the single
+instance D-Bus name and can activate the old copy instead of testing the AppImage. Both builds
+use the same settings/scenes/routing directories. To avoid changing them during exploratory
+testing, use the container check below; merely changing XDG directories does **not** isolate audio.
+To return to the installed build, quit the AppImage and start `~/.local/bin/rostrum`.
+
+`tools/appimage/validate-runtime.py` runs the actual AppImage with fake devices and deterministic
+signals, reusing the fail-closed isolation and supervised cleanup in
+[the audio suite](../tests/integration/README.md). Run it in a fresh Ubuntu 26.04 runtime container
+with the packages above, Python 3.9+ and `xvfb` for the X11 smoke check, and mount only the repository read-only and an artifact/
+report directory. Do not mount host homes, D-Bus or audio sockets. After package installation,
+disconnect its external network for local validation. No development, Qt or QML packages should
+be present (`dpkg-query -W -f '${Package}\n'`); the CI runtime job enforces this.
+The validator disables public update checks and crash uploads before the first wizard launch;
+update checks are enabled only after selecting its loopback fixture feed.
+
+```sh
+python3 -B tools/appimage/validate-runtime.py \
+  /absolute/path/Rostrum-0.1.0-x86_64.AppImage --reports /absolute/path/runtime-check --x11
+```
+
+Coverage: first-start wizard renders to a PNG offscreen and through X11/xcb with a private Xvfb
+server/software rendering (when `--x11` is given; CI requires it); a saved completed setup creates the actual mix
+and links to a fake output; one packaged instance and one playback source survive four live
+Both → Headphones Only → Both cycles plus Stream Only transitions via private saved scenes and
+the packaged CLI (12 live changes total). Both requires 440 Hz delivery to both headphone and
+Stream Mix channels. Headphones Only requires headphone delivery, every Desktop → Stream link
+to disappear and both stream channels below RMS 0.00001; Stream Only checks the converse.
+Silence is checked only after positive delivery at the intended destination. The host daemon maps
+the stable DSP copy; 440 Hz reaches the filtered
+mic; a live 20 Hz input is attenuated below RMS 0.001 by the rumble filter while a nonzero 20 Hz
+output and active routes are required (silence cannot pass); the RNNoise chain
+loads. Loopback HTTP fixtures exercise feed handling, rejection of a bad checksum without
+replacing the image, and successful verified replacement with executable permissions. That
+replacement is fixture data and is never launched. Official unit tests also cover generated-feed
+parsing, architecture selection, invalid URLs and prereleases. Reports and wizard screenshots
+contain only fake private-session data. Handled interruption/failure triggers supervised cleanup;
+the audio suite documents its kernel and SIGKILL limits.
+
+Limits: wizard rendering is a launch check, **not** interactive setup completion. Mix creation
+uses saved setup state. Live destination changes use scene switching, not automated clicks on the
+Mixer destination selector. Assertions inspect settled routing and short capture windows; they
+do not establish zero transient leakage at every sample during a switch. The separate manual OBS
+confirmations below and in the audio suite are user-reported desktop checks. The special private
+WirePlumber profile has a test name, so Rostrum's
+UI can warn that the session manager is not WirePlumber; the private graph still uses its real
+policy. The automated validator does not cover voice quality, real OBS, hardware, FUSE-mounted
+launch, GPU, tray, shortcuts, Wayland windows, or update restart. Platform plugin presence is checked during packaging;
+physical desktop behavior must be checked separately. Theme icons were visually checked in the
+Xvfb wizard; Qt's offscreen platform alone does not search system icon directories. The earlier
+20-run audio campaigns predate the registry-removal routing fix and do not establish
+stability of this AppImage. The fix has targeted live-destination regression checks and a manual
+normal-build OBS confirmation; the packaged check above covers its destination changes separately.
+The previous AppImage also passed this private scene-switch sequence, so this packaged check is
+functional coverage, not a deterministic negative control for the registry ID-reuse defect. The
+engine regression directly changes destinations and reproduced that defect before the fix.
+
+### Manual OBS confirmation for the routing-fixed artifact (2026-10-04)
+
+The user reported testing
+`build-appimage-validation/out/routing-fixed/Rostrum-0.1.0-x86_64.AppImage`
+(SHA-256 `d8adbb6741528434b64d4d62c081e302d79f0d0a4bba931c30b3ee48816ae9a3`,
+routing fix commit `9960e15c676a89eee2db1e8a3d1fd20b8aaa45cb`). With YouTube playing,
+Desktop Both → Headphones Only → Both produced audible → silent → audible audio in
+the OBS recording, while headphone playback continued. This confirms that specific
+manual isolation test for this artifact, not the other manual release checks. The older
+AppImage directly under `build-appimage-validation/out/` is outdated and lacks the fix.
+
+Before publishing, manually complete setup through Create Mix; check the Mixer, Mic Filters and
+dialogs on X11/Wayland; verify all theme icons, HiDPI, tray/shortcuts, hardware reconnect and OBS;
+exercise mounted launch and updating/restarting a real disposable AppImage. Confirm the public
+feed redirect, release notes/licenses and exact-build Sentry symbols. The release workflow now
+requires the separate runtime-only AppImage check before its publishing job; local validation
+does not constitute a run of the hosted workflow.
 
 ## Where the updater finds the feed
 
@@ -114,8 +218,10 @@ cannot go stale.
 We keep the default on getrostrum.dev rather than pointing builds straight at GitHub: the URL is
 compiled into every build, so owning it lets the feed move later without stranding old copies, and
 Settings names the host the check talks to. The trade-off is one more request (the site, then
-GitHub) and a dependency on the site staying up. Until the redirect exists, update checks from
-installed copies fail quietly and say so in Settings → Updates.
+GitHub) and a dependency on the site staying up. During local validation, the website redirected
+to that GitHub download URL, whose target returned 404 because the release feed is not yet
+available. Recheck the public feed after the first release; until a usable feed exists, installed
+copies report failed checks in Settings → Updates.
 
 The updater can also read a GitHub "latest release" API response directly
 (`https://api.github.com/repos/rostrum-audio/rostrum/releases/latest`), using GitHub's own SHA-256

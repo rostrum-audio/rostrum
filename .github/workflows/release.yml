@@ -32,8 +32,10 @@ jobs:
     runs-on: ubuntu-24.04
     # The AppImage runs on systems with this image's glibc or newer; see docs/releasing.md.
     container: ubuntu:26.04
-    permissions:
-      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+      source_commit: ${{ steps.version.outputs.source_commit }}
     env:
       TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
       PUBLISH: ${{ github.event_name == 'push' || inputs.tag != '' }}
@@ -49,7 +51,8 @@ jobs:
             qml6-module-org-kde-kirigami qml6-module-org-kde-kquickcontrols qml6-module-org-kde-desktop \
             qml6-module-org-kde-kirigamiaddons-formcard qml6-module-org-kde-kitemmodels \
             qml6-module-qtquick-dialogs qml6-module-qtcore qt6-svg-plugins qt6-wayland \
-            qmake6 qt6-declarative-dev-tools curl file patchelf python3 appstream desktop-file-utils dbus
+            qmake6 qt6-declarative-dev-tools curl file patchelf python3 appstream desktop-file-utils dbus \
+            breeze-icon-theme libglib2.0-bin
       - uses: actions/checkout@v7
         with:
           ref: ${{ env.TAG || github.ref }}
@@ -78,6 +81,7 @@ jobs:
           esac
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "source_commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Write the release notes
         run: |
           if [ -n "$TAG" ]; then
@@ -162,14 +166,71 @@ jobs:
         with:
           name: rostrum-${{ steps.version.outputs.version }}-appimage
           path: dist/
+      - uses: actions/upload-artifact@v5
+        with:
+          name: rostrum-release-notes
+          path: notes.txt
+
+  validate-runtime:
+    name: AppImage runtime and private audio
+    needs: appimage
+    runs-on: ubuntu-24.04
+    container: ubuntu:26.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.appimage.outputs.source_commit }}
+      - name: Install only host runtime dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            pipewire-bin wireplumber dbus python3 libgl1 libegl1 libopengl0 \
+            libfontconfig1 libharfbuzz0b fonts-dejavu-core libxkbcommon0 libxcb-cursor0 libsm6 libice6 xvfb
+          if dpkg-query -W -f '${Package}\n' | grep -E -- '(-dev$|^qt6|^qml6|^libqt6)'; then
+            echo 'Runtime validation must not have development or system Qt packages' >&2
+            exit 1
+          fi
+      - uses: actions/download-artifact@v5
+        with:
+          name: rostrum-${{ needs.appimage.outputs.version }}-appimage
+          path: dist
+      - name: Verify checksum and exercise packaged runtime
+        run: |
+          cd dist && sha256sum -c SHA256SUMS && cd ..
+          chmod +x dist/Rostrum-*.AppImage
+          python3 -B tools/appimage/validate-runtime.py \
+            dist/Rostrum-${{ needs.appimage.outputs.version }}-x86_64.AppImage --reports runtime-check --x11
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: rostrum-runtime-check
+          path: runtime-check/
+
+  publish:
+    needs: [appimage, validate-runtime]
+    if: github.event_name == 'push' || inputs.tag != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: rostrum-${{ needs.appimage.outputs.version }}-appimage
+          path: dist
+      - uses: actions/download-artifact@v5
+        with:
+          name: rostrum-release-notes
+          path: .
       - name: Publish the GitHub release
-        if: env.PUBLISH == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG }}
-          name: Rostrum ${{ steps.version.outputs.version }}
+          name: Rostrum ${{ needs.appimage.outputs.version }}
           body_path: notes.txt
-          prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
+          prerelease: ${{ needs.appimage.outputs.prerelease == 'true' }}
           fail_on_unmatched_files: true
           # The AppImage, SHA256SUMS and, except for pre-releases, latest.json.
           files: dist/*

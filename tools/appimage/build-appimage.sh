@@ -54,6 +54,35 @@ fetch "linuxdeploy-plugin-qt-${arch}.AppImage" \
 appdir="$work/AppDir"
 DESTDIR="$appdir" cmake --install "$build" --prefix /usr
 
+# Non-Plasma desktops may have no Breeze theme. QIcon's configured fallback
+# must exist in the AppImage too, including icons used by Kirigami and dialogs.
+if [ ! -f /usr/share/icons/breeze/index.theme ] || [ ! -f /usr/share/icons/breeze-dark/index.theme ] ||
+   [ ! -f /usr/share/doc/breeze-icon-theme/copyright ]; then
+    echo "Install breeze-icon-theme (including its copyright notice) before packaging" >&2
+    exit 1
+fi
+mkdir -p "$appdir/usr/share/icons" "$appdir/usr/share/licenses/rostrum"
+cp -a /usr/share/icons/breeze "$appdir/usr/share/icons/"
+# Breeze's colour variants link into breeze-dark (and vice versa).
+cp -a /usr/share/icons/breeze-dark "$appdir/usr/share/icons/"
+# Ubuntu's theme package has HiDPI aliases for absent 24px animations/emotes.
+# Drop those empty aliases in our copy; reject any other broken dependency.
+for theme in breeze breeze-dark; do
+    for category in animations emotes; do
+        for scale in 2 3; do
+            alias="$appdir/usr/share/icons/$theme/$category/24@${scale}x"
+            if [ -L "$alias" ] && [ ! -e "$alias" ] && [ "$(readlink "$alias")" = 24 ]; then
+                rm "$alias"
+            fi
+        done
+    done
+done
+if [ -n "$(find "$appdir/usr/share/icons" -xtype l -print -quit)" ]; then
+    echo "Bundled icon theme contains a broken symlink" >&2
+    exit 1
+fi
+cp /usr/share/doc/breeze-icon-theme/copyright "$appdir/usr/share/licenses/rostrum/Breeze-copyright"
+
 # PipeWire loads the mic filter plugin into its own process on the host, so the plugin can use
 # nothing from inside the AppImage: only libc and libm.
 dsp="$(find "$appdir/usr" -name librostrum-dsp.so -print -quit)"
