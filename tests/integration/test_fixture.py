@@ -9,16 +9,24 @@ import sys
 import unittest
 from unittest.mock import patch
 
+from interruption_checkpoint import Listener, assert_cleanup, hold
+
 spec = importlib.util.spec_from_file_location("audio_safety", Path(__file__).with_name("audio-safety.py"))
 safety = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(safety)
 DRIVER = Path(sys.argv.pop(1)).resolve()
+CHECKPOINT = None
+if '--checkpoint' in sys.argv:
+    index = sys.argv.index('--checkpoint')
+    CHECKPOINT = Path(sys.argv[index + 1])
+    del sys.argv[index:index + 2]
 
 
 class FixtureTests(unittest.TestCase):
     def setUp(self):
         self.s = safety.Session(DRIVER)
-        self.addCleanup(self.s.close)
+        # The interruption checkpoint observes this instance's real cleanup.
+        self.addCleanup(lambda: self.s.close())
 
     def test_missing_socket_never_invokes_client(self):
         with patch.object(self.s, "command") as command:
@@ -102,6 +110,8 @@ class FixtureTests(unittest.TestCase):
             self.s.tone("SafetyPlayer", "rostrum.game")
             self.s.route("rostrum.game", "rostrum.phones")
             self.s.capture("test.headphones", 440)
+            if CHECKPOINT:
+                hold(self.s, CHECKPOINT)
             # Deliberately add a forbidden send: isolation must fail on actual audio.
             # Rostrum removes forbidden bus-to-bus sends, so inject an internal
             # test stream directly into the destination to exercise the audio oracle.
@@ -115,26 +125,56 @@ class FixtureTests(unittest.TestCase):
 
     def test_interrupt_reclaims_session(self):
         log = self.s.root / "interruption.log"
-        with log.open("wb") as output:
+        with Listener(self.s.root / 'nested-checkpoint') as listener, log.open("wb") as output:
             runner = self.s.spawn([sys.executable, str(Path(__file__).with_name("audio-safety.py")),
-                                   "--driver", str(DRIVER)], output)
+                                   "--driver", str(DRIVER), '--scenario', 'startup',
+                                   '--checkpoint', str(listener.path)], output)
+            peer = ready = None
             try:
-                self.s.wait("interruption checkpoint", lambda: "test.headphones[0]" in log.read_text())
+                peer = listener.accept()
+                ready = peer.receive('ready')
+                self.assertEqual(ready['phase'], 'live')
+                peer.send('arm')
+                self.assertEqual(peer.receive('held')['phase'], 'live')
+                if CHECKPOINT:
+                    hold(self.s, CHECKPOINT)
                 # Closing the owned job asks its supervisor to terminate the runner
                 # and reclaim all descendants, including adopted orphan supervisors.
-                error_log = next(path for child, path in self.s.processes if child is runner)
-                self.s.stop(runner)
-                text = log.read_text() + error_log.read_text()
-                self.assertEqual(runner.returncode, 1, text)
-                self.assertIn("Interrupted by signal 15", text)
-                remaining = list(self.s.root.glob("rostrum-safety-*"))
-                if remaining:
-                    print(text, file=sys.stderr)
-                    for root in remaining:
-                        print({p.name: p.read_text() for p in root.glob('job-*.json')}, file=sys.stderr)
-                self.assertFalse(remaining)
             finally:
-                safety.cleanup_preserving_failure(lambda: self.s.stop(runner))
+                def stop_and_verify():
+                    error_log = next(path for child, path in self.s.processes if child is runner)
+                    self.s.stop(runner)
+                    if ready:
+                        interrupted = peer.receive('interrupted')
+                        self.assertEqual(interrupted['phase'], 'live')
+                        self.assertEqual(interrupted['kind'], 'Failure')
+                        self.assertEqual(interrupted['error'], 'Interrupted by signal 15')
+                        assert_cleanup(peer.receive('cleanup'), ready)
+                        self.assertFalse(Path(ready['root']).exists())
+                    text = log.read_text() + error_log.read_text()
+                    self.assertEqual(runner.returncode, 1, text)
+                    self.assertIn("Interrupted by signal 15", text)
+                    self.assertFalse(list(self.s.root.glob("rostrum-safety-*")))
+                try:
+                    safety.cleanup_preserving_failure(stop_and_verify)
+                finally:
+                    if peer:
+                        peer.close()
+
+    def test_signals_during_cleanup_do_not_abandon_jobs(self):
+        child = self.s.spawn([sys.executable, '-c', 'import time; time.sleep(60)'])
+        original = self.s._close
+        def interrupted_cleanup():
+            # These are cleanup-phase signals, not the live-work case above.
+            for sig in safety.INTERRUPTS:
+                self.assertEqual(signal.getsignal(sig), signal.SIG_IGN)
+                os.kill(os.getpid(), sig)
+            original()
+        with patch.object(self.s, '_close', side_effect=interrupted_cleanup):
+            self.s.close()
+        self.assertTrue(child.closed)
+        self.assertIsNotNone(child.process.returncode)
+        self.assertFalse(self.s.root.exists())
 
 
 

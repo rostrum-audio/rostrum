@@ -13,6 +13,8 @@ import time
 import unittest
 from unittest.mock import patch
 
+from interruption_checkpoint import Listener, assert_cleanup
+
 HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location('audio_safety', HERE / 'audio-safety.py')
 safety = importlib.util.module_from_spec(spec)
@@ -131,34 +133,47 @@ class LifecycleTests(unittest.TestCase):
                 safety.SESSIONS.discard(session)
 
     def interrupt_fixture(self, method, sig):
+        from process_lifecycle import Identity
         log = Path(self.temp.name) / 'fixture.log'
-        with log.open('wb') as output:
+        peer = anchor = None
+        with Listener(Path(self.temp.name) / 'checkpoint') as listener, log.open('wb') as output:
             env = dict(os.environ, PYTHONDONTWRITEBYTECODE='1', TMPDIR=self.temp.name)
             fixture = subprocess.Popen([sys.executable, '-B', str(HERE / 'test_fixture.py'),
-                                        str(DRIVER), '-v', 'FixtureTests.' + method],
+                                        str(DRIVER), '--checkpoint', str(listener.path),
+                                        '-v', 'FixtureTests.' + method],
                                        env=env, stdout=output, stderr=subprocess.STDOUT)
-            def checkpoint():
-                self.inventory()
-                if method == 'test_interrupt_reclaims_session':
-                    for pid in descendants():
-                        try:
-                            args = Path(f'/proc/{pid}/cmdline').read_bytes().split(b'\0')
-                            if args and args[0] == b'pw-cat' and b'-p' in args:
-                                return True
-                        except OSError:
-                            pass
-                    return False
-                return 'test.headphones[0]' in log.read_text()
-            observed('live private fixture', checkpoint)
-            before = self.inventory()
-            fixture.send_signal(sig)
-            fixture.wait(timeout=15)
-            self.assertNotEqual(fixture.returncode, 0)
-            live = [pid for pid, (_, _, birth) in before.items()
-                    if (now := state(pid)) and now[2] == birth and now[0] != 'Z']
-            self.assertEqual(live, [], 'interrupted fixture left owned live descendants')
-            self.assertTrue(all(not root.exists() for root in self.roots),
-                            'interrupted fixture left private trees')
+            try:
+                anchor = Identity(fixture.pid, os.getpid())
+                peer = listener.accept()
+                ready = peer.receive('ready')
+                self.assertEqual(ready['phase'], 'live')
+                root = Path(ready['root'])
+                self.assertIn(Path(self.temp.name), root.parents)
+                self.assertEqual((root.stat().st_dev, root.stat().st_ino), tuple(ready['identity']))
+                self.roots[root] = tuple(ready['identity'])
+                self.assertTrue(ready['jobs'], 'no owned live jobs at checkpoint')
+                peer.send('arm')
+                self.assertEqual(peer.receive('held')['phase'], 'live')
+                self.assertTrue(anchor.send(sig), 'fixture exited before signal delivery')
+                interrupted = peer.receive('interrupted')
+                self.assertEqual(interrupted['phase'], 'live')
+                self.assertEqual(interrupted['kind'], 'KeyboardInterrupt')
+                self.assertEqual(interrupted['error'], f'Interrupted by signal {int(sig)}')
+                assert_cleanup(peer.receive('cleanup'), ready)
+                fixture.wait(timeout=15)
+                self.assertNotEqual(fixture.returncode, 0, log.read_text())
+                self.assertEqual(fixture.returncode, 1, log.read_text())
+                self.assertIn(f'Interrupted by signal {int(sig)}', log.read_text())
+                self.assertFalse(descendants(), 'interrupted fixture left owned descendants')
+                self.assertFalse(root.exists(), 'interrupted fixture left private tree')
+            finally:
+                if peer:
+                    peer.close()
+                if anchor:
+                    if anchor.alive():
+                        anchor.send(signal.SIGTERM)
+                    anchor.close()
+                safety.cleanup_preserving_failure(lambda: fixture.wait(timeout=15))
 
     def test_fixture_term_and_hup_during_live_audio(self):
         for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
@@ -166,7 +181,7 @@ class LifecycleTests(unittest.TestCase):
                 self.interrupt_fixture('test_live_signal_oracle_rejects_silence_and_leak', sig)
 
     def test_fixture_term_and_hup_during_nested_runner(self):
-        for sig in (signal.SIGTERM, signal.SIGHUP):
+        for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
             with self.subTest(signal=sig):
                 self.interrupt_fixture('test_interrupt_reclaims_session', sig)
 
