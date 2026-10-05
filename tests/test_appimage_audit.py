@@ -21,6 +21,8 @@ class LicenseTests(unittest.TestCase):
         self.licenses.mkdir(parents=True)
         for name in ('Sentry-LICENSE', 'Sentry-mpack-LICENSE', 'Sentry-jsmn-LICENSE', 'Sentry-stb-LICENSE', 'Sentry-libunwind-COPYING', 'RNNoise-COPYING', 'Breeze-copyright', 'DEPENDENCIES.md'):
             (self.licenses / name).write_text('notice\n')
+        for name in ('RNNoise-components-NOTICES', 'Sentry-libunwind-components-NOTICES'):
+            (self.licenses / name).write_text('component notices\n')
         for name in audit.RUNTIME_NOTICES:
             (self.licenses / name).write_text('notice\n')
         doc = self.root / 'usr/share/doc/qt/copyright'
@@ -34,6 +36,26 @@ class LicenseTests(unittest.TestCase):
         (self.common / 'LGPL-3').write_text('license text\n')
         (self.common / 'GPL-3').write_text('license text\n')
         (self.common / 'GPL-2').write_text('license text\n')
+
+    def test_missing_component_notices_rejected(self):
+        for name in ('RNNoise-components-NOTICES', 'Sentry-libunwind-components-NOTICES'):
+            with self.subTest(name=name):
+                path = self.licenses / name
+                if path.exists():
+                    path.unlink()
+                with self.assertRaisesRegex(ValueError, name):
+                    audit.check_material(self.root, sentry=True)
+                path.write_text('component notices\n')
+
+    def test_component_headers_preserve_separate_copyright_and_terms(self):
+        source = self.root / 'upstream'
+        (source / 'src').mkdir(parents=True)
+        header = '/* Copyright CSIRO */\n/** file description */\n/* Redistribution and use permitted */\n'
+        (source / 'src/pitch.c').write_text(header + '#include "pitch.h"\n')
+        text = audit.component_notices(source)
+        self.assertIn(header, text)
+        self.assertIn('src/pitch.c', text)
+        self.assertNotIn('#include', text)
 
     def test_complete_material_passes(self):
         audit.check_material(self.root, sentry=True)
@@ -155,6 +177,31 @@ class SymbolTests(unittest.TestCase):
         notice.write_text('altered notice')
         with self.assertRaisesRegex(ValueError, 'Notice missing/changed'):
             audit.check(fixture.root)
+
+    def test_retained_symbols_include_matching_license_material(self):
+        fixture, target = self.project_fixture()
+        packaged = fixture.root / 'usr/bin/rostrum'
+        shutil.copyfile(self.packaged, packaged)
+        manifest_file = fixture.licenses / 'manifest.json'
+        manifest = json.loads(manifest_file.read_text())
+        manifest['project_elf_files']['usr/bin/rostrum'] = audit.build_id(packaged)
+        manifest_file.write_text(json.dumps(manifest))
+        build = self.root / 'build'
+        original = build / 'src/app/rostrum'
+        original.parent.mkdir(parents=True)
+        shutil.copyfile(self.original, original)
+        output = self.root / 'retained'
+        subprocess.run(['python3', '-B', str(spec.origin), 'symbols', str(fixture.root),
+                        '--build', str(build), '--symbols', str(output),
+                        '--source-commit', 'test-source'], check=True, timeout=30,
+                       capture_output=True)
+        for relative in ('usr/share/licenses/rostrum/Sentry-LICENSE',
+                         'usr/share/common-licenses/LGPL-3',
+                         'usr/share/doc/rostrum/LICENSE',
+                         'usr/share/licenses/rostrum/manifest.json'):
+            self.assertEqual((fixture.root / relative).read_bytes(),
+                             (output / relative).read_bytes())
+        self.assertEqual(audit.digest(original), audit.digest(output / 'rostrum'))
 
     def test_unmatched_launcher_rejected(self):
         with self.assertRaisesRegex(ValueError, 'license-matched pinned runtime'):

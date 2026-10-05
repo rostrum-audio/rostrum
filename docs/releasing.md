@@ -298,7 +298,8 @@ review or a commitment to preserve corresponding source availability.
 
 When Sentry upload is unavailable (including every empty-Tag build), Release retains
 `rostrum-<full-source-sha>-unstripped` for 30 days. It contains the original executable
-with `.debug_info` and `identity.json`: source SHA, ELF build ID, `.text` hash and
+with `.debug_info`, the matched license/source material and `identity.json`: source
+SHA, ELF build ID, `.text` hash and
 both original/packaged file hashes. Build ID **and code-section hash** must match
 between the original and the final extracted packaged executable. A rebuild with
 similar source is not a substitute for these exact symbols. The original is not

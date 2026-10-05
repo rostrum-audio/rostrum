@@ -26,11 +26,17 @@ by CMake. Their own upstream notices are copied without rewriting their terms:
   `Sentry-LICENSE` plus licenses from that release for compiled mpack, jsmn,
   stb_sprintf and vendored libunwind are supplied alongside this file. These
   source files include additional MIT notices (stb also offers public domain).
+  `Sentry-libunwind-components-NOTICES` preserves complete upstream component
+  headers, including David Mosberger-Tang notices absent from top-level COPYING.
+  Component collections conservatively include conditional source/header notices
+  from the exact pinned source trees, without changing their terms.
   The in-process backend does not include Crashpad or Breakpad; their dependencies
   are not bundled by this build. No Sentry transport is built into the SDK.
 - RNNoise **0.2**, BSD-3-Clause:
   https://github.com/xiph/rnnoise/releases/tag/v0.2 .
   Its upstream `COPYING` is `RNNoise-COPYING`; it is statically linked into the DSP.
+  `RNNoise-components-NOTICES` preserves component copyright and license headers,
+  including CSIRO notices absent from the top-level COPYING.
 - toml++'s installed development package supplies headers compiled into Rostrum;
   its version, source and copyright notice are also recorded, even when a runtime
   library is present. The applicable upstream license is MIT.
