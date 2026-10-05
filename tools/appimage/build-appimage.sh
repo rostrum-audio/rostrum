@@ -51,6 +51,13 @@ fetch "linuxdeploy-plugin-qt-${arch}.AppImage" \
     "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/${plugin_qt_tag}/linuxdeploy-plugin-qt-${arch}.AppImage" \
     "$plugin_qt_sha256"
 
+# The launcher is statically linked too. Pin its bytes to the build whose
+# dependency versions and upstream notices are recorded in licenses/runtime/.
+fetch "runtime-${arch}" \
+    "https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-${arch}" \
+    "156f4bdbde9c52d01814600013e0a273f0118dc2de98975f3c8c63427ec79074"
+export LDAI_RUNTIME_FILE="$tools/runtime-${arch}"
+
 appdir="$work/AppDir"
 DESTDIR="$appdir" cmake --install "$build" --prefix /usr
 
@@ -161,8 +168,12 @@ for dir in iconengines wayland-shell-integration wayland-decoration-client wayla
     fi
 done
 
-"$tools/linuxdeploy-${arch}.AppImage" --appdir "$appdir" "${extra[@]}" --output appimage
+"$tools/linuxdeploy-${arch}.AppImage" --appdir "$appdir" "${extra[@]}"
+# Audit the final dependency set before creating the immutable image.
+python3 "$src/tools/appimage/package-audit.py" collect "$appdir" --build "$build"
+"$tools/linuxdeploy-${arch}.AppImage" --appdir "$appdir" --output appimage
 
 test -s "$out/$name"
+python3 "$src/tools/appimage/package-audit.py" check "$appdir" --appimage "$out/$name"
 chmod 755 "$out/$name"
 echo "$out/$name"

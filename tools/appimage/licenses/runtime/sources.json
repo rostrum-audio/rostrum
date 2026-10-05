@@ -1,0 +1,53 @@
+{
+  "commit": "8f39b89e2ac31e1640b3d3f7e9a5108e6ce805fa",
+  "sha256": "156f4bdbde9c52d01814600013e0a273f0118dc2de98975f3c8c63427ec79074",
+  "build_run": "https://github.com/AppImage/type2-runtime/actions/runs/36463736478",
+  "build_dependencies": {
+    "musl": "1.2.5-r11",
+    "zlib": "1.3.2-r0",
+    "zstd": "1.5.6-r2",
+    "mimalloc2": "2.1.7-r0",
+    "libfuse": "3.15.0 with patches/libfuse/mount.c.diff from runtime commit",
+    "squashfuse": "0.5.2"
+  },
+  "notices": {
+    "Runtime-LICENSE": {
+      "upstream_url": "https://raw.githubusercontent.com/AppImage/type2-runtime/8f39b89e2ac31e1640b3d3f7e9a5108e6ce805fa/LICENSE",
+      "sha256": "aa154fc9070614bbe7921f89db11efd1dba7a1f3a41685958110e2230f9c0ca1"
+    },
+    "Runtime-musl-COPYRIGHT": {
+      "upstream_url": "https://git.musl-libc.org/cgit/musl/plain/COPYRIGHT?h=v1.2.5",
+      "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af"
+    },
+    "Runtime-libfuse-LGPL2.txt": {
+      "upstream_url": "https://raw.githubusercontent.com/libfuse/libfuse/fuse-3.15.0/LGPL2.txt",
+      "sha256": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551"
+    },
+    "Runtime-squashfuse-LICENSE": {
+      "upstream_url": "https://raw.githubusercontent.com/vasi/squashfuse/0.5.2/LICENSE",
+      "sha256": "9e909cc8a8ba27b1a649c964cf9eda37de911f3138c2b64e6d2f01703904ac13"
+    },
+    "Runtime-zstd-LICENSE": {
+      "upstream_url": "https://raw.githubusercontent.com/facebook/zstd/v1.5.6/LICENSE",
+      "sha256": "7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8"
+    },
+    "Runtime-zlib-LICENSE": {
+      "upstream_url": "https://raw.githubusercontent.com/madler/zlib/v1.3.2/LICENSE",
+      "sha256": "e32ff4e00d9d94930537635291da39e7e612703334bf6fde8c7f1686fe8a45a2"
+    },
+    "Runtime-mimalloc-LICENSE": {
+      "upstream_url": "https://raw.githubusercontent.com/microsoft/mimalloc/v2.1.7/LICENSE",
+      "sha256": "19c99805e7a44a34b297a75d1edea9985e300066dfc024d5c99d4236d4573b5d"
+    },
+    "Launcher-linuxdeploy-LICENSE": {
+      "upstream_url": "https://raw.githubusercontent.com/linuxdeploy/linuxdeploy/1-alpha-20251107-1/LICENSE.txt",
+      "sha256": "1edb41ae7601854ae15d113c3700beebd0ea3ed05b85e3786a94a72bb9916091"
+    },
+    "Launcher-linuxdeploy-qt-LICENSE": {
+      "upstream_url": "https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-qt/1-alpha-20250213-1/LICENSE.txt",
+      "sha256": "1edb41ae7601854ae15d113c3700beebd0ea3ed05b85e3786a94a72bb9916091"
+    }
+  },
+  "build_id": "6068f2cec943069c072c32fe680557d1e5f7ec6f",
+  "text_sha256": "3b7a70fca71990d15da1b190fa7cd8f38ec61b6d57082e39d4ed042882215692"
+}

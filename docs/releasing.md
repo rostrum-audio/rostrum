@@ -55,7 +55,8 @@ tags and publishes. The tag itself is always pushed with the workflow's own toke
 
 **Test build.** Run the workflow by hand (Actions → Release → Run workflow) with the tag field
 empty. It builds and checks the AppImage from the chosen branch and keeps it as a workflow
-artifact, but publishes nothing and uploads no symbols.
+artifact, but publishes nothing and uploads no symbols. The exact-build unstripped
+executable is retained separately as an authenticated Actions artifact.
 
 **Pre-releases.** A tag with a suffix (`v0.2.0-rc1`) is published as a GitHub pre-release with the
 AppImage and `SHA256SUMS`, but without `latest.json`. The CMake version stays `0.2.0`. The updater
@@ -275,3 +276,46 @@ symbols can be uploaded later by hand from the same build (see
 [privacy.md](privacy.md#builds-and-testing)), though only from that exact binary. The token needs
 the `project:releases` scope (or `project:write`) and nothing else. Keep it only in the repository
 secrets.
+
+## Bundled licenses and retained symbols
+
+Packaging collects versioned provenance for the actual dependency ELF files by
+matching installed-package build IDs. The statically linked AppImage launcher is
+pinned to bytes with recorded upstream build evidence; its matched runtime/library
+notices are included, and final launcher build ID/code are checked too. It retains existing copyright notices,
+adds all referenced full common-license texts (including LGPL and its incorporated
+GPL), and includes the pinned Sentry MIT and compiled-vendor notices. Header-only
+integrations are inventoried too. Unknown provenance or missing notices fail the
+build. The extracted final image is checked again before publication.
+
+See [appimage-dependencies.md](appimage-dependencies.md) for corresponding-source
+locations, exact-version retrieval and library replacement/relinking instructions.
+The image contains that document and a generated version/source/notice-hash manifest
+under `usr/share/licenses/rostrum/`. Distro copyright files come from the installed
+packages' matched upstream sources; Sentry notices come from CMake's exact pinned
+source archive. This completeness check does not replace a distribution-license
+review or a commitment to preserve corresponding source availability.
+
+When Sentry upload is unavailable (including every empty-Tag build), Release retains
+`rostrum-<full-source-sha>-unstripped` for 30 days. It contains the original executable
+with `.debug_info` and `identity.json`: source SHA, ELF build ID, `.text` hash and
+both original/packaged file hashes. Build ID **and code-section hash** must match
+between the original and the final extracted packaged executable. A rebuild with
+similar source is not a substitute for these exact symbols. The original is not
+placed in `dist/` and is never attached as a public release asset. Actions artifact
+downloads require authentication; in a public repository this is not a confidential
+storage ACL or a secret vault. Maintainers should download/archive the artifact
+before expiry. No new token is configured and empty-Tag runs never upload to Sentry.
+
+Offline checks (no application/audio launch):
+
+```sh
+python3 -B tests/test_appimage_audit.py
+python3 tools/appimage/package-audit.py check path/to/squashfs-root
+```
+
+The focused tests reject missing Sentry/vendor/launcher notices, absent full LGPL/GPL texts,
+empty notices, mismatched builds, changed code retaining an old build ID and an
+already-stripped symbol binary. Release's existing runtime validation still checks
+the newly packaged application in private audio sessions; no separate repeated
+stability campaign is required for these license-only packaging changes.

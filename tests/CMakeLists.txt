@@ -57,6 +57,8 @@ endif()
 
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
+    add_test(NAME appimage_audit COMMAND ${Python3_EXECUTABLE} -B
+        ${CMAKE_CURRENT_SOURCE_DIR}/test_appimage_audit.py)
     rostrum_add_test(tst_releasefeed)
     target_compile_definitions(tst_releasefeed PRIVATE
         ROSTRUM_PYTHON="${Python3_EXECUTABLE}" ROSTRUM_SOURCE_DIR="${PROJECT_SOURCE_DIR}")

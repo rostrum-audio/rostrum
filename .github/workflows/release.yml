@@ -134,6 +134,11 @@ jobs:
           mkdir -p "$check/config" "$check/state" "$check/runtime" && chmod 700 "$check/runtime"
           cd "$check"
           "$GITHUB_WORKSPACE/dist/Rostrum-${{ steps.version.outputs.version }}-x86_64.AppImage" --appimage-extract >/dev/null
+          python3 "$GITHUB_WORKSPACE/tools/appimage/package-audit.py" check squashfs-root \
+            --appimage "$GITHUB_WORKSPACE/dist/Rostrum-${{ steps.version.outputs.version }}-x86_64.AppImage"
+          python3 "$GITHUB_WORKSPACE/tools/appimage/package-audit.py" symbols squashfs-root \
+            --build "$GITHUB_WORKSPACE/build-official" --symbols "$RUNNER_TEMP/rostrum-symbols" \
+            --source-commit "${{ steps.version.outputs.source_commit }}"
           appstreamcli validate --no-net squashfs-root/usr/share/metainfo/dev.getrostrum.Rostrum.metainfo.xml
           test -d squashfs-root/usr/qml/org/kde/kirigami
           test -d squashfs-root/usr/qml/org/kde/desktop
@@ -145,6 +150,16 @@ jobs:
           if grep -E 'qrc:/.*\.qml:[0-9]+.*(Error|error|is not a type|is not installed|not found)' app.log; then
             exit 1
           fi
+      # Keep exact-build symbols out of dist/ and GitHub release assets. Actions
+      # downloads require authentication; this is not a confidential secret store.
+      - name: Retain exact-build unstripped executable
+        if: steps.sentry.outputs.upload != 'true'
+        uses: actions/upload-artifact@v5
+        with:
+          name: rostrum-${{ steps.version.outputs.source_commit }}-unstripped
+          path: ${{ runner.temp }}/rostrum-symbols/
+          if-no-files-found: error
+          retention-days: 30
       - name: Write the update feed
         if: steps.version.outputs.prerelease == 'false'
         run: |
