@@ -11,6 +11,7 @@ struct Level
     Destination destination = Destination::Both;
     double volume = 1.0; // fader position; 0.8 is about -6 dB, 0.5 about -18 dB
     bool muted = false;
+    bool vod = true;
 };
 
 struct Preset
@@ -21,7 +22,8 @@ struct Preset
 
 Level defaultLevel(AppCategory category)
 {
-    return {category == AppCategory::Music ? Destination::Stream : Destination::Both, 1.0, false};
+    return {category == AppCategory::Music ? Destination::Stream : Destination::Both, 1.0, false,
+            category != AppCategory::Music};
 }
 
 QMap<QString, Preset> table()
@@ -31,23 +33,23 @@ QMap<QString, Preset> table()
     return {
         {QString::fromLatin1(kGaming),
          {false,
-          {{Game, {Both, 1.0}}, {Voice, {Both, 0.85}}, {Music, {Stream, 0.5}}, {Alerts, {Both, 0.8}},
+          {{Game, {Both, 1.0}}, {Voice, {Both, 0.85}}, {Music, {Stream, 0.5, false, false}}, {Alerts, {Both, 0.8}},
            {Desktop, {Both, 0.8}}}}},
         {QString::fromLatin1(kChatting),
          {false,
-          {{Game, {Both, 1.0, true}}, {Voice, {Both, 0.85}}, {Music, {Both, 0.55}}, {Alerts, {Both, 0.8}},
+          {{Game, {Both, 1.0, true}}, {Voice, {Both, 0.85}}, {Music, {Both, 0.55, false, false}}, {Alerts, {Both, 0.8}},
            {Desktop, {Both, 0.9}}}}},
         {QString::fromLatin1(kMusic),
          {false,
-          {{Game, {Both, 1.0, true}}, {Voice, {Phones, 0.8}}, {Music, {Both, 1.0}}, {Alerts, {Both, 0.6}},
+          {{Game, {Both, 1.0, true}}, {Voice, {Phones, 0.8}}, {Music, {Both, 1.0, false, false}}, {Alerts, {Both, 0.6}},
            {Desktop, {Phones, 0.8}}}}},
         {QString::fromLatin1(kPodcast),
          {false,
-          {{Game, {Both, 1.0, true}}, {Voice, {Both, 1.0}}, {Music, {Stream, 0.5, true}},
+          {{Game, {Both, 1.0, true}}, {Voice, {Both, 1.0}}, {Music, {Stream, 0.5, true, false}},
            {Alerts, {Both, 0.8, true}}, {Desktop, {Phones, 0.8}}}}},
         {QString::fromLatin1(kBreak),
          {true,
-          {{Game, {Both, 1.0, true}}, {Voice, {Phones, 0.85}}, {Music, {Both, 0.8}}, {Alerts, {Both, 0.8}},
+          {{Game, {Both, 1.0, true}}, {Voice, {Phones, 0.85}}, {Music, {Both, 0.8, false, false}}, {Alerts, {Both, 0.8}},
            {Desktop, {Phones, 0.8}}}}},
     };
 }
@@ -82,6 +84,7 @@ Scene apply(const QString &id, const Scene &base)
         }
         const Level level = preset.buses.value(bus.autoCategory, defaultLevel(bus.autoCategory));
         bus.destination = level.destination;
+        bus.vod = level.vod;
         bus.volume = level.volume;
         bus.muted = level.muted;
     }

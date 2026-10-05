@@ -152,11 +152,23 @@ void fetchState(Client *client, std::function<void(const State &, const QString 
                         f->state.inputs << in;
                     }
                 }
-                if (f->state.inputs.isEmpty()) {
-                    f->done(f->state, QString());
-                    return;
-                }
-                f->pending = int(f->state.inputs.size()) * 3;
+                f->pending = int(f->state.inputs.size()) * 3 + 2;
+                c->request(QStringLiteral("GetStreamServiceSettings"), {}, [=](bool ok, const QJsonObject &d, const QString &) {
+                    if (ok) {
+                        const QJsonObject settings = d.value(QLatin1String("streamServiceSettings")).toObject();
+                        f->state.streamService = settings.value(QLatin1String("service")).toString();
+                    }
+                    finishOne();
+                });
+                c->request(QStringLiteral("GetProfileParameter"),
+                           {{QStringLiteral("parameterCategory"), QStringLiteral("AdvOut")},
+                            {QStringLiteral("parameterName"), QStringLiteral("VodTrackIndex")}},
+                           [=](bool ok, const QJsonObject &d, const QString &) {
+                    if (ok) {
+                        f->state.twitchVodTrack = d.value(QLatin1String("parameterValue")).toString().toInt();
+                    }
+                    finishOne();
+                });
                 for (qsizetype n = 0; n < f->state.inputs.size(); ++n) {
                     const QJsonObject who{{QStringLiteral("inputName"), f->state.inputs.at(n).name}};
                     c->request(QStringLiteral("GetInputSettings"), who, [=](bool ok, const QJsonObject &d, const QString &) {
@@ -272,6 +284,11 @@ void applyPlan(Client *client, const QList<Action> &actions, const State &before
             d.insert(QStringLiteral("inputSettings"), QJsonObject{{QStringLiteral("device_id"), a.device}});
             d.insert(QStringLiteral("overlay"), true);
             run->steps << Step{QStringLiteral("SetInputSettings"), d, undoFor(a, before)};
+            if (a.tracks) {
+                QJsonObject td = who;
+                td.insert(QStringLiteral("inputAudioTracks"), tracksJson(a.tracks));
+                run->steps << Step{QStringLiteral("SetInputAudioTracks"), td, std::nullopt, true};
+            }
             break;
         }
         case Action::Type::Unmute:
@@ -309,6 +326,23 @@ void applyPlan(Client *client, const QList<Action> &actions, const State &before
         }
         case Action::Type::CreateGlobal:
             break;
+        case Action::Type::SetTwitchVodTrack: {
+            for (const QString &cat : {QStringLiteral("AdvOut"), QStringLiteral("SimpleOutput")}) {
+                QJsonObject d1{
+                    {QStringLiteral("parameterCategory"), cat},
+                    {QStringLiteral("parameterName"), QStringLiteral("VodTrackIndex")},
+                    {QStringLiteral("parameterValue"), QString::number(a.tracks ? a.tracks : 2)},
+                };
+                run->steps << Step{QStringLiteral("SetProfileParameter"), d1, undoFor(a, before), true};
+                QJsonObject d2{
+                    {QStringLiteral("parameterCategory"), cat},
+                    {QStringLiteral("parameterName"), QStringLiteral("TwitchVodTrack")},
+                    {QStringLiteral("parameterValue"), QStringLiteral("true")},
+                };
+                run->steps << Step{QStringLiteral("SetProfileParameter"), d2, std::nullopt, true};
+            }
+            break;
+        }
         }
     }
     run->done = [done = std::move(done)](const std::shared_ptr<Run> &r, const QString &fatal) { done(r->applied, fatal); };
@@ -326,6 +360,11 @@ void applyUndo(Client *client, const Undo &undo, std::function<void(int, const Q
             d.insert(QStringLiteral("inputSettings"), QJsonObject{{QStringLiteral("device_id"), it->device}});
             d.insert(QStringLiteral("overlay"), true);
             run->steps << Step{QStringLiteral("SetInputSettings"), d, std::nullopt, true};
+            if (it->tracks) {
+                QJsonObject td{{QStringLiteral("inputName"), it->input}};
+                td.insert(QStringLiteral("inputAudioTracks"), tracksJson(it->tracks));
+                run->steps << Step{QStringLiteral("SetInputAudioTracks"), td, std::nullopt, true};
+            }
             break;
         case UndoOp::Type::RestoreMute:
             d.insert(QStringLiteral("inputMuted"), it->muted);
@@ -335,6 +374,25 @@ void applyUndo(Client *client, const Undo &undo, std::function<void(int, const Q
         case UndoOp::Type::RemoveGlobal:
             run->steps << Step{QStringLiteral("RemoveInput"), d, std::nullopt, true};
             break;
+        case UndoOp::Type::RestoreTwitchVodTrack: {
+            const QString val = it->tracks > 0 ? QString::number(it->tracks) : QStringLiteral("0");
+            const QString enabled = it->tracks > 0 ? QStringLiteral("true") : QStringLiteral("false");
+            for (const QString &cat : {QStringLiteral("AdvOut"), QStringLiteral("SimpleOutput")}) {
+                QJsonObject d1{
+                    {QStringLiteral("parameterCategory"), cat},
+                    {QStringLiteral("parameterName"), QStringLiteral("VodTrackIndex")},
+                    {QStringLiteral("parameterValue"), val},
+                };
+                run->steps << Step{QStringLiteral("SetProfileParameter"), d1, std::nullopt, true};
+                QJsonObject d2{
+                    {QStringLiteral("parameterCategory"), cat},
+                    {QStringLiteral("parameterName"), QStringLiteral("TwitchVodTrack")},
+                    {QStringLiteral("parameterValue"), enabled},
+                };
+                run->steps << Step{QStringLiteral("SetProfileParameter"), d2, std::nullopt, true};
+            }
+            break;
+        }
         }
     }
     run->done = [done = std::move(done)](const std::shared_ptr<Run> &r, const QString &) { done(r->failed, r->lastError); };

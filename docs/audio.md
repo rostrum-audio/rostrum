@@ -7,8 +7,12 @@ shells out to `pactl` in the steady state.
 App streams ----> rostrum.<bus> ----> rostrum.phones ----> headphones device
                          |
                          +--> rostrum.stream (virtual sink, "Rostrum Stream Mix")
+                         |          |
+                         |          +--> monitor  (OBS captures this on Track 1)
+                         |
+                         +--> rostrum.vod (virtual sink, "Rostrum VOD Mix")
                                     |
-                                    +--> monitor  (OBS captures this)
+                                    +--> monitor  (OBS captures this on Track 2)
 
 Hardware mic ---> rostrum.mic (virtual source, "Rostrum Mic")      (OBS captures this)
              \--> rostrum.sidetone ---> rostrum.phones             (optional, default off)
@@ -31,7 +35,8 @@ Every Rostrum node is a `support.null-audio-sink` adapter created in the PipeWir
 |------|-------------|----------|-------------|---------|
 | `rostrum.<bus>` | `Audio/Sink` | FL FR | `Rostrum <Name>` | One per playback bus. Apps are moved here. |
 | `rostrum.phones` | `Audio/Sink` | FL FR | `Rostrum Headphones Mix` | Sum of everything bound for headphones. Volume = Master Headphones. |
-| `rostrum.stream` | `Audio/Sink` | FL FR | `Rostrum Stream Mix` | Sum of everything bound for the stream. Volume = Master Stream. OBS captures its monitor. |
+| `rostrum.stream` | `Audio/Sink` | FL FR | `Rostrum Stream Mix` | Sum of everything bound for the stream. Volume = Master Stream. OBS captures its monitor on Track 1. |
+| `rostrum.vod` | `Audio/Sink` | FL FR | `Rostrum VOD Mix` | Twitch VOD mix (playback buses with VOD enabled, default on except Music). Volume = Master Stream. OBS captures its monitor on Track 2. |
 | `rostrum.mic` | `Audio/Source/Virtual` | MONO | `Rostrum Mic` | The hardware mic after Rostrum's gain and mute. OBS captures this. |
 | `rostrum.sidetone` | `Audio/Sink` | MONO | `Rostrum Sidetone` | Mic monitoring into headphones. Volume = sidetone fader. |
 | `rostrum.micfx` | none | MONO | `Rostrum Mic Filters` | Only while mic filters are on. Runs the filter chain (below). |
@@ -46,7 +51,7 @@ Properties set on every node:
   which is what makes a bus fader or the Master Stream fader audible to OBS.
 - `priority.session = 0`, `priority.driver = 0`: WirePlumber should not pick a Rostrum node as
   the system default device.
-- `rostrum.role` (`bus`, `phones`, `stream`, `mic`, `sidetone`, `micfx`, `filtered`) and
+- `rostrum.role` (`bus`, `phones`, `stream`, `vod`, `mic`, `sidetone`, `micfx`, `filtered`) and
   `rostrum.bus`: Rostrum only ever destroys nodes that carry these.
 
 `rostrum.micfx` is the exception to the null-sink rule: it is a bare `audio.convert` node made with
@@ -69,6 +74,7 @@ Rostrum creates links port by port with `link-factory` (`object.linger = true`),
 |------|----|------|
 | `rostrum.<bus>` monitor | `rostrum.phones` | bus destination is Headphones or Both |
 | `rostrum.<bus>` monitor | `rostrum.stream` | bus destination is Stream or Both |
+| `rostrum.<bus>` monitor | `rostrum.vod` | bus destination is Stream or Both, and VOD is on |
 | `rostrum.phones` monitor | headphone device | always; with mono headphones each side also goes into the other front channel |
 | hardware mic | `rostrum.mic` | mic filters off (mute/destination act on the node, not the link) |
 | hardware mic | `rostrum.sidetone` | mic filters off |
@@ -92,8 +98,8 @@ Fader positions are perceptual: linear gain = position³, as in pavucontrol. The
 - Bus node: fader, muted if the bus is muted or dimmed by solo. A playback bus with a balance gets
   one volume per channel (FL, FR): like PulseAudio's balance, the far side is turned down in fader
   space (position × (1 − |balance|)) and the near side stays at the fader.
-- `rostrum.phones` / `rostrum.stream`: Master Headphones / Master Stream. These multiply every bus send.
-  "Mute all playback to stream" mutes `rostrum.stream`.
+- `rostrum.phones` / `rostrum.stream` / `rostrum.vod`: Master Headphones / Master Stream. These multiply every bus send.
+  "Mute all playback to stream" mutes `rostrum.stream` and `rostrum.vod`.
 - `rostrum.mic`: mic gain (0 to 150%, 100% = 0 dB), muted if the mic is muted or the mic
   destination does not include Stream.
 - `rostrum.sidetone`: sidetone fader, muted unless the mic destination includes Headphones, the mic is
@@ -563,8 +569,7 @@ zero volume, sidetone starts at fader position 0.5 so it is audible.
 
 ## OBS
 
-OBS should record exactly two things: `Rostrum Mic` (`rostrum.mic`) and `Rostrum Stream Mix`
-(PulseAudio name `rostrum.stream.monitor`). Any OBS audio source type works, PulseAudio or the
+OBS records `Rostrum Mic` (`rostrum.mic`) on Track 1 and Track 2, `Rostrum Stream Mix` (PulseAudio name `rostrum.stream.monitor`) on Track 1 only, and `Rostrum VOD Mix` (`rostrum.vod.monitor`) on Track 2 only (the Twitch VOD track, containing all playback buses with VOD enabled, excluding Music by default). When streaming to Twitch, Output → Streaming → Twitch VOD Track must be set to Track 2, and stream readiness stays "Needs attention" until that output setting is set. Any OBS audio source type works, PulseAudio or the
 PipeWire plugin, as long as it records one of those. The failures come from sources that record
 something else: "Default" or the headphones (everything you hear, including buses you keep off
 stream), the hardware mic or `Rostrum Filtered Mic` (a doubled voice), or one app (that app
@@ -584,10 +589,11 @@ The plan is the same whether OBS is running or not (`makePlan` in `src/obs/ObsPl
 
 1. Mic: if an unmuted source already records `rostrum.mic`, keep it. If only a muted one does,
    unmute it. Otherwise point the source that records the hardware mic at `rostrum.mic`, which
-   keeps its filters, tracks and scenes. Global Mic/Aux comes first. Failing that, add one.
-2. Stream mix: the same, preferring the global Desktop Audio source. A new source gets the audio
-   tracks of the desktop or app source it replaces.
-3. Every other unmuted source that records audio Rostrum handles (hardware mic, headphones,
+   keeps its filters, tracks and scenes. Global Mic/Aux comes first. Failing that, add one. Configured for OBS Track 1 and Track 2.
+2. Stream mix: the same, preferring the global Desktop Audio source, configured for OBS Track 1 only.
+3. VOD mix: add a named Audio Output Capture, "Rostrum VOD Mix" (device `rostrum.vod.monitor`), configured for OBS Track 2 only. Desktop Audio 2 is never assigned.
+4. Output setting: when the stream service is Twitch, Output → Streaming → Twitch VOD Track is set to 2.
+5. Every other unmuted source that records audio Rostrum handles (hardware mic, headphones,
    Default, one app, a Rostrum bus) is muted. These steps are optional in the preview. Nothing is
    ever deleted.
 

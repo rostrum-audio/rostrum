@@ -157,7 +157,7 @@ SceneHistory::Change SceneHistory::describe(const Scene &from, const Scene &to)
         if (a.balance != b->balance) {
             add(Kind::Balance, b->name);
         }
-        if (a.destination != b->destination) {
+        if (a.destination != b->destination || a.vod != b->vod) {
             add(Kind::Destination, b->name);
         }
         if (a.autoCategory != b->autoCategory) {

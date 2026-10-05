@@ -39,12 +39,15 @@ struct Bus
     bool muted = false;
     double balance = 0.0; // -1 left .. 1 right; playback buses only
     Destination destination = Destination::Both;
+    bool vod = true;                              // Twitch VOD destination (playback buses)
     AppCategory autoCategory = AppCategory::None; // at most one bus per category in a scene
 
     bool isInput() const { return kind == BusKind::Input; }
     QString nodeName() const;
     bool operator==(const Bus &) const = default;
 };
+
+inline bool feedsVod(const Bus &b) { return feedsStream(b.destination) && b.vod; }
 
 struct AppRule
 {
@@ -106,6 +109,7 @@ struct Swatch
 const QList<Swatch> &palette();
 Scene scene(const QString &name = QString::fromLatin1(kDefaultSceneName));
 Destination destinationFor(const QString &busId);
+bool vodFor(const QString &busId);
 AppCategory autoCategoryFor(const QString &busId); // what the default buses receive
 
 } // namespace defaults

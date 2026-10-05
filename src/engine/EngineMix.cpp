@@ -89,6 +89,16 @@ void Engine::setBusDestination(const QString &id, Destination d)
     levelChanged();
 }
 
+void Engine::setBusVod(const QString &id, bool on)
+{
+    Bus *b = m_scene.bus(id);
+    if (!b || b->isInput() || b->vod == on) {
+        return;
+    }
+    b->vod = on;
+    levelChanged();
+}
+
 void Engine::setMasterPhones(double volume)
 {
     cancelFade(QString::fromLatin1(kPhonesNode));
@@ -106,6 +116,7 @@ void Engine::setMasterPhonesMuted(bool muted)
 void Engine::setMasterStream(double volume)
 {
     cancelFade(QString::fromLatin1(kStreamNode));
+    cancelFade(QString::fromLatin1(kVodNode));
     m_scene.masterStream = std::clamp(volume, 0.0, 1.0);
     levelChanged();
 }
@@ -114,6 +125,7 @@ void Engine::setMasterStreamMuted(bool muted)
 {
     m_panicStream = m_panicStream && muted;
     cancelFade(QString::fromLatin1(kStreamNode));
+    cancelFade(QString::fromLatin1(kVodNode));
     m_scene.masterStreamMuted = muted;
     levelChanged();
 }
@@ -643,6 +655,7 @@ void Engine::reconcileLinks()
     const auto &g = m_pw->graph();
     const pw::Node *phones = g.nodeByName(QString::fromLatin1(kPhonesNode));
     const pw::Node *stream = g.nodeByName(QString::fromLatin1(kStreamNode));
+    const pw::Node *vod = g.nodeByName(QString::fromLatin1(kVodNode));
     const pw::Node *mic = g.nodeByName(QString::fromLatin1(kMicNode));
     const pw::Node *sidetone = g.nodeByName(QString::fromLatin1(kSidetoneNode));
     const pw::Node *hwSink = resolveSink();
@@ -662,6 +675,9 @@ void Engine::reconcileLinks()
         }
         if (feedsStream(b.destination) && stream) {
             nodePairs.append(qMakePair(bus, stream));
+        }
+        if (feedsVod(b) && vod) {
+            nodePairs.append(qMakePair(bus, vod));
         }
     }
     if (phones && hwSink) {
@@ -849,8 +865,10 @@ void Engine::reconcileVolumes()
     level(QString::fromLatin1(kPhonesNode), m_scene.masterPhones, m_scene.masterPhonesMuted, 0.0, phonesGain);
     if (m_panicStream) {
         apply(QString::fromLatin1(kStreamNode), m_scene.masterStream, true);
+        apply(QString::fromLatin1(kVodNode), m_scene.masterStream, true);
     } else {
         level(QString::fromLatin1(kStreamNode), m_scene.masterStream, m_scene.masterStreamMuted);
+        level(QString::fromLatin1(kVodNode), m_scene.masterStream, m_scene.masterStreamMuted);
     }
     if (const Bus *mic = m_scene.micBus()) {
         const bool micMuted = micSilenced() || effectiveMicMuted();

@@ -187,6 +187,14 @@ Destination destinationFor(const QString &busId)
     return Destination::Both;
 }
 
+bool vodFor(const QString &busId)
+{
+    if (busId == QLatin1String("music") || busId == QLatin1String(kMicBusId)) {
+        return false;
+    }
+    return true;
+}
+
 AppCategory autoCategoryFor(const QString &busId)
 {
     return busId == QLatin1String(kMicBusId) ? AppCategory::None
@@ -214,6 +222,7 @@ Scene scene(const QString &name)
         b.color = QString::fromLatin1(palette().at(i++).hex);
         b.kind = b.id == QLatin1String(kMicBusId) ? BusKind::Input : BusKind::Playback;
         b.destination = destinationFor(b.id);
+        b.vod = vodFor(b.id);
         b.autoCategory = autoCategoryFor(b.id);
         s.buses.append(b);
     }
@@ -261,6 +270,7 @@ Scene mergeStructure(const Scene &saved, const Scene &current)
             b.muted = s->muted;
             b.balance = s->balance;
             b.destination = s->destination;
+            b.vod = s->vod;
         }
     }
     for (auto &r : out.rules) {

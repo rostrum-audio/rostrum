@@ -41,6 +41,7 @@ public:
         AutoCategoryRole, // "game", "voice", ... or "none"
         BalanceRole,
         DuckedRole, // turned down by auto-ducking right now
+        VodRole,
     };
 
     explicit BusModel(engine::Engine *engine, QObject *parent = nullptr);
@@ -127,6 +128,7 @@ public:
     Q_INVOKABLE void toggleMuted(const QString &busId);
     Q_INVOKABLE void toggleSolo(const QString &busId);
     Q_INVOKABLE void setDestination(const QString &busId, int index);
+    Q_INVOKABLE void setVod(const QString &busId, bool on);
     Q_INVOKABLE void rename(const QString &busId, const QString &name);
     Q_INVOKABLE void recolor(const QString &busId, const QString &color);
     // category: "game", "voice", "music", "alerts", "desktop" or "none". One bus per category.

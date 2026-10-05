@@ -87,6 +87,9 @@ toml::table sceneTable(const Scene &scene)
             {"destination", s(destinationName(b.destination))},
             {"auto", s(categoryName(b.autoCategory))},
         };
+        if (!b.isInput()) {
+            bt.insert("vod", b.vod);
+        }
         if (b.balance != 0.0) {
             bt.insert("balance", b.balance);
         }
@@ -147,6 +150,7 @@ Scene sceneFrom(const toml::table &t)
             b.muted = flag(bv["muted"], false);
             b.balance = num(bv["balance"], 0.0);
             b.destination = destinationFromString(qs(bv["destination"])).value_or(defaults::destinationFor(b.id));
+            b.vod = b.isInput() ? false : flag(bv["vod"], defaults::vodFor(b.id));
             // Scenes saved before automatic assignment existed: the default buses keep their job.
             b.autoCategory = categoryFromString(qs(bv["auto"])).value_or(defaults::autoCategoryFor(b.id));
             scene.buses.append(b);
@@ -189,8 +193,8 @@ Scene sanitize(Scene scene)
     static const QRegularExpression hex(QStringLiteral("^#[0-9a-fA-F]{6}$"));
     static const QRegularExpression idChars(QStringLiteral("^[a-z0-9][a-z0-9-]{0,31}$"));
     static const QSet<QString> reserved = {QStringLiteral("phones"), QStringLiteral("stream"),
-                                           QStringLiteral("sidetone"), QStringLiteral("micfx"),
-                                           QStringLiteral("filtered")};
+                                           QStringLiteral("vod"),    QStringLiteral("sidetone"),
+                                           QStringLiteral("micfx"),  QStringLiteral("filtered")};
     const Scene defaults = defaults::scene();
 
     scene.name = scene.name.trimmed().isEmpty() ? QString::fromLatin1(kDefaultSceneName) : scene.name.trimmed();

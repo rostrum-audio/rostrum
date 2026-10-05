@@ -49,12 +49,15 @@ bool editSource(QJsonObject &doc, const QString &name, const std::function<void(
     return false;
 }
 
-void setDevice(QJsonObject &doc, const QString &name, const QString &device)
+void setDevice(QJsonObject &doc, const QString &name, const QString &device, quint32 tracks = 0)
 {
     editSource(doc, name, [&](QJsonObject &o) {
         QJsonObject settings = o.value(QLatin1String("settings")).toObject();
         settings.insert(QStringLiteral("device_id"), device);
         o.insert(QStringLiteral("settings"), settings);
+        if (tracks > 0) {
+            o.insert(QStringLiteral("mixers"), int(tracks));
+        }
     });
 }
 
@@ -114,7 +117,7 @@ QJsonObject applyToCollection(QJsonObject doc, const QList<Action> &actions)
     for (const auto &a : actions) {
         switch (a.type) {
         case Action::Type::SetDevice:
-            setDevice(doc, a.input, a.device);
+            setDevice(doc, a.input, a.device, a.tracks);
             break;
         case Action::Type::Unmute:
             setMuted(doc, a.input, false);
@@ -141,7 +144,36 @@ QJsonObject applyToCollection(QJsonObject doc, const QList<Action> &actions)
                             });
             break;
         }
-        case Action::Type::CreateInput:
+        case Action::Type::CreateInput: {
+            QJsonArray sources = doc.value(QLatin1String("sources")).toArray();
+            sources.append(QJsonObject{
+                {QStringLiteral("id"), a.kind},
+                {QStringLiteral("versioned_id"), a.kind},
+                {QStringLiteral("name"), a.input},
+                {QStringLiteral("uuid"), QUuid::createUuid().toString(QUuid::WithoutBraces)},
+                {QStringLiteral("settings"), QJsonObject{{QStringLiteral("device_id"), a.device}}},
+                {QStringLiteral("mixers"), int(a.tracks ? a.tracks : kAllTracks)},
+                {QStringLiteral("muted"), false},
+                {QStringLiteral("enabled"), true},
+                {QStringLiteral("volume"), 1.0},
+                {QStringLiteral("balance"), 0.5},
+            });
+            for (qsizetype n = 0; n < sources.size(); ++n) {
+                QJsonObject o = sources.at(n).toObject();
+                if (o.value(QLatin1String("id")).toString() == QLatin1String("scene") &&
+                    a.scenes.contains(o.value(QLatin1String("name")).toString())) {
+                    QJsonObject settings = o.value(QLatin1String("settings")).toObject();
+                    QJsonArray items = settings.value(QLatin1String("items")).toArray();
+                    items.append(QJsonObject{{QStringLiteral("name"), a.input}});
+                    settings.insert(QStringLiteral("items"), items);
+                    o.insert(QStringLiteral("settings"), settings);
+                    sources.replace(n, o);
+                }
+            }
+            doc.insert(QStringLiteral("sources"), sources);
+            break;
+        }
+        case Action::Type::SetTwitchVodTrack:
             break;
         }
     }
@@ -154,7 +186,7 @@ QJsonObject undoInCollection(QJsonObject doc, const Undo &undo)
         const UndoOp &op = *it;
         switch (op.type) {
         case UndoOp::Type::RestoreDevice:
-            setDevice(doc, op.input, op.device);
+            setDevice(doc, op.input, op.device, op.tracks);
             break;
         case UndoOp::Type::RestoreMute:
             setMuted(doc, op.input, op.muted);

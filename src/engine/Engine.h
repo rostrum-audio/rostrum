@@ -101,6 +101,7 @@ public:
     void setBusMuted(const QString &id, bool muted);
     void setBusBalance(const QString &id, double balance); // playback buses; -1 left .. 1 right
     void setBusDestination(const QString &id, Destination d);
+    void setBusVod(const QString &id, bool on);
     void setMasterPhones(double volume);
     void setMasterPhonesMuted(bool muted);
     void setMasterStream(double volume);

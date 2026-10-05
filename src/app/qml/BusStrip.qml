@@ -25,6 +25,7 @@ QQC2.Control {
     required property string autoCategory
     required property real balance
     required property bool ducked
+    required property bool vod
 
     property bool editing: false
     property bool expanded: false
@@ -284,6 +285,18 @@ QQC2.Control {
             onPicked: i => Mixer.setDestination(strip.busId, i)
         }
 
+        QQC2.CheckBox {
+            visible: !strip.isInput
+            Layout.alignment: Qt.AlignHCenter
+            text: i18nc("@option:check", "Include in Twitch VOD")
+            Accessible.name: i18nc("@label:accessible", "%1: Include in Twitch VOD", strip.name)
+            font: Kirigami.Theme.smallFont
+            checked: strip.vod
+            enabled: strip.destination !== Mixer.PhonesIndex
+            opacity: enabled ? 1.0 : 0.4
+            onToggled: Mixer.setVod(strip.busId, checked)
+        }
+
         // Playback: up to three chips, then "+N".
         ColumnLayout {
             visible: !strip.isInput
@@ -470,6 +483,17 @@ QQC2.Control {
             enabled: strip.balance !== 0
             height: visible ? implicitHeight : 0
             onTriggered: Mixer.setBalance(strip.busId, 0)
+        }
+        QQC2.MenuItem {
+            text: i18nc("@action:inmenu", "Include in Twitch VOD")
+            Accessible.name: i18nc("@label:accessible", "%1: Include in Twitch VOD", strip.name)
+            icon.name: "media-record"
+            visible: !strip.isInput
+            checkable: true
+            checked: strip.vod
+            enabled: strip.destination !== Mixer.PhonesIndex
+            height: visible ? implicitHeight : 0
+            onTriggered: Mixer.setVod(strip.busId, checked)
         }
         QQC2.MenuItem {
             text: i18nc("@action:inmenu", "Duplicate")

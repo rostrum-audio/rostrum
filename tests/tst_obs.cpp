@@ -4,6 +4,7 @@
 #include "obs/ObsLive.h"
 #include "obs/ObsPlan.h"
 #include "obs/ObsStatus.h"
+#include "obs/Readiness.h"
 #include "obs/SceneCollection.h"
 #include "pw/PwContext.h"
 
@@ -42,6 +43,7 @@ Facts facts()
     f.defaultSink = kHwOut;
     f.serials.insert(81, QStringLiteral("rostrum.mic"));
     f.serials.insert(82, QStringLiteral("rostrum.stream"));
+    f.serials.insert(83, QStringLiteral("rostrum.vod"));
     return f;
 }
 
@@ -66,6 +68,9 @@ QStringList describe(const Plan &plan)
             break;
         case Action::Type::CreateGlobal:
             out << QStringLiteral("global %1 %2 %3 %4 tracks %5").arg(a.channel, a.input, a.kind, a.device).arg(a.tracks);
+            break;
+        case Action::Type::SetTwitchVodTrack:
+            out << QStringLiteral("twitch-vod-track %1").arg(a.tracks);
             break;
         }
     }
@@ -114,6 +119,8 @@ public:
     bool recordPaused = false;
     qint64 outputDuration = 0;
     QString programScene;
+    QString streamService;
+    int twitchVodTrack = 0;
 
     void emitEvent(const QString &type, const QJsonObject &data)
     {
@@ -268,6 +275,22 @@ private:
             for (auto &items : scenes) {
                 items.removeAll(name);
             }
+        } else if (type == QLatin1String("GetStreamServiceSettings")) {
+            out.insert(QStringLiteral("streamServiceType"), QStringLiteral("rtmp_common"));
+            out.insert(QStringLiteral("streamServiceSettings"),
+                       QJsonObject{{QStringLiteral("service"), streamService}});
+        } else if (type == QLatin1String("GetProfileParameter")) {
+            const QString param = rd.value(QLatin1String("parameterName")).toString();
+            if (param == QLatin1String("VodTrackIndex")) {
+                out.insert(QStringLiteral("parameterValue"), QString::number(twitchVodTrack));
+            } else if (param == QLatin1String("TwitchVodTrack")) {
+                out.insert(QStringLiteral("parameterValue"), twitchVodTrack > 0 ? QStringLiteral("true") : QStringLiteral("false"));
+            }
+        } else if (type == QLatin1String("SetProfileParameter")) {
+            const QString param = rd.value(QLatin1String("parameterName")).toString();
+            if (param == QLatin1String("VodTrackIndex")) {
+                twitchVodTrack = rd.value(QLatin1String("parameterValue")).toString().toInt();
+            }
         } else {
             return false;
         }
@@ -373,13 +396,15 @@ private Q_SLOTS:
                  (QStringList{
                      QStringLiteral("set Mic/Aux rostrum.mic"),
                      QStringLiteral("create Rostrum Stream Mix pulse_output_capture rostrum.stream.monitor in "
-                                    "Game,Desktop,BRB,Overlays tracks 5"),
+                                    "Game,Desktop,BRB,Overlays tracks 1"),
+                     QStringLiteral("create Rostrum VOD Mix pulse_output_capture rostrum.vod.monitor in "
+                                    "Game,Desktop,BRB,Overlays tracks 2"),
                      QStringLiteral("mute Game Audio"),
                      QStringLiteral("mute Discord Audio"),
                      QStringLiteral("mute Spotify"),
                  }));
-        QCOMPARE(plan.actions.at(2).capture, Capture::Output);
-        QCOMPARE(plan.actions.at(3).capture, Capture::App);
+        QCOMPARE(plan.actions.at(3).capture, Capture::Output);
+        QCOMPARE(plan.actions.at(4).capture, Capture::App);
     }
 
     void offlinePlanUsesGlobalDesktopAudio()
@@ -388,7 +413,8 @@ private Q_SLOTS:
         QCOMPARE(describe(plan),
                  (QStringList{
                      QStringLiteral("set Mic/Aux rostrum.mic"),
-                     QStringLiteral("global desktop1 Desktop Audio pulse_output_capture rostrum.stream.monitor tracks 5"),
+                     QStringLiteral("global desktop1 Desktop Audio pulse_output_capture rostrum.stream.monitor tracks 1"),
+                     QStringLiteral("create Rostrum VOD Mix pulse_output_capture rostrum.vod.monitor in Game,Desktop,BRB,Overlays tracks 2"),
                      QStringLiteral("mute Game Audio"),
                      QStringLiteral("mute Discord Audio"),
                      QStringLiteral("mute Spotify"),
@@ -405,9 +431,14 @@ private Q_SLOTS:
         const State s = stateFromCollection(after);
         QCOMPARE(s.channel(QStringLiteral("desktop1"))->settings.value(QLatin1String("device_id")).toString(),
                  QString::fromLatin1(kStreamDevice));
-        QCOMPARE(s.channel(QStringLiteral("desktop1"))->tracks, 5u);
+        QCOMPARE(s.channel(QStringLiteral("desktop1"))->tracks, 1u);
+        QVERIFY(!s.channel(QStringLiteral("desktop2")));
+        QCOMPARE(s.input(QStringLiteral("Rostrum VOD Mix"))->settings.value(QLatin1String("device_id")).toString(),
+                 QString::fromLatin1(kVodDevice));
+        QCOMPARE(s.input(QStringLiteral("Rostrum VOD Mix"))->tracks, 2u);
         QCOMPARE(s.input(QStringLiteral("Mic/Aux"))->settings.value(QLatin1String("device_id")).toString(),
                  QString::fromLatin1(kMicDevice));
+        QCOMPARE(s.input(QStringLiteral("Mic/Aux"))->tracks, 3u);
         QVERIFY(s.input(QStringLiteral("Game Audio"))->muted);
         QVERIFY(makePlan(s, facts(), Mode::Offline).isEmpty());
         QVERIFY(makePlan(s, facts(), Mode::Live).isEmpty());
@@ -440,7 +471,7 @@ private Q_SLOTS:
         s.inputs << stream;
         const QStringList d = describe(makePlan(s, facts(), Mode::Live));
         QVERIFY(d.contains(QStringLiteral("unmute Rostrum Stream Mix")));
-        QVERIFY(!d.join(QLatin1Char('\n')).contains(QLatin1String("create")));
+        QVERIFY(!d.join(QLatin1Char('\n')).contains(QLatin1String("create Rostrum Stream Mix")));
     }
 
     void secondCopyOfRostrumMicIsMuted()
@@ -449,7 +480,8 @@ private Q_SLOTS:
         s.scenes = {QStringLiteral("A")};
         s.inputs << Input{QStringLiteral("One"), QString::fromLatin1(kPulseInput), {{QStringLiteral("device_id"), QString::fromLatin1(kMicDevice)}}}
                  << Input{QStringLiteral("Two"), QString::fromLatin1(kPulseInput), {{QStringLiteral("device_id"), QString::fromLatin1(kMicDevice)}}}
-                 << Input{QStringLiteral("Mix"), QString::fromLatin1(kPulseOutput), {{QStringLiteral("device_id"), QString::fromLatin1(kStreamDevice)}}};
+                 << Input{QStringLiteral("Mix"), QString::fromLatin1(kPulseOutput), {{QStringLiteral("device_id"), QString::fromLatin1(kStreamDevice)}}}
+                 << Input{QStringLiteral("Vod"), QString::fromLatin1(kPulseOutput), {{QStringLiteral("device_id"), QString::fromLatin1(kVodDevice)}}};
         QCOMPARE(describe(makePlan(s, facts(), Mode::Live)), QStringList{QStringLiteral("mute Two")});
     }
 
@@ -524,9 +556,12 @@ private Q_SLOTS:
         QCOMPARE(obs.inputs[QStringLiteral("Mic/Aux")].settings.value(QLatin1String("device_id")).toString(),
                  QString::fromLatin1(kMicDevice));
         QVERIFY(obs.inputs.contains(QStringLiteral("Rostrum Stream Mix")));
-        QCOMPARE(obs.inputs[QStringLiteral("Rostrum Stream Mix")].tracks, tracks({1, 3}));
+        QCOMPARE(obs.inputs[QStringLiteral("Rostrum Stream Mix")].tracks, tracks({1}));
+        QVERIFY(obs.inputs.contains(QStringLiteral("Rostrum VOD Mix")));
+        QCOMPARE(obs.inputs[QStringLiteral("Rostrum VOD Mix")].tracks, tracks({2}));
         for (const QString &scene : obs.scenes.keys()) {
             QVERIFY2(obs.scenes[scene].contains(QStringLiteral("Rostrum Stream Mix")), qPrintable(scene));
+            QVERIFY2(obs.scenes[scene].contains(QStringLiteral("Rostrum VOD Mix")), qPrintable(scene));
         }
         QVERIFY(obs.inputs[QStringLiteral("Game Audio")].muted);
         QVERIFY(obs.inputs[QStringLiteral("Discord Audio")].muted);
@@ -546,6 +581,7 @@ private Q_SLOTS:
         QTRY_VERIFY(undone);
         QCOMPARE(obs.inputs[QStringLiteral("Mic/Aux")].settings.value(QLatin1String("device_id")).toString(), kHwMic);
         QVERIFY(!obs.inputs.contains(QStringLiteral("Rostrum Stream Mix")));
+        QVERIFY(!obs.inputs.contains(QStringLiteral("Rostrum VOD Mix")));
         QVERIFY(!obs.inputs[QStringLiteral("Game Audio")].muted);
         QVERIFY(!obs.inputs[QStringLiteral("Discord Audio")].muted);
     }
@@ -777,6 +813,69 @@ private Q_SLOTS:
         QVERIFY(mappedScene(map, QStringLiteral("Game"), ours).isEmpty());
         QVERIFY(mappedScene(map, QStringLiteral("Overlays"), ours).isEmpty());
         QVERIFY(mappedScene(map, QString(), ours).isEmpty());
+    }
+
+    void twitchVodTrackPlanAndReadiness()
+    {
+        State state = stateFromCollection(fixture());
+        state.streamService = QStringLiteral("Twitch");
+        state.twitchVodTrack = 1; // Not track 2
+        Plan plan = makePlan(state, facts(), Mode::Live);
+        bool hasTwitchVodAction = false;
+        for (const auto &a : plan.actions) {
+            if (a.type == Action::Type::SetTwitchVodTrack) {
+                hasTwitchVodAction = true;
+                QCOMPARE(a.tracks, 2u);
+            }
+        }
+        QVERIFY(hasTwitchVodAction);
+
+        rostrum::pw::Graph g;
+        ReadinessInput ri;
+        ri.graph = &g;
+        ri.obsFresh = true;
+        state.scopeKnown = true;
+        for (auto &in : state.inputs) {
+            in.gainKnown = true;
+            in.settingsKnown = true;
+            in.tracksKnown = true;
+            in.muteKnown = true;
+            in.gain = 1.0;
+        }
+        ri.obsState = &state;
+        ri.facts = facts();
+        ri.scene = rostrum::defaults::scene();
+        auto results = evaluateReadiness(ri);
+        bool hasAttention = false;
+        for (const auto &r : results) {
+            if (r.id == QLatin1String("obs-twitch-vod")) {
+                QCOMPARE(r.status, ReadinessStatus::Attention);
+                hasAttention = true;
+            }
+        }
+        QVERIFY(hasAttention);
+
+        // When set to 2:
+        state.twitchVodTrack = 2;
+        Plan plan2 = makePlan(state, facts(), Mode::Live);
+        for (const auto &a : plan2.actions) {
+            QVERIFY(a.type != Action::Type::SetTwitchVodTrack);
+        }
+        results = evaluateReadiness(ri);
+        bool hasVerified = false;
+        bool vodMissingAttention = false;
+        for (const auto &r : results) {
+            if (r.id == QLatin1String("obs-twitch-vod")) {
+                QCOMPARE(r.status, ReadinessStatus::Verified);
+                hasVerified = true;
+            }
+            if (r.id == QLatin1String("obs-vod")) {
+                QCOMPARE(r.status, ReadinessStatus::Attention);
+                vodMissingAttention = true;
+            }
+        }
+        QVERIFY(hasVerified);
+        QVERIFY(vodMissingAttention);
     }
 };
 
