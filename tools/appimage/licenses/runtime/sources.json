@@ -46,6 +46,24 @@
     "Launcher-linuxdeploy-qt-LICENSE": {
       "upstream_url": "https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-qt/1-alpha-20250213-1/LICENSE.txt",
       "sha256": "1edb41ae7601854ae15d113c3700beebd0ea3ed05b85e3786a94a72bb9916091"
+    },
+    "Runtime-zstd-components-NOTICES": {
+      "upstream_url": "https://codeload.github.com/facebook/zstd/tar.gz/refs/tags/v1.5.6",
+      "source_archive_sha256": "30f35f71c1203369dc979ecde0400ffea93c27391bfd2ac5a9715d2173d92ff7",
+      "sha256": "659e432f27033ff4231beb71b4f83b4f9782e1b2376d98a71f32dbf9719367e5",
+      "collection": "Complete leading component copyright/license comment groups from lib/"
+    },
+    "Runtime-libfuse-components-NOTICES": {
+      "upstream_url": "https://codeload.github.com/libfuse/libfuse/tar.gz/refs/tags/fuse-3.15.0",
+      "source_archive_sha256": "1e79f1dd60eaf79645c21411c4a7028c97b5e745ea677ac5bda747c90497a785",
+      "sha256": "b29c776de2a423b84c99e3451165809c537d3fb6d40503d7cca7cf1f11bee202",
+      "collection": "Complete leading component copyright/license comment groups from lib/, include/"
+    },
+    "Runtime-squashfuse-components-NOTICES": {
+      "upstream_url": "https://codeload.github.com/vasi/squashfuse/tar.gz/refs/tags/0.5.2",
+      "source_archive_sha256": "db0238c5981dabbd80ee09ae15387f390091668ca060a7bc38047912491443d3",
+      "sha256": "c4b65576cd64d8b06472350957fe0309fbd49d795fc5478e72490fbbd43c6ca5",
+      "collection": "Complete leading component copyright/license comment groups from "
     }
   },
   "build_id": "6068f2cec943069c072c32fe680557d1e5f7ec6f",

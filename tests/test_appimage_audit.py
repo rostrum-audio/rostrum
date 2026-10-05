@@ -85,6 +85,17 @@ class LicenseTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Runtime-mimalloc'):
             audit.check_material(self.root, sentry=True)
 
+    def test_missing_launcher_component_collection_rejected(self):
+        for name in ('Runtime-zstd-components-NOTICES',
+                     'Runtime-libfuse-components-NOTICES',
+                     'Runtime-squashfuse-components-NOTICES'):
+            with self.subTest(name=name):
+                path = self.licenses / name
+                path.unlink()
+                with self.assertRaisesRegex(ValueError, name):
+                    audit.check_material(self.root, sentry=True)
+                path.write_text('component notices\n')
+
     def test_empty_notice_rejected(self):
         (self.licenses / 'Sentry-LICENSE').write_text('')
         with self.assertRaisesRegex(ValueError, 'Sentry-LICENSE'):
