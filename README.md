@@ -25,21 +25,25 @@
   and every playback bus gets solo.
 - 🎧 **Two mixes from one console.** Send each bus to your headphones, to the stream, or to both.
   Music can play for viewers without playing in your ears.
-- 🔴 **OBS in one click.** OBS captures one clean `Rostrum Stream Mix` and one `Rostrum Mic`.
-  Rostrum sets it up, mutes the sources that would double your audio, and can undo every change.
-- 🎙️ **A cleaner mic, everywhere.** Optional mic filters remove fans, keyboards and room noise
-  (RNNoise), cut rumble and even out your level. The stream and every app that records your mic,
-  Discord included, hear the clean voice; audio tools keep the plain mic, and any app can be
-  switched. It all runs inside PipeWire, so it keeps working if Rostrum quits.
-- 👂 **Hear what your viewers hear.** Check Mic records 5 seconds of your stream mic, gain and
+- 🔴 **OBS in one click.** OBS captures `Rostrum Stream Mix` and `Rostrum Mic` separately.
+  Preview the setup changes, including muting duplicate captures, and undo applied changes.
+  Other application or headphone captures can bypass Rostrum’s bus exclusions.
+- 🎙️ **Local microphone filters.** Optional RNNoise reduces background noise, with a rumble
+  filter, gate, EQ, compressor and limiter. Apply them to the stream and eligible recording apps,
+  or only the stream; audio tools stay plain by default and per-app choices are available.
+  Processing runs inside PipeWire, including after Rostrum quits.
+- 👂 **Check your stream mic.** Check Mic records 5 seconds of your Rostrum Mic signal, gain and
   filters included, plays it back in your headphones only, and tells you if the level is good, too
-  quiet or too loud.
+  quiet or too loud. This checks the mic path before OBS, not the audience’s final audio.
+- ✅ **Check stream readiness.** Inspect effective controls, devices, channel links and OBS
+  capture observations without changing settings or playing/recording sound. Incomplete or
+  stale evidence stays Not verified; intentional exclusions and idle apps are normal.
 - 🎬 **Scenes.** Recall every level, mute and destination at once, from the header or a global shortcut.
 - 🪄 **Apps find their bus on their own.** Discord goes to Voice, Spotify to Music, Steam and Proton
   games to Game, and Streamer.bot to Alerts. Every placement shows why it was made, and OBS and audio
   tools are never touched.
-- 🧲 **Apps remember their bus.** Drag an app onto a bus once and it lands there every time, even
-  before Rostrum starts at your next login.
+- 🧲 **Apps remember their bus.** Save an app’s bus with “Always” and it lands there again,
+  including before Rostrum starts at your next login.
 - 🎛️ **Control from anywhere.** Global hotkeys (push to talk, panic mute, scene switching), the
   tray, and the `rostrum` command or D-Bus for Stream Deck buttons and scripts. Optional
   auto-ducking turns Music down while you speak.
@@ -49,25 +53,25 @@
   sending anything to Sentry. A report holds only the crash location and software versions: no
   names, paths, device names or IDs. You can read the exact report first. See
   [docs/privacy.md](docs/privacy.md).
-- ⬆️ **Stays up to date.** A daily check announces new versions. Once AppImage builds are published,
-  they update themselves after checking the release checksum. Package installs are left to the
-  package manager.
+- ⬆️ **Optional updates.** When enabled, a daily check contacts getrostrum.dev and GitHub.
+  AppImages can automatically download and replace themselves after checking the release checksum,
+  or wait for Install; checking and automatic installation have separate settings. Source installs are rebuilt manually;
+  package-managed installs use their package manager. A real public-version upgrade is not yet tested.
 
 
 ## ℹ️ Overview
 
 Rostrum splits your game, voice chat, mic, music, alerts and desktop audio into named buses. Each
-bus goes to your headphones, to the stream, or to both, and OBS records the stream mix. Tools like
-qpwgraph and Helvum show every port and every link. Rostrum hides the graph and gives you a mixing
+bus goes to your headphones, to the stream, or to both. OBS captures Stream Mix and Rostrum Mic
+separately. Tools like qpwgraph and Helvum show every port and every link. Rostrum hides the graph and gives you a mixing
 desk instead: faders, meters, mute and solo, and scenes you can switch live.
 
-Rostrum targets any current Linux desktop on PipeWire and WirePlumber. Kubuntu is the development
-machine, not the only supported system. Plasma, GNOME and other desktops are in scope. X11 is a
-fallback.
-
-**Status:** version 0.1.0 is feature-complete and smoke-tested on Kubuntu. The headset, OBS and
-reboot checks in [docs/manual-tests.md](docs/manual-tests.md) still need a person with the hardware.
-There are no packages or AppImage builds yet, so Rostrum installs from source (see below).
+**Released:** [Rostrum 0.1.0](https://github.com/rostrum-audio/rostrum/releases/tag/v0.1.0),
+with an [x86_64 AppImage](https://github.com/rostrum-audio/rostrum/releases/download/v0.1.0/Rostrum-0.1.0-x86_64.AppImage).
+The AppImage was functionally validated in clean Ubuntu 26.04 x86_64 with glibc 2.43,
+PipeWire 1.6.2 and WirePlumber 0.5.13. Its glibc 2.43 binary floor is not a guarantee
+that every newer Linux distribution works. Other desktop/hardware combinations need
+their own checks; source-build CI on Fedora and Arch does not validate this AppImage there.
 
 ### ✍️ Authors
 
@@ -79,8 +83,10 @@ Rostrum is made by [Rostrum Audio](https://github.com/rostrum-audio). More at
 
 Five minutes to a split stream:
 
-1. **Start Rostrum** from the app menu (after installing, see below) or run `./build/src/app/rostrum`.
-2. **Run first-time setup.** Eight short steps, with a summary at the end:
+1. **Start Rostrum** with the AppImage ([download and launch](#appimage-010-x86_64)),
+   from the app menu after a source install, or run `./build/src/app/rostrum`. Fully quit any
+   existing instance first; closing its window may leave it in the tray.
+2. **Run first-time setup.** Follow the short steps, with a summary at the end:
    - **Headphones:** press Test and a short chime plays only there.
    - **Mic:** speak and watch its meter.
    - **Apps and Buses:** whether apps go to their bus automatically, and which kind of app each bus receives.
@@ -107,19 +113,35 @@ Five minutes to a split stream:
 
    ![The Apps page: what is playing now, and the saved rules](docs/screenshots/apps.png)
 
-4. **Pick destinations.** Each bus goes to Headphones, Stream or Both. Defaults: Music → Stream (your
-   viewers hear it, you don't), the other playback buses → Both, Mic → Stream with sidetone off.
+4. **Pick destinations.** Each bus goes to Headphones, Stream or Both. Defaults: Music → Stream (excluded from headphones), the other playback buses → Both, Mic → Stream with sidetone off.
+   Headphones Only removes the bus’s Stream Mix sends; Stream Only removes its headphone sends.
+   This controls Rostrum’s outputs, not independent OBS application/headphone captures.
    The small slider under each playback bus sets its balance. If you listen on one ear, turn on
    Devices → Mono headphones.
 5. **Add Rostrum to OBS.** Open the OBS page and press **Set Up OBS**. A preview lists every
    change: your mic source switches to **Rostrum Mic**, a **Rostrum Stream Mix** source joins
    every scene, and sources that would double audio (desktop audio, single-app captures) are
-   muted, never deleted. With OBS running this goes through obs-websocket (on by default since
-   OBS 28; Rostrum reads its password from OBS's own settings). With OBS closed, Rostrum edits the
+   muted, never deleted. With OBS running this goes through obs-websocket (included in
+   OBS 28+; enable its server in OBS if needed; Rostrum reads the local port/password settings). With OBS closed, Rostrum edits the
    scene collection after backing it up. **Undo OBS Changes** puts everything back. The page also
-   shows what OBS really records, from the PipeWire graph. "Set it up by hand" has the manual steps.
+   shows observed OBS capture targets from the PipeWire graph. "Set it up by hand" has the manual steps.
 
-   ![The OBS page: OBS is set up, and the list of what OBS records right now](docs/screenshots/obs.png)
+   For manual setup, add **Audio Output Capture** (or the PipeWire audio capture plugin)
+   for **Rostrum Stream Mix** (`rostrum.stream.monitor` with PulseAudio capture). Set
+   **Mic/Aux** or one **Audio Input Capture** to **Rostrum Mic** (`rostrum.mic`). Use one
+   capture per output, not both a global and scene source for the same device. Disable
+   or mute other desktop, headphone/default-monitor, raw-mic and application captures:
+   they can double audio or bypass Headphones Only exclusions. A single Rostrum bus
+   such as Desktop is not the Stream Mix. Check OBS track assignments and make a short recording.
+
+   **Check stream readiness** inspects controls, devices, channel routing and OBS capture
+   observations. Results are Verified, Needs attention, Intentionally excluded/idle or
+   Not verified. It does not change settings or play/record audio, and it cannot guarantee
+   recorded tracks or audience sound. See [the check’s scope](docs/stream-readiness.md).
+
+   ![Stream readiness results in an isolated demo; OBS capture remains Not verified](docs/screenshots/obs.png)
+
+   *Readiness separates verified controls and routing from OBS capture that has not been verified.*
 
    **While you stream**, Rostrum follows OBS quietly over the same localhost connection, whenever
    OBS is open (Settings → OBS → "Follow OBS while it runs"). The header shows a red **LIVE** badge
@@ -135,11 +157,6 @@ Five minutes to a split stream:
    rules. Switch with Meta+Alt+PgDown or the scene menu in the header. Move Up and Move Down set
    the order that the header, the tray and the scene hotkeys follow; the badge shows each scene's
    hotkey number.
-On the OBS page, **Check stream readiness** explains effective controls, devices, channel
-routing and OBS captures with Verified, Needs attention, Intentionally excluded/idle and
-Not verified results. It reads state without changing settings or playing/recording sound.
-See [what it checks and cannot verify](docs/stream-readiness.md).
-
 7. **Clean up your mic (optional).** Open Mic Filters and turn on "Clean up my mic", or press FX
    on the mic strip. Pick a preset (Light, Streaming, Noisy room, Broadcast) and adjust each
    filter if you like. "Filter the mic for" chooses between the stream and every app, or only the
@@ -153,8 +170,8 @@ See [what it checks and cannot verify](docs/stream-readiness.md).
 
 8. **Check how you sound.** Under "Check Your Mic" (on Mic Filters and Devices, or Check Mic in
    the header's mic popup), press **Check Mic** and talk for 5 seconds. Rostrum plays the
-   recording back in your headphones only, exactly as the stream gets it, with gain and filters,
-   and says whether the level is good, too quiet or too loud. "Hear yourself live" turns on
+   recording back in your headphones only, with Rostrum’s mic gain and filters,
+   and says whether the level is good, too quiet or too loud. It does not test OBS or audience audio. "Hear yourself live" turns on
    sidetone, so you hear your mic as you talk.
 
 If an app sits on a bus but its meter stays still and Mute does nothing, another program has moved
@@ -228,7 +245,7 @@ listener.
   12 dB while you speak. Neither is saved in scenes.
 - Mic filters: off. When on: the Streaming preset, for the stream and every app except audio tools.
   A setting, not part of a scene.
-- If your chosen mic is unplugged, the stream mic stays silent until it comes back. No other mic
+- If your saved mic is unplugged, the stream mic stays silent until it comes back. No other mic
   goes live unless you turn on "Use another mic while mine is unplugged" on the Devices page.
 - Closing the window hides it to the tray (when the desktop has one); minimizing just minimizes.
   Both are switches in Settings → General. Quit from the tray or Settings.
@@ -259,9 +276,37 @@ or crashes. To remove Rostrum completely, quit it, delete the files above, and r
 
 ## ⬇️ Installation
 
-There are no packages yet, so Rostrum installs from source into your home folder: install the
-packages for your distro below, then build and install. Older releases can't build it: Rostrum
-needs Qt 6.5+, KDE Frameworks 6.8+, PipeWire 1.0+ and WirePlumber 0.5+.
+### AppImage 0.1.0 (x86_64)
+
+Download [Rostrum-0.1.0-x86_64.AppImage](https://github.com/rostrum-audio/rostrum/releases/download/v0.1.0/Rostrum-0.1.0-x86_64.AppImage)
+and [SHA256SUMS](https://github.com/rostrum-audio/rostrum/releases/download/v0.1.0/SHA256SUMS)
+into the same folder. [Release notes and compatibility limits](https://github.com/rostrum-audio/rostrum/releases/tag/v0.1.0).
+
+```sh
+sha256sum -c SHA256SUMS
+chmod +x Rostrum-0.1.0-x86_64.AppImage
+./Rostrum-0.1.0-x86_64.AppImage
+# If FUSE is unavailable:
+./Rostrum-0.1.0-x86_64.AppImage --appimage-extract-and-run
+```
+
+Fully quit an existing instance through tray/menu **Quit** before launching another build.
+The AppImage and source installation share settings, scenes and routing rules; a second launch
+can activate the old process. Changing XDG paths alone does not isolate audio.
+
+The validated AppImage environment is **Ubuntu 26.04 x86_64, glibc 2.43, PipeWire 1.6.2,
+WirePlumber 0.5.13**. Older glibc and aarch64 are unsupported by this artifact. Qt/KDE/QML
+and icons are bundled; host development packages are not required. A working audio session,
+desktop D-Bus, X11 or Wayland, graphics/font libraries and FUSE (for mounted launch) are required.
+The clean runtime’s host packages and [dependency/source/replacement instructions](docs/appimage-dependencies.md)
+are documented in [releasing.md](docs/releasing.md#what-gets-published).
+
+### Build from source
+
+These dependency lists are for building Rostrum, not for running the AppImage. Source-level
+requirements are Qt 6.5+, KDE Frameworks 6.8+, PipeWire 1.0+ and WirePlumber 0.5+;
+mic filters additionally require PipeWire 1.4+ audio-convert support. Meeting these
+minimum versions does not establish AppImage compatibility.
 
 ### 🟠 Kubuntu / Ubuntu
 
@@ -316,7 +361,7 @@ cmake --install build --prefix ~/.local
 
 Installing into `~/.local` adds the app menu entry, the icon and the System Settings shortcut page.
 
-### 📋 Requirements
+### 📋 Source-build requirements
 
 - Linux with PipeWire 1.0 or newer and WirePlumber 0.5 or newer. PulseAudio is not used or required.
   Mic filters need PipeWire 1.4 or newer; on older versions the Mic Filters page says so and
@@ -329,7 +374,7 @@ Installing into `~/.local` adds the app menu entry, the icon and the System Sett
   in. `-DROSTRUM_RNNOISE=system`, `bundled` or `off` choose explicitly (`off` builds the mic
   filters without noise removal).
 
-On another distro, install the same components under its own package names. CI builds the app on
+For source builds on another distro, install the same components under its own package names. CI builds the app on
 Ubuntu, Fedora and Arch with the lists above, runs the tests and starts it once to catch missing
 QML modules.
 
