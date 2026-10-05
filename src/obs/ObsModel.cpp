@@ -55,6 +55,9 @@ Capture classifyDevice(const QString &device)
     if (device == QLatin1String(kStreamDevice)) {
         return Capture::RostrumStream;
     }
+    if (device == QLatin1String(kVodDevice)) {
+        return Capture::RostrumVod;
+    }
     if (device == QLatin1String(kFilteredMicDevice)) {
         return Capture::Mic;
     }

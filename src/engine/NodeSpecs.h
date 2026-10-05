@@ -9,6 +9,7 @@ namespace rostrum::engine {
 
 inline constexpr const char *kPhonesNode = "rostrum.phones";
 inline constexpr const char *kStreamNode = "rostrum.stream";
+inline constexpr const char *kVodNode = "rostrum.vod";
 inline constexpr const char *kMicNode = "rostrum.mic";
 inline constexpr const char *kSidetoneNode = "rostrum.sidetone";
 // Mic filters: the processing node (an audioconvert running Rostrum's filter graph) and the
@@ -17,10 +18,11 @@ inline constexpr const char *kMicFxNode = "rostrum.micfx";
 inline constexpr const char *kFilteredNode = "rostrum.filtered";
 
 inline constexpr const char *kStreamDescription = "Rostrum Stream Mix";
+inline constexpr const char *kVodDescription = "Rostrum VOD Mix";
 inline constexpr const char *kMicDescription = "Rostrum Mic";
 inline constexpr const char *kFilteredDescription = "Rostrum Filtered Mic";
 
-enum class NodeRole { Bus, Phones, Stream, Mic, Sidetone, MicFx, Filtered };
+enum class NodeRole { Bus, Phones, Stream, Vod, Mic, Sidetone, MicFx, Filtered };
 
 struct NodeSpec
 {

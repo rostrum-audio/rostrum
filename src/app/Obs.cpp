@@ -504,27 +504,53 @@ QVariantList Obs::planItems() const
     for (qsizetype n = 0; n < m_plan.actions.size(); ++n) {
         const obs::Action &a = m_plan.actions.at(n);
         const bool mic = a.role == R::Mic;
+        const bool vod = a.role == R::Vod;
         QString title;
         QString detail;
         switch (a.type) {
         case T::SetDevice:
-            title = mic ? i18n("Switch %1 to Rostrum Mic", quoted(a.input))
-                        : i18n("Switch %1 to Rostrum Stream Mix", quoted(a.input));
-            detail = i18n("The source keeps its filters, tracks and scenes.");
+            if (mic) {
+                title = i18n("Switch %1 to Rostrum Mic", quoted(a.input));
+                detail = i18n("The source keeps its filters, tracks and scenes.");
+            } else if (vod) {
+                title = i18n("Switch %1 to Rostrum VOD Mix", quoted(a.input));
+                detail = i18n("It records your Twitch VOD mix on track 2 without music.");
+            } else {
+                title = i18n("Switch %1 to Rostrum Stream Mix", quoted(a.input));
+                detail = i18n("The source keeps its filters, tracks and scenes.");
+            }
             break;
         case T::Unmute:
             title = i18n("Unmute %1", quoted(a.input));
-            detail = mic ? i18n("It already records Rostrum Mic.") : i18n("It already records Rostrum Stream Mix.");
+            if (mic) {
+                detail = i18n("It already records Rostrum Mic.");
+            } else if (vod) {
+                detail = i18n("It already records Rostrum VOD Mix.");
+            } else {
+                detail = i18n("It already records Rostrum Stream Mix.");
+            }
             break;
         case T::CreateInput:
             title = i18np("Add %2 to your scene", "Add %2 to all %1 scenes", a.scenes.size(), quoted(a.input));
-            detail = mic ? i18n("It records Rostrum Mic: your voice after Rostrum's gain and mute.")
-                         : i18n("It records Rostrum Stream Mix: every bus sent to Stream or Both. OBS mixes it once, however many scenes it's in.");
+            if (mic) {
+                detail = i18n("It records Rostrum Mic: your voice after Rostrum's gain and mute.");
+            } else if (vod) {
+                detail = i18n("It records Rostrum VOD Mix: every bus sent to VOD on track 2 without music.");
+            } else {
+                detail = i18n("It records Rostrum Stream Mix: every bus sent to Stream or Both. OBS mixes it once, however many scenes it's in.");
+            }
             break;
         case T::CreateGlobal:
-            title = mic ? i18n("Set OBS's Mic/Aux device to Rostrum Mic")
-                        : i18n("Set OBS's Desktop Audio device to Rostrum Stream Mix");
+            if (mic) {
+                title = i18n("Set OBS's Mic/Aux device to Rostrum Mic");
+            } else {
+                title = i18n("Set OBS's Desktop Audio device to Rostrum Stream Mix");
+            }
             detail = i18n("Global audio devices play in every scene.");
+            break;
+        case T::SetTwitchVodTrack:
+            title = i18n("Set Output → Streaming → Twitch VOD Track to 2");
+            detail = i18n("OBS sends track 2 to Twitch for your VOD.");
             break;
         case T::Mute:
             title = i18n("Mute %1", quoted(a.input));
@@ -543,6 +569,7 @@ QVariantList Obs::planItems() const
                 break;
             case obs::Capture::RostrumMic:
             case obs::Capture::RostrumStream:
+            case obs::Capture::RostrumVod:
                 detail = i18n("Another source already records the same Rostrum device, so this one would double it.");
                 break;
             case obs::Capture::None:
@@ -550,15 +577,23 @@ QVariantList Obs::planItems() const
             }
             break;
         }
-        if ((a.type == T::CreateInput || a.type == T::CreateGlobal) && a.tracks) {
+        if ((a.type == T::CreateInput || a.type == T::CreateGlobal || a.type == T::SetDevice) && a.tracks) {
             QStringList tracks;
             for (int t = 0; t < 6; ++t) {
                 if (a.tracks & (1u << t)) {
                     tracks << QString::number(t + 1);
                 }
             }
-            detail += QLatin1Char(' ') + i18np("Track %2, like the source it replaces.", "Tracks %2, like the source it replaces.",
-                                               tracks.size(), tracks.join(QStringLiteral(", ")));
+            if (a.role == R::Stream) {
+                detail += QLatin1Char(' ') + i18n("Track 1 for your live stream.");
+            } else if (a.role == R::Vod) {
+                detail += QLatin1Char(' ') + i18n("Track 2 for your Twitch VOD.");
+            } else if (a.role == R::Mic) {
+                detail += QLatin1Char(' ') + i18n("Tracks 1 and 2 for your stream and Twitch VOD.");
+            } else {
+                detail += QLatin1Char(' ') + i18np("Track %2, like the source it replaces.", "Tracks %2, like the source it replaces.",
+                                                   tracks.size(), tracks.join(QStringLiteral(", ")));
+            }
         }
         rows << QVariantMap{{QStringLiteral("index"), int(n)},
                             {QStringLiteral("title"), title},

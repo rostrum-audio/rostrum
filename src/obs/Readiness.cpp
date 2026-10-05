@@ -268,7 +268,7 @@ QList<ReadinessResult> evaluateReadiness(const ReadinessInput &i)
                                       "and graph links alone cannot verify OBS output.")
                                  : i.obsError);
     } else {
-        bool configuredStream = false, configuredMic = false, incomplete = false;
+        bool configuredStream = false, configuredMic = false, configuredVod = false, incomplete = false;
         for (const auto &in : i.obsState->inputs) {
             const auto id = QStringLiteral("obs-") + in.name;
             if (in.channel.isEmpty() && !i.obsState->programInputs.contains(in.name)) {
@@ -301,19 +301,23 @@ QList<ReadinessResult> evaluateReadiness(const ReadinessInput &i)
             }
             configuredStream = configuredStream || capture == Capture::RostrumStream;
             configuredMic = configuredMic || capture == Capture::RostrumMic;
+            configuredVod = configuredVod || capture == Capture::RostrumVod;
             if (in.muted || in.gain <= 0 || in.tracks == 0) {
-                const bool intended = capture == Capture::RostrumStream || capture == Capture::RostrumMic;
+                const bool intended = capture == Capture::RostrumStream || capture == Capture::RostrumMic ||
+                                      capture == Capture::RostrumVod;
                 add(id, in.name, intended ? ReadinessStatus::Attention : ReadinessStatus::Excluded,
                     tr("OBS input is muted, at zero gain, or assigned to no audio tracks."));
                 continue;
             }
-            if (capture != Capture::RostrumStream && capture != Capture::RostrumMic) {
+            if (capture != Capture::RostrumStream && capture != Capture::RostrumMic &&
+                capture != Capture::RostrumVod) {
                 add(id, in.name, ReadinessStatus::Attention,
                     tr("This capture bypasses Rostrum's Stream Mix or mic controls and can include "
                        "intentionally excluded audio."));
                 continue;
             }
             const QString target = capture == Capture::RostrumStream ? QStringLiteral("rostrum.stream")
+                                 : capture == Capture::RostrumVod    ? QStringLiteral("rostrum.vod")
                                                                      : QStringLiteral("rostrum.mic");
             const pw::Node *recorder = nullptr;
             bool ambiguous = false;
@@ -359,6 +363,19 @@ QList<ReadinessResult> evaluateReadiness(const ReadinessInput &i)
         if (!configuredMic && !incomplete && mic && feedsStream(mic->destination))
             add(QStringLiteral("obs-mic"), tr("OBS Mic"), ReadinessStatus::Attention,
                 tr("No supported enabled input configured for Rostrum Mic."), GoLiveProblem::NoMicCapture);
+        if (i.obsState->streamService.compare(QLatin1String("Twitch"), Qt::CaseInsensitive) == 0) {
+            if (!configuredVod && !incomplete) {
+                add(QStringLiteral("obs-vod"), tr("OBS VOD Mix"), ReadinessStatus::Attention,
+                    tr("No supported enabled input configured for Rostrum VOD Mix."));
+            }
+            if (i.obsState->twitchVodTrack == 2) {
+                add(QStringLiteral("obs-twitch-vod"), tr("Twitch VOD Track"), ReadinessStatus::Verified,
+                    tr("Output → Streaming → Twitch VOD Track is set to track 2."));
+            } else {
+                add(QStringLiteral("obs-twitch-vod"), tr("Twitch VOD Track"), ReadinessStatus::Attention,
+                    tr("Output → Streaming → Twitch VOD Track is not set to track 2."));
+            }
+        }
     }
     add(QStringLiteral("output-proof"), tr("Recording and audience audio"), ReadinessStatus::Unknown,
         tr("No sound was played or recorded. Output track selection, recording contents and audience audio "

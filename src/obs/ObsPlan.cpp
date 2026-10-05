@@ -87,10 +87,10 @@ Plan makePlan(const State &state, const Facts &facts, Mode mode)
         auto consider = [&](bool global, bool muted) {
             for (const auto &i : state.inputs) {
                 if (pick || i.kind != QLatin1String(t.kind) || caps.value(i.name) != t.replaces || i.muted != muted ||
-                    i.channel.isEmpty() == global) {
+                    i.channel.isEmpty() == global || used.contains(i.name)) {
                     continue;
                 }
-                if (global && !i.channel.startsWith(QLatin1String(t.family))) {
+                if (global && (!t.family || !i.channel.startsWith(QLatin1String(t.family)))) {
                     continue;
                 }
                 pick = &i;
@@ -107,6 +107,7 @@ Plan makePlan(const State &state, const Facts &facts, Mode mode)
         if (pick) {
             Action set{Action::Type::SetDevice, t.role, t.want, pick->name};
             set.device = QString::fromLatin1(t.device);
+            set.tracks = tracks;
             plan.actions << set;
             if (pick->muted) {
                 plan.actions << Action{Action::Type::Unmute, t.role, t.want, pick->name};
@@ -121,8 +122,27 @@ Plan makePlan(const State &state, const Facts &facts, Mode mode)
         create.kind = QString::fromLatin1(t.kind);
         create.device = QString::fromLatin1(t.device);
         create.tracks = tracks;
-        if (mode == Mode::Offline) {
-            create.channel = state.freeChannel(QString::fromLatin1(t.family));
+        if (mode == Mode::Offline && t.family) {
+            const int count = QString::fromLatin1(t.family) == QLatin1String("desktop") ? 2 : 4;
+            QString ch;
+            for (int n = 1; n <= count; ++n) {
+                const QString candidate = QString::fromLatin1(t.family) + QString::number(n);
+                if (state.channel(candidate)) {
+                    continue;
+                }
+                bool takenInPlan = false;
+                for (const auto &act : plan.actions) {
+                    if (act.type == Action::Type::CreateGlobal && act.channel == candidate) {
+                        takenInPlan = true;
+                        break;
+                    }
+                }
+                if (!takenInPlan) {
+                    ch = candidate;
+                    break;
+                }
+            }
+            create.channel = ch;
             if (create.channel.isEmpty()) {
                 return;
             }
@@ -142,10 +162,13 @@ Plan makePlan(const State &state, const Facts &facts, Mode mode)
 
     ensure({Capture::RostrumMic, Action::Role::Mic, kMicDevice, kPulseInput, "mic", "Mic/Aux", kMicInputName,
             Capture::Mic, true},
-           tracksOf({Capture::Mic}));
+           (1u << 0) | (1u << 1));
     ensure({Capture::RostrumStream, Action::Role::Stream, kStreamDevice, kPulseOutput, "desktop", "Desktop Audio",
             kStreamInputName, Capture::Output, false},
-           tracksOf({Capture::Output, Capture::App, Capture::RostrumBus}));
+           1u << 0);
+    ensure({Capture::RostrumVod, Action::Role::Vod, kVodDevice, kPulseOutput, nullptr, nullptr,
+            kVodInputName, Capture::None, false},
+           1u << 1);
 
     for (const auto &i : state.inputs) {
         const Capture c = caps.value(i.name);
@@ -155,6 +178,16 @@ Plan makePlan(const State &state, const Facts &facts, Mode mode)
         Action mute{Action::Type::Mute, Action::Role::Conflict, c, i.name};
         plan.actions << mute;
     }
+
+    if (state.streamService.compare(QLatin1String("Twitch"), Qt::CaseInsensitive) == 0 && state.twitchVodTrack != 2) {
+        Action setTwitchVod;
+        setTwitchVod.type = Action::Type::SetTwitchVodTrack;
+        setTwitchVod.role = Action::Role::Vod;
+        setTwitchVod.input = QStringLiteral("Twitch VOD Track");
+        setTwitchVod.tracks = 2;
+        plan.actions << setTwitchVod;
+    }
+
     return plan;
 }
 
@@ -168,6 +201,7 @@ UndoOp undoFor(const Action &action, const State &before)
         const Input *i = before.input(action.input);
         op.device = i ? i->settings.value(QLatin1String("device_id")).toString(QStringLiteral("default"))
                       : QStringLiteral("default");
+        op.tracks = i ? i->tracks : 0;
         break;
     }
     case Action::Type::Unmute:
@@ -185,6 +219,10 @@ UndoOp undoFor(const Action &action, const State &before)
         op.type = UndoOp::Type::RemoveGlobal;
         op.channel = action.channel;
         break;
+    case Action::Type::SetTwitchVodTrack:
+        op.type = UndoOp::Type::RestoreTwitchVodTrack;
+        op.tracks = before.twitchVodTrack > 0 ? quint32(before.twitchVodTrack) : 0;
+        break;
     }
     return op;
 }
@@ -198,6 +236,9 @@ QJsonObject Undo::toJson() const
         case UndoOp::Type::RestoreDevice:
             o.insert(QStringLiteral("type"), QStringLiteral("device"));
             o.insert(QStringLiteral("device"), op.device);
+            if (op.tracks) {
+                o.insert(QStringLiteral("tracks"), int(op.tracks));
+            }
             break;
         case UndoOp::Type::RestoreMute:
             o.insert(QStringLiteral("type"), QStringLiteral("mute"));
@@ -209,6 +250,10 @@ QJsonObject Undo::toJson() const
         case UndoOp::Type::RemoveGlobal:
             o.insert(QStringLiteral("type"), QStringLiteral("removeGlobal"));
             o.insert(QStringLiteral("channel"), op.channel);
+            break;
+        case UndoOp::Type::RestoreTwitchVodTrack:
+            o.insert(QStringLiteral("type"), QStringLiteral("twitchVodTrack"));
+            o.insert(QStringLiteral("track"), int(op.tracks));
             break;
         }
         list.append(o);
@@ -228,6 +273,7 @@ Undo Undo::fromJson(const QJsonObject &json)
         if (type == QLatin1String("device")) {
             op.type = UndoOp::Type::RestoreDevice;
             op.device = o.value(QLatin1String("device")).toString(QStringLiteral("default"));
+            op.tracks = quint32(o.value(QLatin1String("tracks")).toInt(0));
         } else if (type == QLatin1String("mute")) {
             op.type = UndoOp::Type::RestoreMute;
             op.muted = o.value(QLatin1String("muted")).toBool();
@@ -236,6 +282,9 @@ Undo Undo::fromJson(const QJsonObject &json)
         } else if (type == QLatin1String("removeGlobal")) {
             op.type = UndoOp::Type::RemoveGlobal;
             op.channel = o.value(QLatin1String("channel")).toString();
+        } else if (type == QLatin1String("twitchVodTrack")) {
+            op.type = UndoOp::Type::RestoreTwitchVodTrack;
+            op.tracks = quint32(o.value(QLatin1String("track")).toInt(0));
         } else {
             continue;
         }

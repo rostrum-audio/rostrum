@@ -14,9 +14,11 @@ inline constexpr char kMicDevice[] = "rostrum.mic";
 // The filtered mic for apps: the voice again, not part of the Stream Mix.
 inline constexpr char kFilteredMicDevice[] = "rostrum.filtered";
 inline constexpr char kStreamDevice[] = "rostrum.stream.monitor";
+inline constexpr char kVodDevice[] = "rostrum.vod.monitor";
 // Names Rostrum gives the sources it creates.
 inline constexpr char kMicInputName[] = "Rostrum Mic";
 inline constexpr char kStreamInputName[] = "Rostrum Stream Mix";
+inline constexpr char kVodInputName[] = "Rostrum VOD Mix";
 
 inline constexpr char kPulseInput[] = "pulse_input_capture";
 inline constexpr char kPulseOutput[] = "pulse_output_capture";
@@ -48,6 +50,9 @@ struct State
     QString programScene;
     QSet<QString> programInputs; // enabled direct program-scene items; groups/nesting not supported
 
+    QString streamService;       // e.g. "Twitch"
+    int twitchVodTrack = 0;      // 0 = unset/disabled, 2 = track 2
+
     const Input *input(const QString &name) const;
     const Input *channel(const QString &channel) const;
     // The free global channel of a family ("desktop" or "mic"), or empty.
@@ -69,6 +74,7 @@ enum class Capture {
     None,          // not an audio capture, or not one Rostrum can judge (JACK)
     RostrumMic,    // rostrum.mic
     RostrumStream, // rostrum.stream's monitor
+    RostrumVod,    // rostrum.vod's monitor
     RostrumBus,    // another Rostrum node: its audio is already in the Stream Mix
     Mic,           // a hardware mic or the filtered mic: the voice doubles with Rostrum Mic
     Output,        // a hardware output's monitor: everything you hear, Phones-only buses too

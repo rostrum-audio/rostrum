@@ -14,9 +14,9 @@ $B --seconds 0         # create/adopt the mix and keep running until Ctrl-C
 ## 1. Virtual buses
 
 1. `$B --teardown`, then `wpctl status | grep Rostrum` prints nothing.
-2. `$B --seconds 3`. It logs `creating` for nine nodes and prints `Mix ready.`
+2. `$B --seconds 3`. It logs `creating` for ten nodes and prints `Mix ready.`
 3. `wpctl status | grep Rostrum` lists, under Sinks: Rostrum Game, Voice, Music, Alerts, Desktop,
-   Sidetone, Stream Mix, Headphones Mix; under Sources: Rostrum Mic.
+   Sidetone, Stream Mix, VOD Mix, Headphones Mix; under Sources: Rostrum Mic.
 4. The nodes are still listed after the tool exits (`object.linger`).
 5. Run `$B --seconds 2` again. It logs no `creating` lines, and the count from step 3 is unchanged
    (existing nodes are adopted, not duplicated).
@@ -61,6 +61,9 @@ sidetone:  headset: 0.0217  stream mix: 0.0000
 ```
 
 Any non-zero value is signal; 0.0000 is digital silence. Sidetone at 0.8 reads 0.8³ × 0.0424.
+Headphones-only buses do not link to `rostrum.vod`. Turning a bus back to Stream or Both restores
+its saved VOD flag without clearing it. Mic is not linked to `rostrum.vod` (OBS captures `rostrum.mic`
+directly).
 
 ## 4. Mic path (explicit, real hardware)
 
@@ -204,13 +207,17 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
    lists them only then). Picking another output moves Rostrum's headphone mix there.
 6. OBS, live: with OBS running and obs-websocket on, the page says "Connected to OBS …" and lists
    what OBS records, with warnings for desktop audio and a direct mic. Press Set Up OBS: the
-   preview lists the mic switch, the Stream Mix source and the mutes. Untick one mute and Apply.
-   In OBS, the mic source records Rostrum Mic, "Rostrum Stream Mix" is in every scene, the ticked
-   sources are muted and the unticked one is not. The page now shows a check mark. Press Undo OBS
-   Changes: OBS is back as it was, and the Stream Mix source is gone.
+   preview lists the mic switch (tracks 1 and 2), the Stream Mix source (track 1), the "Rostrum VOD
+   Mix" Audio Output Capture (track 2 only; Desktop Audio 2 is never assigned), setting Twitch VOD
+   Track to 2 when streaming to Twitch, and the mutes. Untick one mute and Apply.
+   In OBS, the mic source records Rostrum Mic, "Rostrum Stream Mix" and "Rostrum VOD Mix" are in
+   scenes, the ticked sources are muted and the unticked one is not. The page now shows a check
+   mark. Press Undo OBS Changes: OBS is back as it was, the Stream Mix and VOD Mix sources are gone,
+   and the Twitch VOD track setting is restored.
 7. OBS, closed: quit OBS and press Set Up OBS, then Apply. A `.rostrum-….bak` file appears next to
-   the scene collection. Start OBS: Settings → Audio has Desktop Audio on Rostrum Stream Mix and
-   Mic/Aux on Rostrum Mic. Quit OBS and press Undo OBS Changes: the next start is as before.
+   the scene collection. Start OBS: Settings → Audio has Desktop Audio on Rostrum Stream Mix (track 1),
+   Mic/Aux on Rostrum Mic (tracks 1 and 2), Desktop Audio 2 unassigned, and "Rostrum VOD Mix"
+   captured on track 2. Quit OBS and press Undo OBS Changes: the next start is as before.
 8. OBS, wrong password: change the obs-websocket password in OBS without restarting Rostrum. The
    page says the password was refused, and recovers on its own after OBS saves the new one.
 9. OBS, by hand: open "Set it up by hand". Both node names show a check mark, and Copy puts
@@ -366,6 +373,12 @@ anything, or OBS's "Record" only for the REC steps). obs-websocket on, Rostrum s
    soloed and set to Headphones only: the same warning. In OBS, point the Rostrum Stream Mix
    source at Default and start streaming: the banner says OBS isn't recording Rostrum Stream Mix;
    Open OBS Page opens it.
+   When the stream service is Twitch, verify Output → Streaming → Twitch VOD Track: if it is not
+   set to 2 (e.g. disabled or 1), stream readiness stays "Needs attention" ("Output → Streaming →
+   Twitch VOD Track is not set to track 2."). Setting Twitch VOD Track to 2 clears that item, but a
+   missing Rostrum VOD Mix capture stays "Needs attention" ("No supported enabled input configured
+   for Rostrum VOD Mix.") even when Twitch VOD Track is already 2. Setting an input track mask alone
+   is not enough.
    Stopping the stream clears the banner. Muting the mic mid-stream does not raise a new one.
 5. Turn off "Warn me when a stream starts with a problem" and repeat a muted-mic start: no
    banner, no notification.
@@ -397,10 +410,11 @@ what reaches it. The mic path itself is test 4; do it first.
    hears you. Let go: muted again. The scene is not marked changed, and `scenes/*.toml` and
    `settings.toml` do not change.
 2. With the mic live, hold Push to mute: muted while held, live after.
-3. Press Panic mute: Plasma's OSD says "Panic mute: mic and stream muted", and the stream hears
-   nothing, mic or apps. Switch scenes: still silent. Press Panic again: the mic and stream come
-   back as the scene has them. Quit during panic and start again: nothing is muted that the scene
-   does not mute.
+3. Press Panic mute: Plasma's OSD says "Panic mute: mic and stream muted", and the stream and
+   VOD hear nothing, mic or apps (`rostrum.stream` and `rostrum.vod` are both muted). Master stream
+   mute also silences both `rostrum.stream` and `rostrum.vod`. Switch scenes: still silent. Press
+   Panic again: the mic, stream, and VOD come back as the scene has them. Quit during panic and start
+   again: nothing is muted that the scene does not mute.
 4. Bind Mute Game bus and Stream volume up, press them with the window in the background: the
    Game strip mutes, the Stream master rises 5 % per press (and repeats while held). With the
    Rostrum window in front, the same keys show no OSD. Turn off Settings → General → "Show hotkey
@@ -415,7 +429,8 @@ what reaches it. The mic path itself is test 4; do it first.
    rostrum`). `rostrum --mute-mic` starts Rostrum with the mic muted.
 7. `qdbus6 dev.getrostrum.Rostrum /dev/getrostrum/Rostrum/Control` lists the methods of
    `data/dev.getrostrum.Rostrum1.xml`. `gdbus monitor --session --dest dev.getrostrum.Rostrum`
-   shows `PropertiesChanged` with `MicMuted` when the header mic button is pressed.
+   shows `PropertiesChanged` with `MicMuted` when the header mic button is pressed. (Per-bus VOD
+   flag control on `dev.getrostrum.Rostrum1` will come in a follow-up commit).
 
 ## 17. Mic unplugged
 
@@ -491,7 +506,9 @@ audio.position=[MONO] }'` set as default with `wpctl set-default`.
 2. Set it to 1 second. Play music and switch from a scene with Music at 0 dB to one with Music
    muted: the M button lights at once, the music fades out over about a second, and only then
    does `pw-dump` show `rostrum.music` muted. Switch back: the node is unmuted at once and fades
-   in from silence.
+   in from silence. Master stream fades and scene fades stay synced across both `rostrum.stream`
+   and `rostrum.vod`. Switching to a scene that toggles "Include in Twitch VOD" on a bus links or
+   unlinks `rostrum.vod` without pops or interruptions to other buses.
 3. Switch to a scene that mutes the mic while talking: the mic cuts at once (OBS meter drops
    immediately), even though buses are still fading.
 4. Start a 1 second fade and switch again halfway: the level turns around from where it was, no

@@ -11,6 +11,8 @@ QString roleName(NodeRole role)
         return QStringLiteral("phones");
     case NodeRole::Stream:
         return QStringLiteral("stream");
+    case NodeRole::Vod:
+        return QStringLiteral("vod");
     case NodeRole::Mic:
         return QStringLiteral("mic");
     case NodeRole::Sidetone:
@@ -60,6 +62,7 @@ QList<NodeSpec> desiredNodes(const Scene &scene)
     QList<NodeSpec> out;
     out.append({QString::fromLatin1(kPhonesNode), QStringLiteral("Rostrum Headphones Mix"), NodeRole::Phones});
     out.append({QString::fromLatin1(kStreamNode), QString::fromLatin1(kStreamDescription), NodeRole::Stream});
+    out.append({QString::fromLatin1(kVodNode), QString::fromLatin1(kVodDescription), NodeRole::Vod});
     out.append({QString::fromLatin1(kMicNode), QString::fromLatin1(kMicDescription), NodeRole::Mic, QString(),
                 true, true});
     out.append({QString::fromLatin1(kSidetoneNode), QStringLiteral("Rostrum Sidetone"), NodeRole::Sidetone,

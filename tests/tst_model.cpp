@@ -1,4 +1,5 @@
 #include "core/Model.h"
+#include "core/SceneToml.h"
 #include "core/Volume.h"
 #include "engine/NodeSpecs.h"
 #include "pw/Graph.h"
@@ -30,6 +31,9 @@ private Q_SLOTS:
         QCOMPARE(s.bus(QStringLiteral("music"))->destination, Destination::Stream);
         QCOMPARE(s.bus(QStringLiteral("game"))->destination, Destination::Both);
         QCOMPARE(s.bus(QStringLiteral("desktop"))->destination, Destination::Both);
+        QCOMPARE(s.bus(QStringLiteral("music"))->vod, false);
+        QCOMPARE(s.bus(QStringLiteral("game"))->vod, true);
+        QCOMPARE(s.micBus()->vod, false);
         QCOMPARE(s.sidetoneVolume, 0.0);
         QCOMPARE(defaults::palette().size(), 12);
     }
@@ -79,12 +83,17 @@ private Q_SLOTS:
     void nodeSpecs()
     {
         const auto specs = engine::desiredNodes(defaults::scene());
-        // phones, stream, mic, sidetone + 5 playback buses
-        QCOMPARE(specs.size(), 9);
+        // phones, stream, vod, mic, sidetone + 5 playback buses
+        QCOMPARE(specs.size(), 10);
         const auto stream = std::find_if(specs.cbegin(), specs.cend(),
                                          [](const auto &s) { return s.name == QLatin1String("rostrum.stream"); });
         QVERIFY(stream != specs.cend());
         QCOMPARE(stream->description, QStringLiteral("Rostrum Stream Mix"));
+        const auto vod = std::find_if(specs.cbegin(), specs.cend(),
+                                      [](const auto &s) { return s.name == QLatin1String("rostrum.vod"); });
+        QVERIFY(vod != specs.cend());
+        QCOMPARE(vod->description, QStringLiteral("Rostrum VOD Mix"));
+        QCOMPARE(vod->role, engine::NodeRole::Vod);
         const auto mic = std::find_if(specs.cbegin(), specs.cend(),
                                       [](const auto &s) { return s.name == QLatin1String("rostrum.mic"); });
         QCOMPARE(mic->description, QStringLiteral("Rostrum Mic"));
@@ -95,6 +104,7 @@ private Q_SLOTS:
         QVERIFY(!engine::needsRename(*phones, phones->description));
         // Apps and OBS link to these by name, so an old description is left alone.
         QVERIFY(!engine::needsRename(*stream, QStringLiteral("Old Stream")));
+        QVERIFY(!engine::needsRename(*vod, QStringLiteral("Old VOD")));
         QVERIFY(!engine::needsRename(*mic, QStringLiteral("Old Mic")));
         const auto props = mic->properties();
         QCOMPARE(props.value(QStringLiteral("media.class")), QStringLiteral("Audio/Source/Virtual"));
@@ -199,6 +209,47 @@ private Q_SLOTS:
         const Scene merged = mergeStructure(saved, current);
         QCOMPARE(merged.bus(QStringLiteral("music"))->balance, -0.25);
         QCOMPARE(merged.bus(QStringLiteral("music"))->name, QStringLiteral("Tunes"));
+    }
+
+    void oldSceneWithoutVodKey()
+    {
+        const QString oldToml = QStringLiteral(
+            "format = 1\n"
+            "name = 'Legacy'\n"
+            "[[bus]]\n"
+            "id = 'mic'\n"
+            "name = 'Mic'\n"
+            "kind = 'input'\n"
+            "color = '#da4453'\n"
+            "destination = 'stream'\n"
+            "[[bus]]\n"
+            "id = 'game'\n"
+            "name = 'Game'\n"
+            "kind = 'playback'\n"
+            "color = '#27ae60'\n"
+            "destination = 'both'\n"
+            "[[bus]]\n"
+            "id = 'music'\n"
+            "name = 'Music'\n"
+            "kind = 'playback'\n"
+            "color = '#9b59b6'\n"
+            "destination = 'stream'\n"
+            "[[bus]]\n"
+            "id = 'voice'\n"
+            "name = 'Voice'\n"
+            "kind = 'playback'\n"
+            "color = '#3daee9'\n"
+            "destination = 'both'\n"
+        );
+        QString err;
+        const auto scene = toml_io::parseScene(oldToml, &err);
+        QVERIFY2(scene.has_value(), qPrintable(err));
+        QCOMPARE(scene->name, QStringLiteral("Legacy"));
+        QVERIFY(scene->micBus());
+        QCOMPARE(scene->micBus()->vod, false);
+        QCOMPARE(scene->bus(QStringLiteral("music"))->vod, false);
+        QCOMPARE(scene->bus(QStringLiteral("game"))->vod, true);
+        QCOMPARE(scene->bus(QStringLiteral("voice"))->vod, true);
     }
 };
 

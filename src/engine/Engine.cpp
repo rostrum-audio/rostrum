@@ -104,6 +104,8 @@ QHash<QString, Engine::Level> Engine::fadeLevels(const Scene &scene, bool withSo
                   {scene.masterPhonesMuted ? 0.0 : scene.masterPhones, 0.0});
     levels.insert(QString::fromLatin1(kStreamNode),
                   {scene.masterStreamMuted ? 0.0 : scene.masterStream, 0.0});
+    levels.insert(QString::fromLatin1(kVodNode),
+                  {scene.masterStreamMuted ? 0.0 : scene.masterStream, 0.0});
     return levels;
 }
 

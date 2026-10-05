@@ -48,6 +48,7 @@ QHash<int, QByteArray> BusModel::roleNames() const
         {SoloedRole, "soloed"}, {DimmedRole, "dimmed"},   {DestinationRole, "destination"},
         {AppsRole, "apps"},    {PeakRole, "peak"},       {ClipRole, "clip"},
         {AutoCategoryRole, "autoCategory"}, {BalanceRole, "balance"}, {DuckedRole, "ducked"},
+        {VodRole, "vod"},
     };
 }
 
@@ -92,6 +93,8 @@ QVariant BusModel::data(const QModelIndex &index, int role) const
         return b->balance;
     case DuckedRole:
         return m_engine->isDucked(id);
+    case VodRole:
+        return b->vod;
     }
     return {};
 }
@@ -342,6 +345,11 @@ void Mixer::setDestination(const QString &busId, int index)
         return;
     }
     m_engine->setBusDestination(busId, map[index]);
+}
+
+void Mixer::setVod(const QString &busId, bool on)
+{
+    m_engine->setBusVod(busId, on);
 }
 
 void Mixer::rename(const QString &busId, const QString &name)
