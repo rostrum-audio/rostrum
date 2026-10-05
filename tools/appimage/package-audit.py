@@ -18,7 +18,8 @@ RUNTIME_DIR = Path(__file__).resolve().parent / 'licenses/runtime'
 RUNTIME_NOTICES = tuple(json.loads((RUNTIME_DIR / 'sources.json').read_text())['notices'])
 
 SENTRY_NOTICES = ('Sentry-LICENSE', 'Sentry-mpack-LICENSE', 'Sentry-jsmn-LICENSE',
-                  'Sentry-stb-LICENSE', 'Sentry-libunwind-COPYING')
+                  'Sentry-stb-LICENSE', 'Sentry-libunwind-COPYING',
+                  'Sentry-libunwind-components-NOTICES')
 
 
 def run(*args):
@@ -80,7 +81,7 @@ def check_material(root, sentry):
     own_license = root / 'usr/share/doc/rostrum/LICENSE'
     if not own_license.is_file() or not own_license.read_bytes().strip():
         raise ValueError('Missing Rostrum LICENSE')
-    names = ['RNNoise-COPYING', 'Breeze-copyright']
+    names = ['RNNoise-COPYING', 'RNNoise-components-NOTICES', 'Breeze-copyright']
     if sentry:
         names.extend(SENTRY_NOTICES)
     names.extend(RUNTIME_NOTICES)
@@ -137,9 +138,31 @@ def fetched_source(build, name):
     return Path(value) if value else build / '_deps' / (name + '-src')
 
 
+def component_notices(source):
+    # Preserve complete leading upstream comment groups: RNNoise separates the
+    # copyright and redistribution terms into different comments. Include a
+    # conservative superset from src/include, including conditional architectures.
+    records = []
+    for directory in ('src', 'include'):
+        for path in sorted((source / directory).rglob('*')):
+            if path.suffix not in ('.c', '.h', '.S') or not path.is_file():
+                continue
+            text = path.read_text(errors='strict')
+            match = re.match(r'\s*(?:(?:/\*.*?\*/|//[^\n]*)(?:\s*))+', text, re.S)
+            if match and re.search(r'copyright', match[0], re.I):
+                records.append(str(path.relative_to(source)) + '\n' + match[0])
+    if not records:
+        raise ValueError(f'No upstream component notice headers: {source}')
+    return '\n\n'.join(records) + '\n'
+
+
 def collect(root, build):
     notices = root / LICENSE_DIR
     notices.mkdir(parents=True, exist_ok=True)
+    rnnoise = component_notices(fetched_source(build, 'rnnoise'))
+    if 'CSIRO' not in rnnoise:
+        raise ValueError('Pinned RNNoise component notice layout changed')
+    (notices / 'RNNoise-components-NOTICES').write_text(rnnoise)
     sentry = cache_value(build, 'ROSTRUM_WITH_SENTRY') == 'ON'
     if sentry:
         source = fetched_source(build, 'sentry')
@@ -157,6 +180,10 @@ def collect(root, build):
             raise ValueError('Upstream stb license layout changed')
         (notices / 'Sentry-stb-LICENSE').write_text(license_text)
         shutil.copyfile(source / 'vendor/libunwind/COPYING', notices / 'Sentry-libunwind-COPYING')
+        unwind = component_notices(source / 'vendor/libunwind')
+        if 'David Mosberger-Tang' not in unwind:
+            raise ValueError('Pinned libunwind component notice layout changed')
+        (notices / 'Sentry-libunwind-components-NOTICES').write_text(unwind)
     runtime = json.loads((RUNTIME_DIR / 'sources.json').read_text())
     for name, record in runtime['notices'].items():
         source = RUNTIME_DIR / name
