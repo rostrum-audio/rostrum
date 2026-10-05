@@ -1,13 +1,14 @@
 # Crash reports and updates
 
-Rostrum makes two kinds of network request, and only if you allow them: it sends a crash report
-after a crash, and it checks once a day for a new version. Both are chosen during first-run setup
-and can be changed later in Settings → Privacy and Settings → Updates. Nothing else in Rostrum
-touches the network, apart from obs-websocket on `localhost` (see [OBS](#obs) below).
+Rostrum can check for updates on getrostrum.dev and GitHub and download an AppImage update
+from GitHub. Optional crash reports go to Sentry. Update checks, automatic AppImage installation
+and crash reporting are separate choices offered during setup and available in Settings → Updates
+and Settings → Privacy. Manual Check Now and Install actions also make requests. OBS communication
+uses localhost separately (see [OBS](#obs) below).
 
-Your audio never leaves your computer. Mic filters, noise removal included, run inside PipeWire on
-your machine; RNNoise's model is part of the plugin, and no audio, level or transcript is stored or
-sent. Check Mic keeps its 5-second recording in memory only and never writes it to disk.
+Rostrum does not upload your audio. Mic filters run locally inside PipeWire, with RNNoise's model
+in the plugin. No audio, level or transcript is sent. Check Mic keeps its 5-second recording in
+memory only and never writes it to disk. OBS or other apps handle recording or streaming you choose.
 
 ## Crash reports
 
@@ -207,8 +208,8 @@ in OBS's own config. That traffic never leaves your computer. It is used in two 
   in first-run setup and in the one-time dialog after upgrading). While an OBS process runs with
   its WebSocket server turned on, Rostrum stays connected and only reads: whether OBS is streaming
   or recording and for how long, the scene on program, and the scene list, for the LIVE and REC
-  badges, go-live warnings and scene mapping. Nothing is stored apart from the scene mapping you
-  choose. When OBS is not running, no connection is attempted. Turn the switch off and Rostrum
+  badges, go-live warnings and scene mapping. Readiness also reads capture configuration without
+  changing it. Nothing is stored apart from the scene mapping you choose. When OBS is not running, no connection is attempted. Turn the switch off and Rostrum
   connects only while the OBS page is open.
 
 Runs with `QT_QPA_PLATFORM=offscreen` or `ROSTRUM_SCREENSHOT` never connect in the background.
