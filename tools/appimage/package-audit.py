@@ -273,10 +273,15 @@ def main():
     else:
         if not args.build or not args.symbols or not args.source_commit:
             parser.error('symbols requires --build, --symbols, --source-commit')
+        check(args.root)
         original = args.build / 'src/app/rostrum'
         identity = executable_identity(original, args.root / 'usr/bin/rostrum')
         args.symbols.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(original, args.symbols / 'rostrum')
+        # Standalone binary downloads must retain their accompanying notices.
+        for directory in ('licenses', 'common-licenses', 'doc'):
+            shutil.copytree(args.root / 'usr/share' / directory,
+                            args.symbols / 'usr/share' / directory, dirs_exist_ok=True)
         identity['source_commit'] = args.source_commit
         (args.symbols / 'identity.json').write_text(json.dumps(identity, indent=2) + '\n')
         print(json.dumps(identity, indent=2))

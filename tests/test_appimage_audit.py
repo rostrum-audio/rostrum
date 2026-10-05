@@ -156,6 +156,31 @@ class SymbolTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Notice missing/changed'):
             audit.check(fixture.root)
 
+    def test_retained_symbols_include_matching_license_material(self):
+        fixture, target = self.project_fixture()
+        packaged = fixture.root / 'usr/bin/rostrum'
+        shutil.copyfile(self.packaged, packaged)
+        manifest_file = fixture.licenses / 'manifest.json'
+        manifest = json.loads(manifest_file.read_text())
+        manifest['project_elf_files']['usr/bin/rostrum'] = audit.build_id(packaged)
+        manifest_file.write_text(json.dumps(manifest))
+        build = self.root / 'build'
+        original = build / 'src/app/rostrum'
+        original.parent.mkdir(parents=True)
+        shutil.copyfile(self.original, original)
+        output = self.root / 'retained'
+        subprocess.run(['python3', '-B', str(spec.origin), 'symbols', str(fixture.root),
+                        '--build', str(build), '--symbols', str(output),
+                        '--source-commit', 'test-source'], check=True, timeout=30,
+                       capture_output=True)
+        for relative in ('usr/share/licenses/rostrum/Sentry-LICENSE',
+                         'usr/share/common-licenses/LGPL-3',
+                         'usr/share/doc/rostrum/LICENSE',
+                         'usr/share/licenses/rostrum/manifest.json'):
+            self.assertEqual((fixture.root / relative).read_bytes(),
+                             (output / relative).read_bytes())
+        self.assertEqual(audit.digest(original), audit.digest(output / 'rostrum'))
+
     def test_unmatched_launcher_rejected(self):
         with self.assertRaisesRegex(ValueError, 'license-matched pinned runtime'):
             audit.check_runtime(self.packaged)
