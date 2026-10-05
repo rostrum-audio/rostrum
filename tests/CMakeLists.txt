@@ -57,6 +57,9 @@ endif()
 
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
+    add_test(NAME offscreen_diagnostics COMMAND ${Python3_EXECUTABLE} -B
+        ${CMAKE_CURRENT_SOURCE_DIR}/test_offscreen_diagnostics.py)
+    set_tests_properties(offscreen_diagnostics PROPERTIES TIMEOUT 45)
     add_test(NAME appimage_audit COMMAND ${Python3_EXECUTABLE} -B
         ${CMAKE_CURRENT_SOURCE_DIR}/test_appimage_audit.py)
     rostrum_add_test(tst_releasefeed)
