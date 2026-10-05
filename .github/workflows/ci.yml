@@ -116,25 +116,15 @@ jobs:
         run: ctest --test-dir build --output-on-failure
       - name: Start the app offscreen
         shell: bash
-        run: |
-          set -o pipefail
-          export XDG_CONFIG_HOME="$RUNNER_TEMP/config" XDG_STATE_HOME="$RUNNER_TEMP/state"
-          export XDG_RUNTIME_DIR="$RUNNER_TEMP/runtime"
-          mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
-          QT_QPA_PLATFORM=offscreen PIPEWIRE_REMOTE=rostrum-test-none ROSTRUM_SCREENSHOT="$PWD/screenshot.png" \
-            timeout 60 dbus-run-session -- ./build/src/app/rostrum 2>&1 | tee app.log
-          test -s screenshot.png
-          if grep -E 'qrc:/.*\.qml:[0-9]+.*(Error|error|is not a type|is not installed|not found)' app.log; then
-            exit 1
-          fi
+        # Same 60-second deadline, screenshot and QML-error gates; no retries.
+        # Passive pre-timeout /proc evidence avoids ptrace changing launch timing.
+        run: python3 -B tools/ci/offscreen.py ./build/src/app/rostrum fedora-offscreen
       - uses: actions/upload-artifact@v5
         if: always()
         with:
           name: app-offscreen-fedora
-          path: |
-            screenshot.png
-            app.log
-          if-no-files-found: ignore
+          path: fedora-offscreen/
+          if-no-files-found: error
 
   arch:
     name: Arch build
