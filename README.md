@@ -181,6 +181,38 @@ bus. Rostrum takes back such moves by itself in the first seconds after an app s
 Easy Effects on what you hear, choose Easy Effects Sink as Headphones on the Devices page: the
 whole headphone mix then goes through it.
 
+### Include in Twitch VOD
+
+Track 1 is the live mix. Track 2 is the saved Twitch VOD.
+
+Each playback bus has an **Include in Twitch VOD** checkbox. Music is off the VOD mix by default. Game, Voice, Alerts, and Desktop are on. The mic has no checkbox; Rostrum Mic is on tracks 1 and 2.
+
+A Headphones-only bus is in neither mix. Switching it back to Stream or Both keeps the checkbox as it was.
+
+| Bus destination | Include in Twitch VOD | Audio destinations |
+| --- | --- | --- |
+| Stream or Both | On | Live stream and saved VOD |
+| Stream or Both | Off | Live stream only |
+| Headphones | Either | Neither mix |
+
+**Set Up OBS** adds a named Audio Output Capture, "Rostrum VOD Mix", on track 2. It does not use Desktop Audio 2. The Set Up OBS preview lists:
+- **Rostrum Mic** on tracks 1 and 2
+- **Rostrum Stream Mix** on track 1
+- **Rostrum VOD Mix** on track 2
+
+Check these settings in OBS:
+- **Settings → Stream:** Service is Twitch.
+- **Settings → Output:** Twitch VOD Track is 2. This setting appears only when the service is Twitch and Enable Custom Encoder Settings is on. Enhanced Broadcasting ignores this track.
+- **Advanced Audio Properties:** Rostrum Mic has tracks 1 and 2 checked. Rostrum Stream Mix has track 1 checked. Rostrum VOD Mix has track 2 checked. Desktop Audio is off both tracks.
+
+Stream readiness stays Needs attention until track 2 is selected and Rostrum VOD Mix is captured.
+
+Watch out for leaks. Desktop Audio on track 2 puts Music back into the VOD. Leave Desktop Audio disabled or muted.
+
+A local OBS recording uses its own track boxes. Track 2 in a recording is the VOD mix only if the recording is set to track 2.
+
+How to check: run a short Twitch stream with music playing. The live replay has the music; the saved VOD does not.
+
 ### ⌨️ Shortcuts
 
 Default global shortcuts, rebindable in Settings or in System Settings → Keyboard → Shortcuts on Plasma:
