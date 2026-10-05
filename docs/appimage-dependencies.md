@@ -49,7 +49,10 @@ records musl 1.2.5-r11, zlib 1.3.2-r0, zstd 1.5.6-r2 and mimalloc2 2.1.7-r0.
 The runtime source pins libfuse 3.15.0 (with its documented mount.c patch) and
 squashfuse 0.5.2. Version-matched upstream runtime/MIT, musl/MIT, libfuse/LGPL-2.1,
 squashfuse/BSD, zstd/BSD, zlib and mimalloc/MIT notices ship alongside this file;
-`manifest.json` records their source URLs and hashes. The generated AppRun and Qt hook also retain the MIT notices from the pinned
+`manifest.json` records their source URLs and hashes. Component notice collections
+for libfuse, zstd and squashfuse retain complete upstream source/header copyright
+and license comment groups from their version-matched archives, including holders
+not named in the top-level license texts. Their archive hashes are recorded too. The generated AppRun and Qt hook also retain the MIT notices from the pinned
 linuxdeploy and Qt-plugin versions used to generate them; the tooling binaries
 are not bundled. The launcher build recipe
 and libfuse patch are at that exact runtime commit. Alpine package patches can be

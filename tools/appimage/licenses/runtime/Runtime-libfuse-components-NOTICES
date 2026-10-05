@@ -1,0 +1,547 @@
+Upstream source: https://codeload.github.com/libfuse/libfuse/tar.gz/refs/tags/fuse-3.15.0
+Source archive SHA-256: 1e79f1dd60eaf79645c21411c4a7028c97b5e745ea677ac5bda747c90497a785
+
+include/cuse_lowlevel.h
+/*
+  CUSE: Character device in Userspace
+  Copyright (C) 2008-2009  SUSE Linux Products GmbH
+  Copyright (C) 2008-2009  Tejun Heo <tj@kernel.org>
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB.
+
+  Read example/cusexmp.c for usages.
+*/
+
+
+
+include/fuse.h
+/*
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB.
+*/
+
+
+
+include/fuse_common.h
+/*  FUSE: Filesystem in Userspace
+  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB.
+*/
+
+/** @file */
+
+
+
+include/fuse_kernel.h
+/* SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-2-Clause) */
+/*
+    This file defines the kernel interface of FUSE
+    Copyright (C) 2001-2008  Miklos Szeredi <miklos@szeredi.hu>
+
+    This program can be distributed under the terms of the GNU GPL.
+    See the file COPYING.
+
+    This -- and only this -- header file may also be distributed under
+    the terms of the BSD Licence as follows:
+
+    Copyright (C) 2001-2007 Miklos Szeredi. All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions
+    are met:
+    1. Redistributions of source code must retain the above copyright
+       notice, this list of conditions and the following disclaimer.
+    2. Redistributions in binary form must reproduce the above copyright
+       notice, this list of conditions and the following disclaimer in the
+       documentation and/or other materials provided with the distribution.
+
+    THIS SOFTWARE IS PROVIDED BY AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+    ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+    IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+    ARE DISCLAIMED.  IN NO EVENT SHALL AUTHOR OR CONTRIBUTORS BE LIABLE
+    FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+    DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+    OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+    HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+    LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+    OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+    SUCH DAMAGE.
+*/
+
+/*
+ * This file defines the kernel interface of FUSE
+ *
+ * Protocol changelog:
+ *
+ * 7.1:
+ *  - add the following messages:
+ *      FUSE_SETATTR, FUSE_SYMLINK, FUSE_MKNOD, FUSE_MKDIR, FUSE_UNLINK,
+ *      FUSE_RMDIR, FUSE_RENAME, FUSE_LINK, FUSE_OPEN, FUSE_READ, FUSE_WRITE,
+ *      FUSE_RELEASE, FUSE_FSYNC, FUSE_FLUSH, FUSE_SETXATTR, FUSE_GETXATTR,
+ *      FUSE_LISTXATTR, FUSE_REMOVEXATTR, FUSE_OPENDIR, FUSE_READDIR,
+ *      FUSE_RELEASEDIR
+ *  - add padding to messages to accommodate 32-bit servers on 64-bit kernels
+ *
+ * 7.2:
+ *  - add FOPEN_DIRECT_IO and FOPEN_KEEP_CACHE flags
+ *  - add FUSE_FSYNCDIR message
+ *
+ * 7.3:
+ *  - add FUSE_ACCESS message
+ *  - add FUSE_CREATE message
+ *  - add filehandle to fuse_setattr_in
+ *
+ * 7.4:
+ *  - add frsize to fuse_kstatfs
+ *  - clean up request size limit checking
+ *
+ * 7.5:
+ *  - add flags and max_write to fuse_init_out
+ *
+ * 7.6:
+ *  - add max_readahead to fuse_init_in and fuse_init_out
+ *
+ * 7.7:
+ *  - add FUSE_INTERRUPT message
+ *  - add POSIX file lock support
+ *
+ * 7.8:
+ *  - add lock_owner and flags fields to fuse_release_in
+ *  - add FUSE_BMAP message
+ *  - add FUSE_DESTROY message
+ *
+ * 7.9:
+ *  - new fuse_getattr_in input argument of GETATTR
+ *  - add lk_flags in fuse_lk_in
+ *  - add lock_owner field to fuse_setattr_in, fuse_read_in and fuse_write_in
+ *  - add blksize field to fuse_attr
+ *  - add file flags field to fuse_read_in and fuse_write_in
+ *  - Add ATIME_NOW and MTIME_NOW flags to fuse_setattr_in
+ *
+ * 7.10
+ *  - add nonseekable open flag
+ *
+ * 7.11
+ *  - add IOCTL message
+ *  - add unsolicited notification support
+ *  - add POLL message and NOTIFY_POLL notification
+ *
+ * 7.12
+ *  - add umask flag to input argument of create, mknod and mkdir
+ *  - add notification messages for invalidation of inodes and
+ *    directory entries
+ *
+ * 7.13
+ *  - make max number of background requests and congestion threshold
+ *    tunables
+ *
+ * 7.14
+ *  - add splice support to fuse device
+ *
+ * 7.15
+ *  - add store notify
+ *  - add retrieve notify
+ *
+ * 7.16
+ *  - add BATCH_FORGET request
+ *  - FUSE_IOCTL_UNRESTRICTED shall now return with array of 'struct
+ *    fuse_ioctl_iovec' instead of ambiguous 'struct iovec'
+ *  - add FUSE_IOCTL_32BIT flag
+ *
+ * 7.17
+ *  - add FUSE_FLOCK_LOCKS and FUSE_RELEASE_FLOCK_UNLOCK
+ *
+ * 7.18
+ *  - add FUSE_IOCTL_DIR flag
+ *  - add FUSE_NOTIFY_DELETE
+ *
+ * 7.19
+ *  - add FUSE_FALLOCATE
+ *
+ * 7.20
+ *  - add FUSE_AUTO_INVAL_DATA
+ *
+ * 7.21
+ *  - add FUSE_READDIRPLUS
+ *  - send the requested events in POLL request
+ *
+ * 7.22
+ *  - add FUSE_ASYNC_DIO
+ *
+ * 7.23
+ *  - add FUSE_WRITEBACK_CACHE
+ *  - add time_gran to fuse_init_out
+ *  - add reserved space to fuse_init_out
+ *  - add FATTR_CTIME
+ *  - add ctime and ctimensec to fuse_setattr_in
+ *  - add FUSE_RENAME2 request
+ *  - add FUSE_NO_OPEN_SUPPORT flag
+ *
+ *  7.24
+ *  - add FUSE_LSEEK for SEEK_HOLE and SEEK_DATA support
+ *
+ *  7.25
+ *  - add FUSE_PARALLEL_DIROPS
+ *
+ *  7.26
+ *  - add FUSE_HANDLE_KILLPRIV
+ *  - add FUSE_POSIX_ACL
+ *
+ *  7.27
+ *  - add FUSE_ABORT_ERROR
+ *
+ *  7.28
+ *  - add FUSE_COPY_FILE_RANGE
+ *  - add FOPEN_CACHE_DIR
+ *  - add FUSE_MAX_PAGES, add max_pages to init_out
+ *  - add FUSE_CACHE_SYMLINKS
+ *
+ *  7.29
+ *  - add FUSE_NO_OPENDIR_SUPPORT flag
+ *
+ *  7.30
+ *  - add FUSE_EXPLICIT_INVAL_DATA
+ *  - add FUSE_IOCTL_COMPAT_X32
+ *
+ *  7.31
+ *  - add FUSE_WRITE_KILL_PRIV flag
+ *  - add FUSE_SETUPMAPPING and FUSE_REMOVEMAPPING
+ *  - add map_alignment to fuse_init_out, add FUSE_MAP_ALIGNMENT flag
+ *
+ *  7.32
+ *  - add flags to fuse_attr, add FUSE_ATTR_SUBMOUNT, add FUSE_SUBMOUNTS
+ *
+ *  7.33
+ *  - add FUSE_HANDLE_KILLPRIV_V2, FUSE_WRITE_KILL_SUIDGID, FATTR_KILL_SUIDGID
+ *  - add FUSE_OPEN_KILL_SUIDGID
+ *  - extend fuse_setxattr_in, add FUSE_SETXATTR_EXT
+ *  - add FUSE_SETXATTR_ACL_KILL_SGID
+ *
+ *  7.34
+ *  - add FUSE_SYNCFS
+ *
+ *  7.35
+ *  - add FOPEN_NOFLUSH
+ *
+ *  7.36
+ *  - extend fuse_init_in with reserved fields, add FUSE_INIT_EXT init flag
+ *  - add flags2 to fuse_init_in and fuse_init_out
+ *  - add FUSE_SECURITY_CTX init flag
+ *  - add security context to create, mkdir, symlink, and mknod requests
+ *  - add FUSE_HAS_INODE_DAX, FUSE_ATTR_DAX
+ *
+ *  7.37
+ *  - add FUSE_TMPFILE
+ *
+ *  7.38
+ *  - add FUSE_EXPIRE_ONLY flag to fuse_notify_inval_entry
+ *  - add FOPEN_PARALLEL_DIRECT_WRITES
+ *  - add total_extlen to fuse_in_header
+ *  - add FUSE_MAX_NR_SECCTX
+ *  - add extension header
+ *  - add FUSE_EXT_GROUPS
+ *  - add FUSE_CREATE_SUPP_GROUP
+ */
+
+
+
+include/fuse_log.h
+/*
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2019  Red Hat, Inc.
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB.
+*/
+
+
+
+include/fuse_lowlevel.h
+/*
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB.
+*/
+
+
+
+include/fuse_mount_compat.h
+/*
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2023 Giulio Benetti <giulio.benetti@benettiengineering.com>
+
+  Logging API.
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file LICENSE
+*/
+
+
+
+include/fuse_opt.h
+/*
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB.
+*/
+
+
+
+lib/buffer.c
+/*
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2010  Miklos Szeredi <miklos@szeredi.hu>
+
+  Functions for dealing with `struct fuse_buf` and `struct
+  fuse_bufvec`.
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB
+*/
+
+
+
+lib/compat.c
+/*
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+
+  Helper functions to create (simple) standalone programs. With the
+  aid of these functions it should be possible to create full FUSE
+  file system by implementing nothing but the request handlers.
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB.
+*/
+
+/* Description:
+    This file has compatibility symbols for platforms that do not
+    support version symboling
+*/
+
+
+
+lib/cuse_lowlevel.c
+/*
+  CUSE: Character device in Userspace
+  Copyright (C) 2008       SUSE Linux Products GmbH
+  Copyright (C) 2008       Tejun Heo <teheo@suse.de>
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB.
+*/
+
+
+
+lib/fuse.c
+/*
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+
+  Implementation of the high-level FUSE API on top of the low-level
+  API.
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB
+*/
+
+
+
+lib/fuse_i.h
+/*
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB
+*/
+
+
+
+lib/fuse_log.c
+/*
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2019  Red Hat, Inc.
+
+  Logging API.
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB
+*/
+
+
+
+lib/fuse_loop.c
+/*
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+
+  Implementation of the single-threaded FUSE session loop.
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB
+*/
+
+
+
+lib/fuse_loop_mt.c
+/*
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+
+  Implementation of the multi-threaded FUSE session loop.
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB.
+*/
+
+
+
+lib/fuse_lowlevel.c
+/*
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+
+  Implementation of (most of) the low-level FUSE API. The session loop
+  functions are implemented in separate files.
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB
+*/
+
+
+
+lib/fuse_misc.h
+/*
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB
+*/
+
+
+
+lib/fuse_opt.c
+/*
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+
+  Implementation of option parsing routines (dealing with `struct
+  fuse_args`).
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB
+*/
+
+
+
+lib/fuse_signals.c
+/*
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+
+  Utility functions for setting signal handlers.
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB
+*/
+
+
+
+lib/helper.c
+/*
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+
+  Helper functions to create (simple) standalone programs. With the
+  aid of these functions it should be possible to create full FUSE
+  file system by implementing nothing but the request handlers.
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB.
+*/
+
+
+
+lib/modules/iconv.c
+/*
+  fuse iconv module: file name charset conversion
+  Copyright (C) 2007  Miklos Szeredi <miklos@szeredi.hu>
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB
+*/
+
+
+
+lib/modules/subdir.c
+/*
+  fuse subdir module: offset paths with a base directory
+  Copyright (C) 2007  Miklos Szeredi <miklos@szeredi.hu>
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB
+*/
+
+
+
+lib/mount.c
+/*
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+
+  Architecture specific file system mounting (Linux).
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB.
+*/
+
+
+
+lib/mount_bsd.c
+/*
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2005-2008 Csaba Henk <csaba.henk@creo.hu>
+
+  Architecture specific file system mounting (FreeBSD).
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB.
+*/
+
+
+
+lib/mount_util.c
+/*
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+
+  Architecture-independent mounting code.
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB.
+*/
+
+
+
+lib/mount_util.h
+/*
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+
+  This program can be distributed under the terms of the GNU LGPLv2.
+  See the file COPYING.LIB.
+*/
+
+
