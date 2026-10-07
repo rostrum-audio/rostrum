@@ -505,13 +505,20 @@ QList<AppStream> Engine::appStreams() const
 
 QStringList Engine::ruleIconCandidates(const AppRule &rule) const
 {
-    QStringList out;
     const QString match = rule.key == MatchKey::Binary ? cleanBinary(rule.match) : rule.match;
-    if (const auto entry = m_desktop.find({match, rule.label})) {
-        out << entry->icon << entry->id;
+    StreamProps props;
+    if (rule.key == MatchKey::Binary) {
+        props.binary = match;
+        props.appName = rule.label;
+    } else {
+        props.appName = match;
     }
-    out << match.toLower();
-    out.removeAll(QString());
+    const auto facts = collectFacts(props, {}, 0, m_desktop, [](const QString &) { return true; });
+    if (classify(facts).excluded) {
+        return {};
+    }
+    QStringList out = iconCandidates(facts);
+    out = rule.iconNames + out;
     out.removeDuplicates();
     return out;
 }
@@ -539,6 +546,14 @@ void Engine::assignApp(const AppKey &key, const QString &busId, bool always)
             rule.muted = m_sessionMuted.take(key.toString());
             rule.lastSeen = QDateTime::currentDateTimeUtc();
             m_scene.rules.append(rule);
+        }
+        // Capture the resolved icon while the stream exists, including rules whose name
+        // (for example WEBRTC VoiceEngine) cannot identify the desktop entry later.
+        for (const auto &stream : appStreams()) {
+            if (stream.ruleKey == key && !stream.iconNames.isEmpty()) {
+                m_scene.rule(key.key, key.match)->iconNames = stream.iconNames;
+                break;
+            }
         }
         Q_EMIT structureChanged();
     } else {
@@ -711,6 +726,7 @@ void Engine::editRule(const AppKey &oldKey, const AppKey &newKey)
     }
     r->key = newKey.key;
     r->match = newKey.match.trimmed();
+    r->iconNames.clear();
     Q_EMIT structureChanged();
     Q_EMIT sceneChanged();
     Q_EMIT appsChanged();
@@ -812,6 +828,8 @@ void Engine::reconcileRoutes()
             m_seenThisSession.insert(ruleKey.toString());
             if (AppRule *r = m_scene.rule(ruleKey.key, ruleKey.match)) {
                 r->lastSeen = QDateTime::currentDateTimeUtc();
+                const auto icons = iconCandidates(recognise(n, props, id).facts);
+                r->iconNames = icons;
                 seenChanged = true;
             }
         }

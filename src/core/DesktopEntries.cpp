@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
+#include <QRegularExpression>
 #include <QSet>
 #include <QStandardPaths>
 
@@ -111,6 +112,14 @@ std::optional<DesktopEntry> parseDesktopEntry(const QString &text, const QString
     if (const QString icon = keys.value(QStringLiteral("Icon")); !icon.isEmpty() && !icon.contains(QLatin1Char('/'))) {
         e.tokens << icon.toLower();
     }
+    // Streams can omit the menu name's descriptive suffix.
+    static const QRegularExpression suffix(QStringLiteral(" (Web Browser|Media Player)$"),
+                                           QRegularExpression::CaseInsensitiveOption);
+    QString shortName = e.name;
+    shortName.remove(suffix);
+    if (shortName != e.name) {
+        e.tokens << shortName.toLower();
+    }
     e.tokens.removeDuplicates();
     e.tokens.removeAll(QString());
     return e;
@@ -191,7 +200,19 @@ std::optional<DesktopEntry> DesktopIndex::find(const QStringList &candidates)
                 continue;
             }
             if (auto it = m_byToken.constFind(key); it != m_byToken.cend()) {
-                return m_entries.at(it.value());
+                DesktopEntry entry = m_entries.at(it.value());
+                // Custom URL-handler launchers can omit Icon=. Borrow only from an
+                // entry with the same full app name, never from a guessed binary icon.
+                if (entry.icon.isEmpty() && !entry.name.isEmpty()) {
+                    for (const auto &other : std::as_const(m_entries)) {
+                        if (!other.icon.isEmpty() &&
+                            other.name.compare(entry.name, Qt::CaseInsensitive) == 0) {
+                            entry.icon = other.icon;
+                            break;
+                        }
+                    }
+                }
+                return entry;
             }
         }
         if (pass == 0 && m_scanned.elapsed() > kRescanAfterMs) {

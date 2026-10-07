@@ -55,6 +55,30 @@ class TestEngine : public QObject
 {
     Q_OBJECT
 private Q_SLOTS:
+    void ruleIconsSurviveRestartWithoutStreams()
+    {
+        Scene scene = defaults::scene();
+        AppRule discord;
+        discord.match = QStringLiteral("WEBRTC VoiceEngine");
+        discord.busId = QStringLiteral("voice");
+        discord.iconNames = {QStringLiteral("missing-desktop-icon"), QStringLiteral("discord")};
+        scene.rules.append(discord);
+        const auto restored = toml_io::parseScene(toml_io::serializeScene(scene));
+        QVERIFY(restored);
+        QCOMPARE(restored->rules.first().iconNames, (QStringList{"missing-desktop-icon", "discord"}));
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        QCOMPARE(engine.ruleIconCandidates(restored->rules.first()),
+                 (QStringList{"missing-desktop-icon", "discord"}));
+        AppRule java;
+        java.match = QStringLiteral("java");
+        QVERIFY(engine.ruleIconCandidates(java).isEmpty());
+        AppRule obs;
+        obs.match = QStringLiteral("OBS");
+        obs.iconNames = {QStringLiteral("obs")};
+        QVERIFY(engine.ruleIconCandidates(obs).isEmpty());
+    }
+
     void savedMicIsUsedWhenPresent()
     {
         const pw::Graph g = devices();

@@ -111,6 +111,13 @@ toml::table sceneTable(const Scene &scene)
         if (!r.label.isEmpty()) {
             rt.insert("label", s(r.label));
         }
+        if (!r.iconNames.isEmpty()) {
+            toml::array icons;
+            for (const auto &icon : r.iconNames) {
+                icons.push_back(s(icon));
+            }
+            rt.insert("icons", std::move(icons));
+        }
         if (r.lastSeen.isValid()) {
             rt.insert("last_seen", toToml(r.lastSeen));
         }
@@ -171,6 +178,14 @@ Scene sceneFrom(const toml::table &t)
             r.muted = flag(rv["muted"], false);
             r.label = qs(rv["label"]).trimmed().left(64);
             r.lastSeen = fromToml(rv["last_seen"]);
+            if (const auto *icons = rv["icons"].as_array()) {
+                for (const auto &icon : *icons) {
+                    const auto value = icon.value<std::string>();
+                    if (value && !value->empty()) {
+                        r.iconNames << QString::fromStdString(*value);
+                    }
+                }
+            }
             scene.rules.append(r);
         }
     }

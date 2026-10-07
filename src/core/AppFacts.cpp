@@ -1,5 +1,7 @@
 #include "core/AppFacts.h"
 
+#include "core/AppClassifier.h"
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -142,10 +144,17 @@ AppFacts collectFacts(const StreamProps &props, const QMap<QString, QString> &no
 QStringList iconCandidates(const AppFacts &f)
 {
     QStringList out;
+    // Choosing an output prevents routing, but does not turn an app into an audio tool.
+    AppFacts iconFacts = f;
+    iconFacts.dontMove = false;
+    iconFacts.ownOutputChoice = false;
+    if (classify(iconFacts).excluded) {
+        return out;
+    }
     if (!f.steamAppId.isEmpty()) {
         out << QStringLiteral("steam_icon_") + f.steamAppId;
     }
-    out << f.desktopIcon << f.iconName << f.appId << f.desktopId << cleanBinary(f.props.binary).toLower();
+    out << f.desktopIcon << f.iconName;
     out.removeAll(QString());
     out.removeDuplicates();
     return out;

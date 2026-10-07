@@ -236,7 +236,7 @@ void Apps::rebuild()
         const QString keyString = AppKey{r.key, r.match}.toString();
         const auto runningIcon = runningRuleIcons.constFind(keyString.toLower());
         const bool isRunning = runningIcon != runningRuleIcons.cend();
-        const QString icon = isRunning && !runningIcon->isEmpty() ? *runningIcon : iconFor(e->ruleIconCandidates(r));
+        const QString icon = isRunning ? *runningIcon : iconFor(e->ruleIconCandidates(r));
         QString seen;
         if (isRunning) {
             seen = i18nc("@info rule last seen", "Playing now");
