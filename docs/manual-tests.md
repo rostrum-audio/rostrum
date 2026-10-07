@@ -249,9 +249,16 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
    checks it. With "Save scene changes automatically" off, "Confirm before switching scenes" on
    and a fader moved, the hotkey raises the window and asks first.
 6. Turn on "Launch at login": `~/.config/autostart/dev.getrostrum.Rostrum.desktop` exists
-   and `desktop-file-validate` passes on it. Turn on "Start in tray", log out and in: Rostrum is
-   in the tray with no window. Starting it from the app menu while it runs raises the window.
-   Turn "Launch at login" off: the file is gone.
+   and `desktop-file-validate` passes on it. For an AppImage, `Exec=` has the quoted AppImage path
+   plus `--autostart` and `TryExec=` points at the file. For a `~/.local` install, `Exec=` and
+   `TryExec=` point to `~/.local/bin/rostrum`. (Previously, `Exec=` wrote an unqualified
+   `rostrum --autostart` or a transient mount path that failed on session login because `~/.local/bin`
+   was not in the session manager's default `$PATH` and FUSE mounts disappeared after logout;
+   `TryExec=` and `StartupWMClass=` were also missing, and moving the binary did not rewrite the file.)
+   Verify moving the binary rewrites the entry on launch. Turn on "Start in tray", log out and in:
+   Rostrum launches silently into the tray without showing a window, even if the panel registers after
+   Rostrum. Starting Rostrum from the app menu while running raises the window, whereas a second login
+   with `--autostart` remains in the tray. Turn "Launch at login" off: the file is removed.
 7. Unplug the headset while Rostrum runs: one notification, "Headphones disconnected, scene
    held." Unplug the saved mic: one notification, "Mic disconnected, stream mic silent." (test 17).
    Mute and unmute from the window never notify.

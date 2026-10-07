@@ -105,6 +105,9 @@ int main(int argc, char *argv[])
                          const auto r = rostrum::app::cli::parse(forwarded);
                          if (r.hasControls() && r.errors.isEmpty()) {
                              rostrum::app::cli::apply(r, control);
+                         } else if (forwarded.isSet(QStringLiteral("autostart")) && controller.settings().startInTray) {
+                             // Autostart from a second login keeps the existing instance in the tray.
+                             return;
                          } else {
                              Q_EMIT controller.raiseRequested();
                          }

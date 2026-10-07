@@ -29,13 +29,59 @@ private Q_SLOTS:
         QCOMPARE(autostart::execQuote(QString()), QStringLiteral("\"\""));
     }
 
+    void execLineForAppImage()
+    {
+        const QString appImage = QStringLiteral("/home/w/Downloads/Rostrum-0.1.0-x86_64.AppImage");
+        QCOMPARE(autostart::execLine(appImage),
+                 QStringLiteral("\"/home/w/Downloads/Rostrum-0.1.0-x86_64.AppImage\" --autostart"));
+
+        const QString appImageWithSpaces = QStringLiteral("/home/w/Applications/Rostrum Mix.AppImage");
+        QCOMPARE(autostart::execLine(appImageWithSpaces),
+                 QStringLiteral("\"/home/w/Applications/Rostrum Mix.AppImage\" --autostart"));
+    }
+
+    void execLineForLocalInstall()
+    {
+        const QString localBin = QStringLiteral("/home/w/.local/bin/rostrum");
+        QCOMPARE(autostart::execLine(localBin),
+                 QStringLiteral("/home/w/.local/bin/rostrum --autostart"));
+
+        const QString localBinWithSpaces = QStringLiteral("/home/w/test dir/.local/bin/rostrum");
+        QCOMPARE(autostart::execLine(localBinWithSpaces),
+                 QStringLiteral("\"/home/w/test dir/.local/bin/rostrum\" --autostart"));
+    }
+
+    void launcherPathResolution()
+    {
+        // When running an AppImage, APPIMAGE environment variable is preserved
+        QCOMPARE(autostart::launcherPath(QStringLiteral("/tmp/.mount_Rostru123/usr/bin/rostrum"),
+                                         QStringLiteral("/home/w/Rostrum-0.1.0-x86_64.AppImage")),
+                 QStringLiteral("/home/w/Rostrum-0.1.0-x86_64.AppImage"));
+
+        // When running a local install under ~/.local/bin
+        QCOMPARE(autostart::launcherPath(QStringLiteral("/home/w/.local/bin/rostrum")),
+                 QStringLiteral("/home/w/.local/bin/rostrum"));
+
+        // Temporary mount path is rejected if APPIMAGE is empty
+        const QString mountPath = QStringLiteral("/tmp/.mount_Rostru123/usr/bin/rostrum");
+        QVERIFY(!autostart::launcherPath(mountPath).startsWith(QStringLiteral("/tmp/")));
+    }
+
     void entryUsesAppIdAndExec()
     {
-        const QString e = autostart::entry(QStringLiteral("rostrum --autostart"), QStringLiteral("Mix"));
+        const QString e = autostart::entry(QStringLiteral("rostrum --autostart"), QStringLiteral("Mix"),
+                                           QStringLiteral("/usr/bin/rostrum"));
         QVERIFY(e.startsWith(QStringLiteral("[Desktop Entry]\n")));
+        QVERIFY(e.contains(QStringLiteral("\nType=Application\n")));
+        QVERIFY(e.contains(QStringLiteral("\nName=Rostrum\n")));
         QVERIFY(e.contains(QStringLiteral("\nExec=rostrum --autostart\n")));
+        QVERIFY(e.contains(QStringLiteral("\nTryExec=/usr/bin/rostrum\n")));
         QVERIFY(e.contains(QStringLiteral("\nIcon=" ROSTRUM_APP_ID "\n")));
-        QVERIFY(e.contains(QStringLiteral("\nComment=Mix\n")));
+        QVERIFY(e.contains(QStringLiteral("\nTerminal=false\n")));
+        QVERIFY(e.contains(QStringLiteral("\nStartupWMClass=rostrum\n")));
+        QVERIFY(e.contains(QStringLiteral("\nX-GNOME-Autostart-enabled=true\n")));
+        QVERIFY(!e.contains(QStringLiteral("Hidden=true")));
+        QVERIFY(!e.contains(QStringLiteral("OnlyShowIn")));
     }
 
     void autostartFileIsNamedForTheAppId()
@@ -53,17 +99,34 @@ private Q_SLOTS:
         }
         QTemporaryDir dir;
         QVERIFY(dir.isValid());
-        const QString path = dir.filePath(QStringLiteral(ROSTRUM_APP_ID ".desktop"));
-        QFile f(path);
-        QVERIFY(f.open(QIODevice::WriteOnly));
-        const QString exec = autostart::execQuote(QStringLiteral("/home/w/New Folder/build/rostrum")) +
-                             QStringLiteral(" --autostart");
-        f.write(autostart::entry(exec, QStringLiteral("A stream mix console for Linux")).toUtf8());
-        f.close();
-        QProcess p;
-        p.start(validator, {path});
-        QVERIFY(p.waitForFinished());
-        QVERIFY2(p.exitCode() == 0, p.readAllStandardOutput().constData());
+
+        // Test AppImage entry validation
+        const QString appImagePath = QStringLiteral("/home/w/Rostrum-0.1.0-x86_64.AppImage");
+        const QString appImageDesktop = dir.filePath(QStringLiteral("appimage.desktop"));
+        QFile f1(appImageDesktop);
+        QVERIFY(f1.open(QIODevice::WriteOnly));
+        f1.write(autostart::entry(autostart::execLine(appImagePath),
+                                  QStringLiteral("A stream mix console for Linux"),
+                                  appImagePath).toUtf8());
+        f1.close();
+        QProcess p1;
+        p1.start(validator, {appImageDesktop});
+        QVERIFY(p1.waitForFinished());
+        QVERIFY2(p1.exitCode() == 0, p1.readAllStandardOutput().constData());
+
+        // Test ~/.local install entry validation
+        const QString localBinPath = QStringLiteral("/home/w/.local/bin/rostrum");
+        const QString localDesktop = dir.filePath(QStringLiteral("local.desktop"));
+        QFile f2(localDesktop);
+        QVERIFY(f2.open(QIODevice::WriteOnly));
+        f2.write(autostart::entry(autostart::execLine(localBinPath),
+                                  QStringLiteral("A stream mix console for Linux"),
+                                  localBinPath).toUtf8());
+        f2.close();
+        QProcess p2;
+        p2.start(validator, {localDesktop});
+        QVERIFY(p2.waitForFinished());
+        QVERIFY2(p2.exitCode() == 0, p2.readAllStandardOutput().constData());
     }
 };
 
