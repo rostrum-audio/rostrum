@@ -251,7 +251,10 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
 6. Turn on "Launch at login": `~/.config/autostart/dev.getrostrum.Rostrum.desktop` exists
    and `desktop-file-validate` passes on it. For an AppImage, `Exec=` has the quoted AppImage path
    plus `--autostart` and `TryExec=` points at the file. For a `~/.local` install, `Exec=` and
-   `TryExec=` point to `~/.local/bin/rostrum`. (Previously, `Exec=` wrote an unqualified
+   `TryExec=` contain the absolute home path, such as `/home/alex/.local/bin/rostrum`, not a
+   literal `~` or an unqualified `rostrum`. With Rostrum already running, run that executable
+   with `--no-start --list-buses` under `PATH=/usr/local/bin:/usr/bin:/bin`; it reaches the
+   running instance without starting another mix. (Previously, `Exec=` wrote an unqualified
    `rostrum --autostart` or a transient mount path that failed on session login because `~/.local/bin`
    was not in the session manager's default `$PATH` and FUSE mounts disappeared after logout;
    `TryExec=` and `StartupWMClass=` were also missing, and moving the binary did not rewrite the file.)
@@ -618,7 +621,7 @@ audio.position=[MONO] }'` set as default with `wpctl set-default`.
 
 ## 26. Settings backup and restore
 
-1. Settings → Advanced → Back Up Settings…: the save dialog suggests
+1. Settings → Application → Advanced → Back Up Settings…: the save dialog suggests
    `rostrum-backup-<date>.toml` in Documents. The file has `kind = "rostrum-backup"`, a
    `[settings]` table with general, mixer, ducking, apps, obs, scenes, devices, hotkeys and
    advanced, and one `[[scene]]` per scene. It has no `privacy`, `updates`, `window`,
@@ -722,6 +725,36 @@ Needs Easy Effects 7 or 8 with "Process all output streams" and "Process all inp
    Filtered Mic, not Easy Effects Source, and the Mic Filters page says "Hears the filtered mic".
 5. **Own streams.** The Devices page test chime and the mic check play in the headphones, never
    through Easy Effects.
+
+## 31. OpenDeck plugin install from Settings
+
+No physical deck is needed for the install checks.
+
+1. Open Settings → Integrations → OpenDeck. Native detection uses `$XDG_CONFIG_HOME/opendeck`
+   when set, otherwise `~/.config/opendeck`. Flatpak detection uses
+   `~/.var/app/me.amankhanna.opendeck/config/opendeck`. If both exist, choose an installation;
+   neither folder changes before a choice. A custom plugins folder stays selected until cleared;
+   a missing custom folder is an error, with no switch to another installation.
+2. Record the plugins and profiles before pressing Install. If Rostrum's plugin is already
+   installed, back up only `dev.getrostrum.Rostrum.sdPlugin` outside the plugins folder first.
+   Press Install: only that directory is created under the selected config's `plugins` folder.
+   It contains `manifest.json`, executable `plugin.sh`, `plugin.py`, `inspector.html`, and the
+   five built-in SVG icons. None is a symlink into a checkout or an AppImage mount. Other plugins
+   and profiles remain unchanged. Stop OpenDeck during the comparison so its own writes do not
+   obscure the install's changes.
+3. The status says the plugin matches this release and tells the user to restart OpenDeck.
+   It does not say the plugin loaded. Try the Installed button again: it is disabled, and the
+   file contents and modification times do not change. An older copy offers Update; an
+   incomplete copy offers Repair. A failed replacement retains the previous copy.
+4. Start a test instance with a PATH containing no `python3`: the page reports Python 3 was
+   not found, Install is disabled, and no plugin is installed. Restore the normal PATH afterward.
+5. Manual copy fallback: in OpenDeck settings choose Open config directory, then copy
+   `tools/opendeck/dev.getrostrum.Rostrum.sdPlugin` into `plugins`. Flatpak OpenDeck uses its
+   own config directory. Restart OpenDeck, then drag an action onto a key.
+6. Separately, when a deck is available: with OpenDeck and Rostrum running, press Toggle mic
+   and confirm the mixer strip matches Mic live / Mic muted. The four actions are Toggle mic,
+   Panic mute, Switch scene, and Toggle bus mute. Select a scene or bus in the property inspector.
+   This hardware check is not part of the install checks above.
 
 ## Smoke test log
 

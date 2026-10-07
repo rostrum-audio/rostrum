@@ -98,6 +98,10 @@ Five minutes to a split stream:
    - **Ready:** each choice in one list. Click one to change it, then press **Create Mix**.
 
    Skip Setup creates the same mix with the defaults. Everything can be changed later in Settings.
+   Settings groups the existing controls into General, Audio, Hotkeys, Integrations, and Application tabs.
+   **General → Startup → Launch at login** writes an autostart desktop file with an absolute
+   `Exec`: the quoted AppImage path or the full path to `~/.local/bin/rostrum`, followed by
+   `--autostart`. It does not rely on `rostrum` being on the login session's `PATH`.
 
    ![First-time setup: a step list on the left, and how apps go to buses and buses go to your headphones and to OBS](docs/screenshots/wizard.png)
 
@@ -144,7 +148,7 @@ Five minutes to a split stream:
    *Readiness separates verified controls and routing from OBS capture that has not been verified.*
 
    **While you stream**, Rostrum follows OBS quietly over the same localhost connection, whenever
-   OBS is open (Settings → OBS → "Follow OBS while it runs"). The header shows a red **LIVE** badge
+   OBS is open (Settings → Integrations → OBS → "Follow OBS while it runs"). The header shows a red **LIVE** badge
    and a **REC** badge with the elapsed time, and the tray tooltip says the same. If a stream
    starts with your mic muted, nothing reaching the stream mix, or OBS not recording Rostrum, a
    banner and a desktop notification say so. Under "When OBS switches scenes" on the OBS page,
@@ -184,6 +188,8 @@ whole headphone mix then goes through it.
 ### Include in Twitch VOD
 
 Track 1 is the live mix. Track 2 is the saved Twitch VOD.
+
+`VOD` is reserved for the VOD master; a bus cannot be named VOD.
 
 Each playback bus has an **Include in Twitch VOD** checkbox. Music is off the VOD mix by default. Game, Voice, Alerts, and Desktop are on. The mic has no checkbox; Rostrum Mic is on tracks 1 and 2.
 
@@ -267,7 +273,7 @@ listener.
 ### OpenDeck
 
 Install [OpenDeck](https://opendeck.nekename.me/) and open it once. In Rostrum, go to
-Settings → OpenDeck and click Install. Rostrum extracts its bundled plugin, detects native and
+Settings → Integrations → OpenDeck → Install. Rostrum extracts its bundled plugin, detects native and
 Flatpak configuration folders, and asks which to use if both exist. Choose plugins folder… is
 available for a custom location; it stays selected until cleared. Update and Repair replace only
 Rostrum's plugin, preserving your OpenDeck profiles and other plugins. Python 3 is required.
@@ -275,6 +281,10 @@ Restart OpenDeck, then drag Toggle mic, Panic mute, Switch scene, or Toggle bus 
 Choose a scene or bus in the property inspector and keep Rostrum running. The plugin uses
 session D-Bus (`gdbus`) first, with `rostrum --no-start` as a fallback; it never opens the deck or
 starts Rostrum. Older Rostrum versions without `--no-start` cannot use the CLI fallback.
+
+Manual copy fallback: copy `tools/opendeck/dev.getrostrum.Rostrum.sdPlugin` into the plugins
+folder shown by OpenDeck settings: **Open config directory**, then `plugins`. Flatpak OpenDeck
+uses its own config directory. Restart OpenDeck and drag one of the four actions onto a key.
 
 Test without hardware: `python3 -B tools/opendeck/test_plugin.py`.
 Manual check: with OpenDeck and Rostrum running, press a Toggle mic key and confirm that the
@@ -308,7 +318,7 @@ mixer's Mic strip matches its Mic live / Mic muted title.
 
 - Settings and scenes: `~/.config/rostrum/` (TOML). Log: `~/.local/state/rostrum/rostrum.log`.
 - Deleted scenes: `~/.config/rostrum/trash/`, kept 30 days. The setup from before a restore:
-  `~/.config/rostrum/backups/`. Settings → Advanced → Back Up Settings… writes settings, hotkeys,
+  `~/.config/rostrum/backups/`. Settings → Application → Advanced → Back Up Settings… writes settings, hotkeys,
   devices and scenes to one file, without crash report and update choices, window state or when
   apps were last seen.
 - Crash reports waiting to be sent or discarded: `~/.local/state/rostrum/crashes/` (at most 10,
