@@ -30,6 +30,7 @@ qt_add_qml_module(rostrum
         MicFilters.cpp MicFilters.h
         Mixer.cpp Mixer.h
         Obs.cpp Obs.h
+        ObsRecording.cpp ObsRecording.h
         OpenDeckSetup.cpp OpenDeckSetup.h
         Preferences.cpp Preferences.h
         RowsModel.cpp RowsModel.h
@@ -72,6 +73,7 @@ qt_add_qml_module(rostrum
         qml/MicFiltersPage.qml
         qml/MicCheckCard.qml
         qml/ObsPage.qml
+        qml/RecordingTracks.qml
         qml/ReadinessPanel.qml
         qml/ObsSetupDialog.qml
         qml/ObsChoices.qml

@@ -256,6 +256,13 @@ QString serializeSettings(const Settings &s)
     for (auto it = s.obsSceneMap.cbegin(); it != s.obsSceneMap.cend(); ++it) {
         sceneMap.insert(it.key().toStdString(), it.value().toStdString());
     }
+    toml::table recordingTracks;
+    for (auto it = s.obsRecordingTracks.cbegin(); it != s.obsRecordingTracks.cend(); ++it) {
+        toml::table assignment;
+        for (auto track = it->cbegin(); track != it->cend(); ++track)
+            assignment.insert(track.key().toStdString(), track.value().toStdString());
+        recordingTracks.insert(it.key().toStdString(), assignment);
+    }
     toml::array duckBuses;
     for (const auto &id : s.ducking.buses) {
         duckBuses.push_back(id.toStdString());
@@ -306,6 +313,7 @@ QString serializeSettings(const Settings &s)
              {"background", s.obsBackground},
              {"go_live_warnings", s.obsGoLiveWarnings},
              {"scene_map", sceneMap},
+             {"recording_tracks", recordingTracks},
          }},
         {"advanced", toml::table{{"show_node_ids", s.showNodeIds}}},
         {"scenes", toml::table{{"default", s.defaultScene.toStdString()}, {"scene_order", order}}},
@@ -417,6 +425,20 @@ Settings parseSettings(const QString &text, QString *error)
             if (!k.empty() && target && !target->empty()) {
                 s.obsSceneMap.insert(QString::fromStdString(std::string(k.str())),
                                      QString::fromStdString(*target));
+            }
+        }
+    }
+    if (const auto *collections = t["obs"]["recording_tracks"].as_table()) {
+        for (auto &&[key, value] : *collections) {
+            if (const auto *assignment = value.as_table()) {
+                QMap<QString, QString> tracks;
+                for (auto &&[track, bus] : *assignment) {
+                    const QString number = QString::fromStdString(std::string(track.str()));
+                    if (const auto id = bus.value<std::string>();
+                        id && number.toInt() >= 3 && number.toInt() <= 6)
+                        tracks.insert(number, QString::fromStdString(*id));
+                }
+                s.obsRecordingTracks.insert(QString::fromStdString(std::string(key.str())), tracks);
             }
         }
     }

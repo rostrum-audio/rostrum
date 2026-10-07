@@ -762,6 +762,34 @@ No physical deck is needed for the install checks.
    Panic mute, Switch scene, and Toggle bus mute. Select a scene or bus in the property inspector.
    This hardware check is not part of the install checks above.
 
+## 32. Separate OBS recording tracks
+
+Use a disposable OBS profile and scene collection, Advanced output mode, Standard recording,
+and Rostrum's normal stream setup. These are checks to run, not claims of recorded sound.
+
+1. Open OBS → Recording tracks. Current input assignments are shown. Suggested slots are
+   3 Mic, 4 Game, 5 Voice, 6 Music. Choose Unused for Voice. Review, then Cancel: OBS is unchanged.
+2. Review and Apply with outputs stopped. Mic keeps tracks 1/2 and gains 3; named Game and Music
+   Audio Output Captures use their bus monitors on tracks 4 and 6 only. Track 5 is disabled in
+   recording output. Other sources leave tracks 3–6; their tracks 1/2, mutes, filters, and encoder
+   settings remain. Shared nested scenes/groups do not need duplicate enabled placements.
+3. Apply the same choices again: no OBS writes or additional captures. Undo Recording Changes
+   restores previous track masks (including zero), mutes, enabled recording tracks, and scene
+   placements. Undo OBS Changes remains separate from recording Undo.
+4. Assign a Headphones-only bus. Its stream destination and VOD flag remain unchanged. Bus mute
+   silences its recording capture; mic mute silences track 3. Stream master mute and panic mute
+   silence the combined mixes while isolated playback captures keep their own bus state.
+5. Run Set Up OBS again: the intended isolated bus captures are not conflict-muted. Change a
+   track assignment in OBS, disconnect/reconnect or restart Rostrum: it reports the difference
+   and does not overwrite OBS. Rename a bus: its saved assignment follows its id. Remove it or
+   load a scene without it: Missing is shown and Apply refuses until the choice is corrected.
+6. While streaming or recording, Review/Apply/Undo are unavailable. If an output starts during
+   Apply, remaining writes stop; failed setup restores what it can or retains a separate Undo.
+   An unwritable backup directory refuses setup before any OBS write.
+7. Check readiness: it may report matching recording configuration. It still says recording
+   contents and sound were not tested. Separately make a short test recording and inspect each
+   selected track in an editor; this physical recording is not part of the unit test.
+
 ## Smoke test log
 
 Kubuntu 26.04, Plasma 6.6 Wayland, PipeWire 1.6.2, WirePlumber 0.5.13, build 0.1.0. The checks

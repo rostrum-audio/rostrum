@@ -47,7 +47,7 @@ struct Plan
     QList<Action> enabledActions() const;
 };
 
-Plan makePlan(const State &state, const Facts &facts, Mode mode);
+Plan makePlan(const State &state, const Facts &facts, Mode mode, const QSet<QString> &recordingDevices = {});
 
 // How to put back what a plan changed. Ops run in reverse order.
 struct UndoOp

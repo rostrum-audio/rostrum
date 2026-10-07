@@ -203,6 +203,11 @@ QQC2.ScrollView {
             }
         }
 
+        RecordingTracks {
+            Layout.fillWidth: true
+            setup: Obs.recordingTracks
+        }
+
         // What OBS records, straight from the PipeWire graph
         ColumnLayout {
             Layout.fillWidth: true

@@ -1,5 +1,7 @@
 #include "obs/ObsPlan.h"
 
+#include "obs/RecordingTracks.h"
+
 #include <QJsonArray>
 #include <QSet>
 
@@ -42,7 +44,7 @@ struct Target
 
 } // namespace
 
-Plan makePlan(const State &state, const Facts &facts, Mode mode)
+Plan makePlan(const State &state, const Facts &facts, Mode mode, const QSet<QString> &recordingDevices)
 {
     Plan plan;
     plan.mode = mode;
@@ -66,15 +68,18 @@ Plan makePlan(const State &state, const Facts &facts, Mode mode)
     };
 
     auto ensure = [&](const Target &t, quint32 tracks) {
+        auto recordingOnlyMic = [&](const Input &input) {
+            return t.want == Capture::RostrumMic && intendedRecording(input, recordingDevices);
+        };
         // Already recording the Rostrum device.
         for (const auto &i : state.inputs) {
-            if (caps.value(i.name) == t.want && !i.muted) {
+            if (caps.value(i.name) == t.want && !i.muted && !recordingOnlyMic(i)) {
                 used.insert(i.name);
                 return;
             }
         }
         for (const auto &i : state.inputs) {
-            if (caps.value(i.name) == t.want) {
+            if (caps.value(i.name) == t.want && !recordingOnlyMic(i)) {
                 plan.actions << Action{Action::Type::Unmute, t.role, t.want, i.name};
                 used.insert(i.name);
                 return;
@@ -172,7 +177,8 @@ Plan makePlan(const State &state, const Facts &facts, Mode mode)
 
     for (const auto &i : state.inputs) {
         const Capture c = caps.value(i.name);
-        if (i.muted || used.contains(i.name) || c == Capture::None) {
+        if (i.muted || used.contains(i.name) || c == Capture::None ||
+            intendedRecording(i, recordingDevices)) {
             continue;
         }
         Action mute{Action::Type::Mute, Action::Role::Conflict, c, i.name};

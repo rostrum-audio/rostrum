@@ -1,5 +1,7 @@
 #include "obs/Readiness.h"
 
+#include "obs/RecordingTracks.h"
+
 #include <QCoreApplication>
 #include <algorithm>
 #include <cmath>
@@ -299,8 +301,10 @@ QList<ReadinessResult> evaluateReadiness(const ReadinessInput &i)
                     tr("The configured capture target could not be resolved."));
                 continue;
             }
+            const bool isolated =
+                intendedRecording(in, i.recordingDevices) && !(in.tracks & 3u) && (in.tracks & 0x3cu);
             configuredStream = configuredStream || capture == Capture::RostrumStream;
-            configuredMic = configuredMic || capture == Capture::RostrumMic;
+            configuredMic = configuredMic || (capture == Capture::RostrumMic && !isolated);
             configuredVod = configuredVod || capture == Capture::RostrumVod;
             if (in.muted || in.gain <= 0 || in.tracks == 0) {
                 const bool intended = capture == Capture::RostrumStream || capture == Capture::RostrumMic ||
@@ -310,15 +314,18 @@ QList<ReadinessResult> evaluateReadiness(const ReadinessInput &i)
                 continue;
             }
             if (capture != Capture::RostrumStream && capture != Capture::RostrumMic &&
-                capture != Capture::RostrumVod) {
+                capture != Capture::RostrumVod && !isolated) {
                 add(id, in.name, ReadinessStatus::Attention,
                     tr("This capture bypasses Rostrum's Stream Mix or mic controls and can include "
                        "intentionally excluded audio."));
                 continue;
             }
-            const QString target = capture == Capture::RostrumStream ? QStringLiteral("rostrum.stream")
-                                 : capture == Capture::RostrumVod    ? QStringLiteral("rostrum.vod")
-                                                                     : QStringLiteral("rostrum.mic");
+            const QString target = isolated
+                                       ? (capture == Capture::RostrumMic ? QString::fromLatin1(kMicDevice)
+                                          : in.settings.value(QLatin1String("device_id")).toString().chopped(8))
+                                   : capture == Capture::RostrumStream ? QStringLiteral("rostrum.stream")
+                                   : capture == Capture::RostrumVod    ? QStringLiteral("rostrum.vod")
+                                                                       : QStringLiteral("rostrum.mic");
             const pw::Node *recorder = nullptr;
             bool ambiguous = false;
             for (const auto &n : i.graph->nodes)

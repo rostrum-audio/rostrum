@@ -115,6 +115,8 @@ struct Settings
     bool obsBackground = true; // follow OBS over obs-websocket on localhost while OBS runs
     bool obsGoLiveWarnings = true;
     QMap<QString, QString> obsSceneMap; // OBS scene name -> Rostrum scene name
+    QMap<QString, QMap<QString, QString>>
+        obsRecordingTracks; // installation/collection key -> track -> bus id
     // Advanced
     bool showNodeIds = false;
     // Scenes

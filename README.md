@@ -219,6 +219,20 @@ Watch out for leaks. Desktop Audio on track 2 puts Music back into the VOD. Leav
 
 A local OBS recording uses its own track boxes. Track 2 in a recording is the VOD mix only if the recording is set to track 2.
 
+On the OBS page, **Recording tracks** sets up separate recording audio while OBS is connected
+and its outputs are stopped. The editable suggestion is track 3 Mic, track 4 Game, track 5 Voice,
+and track 6 Music. Choose **Unused** for any slot you do not want to record. Tracks 1 and 2 keep
+their stream and VOD assignments. OBS must use Advanced output mode and Standard recording.
+**Review Recording Changes…** shows the current assignments and proposed changes before Apply.
+Rostrum saves a separate recording backup and offers **Undo Recording Changes**.
+
+Playback captures use each bus's existing monitor, including Headphones-only buses; recording
+does not change their stream destination or Include in Twitch VOD flag. Bus faders and mutes
+affect the isolated audio, and mic mute silences the mic track. Panic mute and Stream master
+mute silence the combined stream and VOD mixes; isolated playback tracks continue recording.
+Assignments are saved by bus id for the OBS scene collection. Reconnecting checks them without
+overwriting OBS edits. A matching configuration does not prove that a recording sounds right.
+
 How to check: run a short Twitch stream with music playing. The live replay has the music; the saved VOD does not.
 
 ### ⌨️ Shortcuts

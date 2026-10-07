@@ -1,5 +1,6 @@
 #pragma once
 
+#include "app/ObsRecording.h"
 #include "obs/ObsClient.h"
 #include "obs/ObsConfig.h"
 #include "obs/ObsModel.h"
@@ -74,6 +75,7 @@ class Obs : public QObject
     Q_PROPERTY(QString warningText READ warningText NOTIFY warningsChanged)
     Q_PROPERTY(QVariantList readiness READ readiness NOTIFY readinessChanged)
     Q_PROPERTY(bool readinessChecking READ readinessChecking NOTIFY readinessChanged)
+    Q_PROPERTY(ObsRecording *recordingTracks READ recordingTracks CONSTANT)
 
 public:
     Obs(AppController *app, QObject *parent);
@@ -118,6 +120,7 @@ public:
 
     QVariantList readiness() const { return m_readiness; }
     bool readinessChecking() const { return m_readinessChecking; }
+    ObsRecording *recordingTracks() const { return m_recordingTracks; }
     Q_INVOKABLE void checkReadiness();
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void setPlanItemEnabled(int index, bool enabled);
@@ -139,6 +142,7 @@ Q_SIGNALS:
     void readinessChanged();
 
 private:
+    friend class ObsRecording;
     obs::ReadinessInput readinessInput() const;
     void rebuildReadiness();
     void invalidateReadiness(const QString &reason);
@@ -168,6 +172,7 @@ private:
     AppController *m_app = nullptr;
     obs::Client m_client;
     obs::LiveStatus m_live{&m_client};
+    ObsRecording *m_recordingTracks = nullptr;
     QTimer m_poll;
     QTimer m_refetch;
     QTimer m_graphDebounce;

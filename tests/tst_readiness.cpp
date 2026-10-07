@@ -67,6 +67,33 @@ class TestReadiness : public QObject
 {
     Q_OBJECT
 private Q_SLOTS:
+    void intendedRecordingIsNotABroadcastBypass()
+    {
+        auto g = graph();
+        auto i = input(g);
+        State state;
+        state.scopeKnown = true;
+        state.programInputs.insert(QStringLiteral("Recording Desktop"));
+        Input in;
+        in.name = QStringLiteral("Recording Desktop");
+        in.kind = QLatin1String(kPulseOutput);
+        in.settings = {{QStringLiteral("device_id"), QStringLiteral("rostrum.desktop.monitor")}};
+        in.settingsKnown = in.muteKnown = in.tracksKnown = in.gainKnown = true;
+        in.tracks = 8;
+        state.inputs << in;
+        i.obsState = &state;
+        i.obsFresh = true;
+        QCOMPARE(row(evaluateReadiness(i), QStringLiteral("obs-Recording Desktop")).status,
+                 ReadinessStatus::Attention);
+        i.recordingDevices.insert(QStringLiteral("rostrum.desktop.monitor"));
+        // Configuration is intentional, but no capture stream was observed: never Verified.
+        QCOMPARE(row(evaluateReadiness(i), QStringLiteral("obs-Recording Desktop")).status,
+                 ReadinessStatus::Unknown);
+        state.inputs[0].tracks |= 1;
+        QCOMPARE(row(evaluateReadiness(i), QStringLiteral("obs-Recording Desktop")).status,
+                 ReadinessStatus::Attention);
+    }
+
     void effectiveMuteAndIntent()
     {
         ReadinessInput i;
