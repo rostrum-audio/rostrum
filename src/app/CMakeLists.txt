@@ -12,6 +12,8 @@ qt_add_executable(rostrum
     Logging.cpp Logging.h
 )
 
+rostrum_embed_opendeck(rostrum)
+
 qt_add_qml_module(rostrum
     URI Rostrum
     VERSION 1.0
@@ -28,6 +30,7 @@ qt_add_qml_module(rostrum
         MicFilters.cpp MicFilters.h
         Mixer.cpp Mixer.h
         Obs.cpp Obs.h
+        OpenDeckSetup.cpp OpenDeckSetup.h
         Preferences.cpp Preferences.h
         RowsModel.cpp RowsModel.h
         Scenes.cpp Scenes.h

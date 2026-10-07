@@ -8,6 +8,9 @@ function(rostrum_add_test name)
     set_tests_properties(${name} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endfunction()
 
+rostrum_add_test(tst_opendeck)
+rostrum_embed_opendeck(tst_opendeck)
+
 rostrum_add_test(tst_paths)
 rostrum_add_test(tst_requirements)
 rostrum_add_test(tst_model)

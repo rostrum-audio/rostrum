@@ -266,14 +266,15 @@ listener.
 
 ### OpenDeck
 
-Install [OpenDeck](https://opendeck.nekename.me/), then copy
-`tools/opendeck/dev.getrostrum.Rostrum.sdPlugin` into the `plugins` folder reached through
-OpenDeck settings → Open config directory. Flatpak OpenDeck uses its own config directory.
-Restart OpenDeck and drag a Rostrum action onto a key: Toggle mic, Panic mute, Switch scene,
-or Toggle bus mute. Choose a scene or bus in the property inspector. The plugin needs Python 3
-and uses session D-Bus (`gdbus`) first, with the local `rostrum --no-start` CLI as a fallback;
-keep Rostrum running. It never opens the deck or starts Rostrum. Older Rostrum versions without
-`--no-start` cannot use the CLI fallback.
+Install [OpenDeck](https://opendeck.nekename.me/) and open it once. In Rostrum, go to
+Settings → OpenDeck and click Install. Rostrum extracts its bundled plugin, detects native and
+Flatpak configuration folders, and asks which to use if both exist. Choose plugins folder… is
+available for a custom location; it stays selected until cleared. Update and Repair replace only
+Rostrum's plugin, preserving your OpenDeck profiles and other plugins. Python 3 is required.
+Restart OpenDeck, then drag Toggle mic, Panic mute, Switch scene, or Toggle bus mute onto a key.
+Choose a scene or bus in the property inspector and keep Rostrum running. The plugin uses
+session D-Bus (`gdbus`) first, with `rostrum --no-start` as a fallback; it never opens the deck or
+starts Rostrum. Older Rostrum versions without `--no-start` cannot use the CLI fallback.
 
 Test without hardware: `python3 -B tools/opendeck/test_plugin.py`.
 Manual check: with OpenDeck and Rostrum running, press a Toggle mic key and confirm that the

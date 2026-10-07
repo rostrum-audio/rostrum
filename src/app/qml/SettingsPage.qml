@@ -13,6 +13,8 @@ import Rostrum
 QQC2.ScrollView {
     id: page
 
+    onVisibleChanged: if (visible) OpenDeckSetup.refresh()
+
     contentWidth: availableWidth
     QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
 
@@ -376,6 +378,54 @@ QQC2.ScrollView {
         }
 
         FormCard.FormHeader {
+            title: i18nc("@title:group", "OpenDeck")
+            Accessible.name: title
+        }
+        FormCard.FormCard {
+            FormCard.FormComboBoxDelegate {
+                visible: !OpenDeckSetup.custom && (OpenDeckSetup.installations.length > 2 || OpenDeckSetup.needsChoice)
+                text: i18nc("@label:listbox", "OpenDeck installation")
+                model: OpenDeckSetup.installations
+                currentIndex: OpenDeckSetup.selectedIndex
+                enabled: !OpenDeckSetup.busy
+                onActivated: index => OpenDeckSetup.selectInstallation(index)
+                Accessible.name: text
+            }
+            FormCard.FormButtonDelegate {
+                text: OpenDeckSetup.actionText
+                description: OpenDeckSetup.status
+                enabled: OpenDeckSetup.actionEnabled
+                onClicked: OpenDeckSetup.activate()
+                Accessible.name: i18nc("@action:button accessible", "%1 Rostrum OpenDeck plugin", text)
+            }
+            FormCard.FormTextDelegate {
+                visible: OpenDeckSetup.feedback.length > 0
+                text: OpenDeckSetup.feedback
+                Accessible.name: text
+            }
+            FormCard.FormDelegateSeparator {}
+            FormCard.FormButtonDelegate {
+                text: i18nc("@action:button", "Choose plugins folder…")
+                enabled: !OpenDeckSetup.busy
+                onClicked: openDeckFolderDialog.open()
+                Accessible.name: text
+            }
+            FormCard.FormButtonDelegate {
+                visible: OpenDeckSetup.custom
+                text: i18nc("@action:button", "Clear custom plugins folder")
+                enabled: !OpenDeckSetup.busy
+                onClicked: OpenDeckSetup.clearFolder()
+                Accessible.name: text
+            }
+            FormCard.FormButtonDelegate {
+                text: i18nc("@action:button", "Check again")
+                enabled: !OpenDeckSetup.busy
+                onClicked: OpenDeckSetup.refresh()
+                Accessible.name: i18nc("@action:button accessible", "Check OpenDeck installation again")
+            }
+        }
+
+        FormCard.FormHeader {
             visible: CrashReports.available
             title: i18nc("@title:group", "Privacy")
         }
@@ -570,6 +620,12 @@ QQC2.ScrollView {
     }
     CrashReportDialog {
         id: pendingDialog
+    }
+
+    Dialogs.FolderDialog {
+        id: openDeckFolderDialog
+        title: i18nc("@title:window", "Choose OpenDeck plugins folder")
+        onAccepted: OpenDeckSetup.chooseFolder(selectedFolder)
     }
 
     Dialogs.FileDialog {

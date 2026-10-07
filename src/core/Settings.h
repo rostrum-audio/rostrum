@@ -108,6 +108,9 @@ struct Settings
     bool installUpdates = true; // only where Rostrum can replace itself (AppImage)
     QString skippedVersion;
     qint64 lastUpdateCheck = 0; // seconds since the epoch
+    // OpenDeck: an explicit plugins folder overrides detection until cleared.
+    QString openDeckPluginsFolder;
+    QString openDeckInstallation; // native or flatpak, when both were detected
     // OBS
     bool obsBackground = true; // follow OBS over obs-websocket on localhost while OBS runs
     bool obsGoLiveWarnings = true;

@@ -23,6 +23,7 @@ set(ROSTRUM_SENTRY_DSN "" CACHE STRING
     "Sentry DSN crash reports go to; without one, crash reporting is hidden")
 
 include(GNUInstallDirs)
+include(tools/opendeck/resources.cmake)
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core WebSockets)
 if(ROSTRUM_BUILD_APP)

@@ -299,6 +299,8 @@ QString serializeSettings(const Settings &s)
              {"skipped_version", s.skippedVersion.toStdString()},
              {"last_check", int64_t(s.lastUpdateCheck)},
          }},
+        {"opendeck", toml::table{{"plugins_folder", s.openDeckPluginsFolder.toStdString()},
+                                  {"installation", s.openDeckInstallation.toStdString()}}},
         {"obs",
          toml::table{
              {"background", s.obsBackground},
@@ -405,6 +407,8 @@ Settings parseSettings(const QString &text, QString *error)
     s.installUpdates = get(t, "updates", "install", s.installUpdates);
     s.skippedVersion = getStr(t, "updates", "skipped_version", s.skippedVersion);
     s.lastUpdateCheck = get<int64_t>(t, "updates", "last_check", s.lastUpdateCheck);
+    s.openDeckPluginsFolder = getStr(t, "opendeck", "plugins_folder", s.openDeckPluginsFolder);
+    s.openDeckInstallation = getStr(t, "opendeck", "installation", s.openDeckInstallation);
     s.obsBackground = get(t, "obs", "background", s.obsBackground);
     s.obsGoLiveWarnings = get(t, "obs", "go_live_warnings", s.obsGoLiveWarnings);
     if (const auto *map = t["obs"]["scene_map"].as_table()) {
