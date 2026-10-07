@@ -264,6 +264,21 @@ reached. The same controls are on the session bus as `dev.getrostrum.Rostrum1` a
 [data/dev.getrostrum.Rostrum1.xml](data/dev.getrostrum.Rostrum1.xml). There is no network
 listener.
 
+### OpenDeck
+
+Install [OpenDeck](https://opendeck.nekename.me/), then copy
+`tools/opendeck/dev.getrostrum.Rostrum.sdPlugin` into the `plugins` folder reached through
+OpenDeck settings → Open config directory. Flatpak OpenDeck uses its own config directory.
+Restart OpenDeck and drag a Rostrum action onto a key: Toggle mic, Panic mute, Switch scene,
+or Toggle bus mute. Choose a scene or bus in the property inspector. The plugin needs Python 3
+and uses session D-Bus (`gdbus`) first, with the local `rostrum --no-start` CLI as a fallback;
+keep Rostrum running. It never opens the deck or starts Rostrum. Older Rostrum versions without
+`--no-start` cannot use the CLI fallback.
+
+Test without hardware: `python3 -B tools/opendeck/test_plugin.py`.
+Manual check: with OpenDeck and Rostrum running, press a Toggle mic key and confirm that the
+mixer's Mic strip matches its Mic live / Mic muted title.
+
 ### ⚙️ Defaults
 
 - Default scene name: `Live`.

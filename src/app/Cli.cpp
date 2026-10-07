@@ -81,6 +81,11 @@ bool needsGui(int argc, char **argv)
                                           QStringLiteral("--help-all"), QStringLiteral("-v"),
                                           QStringLiteral("--version"),  QStringLiteral("--author"),
                                           QStringLiteral("--license")};
+    for (int i = 1; i < argc; ++i) {
+        if (QString::fromLocal8Bit(argv[i]) == QLatin1String("--no-start")) {
+            return false;
+        }
+    }
     bool query = false;
     for (int i = 1; i < argc; ++i) {
         const QString arg = QString::fromLocal8Bit(argv[i]);
@@ -97,6 +102,7 @@ bool needsGui(int argc, char **argv)
 void addOptions(QCommandLineParser &parser)
 {
     parser.addOptions({
+        {QStringLiteral("no-start"), i18n("Only control a running Rostrum; exit with status 2 if it is unavailable.")},
         {QStringLiteral("autostart"), i18n("Started at login by the autostart entry.")},
         {QStringLiteral("scene"), i18n("Switch to the scene called <name>."),
          i18nc("@info:shell value name", "name")},

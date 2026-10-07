@@ -49,6 +49,12 @@ check() { # description, expected, actual
 status() { "$@" >/dev/null 2>&1; echo $?; }
 prop() { gdbus call --session --dest $DEST --object-path $OBJ --method org.freedesktop.DBus.Properties.Get $IFACE "$1"; }
 
+# Guarded deck commands must exit without starting an instance, even without a display.
+check "no-start absent control" "2" "$(status env -u DISPLAY -u WAYLAND_DISPLAY -u QT_QPA_PLATFORM "$B" --no-start --toggle-mic)"
+check "no-start absent query" "2" "$(status "$B" --no-start --list-buses)"
+check "no-start alone" "2" "$(status "$B" --no-start)"
+check "no-start writes nothing" "no" "$([ -d "$XDG_CONFIG_HOME/rostrum/scenes" ] && echo yes || echo no)"
+
 # Without a running Rostrum, lists come from disk and nothing is written.
 check "offline scene list" "Live" "$("$B" --list-scenes)"
 check "offline query writes nothing" "no" "$([ -d "$XDG_CONFIG_HOME/rostrum/scenes" ] && echo yes || echo no)"
@@ -81,7 +87,7 @@ kill $MON
 check "PropertiesChanged sent" "1" \
     "$(grep -c "PropertiesChanged ('$IFACE', {'MicMuted': <true>" "$XDG_STATE_HOME/monitor.txt")"
 check "MicMuted property" "(<true>,)" "$(prop MicMuted)"
-check "toggle mic" "0" "$(status "$B" --toggle-mic)"
+check "toggle mic with no-start" "0" "$(status env -u DISPLAY -u WAYLAND_DISPLAY -u QT_QPA_PLATFORM "$B" --no-start --toggle-mic)"
 check "MicMuted after toggle" "(<false>,)" "$(prop MicMuted)"
 check "unknown scene" "1" "$(status "$B" --scene Nowhere)"
 check "known scene" "0" "$(status "$B" --scene live)"
@@ -111,6 +117,40 @@ check "MicFilters after toggle" "(<false>,)" "$(prop MicFilters)"
 "$B" --action toggle_mic_filters
 sleep 0.8
 check "mic filters saved" "1" "$(sed -n '/^\[mic_filters\]/,/^\[/p' "$XDG_CONFIG_HOME/rostrum/settings.toml" | grep -c '^enabled = true')"
+
+# Exercise the plugin adapter against this private running instance, including its safe CLI
+# fallback. No physical deck, live session bus or mixer graph is involved.
+if command -v python3 >/dev/null 2>&1; then
+    python3 -B - "$B" "$(dirname "$0")/../tools/opendeck/dev.getrostrum.Rostrum.sdPlugin/plugin.py" <<'PYPLUGIN'
+import importlib.util
+import subprocess
+import sys
+spec = importlib.util.spec_from_file_location('rostrum_plugin', sys.argv[2])
+plugin = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(plugin)
+direct = plugin.Controls(executable=sys.argv[1])
+def without_gdbus(command, **kwargs):
+    if command[0] == 'gdbus':
+        raise FileNotFoundError()
+    return subprocess.run(command, **kwargs)
+fallback = plugin.Controls(run=without_gdbus, executable=sys.argv[1])
+for controls in (direct, fallback):
+    buses, scenes = controls.snapshot()
+    assert 'Live' in scenes and 'mic' in buses
+    controls.scene('Live')
+    for bus in ('mic', 'game', 'stream', 'phones'):
+        before = direct.snapshot()[0][bus]['muted']
+        controls.toggle(bus)
+        assert direct.snapshot()[0][bus]['muted'] != before, bus
+        controls.toggle(bus)
+    controls.panic()
+    assert direct.snapshot()[0]['stream']['muted']
+    controls.panic()
+direct.release('push_to_talk')
+print('ok   OpenDeck D-Bus and CLI adapters')
+PYPLUGIN
+    check "OpenDeck adapters" "0" "$?"
+fi
 
 # A client that presses push to talk and leaves must not leave the mic live.
 "$B" --mute-mic

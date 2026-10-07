@@ -70,9 +70,16 @@ int main(int argc, char *argv[])
         if (rostrum::app::cli::instanceRunning()) {
             return rostrum::app::cli::forward(request);
         }
+        if (parser.isSet(QStringLiteral("no-start"))) {
+            return rostrum::app::cli::kExitUnreachable;
+        }
         if (!request.hasControls()) {
             return rostrum::app::cli::answerOffline(request);
         }
+    }
+
+    if (parser.isSet(QStringLiteral("no-start"))) {
+        return rostrum::app::cli::kExitUnreachable;
     }
 
     rostrum::logging::install(rostrum::paths::logFile());

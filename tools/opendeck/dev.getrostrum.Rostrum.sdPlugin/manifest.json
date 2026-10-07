@@ -1,0 +1,102 @@
+{
+  "Name": "Rostrum",
+  "Author": "Rostrum contributors",
+  "Version": "1.0.0",
+  "Icon": "images/mic",
+  "Category": "Rostrum",
+  "CodePath": "plugin.sh",
+  "CodePathLin": "plugin.sh",
+  "OS": [
+    {
+      "Platform": "linux"
+    }
+  ],
+  "Actions": [
+    {
+      "UUID": "dev.getrostrum.Rostrum.mic",
+      "Name": "Toggle mic",
+      "Icon": "images/mic",
+      "Controllers": [
+        "Keypad"
+      ],
+      "DisableAutomaticStates": true,
+      "SupportedInMultiActions": false,
+      "States": [
+        {
+          "Image": "images/mic",
+          "Title": "Mic live",
+          "TitleAlignment": "bottom",
+          "FontSize": "12"
+        },
+        {
+          "Image": "images/mic-muted",
+          "Title": "Mic muted",
+          "TitleAlignment": "bottom",
+          "FontSize": "12"
+        }
+      ]
+    },
+    {
+      "UUID": "dev.getrostrum.Rostrum.panic",
+      "Name": "Panic mute",
+      "Icon": "images/panic",
+      "Controllers": [
+        "Keypad"
+      ],
+      "DisableAutomaticStates": true,
+      "SupportedInMultiActions": false,
+      "States": [
+        {
+          "Image": "images/panic",
+          "Title": "Panic mute",
+          "TitleAlignment": "bottom",
+          "FontSize": "12"
+        }
+      ]
+    },
+    {
+      "UUID": "dev.getrostrum.Rostrum.scene",
+      "Name": "Switch scene",
+      "Icon": "images/scene",
+      "Controllers": [
+        "Keypad"
+      ],
+      "DisableAutomaticStates": true,
+      "SupportedInMultiActions": false,
+      "States": [
+        {
+          "Image": "images/scene",
+          "Title": "Switch scene",
+          "TitleAlignment": "bottom",
+          "FontSize": "12"
+        }
+      ],
+      "PropertyInspectorPath": "inspector.html"
+    },
+    {
+      "UUID": "dev.getrostrum.Rostrum.bus",
+      "Name": "Toggle bus mute",
+      "Icon": "images/bus",
+      "Controllers": [
+        "Keypad"
+      ],
+      "DisableAutomaticStates": true,
+      "SupportedInMultiActions": false,
+      "States": [
+        {
+          "Image": "images/bus",
+          "Title": "Toggle bus mute",
+          "TitleAlignment": "bottom",
+          "FontSize": "12"
+        },
+        {
+          "Image": "images/bus",
+          "Title": "Toggle bus mute",
+          "TitleAlignment": "bottom",
+          "FontSize": "12"
+        }
+      ],
+      "PropertyInspectorPath": "inspector.html"
+    }
+  ]
+}

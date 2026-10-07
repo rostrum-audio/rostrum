@@ -57,6 +57,9 @@ endif()
 
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
+    add_test(NAME opendeck_plugin COMMAND ${Python3_EXECUTABLE} -B
+        ${PROJECT_SOURCE_DIR}/tools/opendeck/test_plugin.py)
+    set_tests_properties(opendeck_plugin PROPERTIES TIMEOUT 30)
     add_test(NAME offscreen_diagnostics COMMAND ${Python3_EXECUTABLE} -B
         ${CMAKE_CURRENT_SOURCE_DIR}/test_offscreen_diagnostics.py)
     set_tests_properties(offscreen_diagnostics PROPERTIES TIMEOUT 45)
