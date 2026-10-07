@@ -1,7 +1,7 @@
 {
   "Name": "Rostrum",
   "Author": "Rostrum contributors",
-  "Version": "1.1.0",
+  "Version": "1.2.0",
   "Icon": "images/mic",
   "Category": "Rostrum",
   "CodePath": "plugin.sh",

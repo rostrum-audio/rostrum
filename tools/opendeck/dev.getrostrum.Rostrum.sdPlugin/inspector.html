@@ -6,12 +6,18 @@
 <style>
 body { background: #252525; color: #eee; font: 14px sans-serif; margin: 16px; }
 label, select { display: block; width: 100%; }
+input[type="range"] { width: 100%; margin: 8px 0; }
+output { float: right; }
 select { margin-top: 8px; padding: 6px; background: #333; color: #eee; }
 </style>
 <label id="label" for="choice">Choose a scene or bus</label>
 <select id="choice" disabled><option value="">Choose…</option></select>
 <div id="feedback" hidden>
   <label for="playSound"><input id="playSound" type="checkbox" checked> Play sound</label>
+  <label for="soundVolume">Sound volume <output id="volumeValue" for="soundVolume">50%</output></label>
+  <input id="soundVolume" type="range" min="0" max="100" step="1" value="50"
+         aria-describedby="soundHelp">
+  <p id="soundHelp">50% is the original volume. Adjusts only these cues.</p>
   <p>Muted: descending tones. Live: ascending tones. Plays in Rostrum headphones; requires pw-play.</p>
 </div>
 <p id="status" role="status">Connecting…</p>
@@ -20,12 +26,25 @@ let socket, context, action, settings = {};
 const choice = document.getElementById('choice');
 const status = document.getElementById('status');
 const playSound = document.getElementById('playSound');
+const soundVolume = document.getElementById('soundVolume');
+const volumeValue = document.getElementById('volumeValue');
+function volumeSetting(value) {
+    return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 50;
+}
+function showVolume() {
+    volumeValue.textContent = soundVolume.value + '%';
+    soundVolume.setAttribute('aria-valuetext', volumeValue.textContent);
+}
 function showSettings() {
     const isMic = action && action.endsWith('.mic');
     document.getElementById('feedback').hidden = !isMic;
     document.getElementById('label').hidden = isMic;
     choice.hidden = isMic;
     playSound.checked = settings.playSound !== false;
+    if (document.activeElement !== soundVolume)
+        soundVolume.value = volumeSetting(settings.soundVolume);
+    soundVolume.disabled = !playSound.checked;
+    showVolume();
 }
 function send(event, payload) {
     if (socket && socket.readyState === WebSocket.OPEN)
@@ -74,6 +93,12 @@ function connectOpenActionSocket(port, uuid, registerEvent, info, actionInfo) {
 const connectElgatoStreamDeckSocket = connectOpenActionSocket;
 playSound.onchange = () => {
     settings.playSound = playSound.checked;
+    soundVolume.disabled = !playSound.checked;
+    send('setSettings', settings);
+};
+soundVolume.oninput = showVolume;
+soundVolume.onchange = () => {
+    settings.soundVolume = volumeSetting(Number(soundVolume.value));
     send('setSettings', settings);
 };
 choice.onchange = () => {

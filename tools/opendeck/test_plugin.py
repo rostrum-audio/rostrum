@@ -196,6 +196,11 @@ class PluginTest(unittest.TestCase):
         self.down(app)
         self.assertEqual(events[-1]['payload']['title'], 'Missing')
 
+    @unittest.skipUnless(plugin.shutil.which('node'), 'optional inspector check requires Node.js')
+    def test_inspector_settings_round_trip(self):
+        result = subprocess.run(['node', str(ROOT.parent / 'test_inspector.js')], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_manifest_assets(self):
         manifest = json.loads((ROOT / 'manifest.json').read_text())
         self.assertEqual(len(manifest['Actions']), 4)
@@ -225,8 +230,9 @@ class MicFeedbackTest(unittest.TestCase):
             self.muted = not self.muted
 
     class Feedback:
-        def __init__(self): self.states = []
-        def play(self, muted): self.states.append(muted)
+        def __init__(self): self.states, self.volumes = [], []
+        def play(self, muted, volume=50):
+            self.states.append(muted); self.volumes.append(volume)
         def reap(self): pass
         def close(self): pass
 
@@ -256,12 +262,27 @@ class MicFeedbackTest(unittest.TestCase):
         self.event('keyUp')
         self.assertEqual(self.feedback.states, [False])
 
+    def test_per_key_volume_is_used_on_both_cues(self):
+        self.app.handle({'event': 'didReceiveSettings', 'context': 'mic-key',
+                         'payload': {'settings': {'soundVolume': 25}}})
+        self.event('keyDown'); self.event('keyUp')
+        self.event('keyDown'); self.event('keyUp')
+        self.assertEqual(self.feedback.states, [True, False])
+        self.assertEqual(self.feedback.volumes, [25, 25])
+
     def test_disabled_feedback_still_toggles(self):
         self.app.handle({'event': 'didReceiveSettings', 'context': 'mic-key',
                          'payload': {'settings': {'playSound': False}}})
         self.event('keyDown'); self.event('keyUp')
         self.assertTrue(self.backend.muted)
         self.assertEqual(self.feedback.states, [])
+
+    def test_zero_volume_does_not_block_mic_control(self):
+        self.app.handle({'event': 'didReceiveSettings', 'context': 'mic-key',
+                         'payload': {'settings': {'soundVolume': 0}}})
+        self.event('keyDown'); self.event('keyUp')
+        self.assertTrue(self.backend.muted)
+        self.assertEqual(self.feedback.volumes, [0])
 
     def test_unreachable_after_toggle_discards_feedback(self):
         self.event('keyDown'); self.backend.absent = True
@@ -303,6 +324,22 @@ class FeedbackPlaybackTest(unittest.TestCase):
             feedback.reap()
             self.assertIsNone(feedback.process)
 
+    def test_volume_curve_bounds_and_invalid_saved_values(self):
+        feedback = plugin.Feedback()
+        for value, gain in [(25, 0.0625), (50, 0.25), (100, 1.0), (150, 1.0),
+                            (None, 0.25), ('loud', 0.25), (True, 0.25), (float('nan'), 0.25)]:
+            with self.subTest(value=value), \
+                 patch.object(plugin.shutil, 'which', return_value='/usr/bin/pw-play'), \
+                 patch.object(plugin.subprocess, 'Popen') as spawn:
+                feedback.play(True, value)
+                command = spawn.call_args.args[0]
+                self.assertAlmostEqual(float(command[command.index('--volume') + 1]), gain)
+                feedback.close()
+        for value in (0, -10):
+            with patch.object(plugin.subprocess, 'Popen') as spawn:
+                feedback.play(False, value)
+                spawn.assert_not_called()
+
     def test_missing_or_failed_player_is_harmless(self):
         feedback = plugin.Feedback()
         with patch.object(plugin.shutil, 'which', return_value=None):
@@ -323,7 +360,10 @@ class FeedbackPlaybackTest(unittest.TestCase):
                 frames = audio.readframes(audio.getnframes())
             samples = struct.unpack('<' + 'h' * (len(frames) // 2), frames)
             self.assertAlmostEqual(len(samples) / rate, 0.2, places=3)
-            self.assertLess(max(map(abs, samples)), 5000)
+            self.assertLess(max(map(abs, samples)), 16000)
+            # At the default 50%, playback gain is 0.25, preserving the original quiet peak.
+            self.assertGreater(max(map(abs, samples)) * 0.25 / 32767, 0.09)
+            self.assertLess(max(map(abs, samples)) * 0.25 / 32767, 0.12)
             self.assertEqual(samples[0], 0); self.assertEqual(samples[-1], 0)
             # Count crossings in the middle of each note, away from the fades.
             frequencies = []

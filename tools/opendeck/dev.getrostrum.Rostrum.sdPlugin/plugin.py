@@ -7,6 +7,7 @@ import base64
 import hashlib
 import io
 import json
+import math
 import os
 from pathlib import Path
 import shutil
@@ -146,8 +147,13 @@ class Feedback:
         self.process = None
         self.started = 0
 
-    def play(self, muted):
+    def play(self, muted, volume=50):
         self.close()  # Fast repeated presses never overlap or queue old feedback.
+        if isinstance(volume, bool) or not isinstance(volume, (int, float)) or not math.isfinite(volume):
+            volume = 50
+        gain = (max(0, min(100, volume)) / 100) ** 2
+        if gain == 0:
+            return
         player = shutil.which('pw-play')
         if not player:
             return
@@ -158,7 +164,7 @@ class Feedback:
                                  'node.dont-reconnect': True})
         try:
             self.process = subprocess.Popen(
-                [player, '--target', 'rostrum.phones', '--latency', '30ms',
+                [player, '--target', 'rostrum.phones', '--latency', '30ms', '--volume', str(gain),
                  '--properties', properties, str(sound)],
                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             self.started = time.monotonic()
@@ -204,7 +210,7 @@ class Plugin:
             key = self.keys.get(context)
             if (self.available and 'mic' in self.buses and key
                     and key['settings'].get('playSound', True) is not False):
-                self.feedback.play(self.buses['mic']['muted'])
+                self.feedback.play(self.buses['mic']['muted'], key['settings'].get('soundVolume', 50))
         for context in self.keys:
             self.render(context)
 

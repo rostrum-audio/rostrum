@@ -282,7 +282,8 @@ Choose a scene or bus in the property inspector and keep Rostrum running. Toggle
 Play sound option, enabled by default: a short descending cue confirms muted, and an ascending
 cue confirms live. Cues use `pw-play` and go only to Rostrum's headphones mix; muted headphones
 also mute the cues. No cue plays if Rostrum cannot confirm the state. Disable Play sound in the
-key's property inspector for silent operation. The plugin uses
+key's property inspector for silent operation. Sound volume adjusts just the cues from 0–100%;
+50% matches the original level, and the setting is saved per key. The plugin uses
 session D-Bus (`gdbus`) first, with `rostrum --no-start` as a fallback; it never opens the deck or
 starts Rostrum. Older Rostrum versions without `--no-start` cannot use the CLI fallback.
 

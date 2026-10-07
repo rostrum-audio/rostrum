@@ -21,7 +21,7 @@ def note(frequency):
         envelope = math.sin(attack * math.pi / 2) ** 2 * math.sin(release * math.pi / 2) ** 2
         phase = 2 * math.pi * frequency * t
         value = (math.sin(phase) + 0.12 * math.sin(2 * phase)) / 1.12
-        samples.append(round(32767 * 0.11 * envelope * value))
+        samples.append(round(32767 * 0.44 * envelope * value))
     return samples
 
 
