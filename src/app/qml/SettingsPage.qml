@@ -21,9 +21,12 @@ QQC2.ScrollView {
         spacing: 0
 
         FormCard.FormHeader {
-            title: i18nc("@title:group", "General")
+            title: i18nc("@title:group settings", "Startup")
+            Accessible.name: title
+            maximumWidth: page.availableWidth
         }
         FormCard.FormCard {
+            maximumWidth: page.availableWidth
             FormCard.FormSwitchDelegate {
                 text: i18nc("@option:check", "Launch at login")
                 description: i18n("Start Rostrum when you log in, so the mix is ready before Discord or OBS.")
@@ -58,7 +61,15 @@ QQC2.ScrollView {
                 checked: Desktop.minimizeToTray
                 onToggled: Desktop.minimizeToTray = checked
             }
-            FormCard.FormDelegateSeparator {}
+        }
+
+        FormCard.FormHeader {
+            title: i18nc("@title:group settings", "Scenes and mixer")
+            Accessible.name: title
+            maximumWidth: page.availableWidth
+        }
+        FormCard.FormCard {
+            maximumWidth: page.availableWidth
             FormCard.FormSwitchDelegate {
                 text: i18nc("@option:check", "Save scene changes automatically")
                 description: i18n("Fader, mute and destination changes save to the live scene a moment after you make them. Turn off to keep scenes fixed until you press Save.")
@@ -101,7 +112,15 @@ QQC2.ScrollView {
                 checked: Preferences.osdFeedback
                 onToggled: Preferences.osdFeedback = checked
             }
-            FormCard.FormDelegateSeparator {}
+        }
+
+        FormCard.FormHeader {
+            title: i18nc("@title:group settings", "Session")
+            Accessible.name: title
+            maximumWidth: page.availableWidth
+        }
+        FormCard.FormCard {
+            maximumWidth: page.availableWidth
             FormCard.FormButtonDelegate {
                 text: i18nc("@action:button", "Quit Rostrum")
                 description: Desktop.trayAvailable ? i18n("After quitting, audio keeps flowing through the mix, but hotkeys and the tray stop.")
