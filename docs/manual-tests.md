@@ -688,6 +688,12 @@ makes noise removal easy to hear.
 11. **Gain warning.** Raise the mic gain above 100 % with the limiter on: the page warns.
 12. **Meters and ducking.** With the fan running and filters on, the mic strip's meter stays low
     between words. With ducking on, the fan alone does not duck Music.
+13. **Mute in a call.** With Discord using Rostrum Filtered Mic, mute from the mixer,
+    OpenDeck, or `rostrum --mute-mic`: Discord's mic test and Rostrum Mic both hear silence.
+    Unmute: both hear the mic again. Repeat with Push to mute and Panic mute. Clear Panic
+    mute, mute the mic, then hold Push to talk: both sources are live only while held.
+    The hardware input remains unchanged. Apps using
+    the plain hardware mic directly do not follow Rostrum's mute.
 
 ## 29. Mic check
 

@@ -168,7 +168,9 @@ Five minutes to a split stream:
    Discord and browsers get the filtered mic, audio tools such as Audacity keep the plain one. Your
    mic and the system's default input are never changed: apps are moved to "Rostrum Filtered Mic",
    which you can also pick in an app's own settings. OBS keeps recording Rostrum Mic, which is
-   filtered too.
+   filtered too. Rostrum's mic mute also silences Rostrum Filtered Mic, so call apps using
+   it follow the mixer and OpenDeck mute. Apps recording the hardware mic directly keep
+   their own mute controls.
 
    ![The Mic Filters page: the on switch, preset and who gets the filtered mic, then Check Your Mic and the rumble filter](docs/screenshots/micfilters.png)
 

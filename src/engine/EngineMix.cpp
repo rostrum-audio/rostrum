@@ -877,6 +877,9 @@ void Engine::reconcileVolumes()
         apply(QString::fromLatin1(kSidetoneNode), m_scene.sidetoneVolume,
               micMuted || !feedsPhones(mic->destination) || m_scene.sidetoneVolume <= 0.0);
     }
+    // Call apps record this source directly. Share the global mic mute, while keeping
+    // their gain independent of the stream fader and its destination.
+    apply(QString::fromLatin1(kFilteredNode), 1.0, effectiveMicMuted());
     for (auto it = m_sentVolume.begin(); it != m_sentVolume.end();) {
         it = g.node(it.key()) ? std::next(it) : m_sentVolume.erase(it);
     }
