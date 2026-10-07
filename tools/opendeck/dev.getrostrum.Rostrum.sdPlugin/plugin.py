@@ -140,15 +140,54 @@ class Controls:
         self.call('ReleaseAction', [action])
 
 
+class Feedback:
+    """Short local cues, pinned to headphones; no default-output fallback."""
+    def __init__(self):
+        self.process = None
+        self.started = 0
+
+    def play(self, muted):
+        self.close()  # Fast repeated presses never overlap or queue old feedback.
+        player = shutil.which('pw-play')
+        if not player:
+            return
+        sound = Path(__file__).resolve().parent / 'sounds' / ('mic-muted.wav' if muted else 'mic-live.wav')
+        properties = json.dumps({'application.name': 'Rostrum',
+                                 'node.name': 'rostrum.opendeck-feedback',
+                                 'node.dont-move': True, 'node.dont-fallback': True,
+                                 'node.dont-reconnect': True})
+        try:
+            self.process = subprocess.Popen(
+                [player, '--target', 'rostrum.phones', '--latency', '30ms',
+                 '--properties', properties, str(sound)],
+                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.started = time.monotonic()
+        except OSError:
+            self.process = None  # Feedback failure must never break mic control.
+
+    def reap(self):
+        if self.process and (self.process.poll() is not None or time.monotonic() - self.started > 2):
+            self.close()
+
+    def close(self):
+        if self.process:
+            if self.process.poll() is None:
+                self.process.kill()
+            self.process.wait()
+            self.process = None
+
+
 class Plugin:
     def __init__(self, controls, send):
         self.controls, self.send = controls, send
         self.keys, self.held = {}, {}
+        self.feedback, self.pending_feedback = Feedback(), set()
         self.buses, self.scenes = {}, []
         self.available = False
         self.last_poll = float('-inf')
 
     def poll(self, force=False):
+        self.feedback.reap()
         now = time.monotonic()
         if not self.keys or (not force and now - self.last_poll < 1):
             return
@@ -160,6 +199,12 @@ class Plugin:
             self.available = False
         # Start the interval after the query, too, if an unavailable service took time to answer.
         self.last_poll = time.monotonic()
+        pending, self.pending_feedback = self.pending_feedback, set()
+        for context in pending:
+            key = self.keys.get(context)
+            if (self.available and 'mic' in self.buses and key
+                    and key['settings'].get('playSound', True) is not False):
+                self.feedback.play(self.buses['mic']['muted'])
         for context in self.keys:
             self.render(context)
 
@@ -195,6 +240,8 @@ class Plugin:
     def close(self):
         for context in list(self.held):
             self.release(context)
+        self.pending_feedback.clear()
+        self.feedback.close()
 
     def handle(self, event):
         kind, context = event.get('event'), event.get('context')
@@ -207,6 +254,7 @@ class Plugin:
             self.poll()
             self.render(context)
         elif kind == 'willDisappear':
+            self.pending_feedback.discard(context)
             self.release(context)
             self.keys.pop(context, None)
         elif kind == 'keyUp':
@@ -232,6 +280,7 @@ class Plugin:
                 try:
                     if action == 'mic' and 'mic' in self.buses:
                         self.controls.toggle('mic')
+                        self.pending_feedback.add(context)
                     elif action == 'panic':
                         self.controls.panic()
                     elif action == 'scene' and settings.get('scene') in self.scenes:

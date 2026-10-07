@@ -278,7 +278,11 @@ Flatpak configuration folders, and asks which to use if both exist. Choose plugi
 available for a custom location; it stays selected until cleared. Update and Repair replace only
 Rostrum's plugin, preserving your OpenDeck profiles and other plugins. Python 3 is required.
 Restart OpenDeck, then drag Toggle mic, Panic mute, Switch scene, or Toggle bus mute onto a key.
-Choose a scene or bus in the property inspector and keep Rostrum running. The plugin uses
+Choose a scene or bus in the property inspector and keep Rostrum running. Toggle mic has a
+Play sound option, enabled by default: a short descending cue confirms muted, and an ascending
+cue confirms live. Cues use `pw-play` and go only to Rostrum's headphones mix; muted headphones
+also mute the cues. No cue plays if Rostrum cannot confirm the state. Disable Play sound in the
+key's property inspector for silent operation. The plugin uses
 session D-Bus (`gdbus`) first, with `rostrum --no-start` as a fallback; it never opens the deck or
 starts Rostrum. Older Rostrum versions without `--no-start` cannot use the CLI fallback.
 

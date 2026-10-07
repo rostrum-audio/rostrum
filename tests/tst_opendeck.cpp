@@ -50,6 +50,22 @@ private Q_SLOTS:
         QVERIFY(!result.changed);
         QCOMPARE(renames, 0);
     }
+    void bundledSoundsAreInstalledAndRepairable()
+    {
+        QTemporaryDir temp;
+        const Target target{QStringLiteral("custom"), temp.path()};
+        QCOMPARE(install(target, true).error, Error::None);
+        const QString root = temp.path() + QLatin1Char('/') + pluginId();
+        for (const auto &name : {QStringLiteral("mic-muted.wav"), QStringLiteral("mic-live.wav")}) {
+            const auto bundled = read(QStringLiteral(":/opendeck/sounds/") + name);
+            QVERIFY(bundled.startsWith("RIFF"));
+            QCOMPARE(read(root + QStringLiteral("/sounds/") + name), bundled);
+        }
+        QVERIFY(QFile::remove(root + QStringLiteral("/sounds/mic-live.wav")));
+        QCOMPARE(inspect(target), State::Incomplete);
+        QCOMPARE(install(target, true).error, Error::None);
+        QCOMPARE(inspect(target), State::Matches);
+    }
     void updateAndRepair()
     {
         QTemporaryDir temp;

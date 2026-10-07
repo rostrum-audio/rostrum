@@ -9,6 +9,8 @@ import json
 from pathlib import Path
 import subprocess
 import unittest
+from unittest.mock import patch, Mock
+import wave
 
 ROOT = Path(__file__).parent / 'dev.getrostrum.Rostrum.sdPlugin'
 spec = importlib.util.spec_from_file_location('plugin', ROOT / 'plugin.py')
@@ -203,6 +205,134 @@ class PluginTest(unittest.TestCase):
             self.assertNotIn('OnlyShowIn', action)
             for state in action['States']:
                 self.assertTrue((ROOT / (state['Image'] + '.svg')).is_file())
+
+
+class MicFeedbackTest(unittest.TestCase):
+    class Backend:
+        def __init__(self):
+            self.muted = False
+            self.absent = False
+            self.fail_toggle = False
+            self.toggles = 0
+        def snapshot(self):
+            if self.absent:
+                raise plugin.Unavailable()
+            return {'mic': {'id': 'mic', 'name': 'Mic', 'muted': self.muted}}, []
+        def toggle(self, bus):
+            if self.fail_toggle:
+                raise plugin.Unavailable()
+            self.toggles += 1
+            self.muted = not self.muted
+
+    class Feedback:
+        def __init__(self): self.states = []
+        def play(self, muted): self.states.append(muted)
+        def reap(self): pass
+        def close(self): pass
+
+    def setUp(self):
+        self.backend = self.Backend()
+        self.app = plugin.Plugin(self.backend, lambda event: None)
+        self.feedback = self.Feedback()
+        self.app.feedback = self.feedback
+        self.app.handle({'event': 'willAppear', 'context': 'mic-key',
+                         'action': plugin.PREFIX + 'mic', 'payload': {'settings': {}}})
+
+    def event(self, kind): self.app.handle({'event': kind, 'context': 'mic-key'})
+
+    def test_feedback_follows_confirmed_mute_and_unmute(self):
+        self.event('keyDown')
+        self.assertEqual(self.feedback.states, [], 'wait for the confirmed state')
+        self.event('keyUp')
+        self.assertEqual(self.feedback.states, [True])
+        self.event('keyDown'); self.event('keyUp')
+        self.assertEqual(self.feedback.states, [True, False])
+        self.app.poll(force=True); self.event('keyUp')
+        self.assertEqual(self.feedback.states, [True, False], 'polling never repeats a cue')
+
+    def test_feedback_uses_actual_state_instead_of_assuming_toggle(self):
+        self.event('keyDown')
+        self.backend.muted = False  # Another control changed it before confirmation.
+        self.event('keyUp')
+        self.assertEqual(self.feedback.states, [False])
+
+    def test_disabled_feedback_still_toggles(self):
+        self.app.handle({'event': 'didReceiveSettings', 'context': 'mic-key',
+                         'payload': {'settings': {'playSound': False}}})
+        self.event('keyDown'); self.event('keyUp')
+        self.assertTrue(self.backend.muted)
+        self.assertEqual(self.feedback.states, [])
+
+    def test_unreachable_after_toggle_discards_feedback(self):
+        self.event('keyDown'); self.backend.absent = True
+        self.event('keyUp')
+        self.backend.absent = False
+        self.app.poll(force=True)
+        self.assertEqual(self.feedback.states, [])
+
+    def test_failed_toggle_has_no_feedback(self):
+        self.backend.fail_toggle = True
+        self.event('keyDown'); self.event('keyUp')
+        self.assertEqual(self.feedback.states, [])
+
+    def test_disappearing_key_discards_feedback(self):
+        self.event('keyDown'); self.event('willDisappear')
+        self.app.poll(force=True)
+        self.assertEqual(self.feedback.states, [])
+
+
+class FeedbackPlaybackTest(unittest.TestCase):
+    def test_player_is_pinned_to_headphones(self):
+        feedback = plugin.Feedback()
+        process = Mock(); process.poll.return_value = None
+        with patch.object(plugin.shutil, 'which', return_value='/usr/bin/pw-play'), \
+             patch.object(plugin.subprocess, 'Popen', return_value=process) as spawn:
+            feedback.play(True)
+            args = spawn.call_args.args[0]
+            self.assertEqual(args[args.index('--target') + 1], 'rostrum.phones')
+            props = json.loads(args[args.index('--properties') + 1])
+            self.assertTrue(props['node.dont-fallback'])
+            self.assertTrue(props['node.dont-reconnect'])
+            self.assertTrue(props['node.dont-move'])
+            self.assertEqual(props['application.name'], 'Rostrum')
+            self.assertEqual(Path(args[-1]), ROOT.resolve() / 'sounds/mic-muted.wav')
+            feedback.play(False)
+            self.assertTrue(process.kill.called, 'replace, do not overlap the previous cue')
+            self.assertEqual(Path(spawn.call_args.args[0][-1]), ROOT.resolve() / 'sounds/mic-live.wav')
+            feedback.started -= 3
+            feedback.reap()
+            self.assertIsNone(feedback.process)
+
+    def test_missing_or_failed_player_is_harmless(self):
+        feedback = plugin.Feedback()
+        with patch.object(plugin.shutil, 'which', return_value=None):
+            feedback.play(True)
+        self.assertIsNone(feedback.process)
+        with patch.object(plugin.shutil, 'which', return_value='/usr/bin/pw-play'), \
+             patch.object(plugin.subprocess, 'Popen', side_effect=OSError('player unavailable')):
+            feedback.play(False)
+        feedback.reap(); feedback.close()
+        self.assertIsNone(feedback.process)
+
+    def test_bundled_cues_are_short_soft_and_distinct(self):
+        pitches = []
+        for name in ('mic-muted.wav', 'mic-live.wav'):
+            with wave.open(str(ROOT / 'sounds' / name), 'rb') as audio:
+                self.assertEqual((audio.getnchannels(), audio.getsampwidth()), (1, 2))
+                rate = audio.getframerate()
+                frames = audio.readframes(audio.getnframes())
+            samples = struct.unpack('<' + 'h' * (len(frames) // 2), frames)
+            self.assertAlmostEqual(len(samples) / rate, 0.2, places=3)
+            self.assertLess(max(map(abs, samples)), 5000)
+            self.assertEqual(samples[0], 0); self.assertEqual(samples[-1], 0)
+            # Count crossings in the middle of each note, away from the fades.
+            frequencies = []
+            for start in (0.02, 0.13):
+                segment = samples[int(start * rate):int((start + 0.04) * rate)]
+                frequencies.append(sum(a <= 0 < b for a, b in zip(segment, segment[1:])) / 0.04)
+            pitches.append(frequencies)
+        self.assertGreater(pitches[0][0], pitches[0][1])
+        self.assertLess(pitches[1][0], pitches[1][1])
 
 
 class SocketTest(unittest.IsolatedAsyncioTestCase):

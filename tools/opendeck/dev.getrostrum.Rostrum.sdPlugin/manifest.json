@@ -1,7 +1,7 @@
 {
   "Name": "Rostrum",
   "Author": "Rostrum contributors",
-  "Version": "1.0.0",
+  "Version": "1.1.0",
   "Icon": "images/mic",
   "Category": "Rostrum",
   "CodePath": "plugin.sh",
@@ -34,7 +34,8 @@
           "TitleAlignment": "bottom",
           "FontSize": "12"
         }
-      ]
+      ],
+      "PropertyInspectorPath": "inspector.html"
     },
     {
       "UUID": "dev.getrostrum.Rostrum.panic",

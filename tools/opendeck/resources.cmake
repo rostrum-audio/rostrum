@@ -9,6 +9,8 @@ function(rostrum_embed_opendeck target)
             "${bundle}/plugin.sh"
             "${bundle}/plugin.py"
             "${bundle}/inspector.html"
+            "${bundle}/sounds/mic-muted.wav"
+            "${bundle}/sounds/mic-live.wav"
             "${bundle}/images/mic.svg"
             "${bundle}/images/mic-muted.svg"
             "${bundle}/images/panic.svg"

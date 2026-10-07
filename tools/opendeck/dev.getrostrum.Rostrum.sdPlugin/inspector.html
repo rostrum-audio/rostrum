@@ -10,11 +10,23 @@ select { margin-top: 8px; padding: 6px; background: #333; color: #eee; }
 </style>
 <label id="label" for="choice">Choose a scene or bus</label>
 <select id="choice" disabled><option value="">Choose…</option></select>
+<div id="feedback" hidden>
+  <label for="playSound"><input id="playSound" type="checkbox" checked> Play sound</label>
+  <p>Muted: descending tones. Live: ascending tones. Plays in Rostrum headphones; requires pw-play.</p>
+</div>
 <p id="status" role="status">Connecting…</p>
 <script>
 let socket, context, action, settings = {};
 const choice = document.getElementById('choice');
 const status = document.getElementById('status');
+const playSound = document.getElementById('playSound');
+function showSettings() {
+    const isMic = action && action.endsWith('.mic');
+    document.getElementById('feedback').hidden = !isMic;
+    document.getElementById('label').hidden = isMic;
+    choice.hidden = isMic;
+    playSound.checked = settings.playSound !== false;
+}
 function send(event, payload) {
     if (socket && socket.readyState === WebSocket.OPEN)
         socket.send(JSON.stringify({event, action, context, payload}));
@@ -26,6 +38,7 @@ function connectOpenActionSocket(port, uuid, registerEvent, info, actionInfo) {
         const data = JSON.parse(actionInfo);
         context = data.context; action = data.action; settings = data.payload.settings || {};
     } else { context = uuid; }
+    showSettings();
     socket = new WebSocket('ws://127.0.0.1:' + port);
     socket.onopen = () => {
         socket.send(JSON.stringify({event: registerEvent, uuid}));
@@ -38,9 +51,11 @@ function connectOpenActionSocket(port, uuid, registerEvent, info, actionInfo) {
         if (data.context) context = data.context;
         if (data.event === 'didReceiveSettings') {
             settings = data.payload.settings || {};
+            showSettings();
             requestChoices();
         } else if (data.event === 'sendToPropertyInspector') {
             settings = data.payload.settings || settings;
+            showSettings();
             const isScene = action.endsWith('.scene');
             const field = isScene ? 'scene' : 'bus';
             document.getElementById('label').textContent = isScene ? 'Scene' : 'Bus';
@@ -57,6 +72,10 @@ function connectOpenActionSocket(port, uuid, registerEvent, info, actionInfo) {
     socket.onclose = () => { choice.disabled = true; status.textContent = 'Disconnected'; };
 }
 const connectElgatoStreamDeckSocket = connectOpenActionSocket;
+playSound.onchange = () => {
+    settings.playSound = playSound.checked;
+    send('setSettings', settings);
+};
 choice.onchange = () => {
     settings[action.endsWith('.scene') ? 'scene' : 'bus'] = choice.value;
     send('setSettings', settings);
