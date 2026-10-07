@@ -277,7 +277,8 @@ QString Engine::addBus(const QString &name, const QString &color)
         taken << b.id;
     }
     // Reserved node names.
-    taken << QStringLiteral("phones") << QStringLiteral("stream") << QStringLiteral("sidetone")
+    taken << QStringLiteral("phones") << QStringLiteral("stream") << QStringLiteral("vod")
+          << QStringLiteral("sidetone")
           << QStringLiteral("mic") << QStringLiteral("micfx") << QStringLiteral("filtered");
     Bus b;
     b.name = name.trimmed().isEmpty() ? QStringLiteral("Bus") : name.trimmed();
