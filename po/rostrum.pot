@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: rostrum 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/rostrum-audio/rostrum/issues\n"
-"POT-Creation-Date: 2026-10-07 20:27-0400\n"
+"POT-Creation-Date: 2026-10-07 21:07-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1670,62 +1670,62 @@ msgctxt "@info audio track assignment"
 msgid "none"
 msgstr ""
 
-#: src/app/ObsRecording.cpp:129
+#: src/app/ObsRecording.cpp:133
 #, kde-format
 msgctxt "@item:inlistbox"
 msgid "Keep OBS assignments"
 msgstr ""
 
-#: src/app/ObsRecording.cpp:131
+#: src/app/ObsRecording.cpp:135
 #, kde-format
 msgctxt "@item:inlistbox"
 msgid "Unused"
 msgstr ""
 
-#: src/app/ObsRecording.cpp:141
+#: src/app/ObsRecording.cpp:145
 #, kde-format
 msgctxt "@item:inlistbox"
 msgid "Missing (%1)"
 msgstr ""
 
-#: src/app/ObsRecording.cpp:158
+#: src/app/ObsRecording.cpp:162
 #, kde-format
 msgctxt "@info"
 msgid "Assignments unavailable"
 msgstr ""
 
-#: src/app/ObsRecording.cpp:160
+#: src/app/ObsRecording.cpp:164
 #, kde-format
 msgctxt "@info"
 msgid "None"
 msgstr ""
 
-#: src/app/ObsRecording.cpp:169
+#: src/app/ObsRecording.cpp:173
 #, kde-format
 msgctxt "@info"
 msgid "Start OBS and connect its WebSocket server to set up recording tracks."
 msgstr ""
 
-#: src/app/ObsRecording.cpp:173
+#: src/app/ObsRecording.cpp:177
 #, kde-format
 msgctxt "@info"
 msgid "Reading the current OBS audio assignments…"
 msgstr ""
 
-#: src/app/ObsRecording.cpp:180
+#: src/app/ObsRecording.cpp:185
 #, kde-format
 msgctxt "@info"
 msgid "Existing OBS assignments will be kept. Choose a bus to replace a track."
 msgstr ""
 
-#: src/app/ObsRecording.cpp:182
+#: src/app/ObsRecording.cpp:187
 #, kde-format
 msgctxt "@info"
 msgid ""
 "Recording tracks match. Recording contents and sound have not been tested."
 msgstr ""
 
-#: src/app/ObsRecording.cpp:184
+#: src/app/ObsRecording.cpp:189
 #, kde-format
 msgctxt "@info"
 msgid ""
@@ -1733,37 +1733,37 @@ msgid ""
 "mixes."
 msgstr ""
 
-#: src/app/ObsRecording.cpp:241 src/app/qml/RecordingTracks.qml:15
+#: src/app/ObsRecording.cpp:248 src/app/qml/RecordingTracks.qml:15
 #, kde-format
 msgctxt "@title"
 msgid "Recording tracks"
 msgstr ""
 
-#: src/app/ObsRecording.cpp:245
+#: src/app/ObsRecording.cpp:252
 #, kde-format
 msgctxt "@info"
 msgid "Not verified"
 msgstr ""
 
-#: src/app/ObsRecording.cpp:246
+#: src/app/ObsRecording.cpp:253
 #, kde-format
 msgctxt "@info"
 msgid "Configuration matches"
 msgstr ""
 
-#: src/app/ObsRecording.cpp:247
+#: src/app/ObsRecording.cpp:254
 #, kde-format
 msgctxt "@info"
 msgid "Needs attention"
 msgstr ""
 
-#: src/app/ObsRecording.cpp:249
+#: src/app/ObsRecording.cpp:256
 #, kde-format
 msgctxt "@info"
 msgid "A fresh OBS recording configuration is unavailable."
 msgstr ""
 
-#: src/app/ObsRecording.cpp:250
+#: src/app/ObsRecording.cpp:257
 #, kde-format
 msgctxt "@info"
 msgid ""
@@ -1771,7 +1771,7 @@ msgid ""
 "contents and sound have not been tested."
 msgstr ""
 
-#: src/app/ObsRecording.cpp:252
+#: src/app/ObsRecording.cpp:259
 #, kde-format
 msgctxt "@info"
 msgid ""
@@ -1779,80 +1779,86 @@ msgid ""
 "see the changes."
 msgstr ""
 
-#: src/app/ObsRecording.cpp:351 src/app/qml/RecordingTracks.qml:72
+#: src/app/ObsRecording.cpp:359 src/app/qml/RecordingTracks.qml:72
 #, kde-format
 msgctxt "@label"
 msgid "Track %1"
 msgstr ""
 
-#: src/app/ObsRecording.cpp:352
+#: src/app/ObsRecording.cpp:360
 #, kde-format
 msgctxt "@label"
 msgid "Track %1 (%2)"
 msgstr ""
 
-#: src/app/ObsRecording.cpp:354
+#: src/app/ObsRecording.cpp:362
 #, kde-format
 msgctxt "@info"
 msgid "%1: keep OBS assignments and recording output selection."
 msgstr ""
 
-#: src/app/ObsRecording.cpp:364
+#: src/app/ObsRecording.cpp:372
 #, kde-format
 msgctxt "@info"
 msgid "%1: clear source assignments and disable this recording track."
 msgstr ""
 
-#: src/app/ObsRecording.cpp:366
+#: src/app/ObsRecording.cpp:374
 #, kde-format
 msgctxt "@info"
 msgid "%1: record the %2 bus exclusively."
 msgstr ""
 
-#: src/app/ObsRecording.cpp:368
+#: src/app/ObsRecording.cpp:376
+#, kde-format
+msgctxt "@info"
+msgid "Mic recording source: %1."
+msgstr ""
+
+#: src/app/ObsRecording.cpp:381
 #, kde-format
 msgctxt "@info"
 msgid "Remove from %1: %2."
 msgstr ""
 
-#: src/app/ObsRecording.cpp:373
+#: src/app/ObsRecording.cpp:386
 #, kde-format
 msgctxt "@info"
 msgid "Add %1 capturing %2."
 msgstr ""
 
-#: src/app/ObsRecording.cpp:379
+#: src/app/ObsRecording.cpp:392
 #, kde-format
 msgctxt "@info"
 msgid "Add %1 to scene %2."
 msgstr ""
 
-#: src/app/ObsRecording.cpp:384
+#: src/app/ObsRecording.cpp:397
 #, kde-format
 msgctxt "@info"
 msgid "%1: tracks %2 → %3."
 msgstr ""
 
-#: src/app/ObsRecording.cpp:387
+#: src/app/ObsRecording.cpp:400
 #, kde-format
 msgctxt "@info"
 msgid "Unmute %1 in OBS. Its Rostrum bus mute still applies."
 msgstr ""
 
-#: src/app/ObsRecording.cpp:389
+#: src/app/ObsRecording.cpp:402
 #, kde-format
 msgctxt "@info"
 msgid "Recording output: tracks %1 → %2."
 msgstr ""
 
-#: src/app/ObsRecording.cpp:393
+#: src/app/ObsRecording.cpp:406
 #, kde-format
 msgctxt "@info"
 msgid ""
 "No OBS changes are needed. Save these assignments for this scene collection."
 msgstr ""
 
-#: src/app/ObsRecording.cpp:470
+#: src/app/ObsRecording.cpp:484
 #, kde-format
 msgctxt "@info"
 msgid ""
@@ -1860,19 +1866,27 @@ msgid ""
 "again."
 msgstr ""
 
-#: src/app/ObsRecording.cpp:485
+#: src/app/ObsRecording.cpp:495
+#, kde-format
+msgctxt "@info"
+msgid ""
+"Rostrum changed since the preview. Nothing was changed; review recording "
+"tracks again."
+msgstr ""
+
+#: src/app/ObsRecording.cpp:509
 #, kde-format
 msgctxt "@info"
 msgid "Recording tracks already match. No OBS changes were made."
 msgstr ""
 
-#: src/app/ObsRecording.cpp:504
+#: src/app/ObsRecording.cpp:528
 #, kde-format
 msgctxt "@info"
 msgid "The recording backup could not be saved. Nothing was changed."
 msgstr ""
 
-#: src/app/ObsRecording.cpp:531
+#: src/app/ObsRecording.cpp:555
 #, kde-format
 msgctxt "@info"
 msgid ""
@@ -1880,19 +1894,19 @@ msgid ""
 "tested."
 msgstr ""
 
-#: src/app/ObsRecording.cpp:572
+#: src/app/ObsRecording.cpp:596
 #, kde-format
 msgctxt "@info"
 msgid "Recording setup failed. The previous OBS assignments were restored."
 msgstr ""
 
-#: src/app/ObsRecording.cpp:573
+#: src/app/ObsRecording.cpp:597
 #, kde-format
 msgctxt "@info"
 msgid "The previous recording assignments were restored."
 msgstr ""
 
-#: src/app/ObsRecording.cpp:575
+#: src/app/ObsRecording.cpp:599
 #, kde-format
 msgctxt "@info"
 msgid ""
@@ -1900,7 +1914,7 @@ msgid ""
 "%1"
 msgstr ""
 
-#: src/app/ObsRecording.cpp:593
+#: src/app/ObsRecording.cpp:617
 #, kde-format
 msgctxt "@info"
 msgid ""
@@ -4995,9 +5009,10 @@ msgid ""
 "assignments. Empty tracks get bus suggestions. Choosing a bus replaces that "
 "track’s sources; Unused clears and disables the track. Headphones-only buses "
 "can be recorded without changing their stream destination. Bus faders and "
-"mutes affect their recordings. Mic mute silences the mic track. Panic mute "
-"and Stream master mute affect the combined mixes; isolated playback tracks "
-"keep recording."
+"mutes affect their recordings. The mic track uses the filtered source when "
+"mic filters are on. After changing filters, review and apply recording "
+"changes again. Mic mute silences the mic track. Panic mute and Stream master "
+"mute affect the combined mixes; isolated playback tracks keep recording."
 msgstr ""
 
 #: src/app/qml/RecordingTracks.qml:185

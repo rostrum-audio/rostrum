@@ -38,10 +38,11 @@ struct RecordingPlan
 };
 
 RecordingAssignments recordingSuggestion(const Scene &scene, const RecordingSnapshot &before);
-QSet<QString> recordingDevices(const Scene &scene, const RecordingAssignments &assignments);
+QSet<QString> recordingDevices(const Scene &scene, const RecordingAssignments &assignments,
+                               bool filteredMic = false);
 bool intendedRecording(const Input &input, const QSet<QString> &devices);
 RecordingPlan recordingPlan(const RecordingSnapshot &before, const Scene &scene,
-                            const RecordingAssignments &assignments);
+                            const RecordingAssignments &assignments, bool filteredMic = false);
 RecordingPlan recordingUndo(const RecordingPlan &plan);
 QJsonArray recordingChangesJson(const QList<RecordingChange> &changes);
 QList<RecordingChange> recordingChangesFromJson(const QJsonArray &json);

@@ -381,8 +381,16 @@ class TestObs : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    void recordingSetupReadsAppliesAndUndoes_data()
+    {
+        QTest::addColumn<bool>("filteredMic");
+        QTest::newRow("plain mic") << false;
+        QTest::newRow("filtered mic") << true;
+    }
+
     void recordingSetupReadsAppliesAndUndoes()
     {
+        QFETCH(bool, filteredMic);
         FakeObs server(QStringLiteral("pw"));
         populate(server);
         server.inputs[QStringLiteral("Mic/Aux")].settings[QStringLiteral("device_id")] =
@@ -406,7 +414,8 @@ private Q_SLOTS:
             QVERIFY(request.startsWith(QLatin1String("Get")));
         const auto plan = recordingPlan(
             before, rostrum::defaults::scene(),
-            {{3, QStringLiteral("mic")}, {4, QStringLiteral("game")}, {6, QStringLiteral("music")}});
+            {{3, QStringLiteral("mic")}, {4, QStringLiteral("game")}, {6, QStringLiteral("music")}},
+            filteredMic);
         QVERIFY(plan.problems.isEmpty());
         QList<RecordingChange> journal;
         done = false;
@@ -423,7 +432,14 @@ private Q_SLOTS:
         QTRY_VERIFY(done);
         QCOMPARE(server.inputs[QStringLiteral("Rostrum Game (Recording)")].tracks, tracks({4}));
         QCOMPARE(server.inputs[QStringLiteral("Rostrum Music (Recording)")].tracks, tracks({6}));
-        QCOMPARE(server.inputs[QStringLiteral("Mic/Aux")].tracks, tracks({1, 2, 3}));
+        QCOMPARE(server.inputs[QStringLiteral("Mic/Aux")].tracks,
+                 filteredMic ? tracks({1, 2}) : tracks({1, 2, 3}));
+        if (filteredMic) {
+            const auto mic = server.inputs.value(QStringLiteral("Rostrum Mic (Recording)"));
+            QCOMPARE(mic.settings.value(QStringLiteral("device_id")).toString(),
+                     QStringLiteral("rostrum.filtered"));
+            QCOMPARE(mic.tracks, tracks({3}));
+        }
         QCOMPARE(server.recordingTracks, 47);
         QCOMPARE(server.inputs[QStringLiteral("Discord Audio")].tracks, tracks({5}));
         server.gameTrackName = QStringLiteral("Gameplay");
@@ -441,7 +457,8 @@ private Q_SLOTS:
         QVERIFY(recordingFingerprint(renamed) != recordingFingerprint(before));
         const auto repeated = recordingPlan(
             after, rostrum::defaults::scene(),
-            {{3, QStringLiteral("mic")}, {4, QStringLiteral("game")}, {6, QStringLiteral("music")}});
+            {{3, QStringLiteral("mic")}, {4, QStringLiteral("game")}, {6, QStringLiteral("music")}},
+            filteredMic);
         QVERIFY(repeated.changes.isEmpty());
         RecordingPlan completed;
         completed.changes = recordingChangesFromJson(recordingChangesJson(journal));
@@ -456,6 +473,7 @@ private Q_SLOTS:
         QVERIFY(!server.inputs.contains(QStringLiteral("Rostrum Game (Recording)")));
         QVERIFY(!server.inputs.contains(QStringLiteral("Rostrum Music (Recording)")));
         QCOMPARE(server.inputs[QStringLiteral("Mic/Aux")].tracks, tracks({1, 2}));
+        QVERIFY(!server.inputs.contains(QStringLiteral("Rostrum Mic (Recording)")));
         QCOMPARE(server.recordingTracks, 3);
     }
 

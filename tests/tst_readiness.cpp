@@ -94,6 +94,50 @@ private Q_SLOTS:
                  ReadinessStatus::Attention);
     }
 
+    void filteredRecordingChecksTheActualSource()
+    {
+        auto g = graph();
+        g.nodes[4].name = QStringLiteral("rostrum.filtered");
+        auto recorder = g.nodes[4];
+        recorder.id = 5;
+        recorder.name = QStringLiteral("OBS: Recording Mic");
+        recorder.appName = QStringLiteral("OBS");
+        recorder.mediaClass = QStringLiteral("Stream/Input/Audio");
+        g.nodes.insert(recorder.id, recorder);
+        uint32_t portId = 1000;
+        for (const auto &port : g.inputPorts(4)) {
+            auto portCopy = port;
+            portCopy.id = portId++;
+            portCopy.nodeId = recorder.id;
+            g.ports.insert(portCopy.id, portCopy);
+        }
+        link(g, 4, 5);
+        for (auto &l : g.links)
+            l.state = QStringLiteral("active");
+        auto i = input(g);
+        State state;
+        state.scopeKnown = true;
+        state.programInputs.insert(QStringLiteral("Recording Mic"));
+        Input in;
+        in.name = QStringLiteral("Recording Mic");
+        in.kind = QLatin1String(kPulseInput);
+        in.settings = {{QStringLiteral("device_id"), QStringLiteral("rostrum.filtered")}};
+        in.settingsKnown = in.muteKnown = in.tracksKnown = in.gainKnown = true;
+        in.tracks = 4;
+        state.inputs << in;
+        i.obsState = &state;
+        i.obsFresh = true;
+        i.recordingDevices.insert(QStringLiteral("rostrum.filtered"));
+        const auto result = row(evaluateReadiness(i), QStringLiteral("obs-Recording Mic"));
+        QCOMPARE(result.status, ReadinessStatus::Verified);
+        QVERIFY(result.detail.contains(QStringLiteral("rostrum.filtered")));
+        // An isolated filtered capture must not satisfy the stream's plain mic setup.
+        QCOMPARE(row(evaluateReadiness(i), QStringLiteral("obs-mic")).status, ReadinessStatus::Attention);
+        state.inputs[0].muted = true;
+        QCOMPARE(row(evaluateReadiness(i), QStringLiteral("obs-Recording Mic")).status,
+                 ReadinessStatus::Attention);
+    }
+
     void effectiveMuteAndIntent()
     {
         ReadinessInput i;

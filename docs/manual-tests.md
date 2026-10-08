@@ -794,7 +794,13 @@ and Rostrum's normal stream setup. These are checks to run, not claims of record
    restores previous track masks (including zero), mutes, enabled recording tracks, and scene
    placements. Undo OBS Changes remains separate from recording Undo.
 4. Assign a Headphones-only bus. Its stream destination and VOD flag remain unchanged. Bus mute
-   silences its recording capture; mic mute silences track 3. Stream master mute and panic mute
+   silences its recording capture; mic mute silences track 3. With filters off, the mic track
+   captures `rostrum.mic`. Turn filters on: a stale preview cannot Apply, and readiness reports
+   the changed recording configuration without writing to OBS. Review and Apply again: track 3
+   captures `rostrum.filtered`, while the stream mic stays on tracks 1/2. Mute/unmute the mic:
+   the isolated filtered source follows it. Turn filters off and review/apply again: track 3
+   returns to `rostrum.mic`; repeating the filter cycle reuses captures, without duplicates.
+   Stream master mute and panic mute
    silence the combined mixes while isolated playback captures keep their own bus state.
 5. Run Set Up OBS again: the intended isolated bus captures are not conflict-muted. Change a
    track assignment in OBS, disconnect/reconnect or restart Rostrum: it reports the difference

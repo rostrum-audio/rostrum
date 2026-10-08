@@ -8,9 +8,10 @@ namespace rostrum::obs {
 namespace {
 constexpr quint32 kIsolatedTracks = 0x3c;
 
-QString deviceFor(const Bus &bus)
+QString deviceFor(const Bus &bus, bool filteredMic)
 {
-    return bus.isInput() ? QString::fromLatin1(kMicDevice) : bus.nodeName() + QLatin1String(".monitor");
+    return bus.isInput() ? QString::fromLatin1(filteredMic ? kFilteredMicDevice : kMicDevice)
+                         : bus.nodeName() + QLatin1String(".monitor");
 }
 
 bool containsInput(const RecordingSnapshot &s, const QString &scene, const QString &input,
@@ -71,17 +72,23 @@ RecordingAssignments recordingSuggestion(const Scene &scene, const RecordingSnap
     return out;
 }
 
-QSet<QString> recordingDevices(const Scene &scene, const RecordingAssignments &assignments)
+QSet<QString> recordingDevices(const Scene &scene, const RecordingAssignments &assignments, bool filteredMic)
 {
     QSet<QString> out;
     for (const auto &id : assignments)
         if (!id.isEmpty()) {
             const auto *bus = scene.bus(id);
             // Missing buses retain their declared intent across scene changes.
-            out.insert(bus ? deviceFor(*bus)
+            out.insert(bus ? deviceFor(*bus, filteredMic)
                        : id == QLatin1String(kMicBusId)
                            ? QString::fromLatin1(kMicDevice)
                            : QStringLiteral("rostrum.") + id + QLatin1String(".monitor"));
+            // A filter toggle changes the desired path, but reconnect must not mute
+            // the old isolated capture before the user reviews and applies a new plan.
+            if ((bus && bus->isInput()) || id == QLatin1String(kMicBusId)) {
+                out.insert(QString::fromLatin1(kMicDevice));
+                out.insert(QString::fromLatin1(kFilteredMicDevice));
+            }
         }
     return out;
 }
@@ -89,13 +96,15 @@ QSet<QString> recordingDevices(const Scene &scene, const RecordingAssignments &a
 bool intendedRecording(const Input &input, const QSet<QString> &devices)
 {
     const auto device = input.settings.value(QLatin1String("device_id")).toString();
-    return devices.contains(device) && (input.kind == QLatin1String(kPulseOutput) ||
-                                        (input.kind == QLatin1String(kPulseInput) &&
-                                         device == QLatin1String(kMicDevice) && !(input.tracks & 3u)));
+    return devices.contains(device) &&
+           (input.kind == QLatin1String(kPulseOutput) ||
+            (input.kind == QLatin1String(kPulseInput) &&
+             (device == QLatin1String(kMicDevice) || device == QLatin1String(kFilteredMicDevice)) &&
+             !(input.tracks & 3u)));
 }
 
 RecordingPlan recordingPlan(const RecordingSnapshot &before, const Scene &scene,
-                            const RecordingAssignments &assignments)
+                            const RecordingAssignments &assignments, bool filteredMic)
 {
     RecordingPlan p;
     if (!before.known || before.collection.isEmpty() || before.profile.isEmpty() ||
@@ -149,7 +158,7 @@ RecordingPlan recordingPlan(const RecordingSnapshot &before, const Scene &scene,
         const Bus &bus = *scene.bus(it.value());
         const quint32 track = 1u << (it.key() - 1);
         p.recordingTracks |= track;
-        const auto device = deviceFor(bus);
+        const auto device = deviceFor(bus, filteredMic);
         const auto kind = QString::fromLatin1(bus.isInput() ? kPulseInput : kPulseOutput);
         const Input *pick = nullptr;
         for (const auto &input : before.state.inputs)
@@ -158,8 +167,8 @@ RecordingPlan recordingPlan(const RecordingSnapshot &before, const Scene &scene,
                 // Sharing a capture must not unmute kept tracks or add their audio to
                 // new scenes. An unmuted global mic already covers every scene, and
                 // adding an isolated slot leaves its existing track 1/2 use intact.
-                const bool sharedGlobalMic = bus.isInput() && !input.channel.isEmpty() &&
-                                             !input.muted && !(kept & kIsolatedTracks);
+                const bool sharedGlobalMic =
+                    bus.isInput() && !input.channel.isEmpty() && !input.muted && !(kept & kIsolatedTracks);
                 if (kept && !sharedGlobalMic)
                     continue;
                 if (!pick || (pick->muted && !input.muted))

@@ -158,6 +158,42 @@ private Q_SLOTS:
         QCOMPARE(scene.bus(QStringLiteral("game"))->destination, Destination::Phones);
     }
 
+    void filteredMicRecording()
+    {
+        const auto before = snapshot();
+        const auto scene = defaults::scene();
+        const RecordingAssignments a{{3, QStringLiteral("mic")}};
+        const auto plan = recordingPlan(before, scene, a, true);
+        QVERIFY(plan.problems.isEmpty());
+        const auto after = recordingResult(before, plan);
+        const auto *mic = after.state.input(QStringLiteral("Rostrum Mic (Recording)"));
+        QVERIFY(mic);
+        QCOMPARE(mic->settings.value(QStringLiteral("device_id")).toString(),
+                 QStringLiteral("rostrum.filtered"));
+        QCOMPARE(mic->tracks, 4u);
+        QCOMPARE(after.state.input(QStringLiteral("Mic/Aux"))->tracks, 3u);
+        QVERIFY(recordingPlan(after, scene, a, true).changes.isEmpty());
+        const auto restored = recordingResult(after, recordingUndo(plan));
+        QCOMPARE(restored.state.inputs.size(), before.state.inputs.size());
+        QCOMPARE(restored.state.inputs.first().tracks, before.state.inputs.first().tracks);
+        QCOMPARE(restored.recordingTracks, before.recordingTracks);
+        QCOMPARE(restored.sceneItems, before.sceneItems);
+        const auto plain = recordingResult(after, recordingPlan(after, scene, a, false));
+        QCOMPARE(plain.state.input(QStringLiteral("Mic/Aux"))->tracks, 7u);
+        QCOMPARE(plain.state.input(mic->name)->tracks, 0u);
+        const auto filteredAgain = recordingResult(plain, recordingPlan(plain, scene, a, true));
+        QCOMPARE(filteredAgain.state.inputs.size(), after.state.inputs.size());
+        QCOMPARE(filteredAgain.state.input(mic->name)->tracks, 4u);
+        QCOMPARE(filteredAgain.state.input(QStringLiteral("Mic/Aux"))->tracks, 3u);
+        for (const bool filters : {false, true}) {
+            const auto devices = recordingDevices(scene, a, filters);
+            QVERIFY(intendedRecording(*mic, devices));
+            const auto stream = makePlan(after.state, {}, Mode::Live, devices);
+            for (const auto &action : stream.actions)
+                QVERIFY(action.type != Action::Type::Mute || action.input != mic->name);
+        }
+    }
+
     void secondApplyIsNoOp()
     {
         auto s = snapshot();

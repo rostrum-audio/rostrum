@@ -235,8 +235,10 @@ Rostrum saves a separate recording backup and offers **Undo Recording Changes**.
 
 Playback captures use each bus's existing monitor, including Headphones-only buses; recording
 does not change their stream destination or Include in Twitch VOD flag. Bus faders and mutes
-affect the isolated audio, and mic mute silences the mic track. Panic mute and Stream master
-mute silence the combined stream and VOD mixes; isolated playback tracks continue recording.
+affect the isolated audio. The mic track captures `rostrum.mic` with filters off and
+`rostrum.filtered` with filters on; mic mute silences both. After changing filters, review
+and apply the recording changes again. Reconnecting does not switch the OBS source automatically.
+Panic mute and Stream master mute silence the combined stream and VOD mixes; isolated playback tracks continue recording.
 Assignments are saved by bus id for the OBS scene collection. Reconnecting checks them without
 overwriting OBS edits. A matching configuration does not prove that a recording sounds right.
 

@@ -173,7 +173,7 @@ ColumnLayout {
         Layout.fillWidth: true
         visible: help.checked
         wrapMode: Text.WordWrap
-        text: i18nc("@info", "OBS track names are labels; the assigned sources determine what each track records. This setup keeps track names and reserves tracks 1 and 2 for the stream and Twitch VOD mixes. Occupied tracks default to Keep OBS assignments. Empty tracks get bus suggestions. Choosing a bus replaces that track’s sources; Unused clears and disables the track. Headphones-only buses can be recorded without changing their stream destination. Bus faders and mutes affect their recordings. Mic mute silences the mic track. Panic mute and Stream master mute affect the combined mixes; isolated playback tracks keep recording.")
+        text: i18nc("@info", "OBS track names are labels; the assigned sources determine what each track records. This setup keeps track names and reserves tracks 1 and 2 for the stream and Twitch VOD mixes. Occupied tracks default to Keep OBS assignments. Empty tracks get bus suggestions. Choosing a bus replaces that track’s sources; Unused clears and disables the track. Headphones-only buses can be recorded without changing their stream destination. Bus faders and mutes affect their recordings. The mic track uses the filtered source when mic filters are on. After changing filters, review and apply recording changes again. Mic mute silences the mic track. Panic mute and Stream master mute affect the combined mixes; isolated playback tracks keep recording.")
         Accessible.name: text
     }
     Connections {

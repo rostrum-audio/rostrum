@@ -117,6 +117,10 @@ ObsRecording::ObsRecording(AppController *app, Obs *obs, obs::Client *client)
                 m_refetch.start();
         }
     });
+    connect(app->engine(), &engine::Engine::micFiltersChanged, this, [this] {
+        m_havePreview = false;
+        Q_EMIT changed(); // read-only: the changed mic path needs a new preview
+    });
     connect(app->engine(), &engine::Engine::sceneChanged, this, [this] {
         // Bus ids can disappear when Rostrum changes scene. Never rewrite OBS here.
         Q_EMIT changed();
@@ -173,7 +177,8 @@ QString ObsRecording::status() const
         return i18nc("@info", "Reading the current OBS audio assignments…");
     if (m_snapshot.streaming || m_snapshot.recording || m_obs->streaming() || m_obs->recording())
         return problemText(QStringLiteral("activeOutput"));
-    const auto plan = obs::recordingPlan(m_snapshot, m_app->engine()->scene(), m_draft);
+    const auto plan = obs::recordingPlan(m_snapshot, m_app->engine()->scene(), m_draft,
+                                         m_app->engine()->micFilters().enabled);
     if (!plan.problems.isEmpty())
         return problemText(plan.problems.first());
     if (m_draft.isEmpty())
@@ -194,9 +199,9 @@ bool ObsRecording::canPreview() const
 bool ObsRecording::canApply() const
 {
     return canPreview() && m_havePreview && m_preview.problems.isEmpty() &&
-           obs::recordingChangesJson(
-               obs::recordingPlan(m_snapshot, m_app->engine()->scene(), m_draft).changes) ==
-               obs::recordingChangesJson(m_preview.changes);
+           obs::recordingChangesJson(obs::recordingPlan(m_snapshot, m_app->engine()->scene(), m_draft,
+                                                        m_app->engine()->micFilters().enabled)
+                                         .changes) == obs::recordingChangesJson(m_preview.changes);
 }
 
 bool ObsRecording::canUndo() const
@@ -222,7 +227,8 @@ QSet<QString> ObsRecording::intendedDevices() const
     }
     const auto saved =
         m_app->settings().obsRecordingTracks.value(scopeKey(m_obs->m_install->configDir, collection));
-    return obs::recordingDevices(m_app->engine()->scene(), assignments(saved));
+    return obs::recordingDevices(m_app->engine()->scene(), assignments(saved),
+                                 m_app->engine()->micFilters().enabled);
 }
 
 QVariantMap ObsRecording::readiness() const
@@ -233,7 +239,8 @@ QVariantMap ObsRecording::readiness() const
     auto snapshot = m_snapshot;
     snapshot.streaming = snapshot.recording = false; // activity blocks writes, not read-only checks
     const auto plan = obs::recordingPlan(snapshot, m_app->engine()->scene(),
-                                         assignments(m_app->settings().obsRecordingTracks.value(m_scope)));
+                                         assignments(m_app->settings().obsRecordingTracks.value(m_scope)),
+                                         m_app->engine()->micFilters().enabled);
     const bool known = snapshot.known && m_age.isValid() && m_age.elapsed() < 10000 &&
                        m_client->status() == obs::Client::Status::Connected && m_error.isEmpty();
     const bool matches = known && plan.problems.isEmpty() && plan.changes.isEmpty();
@@ -331,7 +338,8 @@ void ObsRecording::preview()
         m_error = error;
         if (error.isEmpty()) {
             acceptSnapshot(snapshot);
-            m_preview = obs::recordingPlan(snapshot, m_app->engine()->scene(), m_draft);
+            m_preview = obs::recordingPlan(snapshot, m_app->engine()->scene(), m_draft,
+                                           m_app->engine()->micFilters().enabled);
             m_havePreview = m_preview.problems.isEmpty();
             m_previewFingerprint = obs::recordingFingerprint(snapshot);
             if (!m_preview.problems.isEmpty())
@@ -349,7 +357,7 @@ QStringList ObsRecording::previewItems() const
     for (int track = 3; track <= 6; ++track) {
         const auto label = m_snapshot.trackNames.value(track);
         const auto title = label.isEmpty() ? i18nc("@label", "Track %1", track)
-                                          : i18nc("@label", "Track %1 (%2)", track, label);
+                                           : i18nc("@label", "Track %1 (%2)", track, label);
         if (!m_draft.contains(track)) {
             out << i18nc("@info", "%1: keep OBS assignments and recording output selection.", title);
             continue;
@@ -362,8 +370,13 @@ QStringList ObsRecording::previewItems() const
         const auto id = m_draft.value(track);
         if (id.isEmpty())
             out << i18nc("@info", "%1: clear source assignments and disable this recording track.", title);
-        else if (const auto *bus = m_app->engine()->scene().bus(id))
+        else if (const auto *bus = m_app->engine()->scene().bus(id)) {
             out << i18nc("@info", "%1: record the %2 bus exclusively.", title, bus->name);
+            if (bus->isInput())
+                out << i18nc("@info", "Mic recording source: %1.",
+                             QString::fromLatin1(m_app->engine()->micFilters().enabled
+                                                    ? obs::kFilteredMicDevice : obs::kMicDevice));
+        }
         if (!removed.isEmpty())
             out << i18nc("@info", "Remove from %1: %2.", title, removed.join(QStringLiteral(", ")));
     }
@@ -459,9 +472,10 @@ void ObsRecording::apply()
     const auto expected = m_previewFingerprint;
     const auto draft = m_draft;
     const auto expectedScope = m_scope;
+    const auto expectedChanges = obs::recordingChangesJson(m_preview.changes);
     setBusy(true);
-    obs::fetchRecordingSnapshot(m_client, [this, expected, draft, expectedScope](const auto &fresh,
-                                                                                 const QString &error) {
+    obs::fetchRecordingSnapshot(m_client, [this, expected, draft, expectedScope,
+                                           expectedChanges](const auto &fresh, const QString &error) {
         if (!error.isEmpty() || obs::recordingFingerprint(fresh) != expected || expectedScope != m_scope) {
             setBusy(false);
             m_havePreview = false;
@@ -471,7 +485,17 @@ void ObsRecording::apply()
             refresh();
             return;
         }
-        const auto plan = obs::recordingPlan(fresh, m_app->engine()->scene(), draft);
+        const auto plan =
+            obs::recordingPlan(fresh, m_app->engine()->scene(), draft, m_app->engine()->micFilters().enabled);
+        if (obs::recordingChangesJson(plan.changes) != expectedChanges) {
+            setBusy(false);
+            m_havePreview = false;
+            notify(i18nc(
+                "@info",
+                "Rostrum changed since the preview. Nothing was changed; review recording tracks again."));
+            refresh();
+            return;
+        }
         if (!plan.problems.isEmpty()) {
             setBusy(false);
             notify(problemText(plan.problems.first()));

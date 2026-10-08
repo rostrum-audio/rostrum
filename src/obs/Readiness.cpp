@@ -308,7 +308,7 @@ QList<ReadinessResult> evaluateReadiness(const ReadinessInput &i)
             configuredVod = configuredVod || capture == Capture::RostrumVod;
             if (in.muted || in.gain <= 0 || in.tracks == 0) {
                 const bool intended = capture == Capture::RostrumStream || capture == Capture::RostrumMic ||
-                                      capture == Capture::RostrumVod;
+                                      capture == Capture::RostrumVod || isolated;
                 add(id, in.name, intended ? ReadinessStatus::Attention : ReadinessStatus::Excluded,
                     tr("OBS input is muted, at zero gain, or assigned to no audio tracks."));
                 continue;
@@ -321,7 +321,7 @@ QList<ReadinessResult> evaluateReadiness(const ReadinessInput &i)
                 continue;
             }
             const QString target = isolated
-                                       ? (capture == Capture::RostrumMic ? QString::fromLatin1(kMicDevice)
+                                       ? (in.kind == QLatin1String(kPulseInput) ? device.toString()
                                           : in.settings.value(QLatin1String("device_id")).toString().chopped(8))
                                    : capture == Capture::RostrumStream ? QStringLiteral("rostrum.stream")
                                    : capture == Capture::RostrumVod    ? QStringLiteral("rostrum.vod")

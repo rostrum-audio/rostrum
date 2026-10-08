@@ -4,7 +4,10 @@ Rostrum owns a small, fixed PipeWire graph. It never runs a second audio daemon 
 shells out to `pactl` in the steady state.
 
 Separate OBS recording tracks use the existing `rostrum.<bus>.monitor` devices with named
-Audio Output Captures; no additional PipeWire nodes are created. The mic uses `rostrum.mic`.
+Audio Output Captures; no additional PipeWire nodes are created. The mic uses an Audio Input
+Capture of `rostrum.mic` when filters are off or `rostrum.filtered` when filters are on. Changing
+filters invalidates the recording preview and requires another review/apply; reconnect only
+checks the saved assignment. Both mic paths follow mic mute from the existing engine.
 The recording planner manages explicitly chosen slots on tracks 3–6, reads all current input
 track masks and enabled scene/group nesting, and previews changes independently of stream
 setup. Omitted slots mean Keep OBS assignments; an explicit empty assignment means clear the
