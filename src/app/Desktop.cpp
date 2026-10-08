@@ -48,21 +48,6 @@ bool statusNotifierHostRegistered()
     return reply.arguments().constFirst().value<QDBusVariant>().variant().toBool();
 }
 
-QString autostartExec()
-{
-    // Inside an AppImage the binary lives in a mount that is gone after a reboot.
-    const QString appImage = qEnvironmentVariable("APPIMAGE");
-    if (!appImage.isEmpty() && QFileInfo(appImage).isExecutable()) {
-        return autostart::execQuote(appImage) + QStringLiteral(" --autostart");
-    }
-    const QString self = QCoreApplication::applicationFilePath();
-    const QString onPath = QStandardPaths::findExecutable(QStringLiteral("rostrum"));
-    const QString program =
-        (!onPath.isEmpty() && QFileInfo(onPath).canonicalFilePath() == QFileInfo(self).canonicalFilePath())
-            ? QStringLiteral("rostrum")
-            : autostart::execQuote(self);
-    return program + QStringLiteral(" --autostart");
-}
 
 // The app id before Rostrum had its own domain. Its global shortcuts would hold the same keys
 // and make every new binding look taken, so they go before Hotkeys registers anything.
@@ -119,7 +104,7 @@ Desktop::Desktop(AppController *app, QObject *parent) : QObject(parent), m_app(a
         checkTray();
     }
     const QStringList args = QCoreApplication::arguments();
-    m_startHidden = m_tray && m_app->settings().wizardDone &&
+    m_startHidden = m_app->settings().wizardDone &&
                     (args.contains(QStringLiteral("--") + QLatin1String(cli::kStartHidden)) ||
                      (m_app->settings().startInTray && args.contains(QStringLiteral("--autostart"))));
 
@@ -134,6 +119,9 @@ Desktop::Desktop(AppController *app, QObject *parent) : QObject(parent), m_app(a
     if (m_app->settings().launchAtLogin != exists) {
         m_app->settings().launchAtLogin = exists;
         m_app->saveSettingsSoon();
+    }
+    if (m_enabled && exists) {
+        ensureAutostartCurrent();
     }
 }
 
@@ -206,18 +194,57 @@ bool Desktop::launchAtLogin() const
     return m_app->settings().launchAtLogin;
 }
 
+bool Desktop::writeAutostartFile()
+{
+    const QString launcher = autostart::launcherPath(QCoreApplication::applicationFilePath(),
+                                                     qEnvironmentVariable("APPIMAGE"));
+    if (launcher.isEmpty()) {
+        qCWarning(lcDesktop) << "Cannot determine stable launcher for autostart";
+        return false;
+    }
+    const QString path = paths::autostartFile();
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+        Q_EMIT m_app->toast(i18n("Could not write %1", path));
+        return false;
+    }
+    const QString exec = autostart::execLine(launcher);
+    f.write(autostart::entry(exec, i18n("A stream mix console for Linux"), launcher).toUtf8());
+    return true;
+}
+
+void Desktop::ensureAutostartCurrent()
+{
+    const QString currentLauncher = autostart::launcherPath(QCoreApplication::applicationFilePath(),
+                                                            qEnvironmentVariable("APPIMAGE"));
+    if (currentLauncher.isEmpty()) {
+        return;
+    }
+    const QString path = paths::autostartFile();
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return;
+    }
+    const QString existing = QString::fromUtf8(f.readAll());
+    f.close();
+    const QString expectedExec = autostart::execLine(currentLauncher);
+    if (!existing.contains(QStringLiteral("Exec=") + expectedExec) ||
+        !existing.contains(QStringLiteral("TryExec=") + currentLauncher) ||
+        !existing.contains(QStringLiteral("StartupWMClass=rostrum"))) {
+        qCInfo(lcDesktop) << "Updating autostart entry for binary:" << currentLauncher;
+        writeAutostartFile();
+    }
+}
+
 void Desktop::setLaunchAtLogin(bool on)
 {
     const QString path = paths::autostartFile();
     if (on) {
-        QDir().mkpath(QFileInfo(path).absolutePath());
-        QFile f(path);
-        if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
-            Q_EMIT m_app->toast(i18n("Could not write %1", path));
+        if (!writeAutostartFile()) {
             Q_EMIT changed();
             return;
         }
-        f.write(autostart::entry(autostartExec(), i18n("A stream mix console for Linux")).toUtf8());
     } else if (QFileInfo::exists(path) && !QFile::remove(path)) {
         Q_EMIT m_app->toast(i18n("Could not remove %1", path));
         Q_EMIT changed();

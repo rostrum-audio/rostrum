@@ -84,6 +84,26 @@ enabled = false
         s.wait("legacy converter replaced", lambda: (node := s.node(s.graph(), "rostrum.micfx")) and
                node["info"]["props"]["object.serial"] != serial)
         deliveries()
+        # A call app records rostrum.filtered, not the separately gained stream mic.
+        # Global mic mute must silence both public sources without muting the hardware.
+        s.stop(engine)
+        engine = s.spawn(args + ["--mic-muted"])
+        s.wait("muted stream mic", lambda: any(p.get("mute") is True
+               for p in s.node(s.graph(), "rostrum.mic")["info"]["params"].get("Props", [])))
+        s.route("rostrum.micfx", "rostrum.filtered")
+        s.capture("test.saved-mic", 440, 1)
+        s.capture("rostrum.filtered", None, 1)
+        s.capture("rostrum.mic", None, 1)
+        s.stop(engine)
+        # A headphones-only destination silences the stream source, not call apps.
+        engine = s.spawn(args + ["--dest", "mic=phones"])
+        s.route("rostrum.micfx", "rostrum.filtered")
+        s.capture("rostrum.filtered", 440, 1)
+        s.capture("rostrum.mic", None, 1)
+        s.stop(engine)
+        engine = s.spawn(args)
+        deliveries()
+        print("PASS mic mute silences filtered call apps; unmute restores; hardware and destination preserved", flush=True)
         print("PASS filtered mic and stream mic delivery before/during/after latency requests; persistent converter upgrade", flush=True)
     except BaseException:
         safety.cleanup_preserving_failure(s.diagnostics)

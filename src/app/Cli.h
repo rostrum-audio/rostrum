@@ -14,12 +14,13 @@ class DBusControl;
 
 // rostrum --scene, --action, --mute-mic, --set-volume, --list-… With Rostrum running, these go to
 // it over D-Bus and this process exits. Without it, lists are read from the files on disk and
-// control options start Rostrum and are applied once its scenes are loaded.
+// control options start Rostrum and are applied once its scenes are loaded. --no-start instead
+// exits with status 2 and never constructs the mixer.
 namespace cli {
 
 inline constexpr int kExitOk = 0;
 inline constexpr int kExitRefused = 1;     // bad arguments, or Rostrum said no (unknown scene, bus or action)
-inline constexpr int kExitUnreachable = 2; // Rostrum owns its D-Bus name but did not answer
+inline constexpr int kExitUnreachable = 2; // Rostrum is absent (--no-start) or did not answer
 
 struct Request
 {

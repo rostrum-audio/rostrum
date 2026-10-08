@@ -209,8 +209,10 @@ private Q_SLOTS:
                   "[Desktop Entry]\nType=Application\nName=Example Game\nExec=examplegame\nCategories=Game;\n");
         writeFile(system.path() + QStringLiteral("/applications/org.example.Game.desktop"),
                   "[Desktop Entry]\nType=Application\nName=Shadowed\nExec=examplegame\nCategories=Office;\n");
-        writeFile(system.path() + QStringLiteral("/applications/vendor/chat.desktop"),
-                  "[Desktop Entry]\nType=Application\nName=Chatter\nExec=/opt/chat/chatter\nCategories=Network;Chat;\n");
+        writeFile(
+            system.path() + QStringLiteral("/applications/vendor/chat.desktop"),
+            "[Desktop "
+            "Entry]\nType=Application\nName=Chatter\nExec=/opt/chat/chatter\nCategories=Network;Chat;\n");
         DesktopIndex index({user.path(), system.path()});
 
         const auto game = index.find({QStringLiteral("ExampleGame")});
@@ -223,6 +225,67 @@ private Q_SLOTS:
         QVERIFY(!index.find({QStringLiteral("missing")}));
     }
 
+    void ownOutputChoiceKeepsAppIcon()
+    {
+        AppFacts f = facts(QStringLiteral("Discord"), QStringLiteral("Discord"));
+        f.desktopIcon = QStringLiteral("discord");
+        f.ownOutputChoice = true;
+        f.dontMove = true;
+        QCOMPARE(iconCandidates(f), QStringList{"discord"});
+    }
+
+    void excludedToolsHaveNoAppIcon()
+    {
+        for (const QString &name : {QStringLiteral("OBS"), QStringLiteral("speech-dispatcher-dummy"),
+                                    QStringLiteral("EasyEffects")}) {
+            AppFacts f =
+                facts(name, name == QLatin1String("speech-dispatcher-dummy") ? QStringLiteral("sd_dummy")
+                                                                             : name.toLower());
+            f.desktopIcon = QStringLiteral("some-installed-icon");
+            f.iconName = QStringLiteral("some-reported-icon");
+            QVERIFY(iconCandidates(f).isEmpty());
+        }
+    }
+
+    void desktopIconsForAppsAndRules()
+    {
+        QTemporaryDir dir;
+        const QString root = dir.path() + QStringLiteral("/applications/");
+        writeFile(root + "custom-firefox.desktop",
+                  "[Desktop Entry]\nName=Firefox Developer Edition\nExec=firefox-bin %u\n");
+        writeFile(root + "firefox-devedition.desktop",
+                  "[Desktop Entry]\nName=Firefox Developer Edition\nExec=firefox-devedition %u\n"
+                  "StartupWMClass=firefox-dev\nIcon=firefox-devedition\n");
+        writeFile(root + "brave-browser.desktop",
+                  "[Desktop Entry]\nName=Brave Web Browser\nExec=brave-browser-stable %u\n"
+                  "StartupWMClass=brave-browser\nIcon=brave-browser\n");
+        writeFile(root + "com.discordapp.Discord.desktop",
+                  "[Desktop Entry]\nName=Discord\nExec=flatpak run com.discordapp.Discord\nIcon=discord\n");
+        writeFile(root + "appimagekit-player.desktop",
+                  "[Desktop Entry]\nName=Portable Player\nExec=/opt/Player.AppImage\nIcon=portable-player\n");
+        DesktopIndex index({dir.path()});
+        QCOMPARE(index.find({"firefox-bin"})->icon, QStringLiteral("firefox-devedition"));
+        QCOMPARE(index.find({"firefox-dev"})->icon, QStringLiteral("firefox-devedition"));
+        const auto flatpak =
+            collectFacts({"Chromium", "electron", {}, {}}, {{"application.id", "com.discordapp.Discord"}}, 0,
+                         index, [](const QString &) { return false; });
+        QCOMPARE(iconCandidates(flatpak), QStringList{"discord"});
+        const auto appimage =
+            collectFacts({"Player", "unknown-bin", {}, {}}, {{"application.id", "appimagekit-player"}}, 0,
+                         index, [](const QString &) { return false; });
+        QCOMPARE(iconCandidates(appimage), QStringList{"portable-player"});
+        const auto firefox = collectFacts({"Firefox Developer Edition", "firefox-bin", {}, {}}, {}, 0, index,
+                                          [](const QString &) { return false; });
+        QCOMPARE(iconCandidates(firefox), QStringList{"firefox-devedition"});
+        const auto brave = index.find({"Brave"});
+        QVERIFY(brave);
+        QCOMPARE(brave->icon, QStringLiteral("brave-browser"));
+        const auto java =
+            collectFacts({"java", "java", {}, {}}, {}, 0, index, [](const QString &) { return false; });
+        QVERIFY(iconCandidates(java).isEmpty());
+        QVERIFY(!index.find({"java"}));
+    }
+
     void iconCandidatesBestFirst()
     {
         AppFacts f;
@@ -230,7 +293,7 @@ private Q_SLOTS:
         f.iconName = QStringLiteral("brave-browser");
         f.desktopIcon = QStringLiteral("brave-browser");
         f.desktopId = QStringLiteral("brave-browser");
-        QCOMPARE(iconCandidates(f), (QStringList{"brave-browser", "brave"}));
+        QCOMPARE(iconCandidates(f), (QStringList{"brave-browser"}));
 
         f.steamAppId = QStringLiteral("1145350");
         f.desktopIcon = QStringLiteral("/home/x/.local/share/icons/game.png");

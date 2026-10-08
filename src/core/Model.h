@@ -57,6 +57,7 @@ struct AppRule
     double volume = 1.0; // per-app offset on top of the bus fader
     bool muted = false;  // per-app mute, saved like the volume
     QString label;       // user's name for an app that reports none; empty = use the app's own
+    QStringList iconNames; // icon candidates; bookkeeping, survives when the app stops
     QDateTime lastSeen;  // bookkeeping only; ignored by operator== so it never marks a scene dirty
 
     bool operator==(const AppRule &o) const

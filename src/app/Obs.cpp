@@ -86,6 +86,7 @@ Obs::Obs(AppController *app, QObject *parent)
 {
     Q_ASSERT(!s_instance);
     s_instance = this;
+    m_recordingTracks = new ObsRecording(app, this, &m_client);
 
     // Screenshot and test runs must never reach the user's own OBS on their own.
     m_offscreen = QGuiApplication::platformName() == QLatin1String("offscreen") ||
@@ -374,7 +375,7 @@ void Obs::setPlan(const obs::State &state, obs::Mode mode)
     }
     m_state = state;
     m_haveState = true;
-    m_plan = obs::makePlan(state, obs::factsFrom(*m_app->pw()), mode);
+    m_plan = obs::makePlan(state, obs::factsFrom(*m_app->pw()), mode, m_recordingTracks->intendedDevices());
     for (auto &a : m_plan.actions) {
         if (a.role == obs::Action::Role::Conflict && unticked.contains(a.input)) {
             a.enabled = false;
@@ -627,11 +628,42 @@ void Obs::rebuildRecordings()
                 text = r.what;
                 kind = QStringLiteral("ok");
                 break;
+            case obs::Capture::RostrumVod:
+                switch (obs::vodCaptureStatus(in)) {
+                case obs::VodCaptureStatus::Configured:
+                    text = r.what;
+                    kind = QStringLiteral("ok");
+                    break;
+                case obs::VodCaptureStatus::Muted:
+                    text = r.what; // the shared muted-input handling below adds the reason
+                    break;
+                case obs::VodCaptureStatus::WrongTracks:
+                    text = i18nc("@info", "%1 must be assigned to track 2 only.", r.what);
+                    break;
+                case obs::VodCaptureStatus::Silent:
+                    text = i18nc("@info", "%1 is at zero volume in OBS.", r.what);
+                    break;
+                case obs::VodCaptureStatus::Unknown:
+                    text = i18nc("@info", "%1: OBS audio track or mute settings could not be verified.", r.what);
+                    break;
+                }
+                break;
             case obs::Capture::RostrumBus:
-                text = i18n("%1, a single bus that Rostrum Stream Mix already includes: viewers hear it twice", r.what);
+                if (in && obs::intendedRecording(*in, m_recordingTracks->intendedDevices()) &&
+                    !(in->tracks & 3u)) {
+                    text = i18nc("@info", "%1, assigned to separate recording tracks", r.what);
+                    kind = QStringLiteral("ok");
+                } else {
+                    text = i18n(
+                        "%1, a single bus that Rostrum Stream Mix already includes: viewers hear it twice",
+                        r.what);
+                }
                 break;
             case obs::Capture::Mic:
-                if (in && obs::classify(*in, obs::factsFrom(*m_app->pw())) == obs::Capture::RostrumMic) {
+                if (in && obs::assignedRecordingMic(r, *in, m_recordingTracks->assignedMicTracks())) {
+                    text = i18nc("@info", "%1, assigned to separate recording tracks", r.what);
+                    kind = QStringLiteral("ok");
+                } else if (in && obs::classify(*in, obs::factsFrom(*m_app->pw())) == obs::Capture::RostrumMic) {
                     text = i18n("%1. It's set to Rostrum Mic, but something moved it, often Easy Effects: add OBS to its excluded apps.", r.what);
                 } else {
                     text = i18n("%1 directly: your voice skips Rostrum", r.what);
@@ -913,6 +945,7 @@ obs::ReadinessInput Obs::readinessInput() const
     for (const auto &app : engine->appStreams())
         input.apps.append({app.nodeId, app.busId});
     input.facts = obs::factsFrom(*m_app->pw());
+    input.recordingDevices = m_recordingTracks->intendedDevices();
     input.obsState = &m_readinessState;
     input.obsFresh = m_readinessFresh && m_readinessAge.isValid() && m_readinessAge.elapsed() < 10000 &&
                      m_client.status() == obs::Client::Status::Connected;
@@ -1000,6 +1033,9 @@ void Obs::rebuildReadiness()
                             {QStringLiteral("status"), status},
                             {QStringLiteral("label"), label}};
     }
+    const auto recording = m_recordingTracks->readiness();
+    if (!recording.isEmpty())
+        rows << recording;
     m_readiness = rows;
     Q_EMIT readinessChanged();
 }

@@ -98,6 +98,10 @@ Five minutes to a split stream:
    - **Ready:** each choice in one list. Click one to change it, then press **Create Mix**.
 
    Skip Setup creates the same mix with the defaults. Everything can be changed later in Settings.
+   Settings groups the existing controls into General, Audio, Hotkeys, Integrations, and Application tabs.
+   **General → Startup → Launch at login** writes an autostart desktop file with an absolute
+   `Exec`: the quoted AppImage path or the full path to `~/.local/bin/rostrum`, followed by
+   `--autostart`. It does not rely on `rostrum` being on the login session's `PATH`.
 
    ![First-time setup: a step list on the left, and how apps go to buses and buses go to your headphones and to OBS](docs/screenshots/wizard.png)
 
@@ -110,6 +114,10 @@ Five minutes to a split stream:
    which kind of app each bus gets. Apps that report no name (Wine and Proton games) get a banner so
    you can name them once. Each app on the Apps page also has its own volume and Mute, without
    touching the rest of its bus; with "Always" on, they save with the scene.
+
+   Unassigned audio tools and accessibility services appear in a collapsed **Audio tools and
+   services** section. Expand it to use their existing controls. Search includes these streams;
+   manually assigned tools appear in Playing now. Grouping does not change their audio routing.
 
    ![The Apps page: what is playing now, and the saved rules](docs/screenshots/apps.png)
 
@@ -144,7 +152,7 @@ Five minutes to a split stream:
    *Readiness separates verified controls and routing from OBS capture that has not been verified.*
 
    **While you stream**, Rostrum follows OBS quietly over the same localhost connection, whenever
-   OBS is open (Settings → OBS → "Follow OBS while it runs"). The header shows a red **LIVE** badge
+   OBS is open (Settings → Integrations → OBS → "Follow OBS while it runs"). The header shows a red **LIVE** badge
    and a **REC** badge with the elapsed time, and the tray tooltip says the same. If a stream
    starts with your mic muted, nothing reaching the stream mix, or OBS not recording Rostrum, a
    banner and a desktop notification say so. Under "When OBS switches scenes" on the OBS page,
@@ -164,7 +172,9 @@ Five minutes to a split stream:
    Discord and browsers get the filtered mic, audio tools such as Audacity keep the plain one. Your
    mic and the system's default input are never changed: apps are moved to "Rostrum Filtered Mic",
    which you can also pick in an app's own settings. OBS keeps recording Rostrum Mic, which is
-   filtered too.
+   filtered too. Rostrum's mic mute also silences Rostrum Filtered Mic, so call apps using
+   it follow the mixer and OpenDeck mute. Apps recording the hardware mic directly keep
+   their own mute controls.
 
    ![The Mic Filters page: the on switch, preset and who gets the filtered mic, then Check Your Mic and the rumble filter](docs/screenshots/micfilters.png)
 
@@ -180,6 +190,64 @@ gets a warning outline and the Apps page says where it really plays; **Move Back
 bus. Rostrum takes back such moves by itself in the first seconds after an app starts. To keep
 Easy Effects on what you hear, choose Easy Effects Sink as Headphones on the Devices page: the
 whole headphone mix then goes through it.
+
+### Include in Twitch VOD
+
+Track 1 is the live mix. Track 2 is the saved Twitch VOD.
+
+`VOD` is reserved for the VOD master; a bus cannot be named VOD.
+
+Each playback bus has an **Include in Twitch VOD** checkbox. Music is off the VOD mix by default. Game, Voice, Alerts, and Desktop are on. The mic has no checkbox; Rostrum Mic is on tracks 1 and 2.
+
+A Headphones-only bus is in neither mix. Switching it back to Stream or Both keeps the checkbox as it was.
+
+| Bus destination | Include in Twitch VOD | Audio destinations |
+| --- | --- | --- |
+| Stream or Both | On | Live stream and saved VOD |
+| Stream or Both | Off | Live stream only |
+| Headphones | Either | Neither mix |
+
+**Set Up OBS** adds a named Audio Output Capture, "Rostrum VOD Mix", on track 2. It does not use Desktop Audio 2. The Set Up OBS preview lists:
+- **Rostrum Mic** on tracks 1 and 2
+- **Rostrum Stream Mix** on track 1
+- **Rostrum VOD Mix** on track 2
+
+Check these settings in OBS:
+- **Settings → Stream:** Service is Twitch.
+- **Settings → Output:** Twitch VOD Track is 2. This setting appears only when the service is Twitch and Enable Custom Encoder Settings is on. Enhanced Broadcasting ignores this track.
+- **Advanced Audio Properties:** Rostrum Mic has tracks 1 and 2 checked. Rostrum Stream Mix has track 1 checked. Rostrum VOD Mix has track 2 checked. Desktop Audio is off both tracks.
+
+Stream readiness stays Needs attention until track 2 is selected and Rostrum VOD Mix is captured.
+
+Watch out for leaks. Desktop Audio on track 2 puts Music back into the VOD. Leave Desktop Audio disabled or muted.
+
+A local OBS recording uses its own track boxes. Track 2 in a recording is the VOD mix only if the recording is set to track 2.
+
+How to check the VOD mix: run a short Twitch stream with music playing. The live replay has the music; the saved VOD does not.
+
+### Recording tracks
+
+On the OBS page, **Recording tracks** has its own preview and Undo, separate from **Set Up OBS**.
+It sets up separate recording audio while OBS is connected and its outputs are stopped.
+Occupied tracks default to **Keep OBS assignments**, preserving
+both their sources and recording output selection. Empty tracks suggest track 3 Mic, track 4
+Game, track 5 Voice, and track 6 Music. Choosing a Rostrum bus replaces that track's sources;
+**Unused** explicitly clears its assignments and disables it in the recording output. Track 1
+is the Stream Mix, track 2 is the VOD Mix, and tracks 3–6 capture the chosen buses.
+OBS must use Advanced output mode and Standard recording.
+**Review Recording Changes…** lists kept tracks, replacements, and sources to remove before Apply.
+OBS track names are preserved.
+Rostrum saves a separate recording backup and offers **Undo Recording Changes**.
+
+Playback captures use each bus's existing monitor, including Headphones-only buses; recording
+does not change their stream destination or Include in Twitch VOD flag. A bus mute silences
+that bus capture, and its fader controls the capture volume. The mic track captures
+`rostrum.mic` with filters off and
+`rostrum.filtered` with filters on; mic mute silences both. After changing filters, review
+and apply the recording changes again. Reconnecting does not switch the OBS source automatically.
+Panic mute and Stream master mute silence the combined stream and VOD mixes; isolated playback tracks continue recording.
+Assignments are saved by bus id for the OBS scene collection. Reconnecting checks them without
+overwriting OBS edits. A matching configuration does not prove that a recording sounds right.
 
 ### ⌨️ Shortcuts
 
@@ -232,6 +300,31 @@ reached. The same controls are on the session bus as `dev.getrostrum.Rostrum1` a
 [data/dev.getrostrum.Rostrum1.xml](data/dev.getrostrum.Rostrum1.xml). There is no network
 listener.
 
+### OpenDeck
+
+Install [OpenDeck](https://opendeck.nekename.me/) and open it once. In Rostrum, go to
+Settings → Integrations → OpenDeck → Install. Rostrum extracts its bundled plugin, detects native and
+Flatpak configuration folders, and asks which to use if both exist. Choose plugins folder… is
+available for a custom location; it stays selected until cleared. Update and Repair replace only
+Rostrum's plugin, preserving your OpenDeck profiles and other plugins. Python 3 is required.
+Restart OpenDeck, then drag Toggle mic, Panic mute, Switch scene, or Toggle bus mute onto a key.
+Choose a scene or bus in the property inspector and keep Rostrum running. Toggle mic has a
+Play sound option, enabled by default: a short descending cue confirms muted, and an ascending
+cue confirms live. Cues use `pw-play` and go only to Rostrum's headphones mix; muted headphones
+also mute the cues. No cue plays if Rostrum cannot confirm the state. Disable Play sound in the
+key's property inspector for silent operation. Sound volume adjusts just the cues from 0–100%;
+50% matches the original level, and the setting is saved per key. The plugin uses
+session D-Bus (`gdbus`) first, with `rostrum --no-start` as a fallback; it never opens the deck or
+starts Rostrum. Older Rostrum versions without `--no-start` cannot use the CLI fallback.
+
+Manual copy fallback: copy `tools/opendeck/dev.getrostrum.Rostrum.sdPlugin` into the plugins
+folder shown by OpenDeck settings: **Open config directory**, then `plugins`. Flatpak OpenDeck
+uses its own config directory. Restart OpenDeck and drag one of the four actions onto a key.
+
+Test without hardware: `python3 -B tools/opendeck/test_plugin.py`.
+Manual check: with OpenDeck and Rostrum running, press a Toggle mic key and confirm that the
+mixer's Mic strip matches its Mic live / Mic muted title.
+
 ### ⚙️ Defaults
 
 - Default scene name: `Live`.
@@ -260,7 +353,7 @@ listener.
 
 - Settings and scenes: `~/.config/rostrum/` (TOML). Log: `~/.local/state/rostrum/rostrum.log`.
 - Deleted scenes: `~/.config/rostrum/trash/`, kept 30 days. The setup from before a restore:
-  `~/.config/rostrum/backups/`. Settings → Advanced → Back Up Settings… writes settings, hotkeys,
+  `~/.config/rostrum/backups/`. Settings → Application → Advanced → Back Up Settings… writes settings, hotkeys,
   devices and scenes to one file, without crash report and update choices, window state or when
   apps were last seen.
 - Crash reports waiting to be sent or discarded: `~/.local/state/rostrum/crashes/` (at most 10,

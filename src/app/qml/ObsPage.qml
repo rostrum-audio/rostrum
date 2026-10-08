@@ -14,7 +14,8 @@ QQC2.ScrollView {
 
     readonly property var streamNode: Devices.virtualNodes.find(n => n.name === "rostrum.stream") ?? null
     readonly property var micNode: Devices.virtualNodes.find(n => n.name === "rostrum.mic") ?? null
-    readonly property bool nodesPresent: streamNode !== null && micNode !== null
+    readonly property var vodNode: Devices.virtualNodes.find(n => n.name === "rostrum.vod") ?? null
+    readonly property bool nodesPresent: streamNode !== null && micNode !== null && vodNode !== null
     readonly property bool obsRunning: ["noWebSocket", "connecting", "connected", "authFailed", "failed"].includes(Obs.state)
     property bool manualOpen: false
 
@@ -200,6 +201,11 @@ QQC2.ScrollView {
                     }
                 }
             }
+        }
+
+        RecordingTracks {
+            Layout.fillWidth: true
+            setup: Obs.recordingTracks
         }
 
         // What OBS records, straight from the PipeWire graph
@@ -407,7 +413,23 @@ QQC2.ScrollView {
                     QQC2.Label {
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
-                        text: i18n("Optional, for separate VOD audio: in OBS, open Advanced Audio Properties. Send Rostrum Stream Mix to track 1, and Rostrum Mic to tracks 1 and 2.")
+                        text: i18nc("@info manual setup step", "For separate Twitch VOD audio, add an <b>Audio Output Capture</b> source named <b>Rostrum VOD Mix</b> to every scene, and pick:")
+                        textFormat: Text.StyledText
+                    }
+                    NodeName {
+                        label: "Rostrum VOD Mix"
+                        nodeName: "rostrum.vod"
+                        present: page.vodNode !== null
+                    }
+                }
+
+                Step {
+                    number: 5
+                    QQC2.Label {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        text: i18nc("@info manual setup step", "In OBS, open <b>Advanced Audio Properties</b>. Send <b>Rostrum Mic</b> to tracks 1 and 2, <b>Rostrum Stream Mix</b> to track 1 only, and <b>Rostrum VOD Mix</b> to track 2 only. Keep Desktop Audio off both tracks. In <b>Settings ▸ Output</b>, enable <b>Twitch VOD Track</b> and set it to 2.")
+                        textFormat: Text.StyledText
                     }
                 }
             }

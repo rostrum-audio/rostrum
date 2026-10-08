@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rostrum action</title>
+<style>
+body { background: #252525; color: #eee; font: 14px sans-serif; margin: 16px; }
+label, select { display: block; width: 100%; }
+input[type="range"] { width: 100%; margin: 8px 0; }
+output { float: right; }
+select { margin-top: 8px; padding: 6px; background: #333; color: #eee; }
+</style>
+<label id="label" for="choice">Choose a scene or bus</label>
+<select id="choice" disabled><option value="">Choose…</option></select>
+<div id="feedback" hidden>
+  <label for="playSound"><input id="playSound" type="checkbox" checked> Play sound</label>
+  <label for="soundVolume">Sound volume <output id="volumeValue" for="soundVolume">50%</output></label>
+  <input id="soundVolume" type="range" min="0" max="100" step="1" value="50"
+         aria-describedby="soundHelp">
+  <p id="soundHelp">50% is the original volume. Adjusts only these cues.</p>
+  <p>Muted: descending tones. Live: ascending tones. Plays in Rostrum headphones; requires pw-play.</p>
+</div>
+<p id="status" role="status">Connecting…</p>
+<script>
+let socket, context, action, settings = {};
+const choice = document.getElementById('choice');
+const status = document.getElementById('status');
+const playSound = document.getElementById('playSound');
+const soundVolume = document.getElementById('soundVolume');
+const volumeValue = document.getElementById('volumeValue');
+function volumeSetting(value) {
+    return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 50;
+}
+function showVolume() {
+    volumeValue.textContent = soundVolume.value + '%';
+    soundVolume.setAttribute('aria-valuetext', volumeValue.textContent);
+}
+function showSettings() {
+    const isMic = action && action.endsWith('.mic');
+    document.getElementById('feedback').hidden = !isMic;
+    document.getElementById('label').hidden = isMic;
+    choice.hidden = isMic;
+    playSound.checked = settings.playSound !== false;
+    if (document.activeElement !== soundVolume)
+        soundVolume.value = volumeSetting(settings.soundVolume);
+    soundVolume.disabled = !playSound.checked;
+    showVolume();
+}
+function send(event, payload) {
+    if (socket && socket.readyState === WebSocket.OPEN)
+        socket.send(JSON.stringify({event, action, context, payload}));
+}
+function requestChoices() { send('sendToPlugin', {request: 'choices'}); }
+function connectOpenActionSocket(port, uuid, registerEvent, info, actionInfo) {
+    // OpenDeck and Stream Deck supply the selected action as the fifth argument.
+    if (actionInfo) {
+        const data = JSON.parse(actionInfo);
+        context = data.context; action = data.action; settings = data.payload.settings || {};
+    } else { context = uuid; }
+    showSettings();
+    socket = new WebSocket('ws://127.0.0.1:' + port);
+    socket.onopen = () => {
+        socket.send(JSON.stringify({event: registerEvent, uuid}));
+        send('getSettings', {});
+        requestChoices();
+    };
+    socket.onmessage = message => {
+        const data = JSON.parse(message.data);
+        if (data.action) action = data.action;
+        if (data.context) context = data.context;
+        if (data.event === 'didReceiveSettings') {
+            settings = data.payload.settings || {};
+            showSettings();
+            requestChoices();
+        } else if (data.event === 'sendToPropertyInspector') {
+            settings = data.payload.settings || settings;
+            showSettings();
+            const isScene = action.endsWith('.scene');
+            const field = isScene ? 'scene' : 'bus';
+            document.getElementById('label').textContent = isScene ? 'Scene' : 'Bus';
+            const rows = isScene ? data.payload.scenes.map(name => ({id: name, name})) : data.payload.buses;
+            choice.replaceChildren(new Option('Choose…', ''));
+            for (const row of rows) choice.add(new Option(row.name, row.id));
+            if (settings[field] && !rows.some(row => row.id === settings[field]))
+                choice.add(new Option('Missing: ' + settings[field], settings[field]));
+            choice.value = settings[field] || '';
+            choice.disabled = !data.payload.available;
+            status.textContent = data.payload.available ? '' : 'Unavailable — start Rostrum';
+        }
+    };
+    socket.onclose = () => { choice.disabled = true; status.textContent = 'Disconnected'; };
+}
+const connectElgatoStreamDeckSocket = connectOpenActionSocket;
+playSound.onchange = () => {
+    settings.playSound = playSound.checked;
+    soundVolume.disabled = !playSound.checked;
+    send('setSettings', settings);
+};
+soundVolume.oninput = showVolume;
+soundVolume.onchange = () => {
+    settings.soundVolume = volumeSetting(Number(soundVolume.value));
+    send('setSettings', settings);
+};
+choice.onchange = () => {
+    settings[action.endsWith('.scene') ? 'scene' : 'bus'] = choice.value;
+    send('setSettings', settings);
+};
+// Refresh the visible inspector's choices as scenes/buses change. The plugin caches queries.
+setInterval(requestChoices, 1000);
+</script>
+</html>

@@ -41,6 +41,7 @@ struct ReadinessInput
     bool obsFresh = false;
     QString obsError;
     Facts facts;
+    QSet<QString> recordingDevices; // explicitly assigned isolated captures for this collection
     const QList<Recording> *legacyRecordings = nullptr;
 };
 QList<ReadinessResult> evaluateReadiness(const ReadinessInput &input);

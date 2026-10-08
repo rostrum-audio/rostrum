@@ -5,6 +5,7 @@
 #include "obs/ObsPlan.h"
 #include "obs/ObsStatus.h"
 #include "obs/Readiness.h"
+#include "obs/RecordingLive.h"
 #include "obs/SceneCollection.h"
 #include "pw/PwContext.h"
 
@@ -121,6 +122,10 @@ public:
     QString programScene;
     QString streamService;
     int twitchVodTrack = 0;
+    int recordingTracks = 3;
+    QStringList trackNamesRead;
+    QString gameTrackName = QStringLiteral("Game");
+    QString profile = QStringLiteral("Test profile"), collection = QStringLiteral("Test collection");
 
     void emitEvent(const QString &type, const QJsonObject &data)
     {
@@ -177,6 +182,10 @@ private:
         const QString name = rd.value(QLatin1String("inputName")).toString();
         if (type == QLatin1String("GetVersion")) {
             out.insert(QStringLiteral("obsVersion"), QStringLiteral("32.2.2"));
+        } else if (type == QLatin1String("GetSceneCollectionList")) {
+            out.insert(QStringLiteral("currentSceneCollectionName"), collection);
+        } else if (type == QLatin1String("GetProfileList")) {
+            out.insert(QStringLiteral("currentProfileName"), profile);
         } else if (type == QLatin1String("GetSpecialInputs")) {
             for (const char *ch : {"desktop1", "desktop2", "mic1", "mic2", "mic3", "mic4"}) {
                 const QString n = special.value(QLatin1String(ch));
@@ -209,8 +218,11 @@ private:
             out.insert(QStringLiteral("inputs"), list);
         } else if (type == QLatin1String("GetSceneItemList")) {
             QJsonArray items;
-            for (const auto &name : scenes.value(programScene))
+            int id = 0;
+            const auto scene = rd.value(QLatin1String("sceneName")).toString(programScene);
+            for (const auto &name : scenes.value(scene))
                 items.append(QJsonObject{{QStringLiteral("sourceName"), name},
+                                         {QStringLiteral("sceneItemId"), ++id},
                                          {QStringLiteral("sceneItemEnabled"), true},
                                          {QStringLiteral("isGroup"), nested}});
             out.insert(QStringLiteral("sceneItems"), items);
@@ -261,6 +273,7 @@ private:
             inputs.insert(name, In{rd.value(QLatin1String("inputKind")).toString(),
                                    rd.value(QLatin1String("inputSettings")).toObject(), false, {}});
             scenes[scene] << name;
+            out.insert(QStringLiteral("sceneItemId"), scenes[scene].size());
         } else if (type == QLatin1String("CreateSceneItem")) {
             const QString scene = rd.value(QLatin1String("sceneName")).toString();
             const QString source = rd.value(QLatin1String("sourceName")).toString();
@@ -268,6 +281,19 @@ private:
                 return false;
             }
             scenes[scene] << source;
+            out.insert(QStringLiteral("sceneItemId"), scenes[scene].size());
+        } else if (type == QLatin1String("SetSceneItemEnabled")) {
+            // These tests model placement, not rendering. The request is still validated.
+            const auto scene = rd.value(QLatin1String("sceneName")).toString();
+            const int id = rd.value(QLatin1String("sceneItemId")).toInt();
+            if (!scenes.contains(scene) || id < 1 || id > scenes[scene].size())
+                return false;
+        } else if (type == QLatin1String("RemoveSceneItem")) {
+            const auto scene = rd.value(QLatin1String("sceneName")).toString();
+            const int id = rd.value(QLatin1String("sceneItemId")).toInt();
+            if (!scenes.contains(scene) || id < 1 || id > scenes[scene].size())
+                return false;
+            scenes[scene].removeAt(id - 1);
         } else if (type == QLatin1String("RemoveInput")) {
             if (!inputs.remove(name)) {
                 return false;
@@ -284,12 +310,26 @@ private:
             if (param == QLatin1String("VodTrackIndex")) {
                 out.insert(QStringLiteral("parameterValue"), QString::number(twitchVodTrack));
             } else if (param == QLatin1String("TwitchVodTrack")) {
-                out.insert(QStringLiteral("parameterValue"), twitchVodTrack > 0 ? QStringLiteral("true") : QStringLiteral("false"));
+                out.insert(QStringLiteral("parameterValue"),
+                           twitchVodTrack > 0 ? QStringLiteral("true") : QStringLiteral("false"));
+            } else if (param == QLatin1String("Mode")) {
+                out.insert(QStringLiteral("parameterValue"), QStringLiteral("Advanced"));
+            } else if (param == QLatin1String("RecTracks")) {
+                out.insert(QStringLiteral("parameterValue"), QString::number(recordingTracks));
+            } else if (param.startsWith(QLatin1String("Track")) && param.endsWith(QLatin1String("Name"))) {
+                trackNamesRead << param;
+                out.insert(QStringLiteral("parameterValue"),
+                           param == QLatin1String("Track3Name") ? QJsonValue(gameTrackName)
+                                                               : QJsonValue(QJsonValue::Null));
+            } else if (param == QLatin1String("RecType")) {
+                out.insert(QStringLiteral("parameterValue"), QStringLiteral("Standard"));
             }
         } else if (type == QLatin1String("SetProfileParameter")) {
             const QString param = rd.value(QLatin1String("parameterName")).toString();
             if (param == QLatin1String("VodTrackIndex")) {
                 twitchVodTrack = rd.value(QLatin1String("parameterValue")).toString().toInt();
+            } else if (param == QLatin1String("RecTracks")) {
+                recordingTracks = rd.value(QLatin1String("parameterValue")).toString().toInt();
             }
         } else {
             return false;
@@ -341,6 +381,173 @@ class TestObs : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    void recordingSetupReadsAppliesAndUndoes_data()
+    {
+        QTest::addColumn<bool>("filteredMic");
+        QTest::newRow("plain mic") << false;
+        QTest::newRow("filtered mic") << true;
+    }
+
+    void recordingSetupReadsAppliesAndUndoes()
+    {
+        QFETCH(bool, filteredMic);
+        FakeObs server(QStringLiteral("pw"));
+        populate(server);
+        server.inputs[QStringLiteral("Mic/Aux")].settings[QStringLiteral("device_id")] =
+            QLatin1String(kMicDevice);
+        server.inputs[QStringLiteral("Mic/Aux")].tracks = tracks({1, 2});
+        Client client;
+        QVERIFY(connectClient(client, server.port(), QStringLiteral("pw")));
+        RecordingSnapshot before;
+        bool done = false;
+        fetchRecordingSnapshot(&client, [&](const auto &snapshot, const QString &error) {
+            QVERIFY2(error.isEmpty(), qPrintable(error));
+            before = snapshot;
+            done = true;
+        });
+        QTRY_VERIFY(done);
+        QVERIFY(before.known);
+        QCOMPARE(server.trackNamesRead.size(), 6);
+        QCOMPARE(before.trackNames.value(3), QStringLiteral("Game"));
+        QCOMPARE(before.trackNames.value(4), QString());
+        for (const auto &request : server.requests)
+            QVERIFY(request.startsWith(QLatin1String("Get")));
+        const auto plan = recordingPlan(
+            before, rostrum::defaults::scene(),
+            {{3, QStringLiteral("mic")}, {4, QStringLiteral("game")}, {6, QStringLiteral("music")}},
+            filteredMic);
+        QVERIFY(plan.problems.isEmpty());
+        QList<RecordingChange> journal;
+        done = false;
+        applyRecordingChanges(
+            &client, before, plan.changes,
+            [&](const auto &applied) {
+                journal = applied;
+                return true;
+            },
+            [&](const auto &, const QString &error) {
+                QVERIFY2(error.isEmpty(), qPrintable(error));
+                done = true;
+            });
+        QTRY_VERIFY(done);
+        QCOMPARE(server.inputs[QStringLiteral("Rostrum Game (Recording)")].tracks, tracks({4}));
+        QCOMPARE(server.inputs[QStringLiteral("Rostrum Music (Recording)")].tracks, tracks({6}));
+        QCOMPARE(server.inputs[QStringLiteral("Mic/Aux")].tracks,
+                 filteredMic ? tracks({1, 2}) : tracks({1, 2, 3}));
+        if (filteredMic) {
+            const auto mic = server.inputs.value(QStringLiteral("Rostrum Mic (Recording)"));
+            QCOMPARE(mic.settings.value(QStringLiteral("device_id")).toString(),
+                     QStringLiteral("rostrum.filtered"));
+            QCOMPARE(mic.tracks, tracks({3}));
+        }
+        QCOMPARE(server.recordingTracks, 47);
+        QCOMPARE(server.inputs[QStringLiteral("Discord Audio")].tracks, tracks({5}));
+        server.gameTrackName = QStringLiteral("Gameplay");
+        RecordingSnapshot after;
+        done = false;
+        fetchRecordingSnapshot(&client, [&](const auto &snapshot, const QString &error) {
+            QVERIFY2(error.isEmpty(), qPrintable(error));
+            after = snapshot;
+            done = true;
+        });
+        QTRY_VERIFY(done);
+        QCOMPARE(after.trackNames.value(3), QStringLiteral("Gameplay"));
+        auto renamed = before;
+        renamed.trackNames[3] = QStringLiteral("Gameplay");
+        QVERIFY(recordingFingerprint(renamed) != recordingFingerprint(before));
+        const auto repeated = recordingPlan(
+            after, rostrum::defaults::scene(),
+            {{3, QStringLiteral("mic")}, {4, QStringLiteral("game")}, {6, QStringLiteral("music")}},
+            filteredMic);
+        QVERIFY(repeated.changes.isEmpty());
+        RecordingPlan completed;
+        completed.changes = recordingChangesFromJson(recordingChangesJson(journal));
+        done = false;
+        applyRecordingChanges(
+            &client, after, recordingUndo(completed).changes, [](const auto &) { return true; },
+            [&](const auto &, const QString &error) {
+                QVERIFY2(error.isEmpty(), qPrintable(error));
+                done = true;
+            });
+        QTRY_VERIFY(done);
+        QVERIFY(!server.inputs.contains(QStringLiteral("Rostrum Game (Recording)")));
+        QVERIFY(!server.inputs.contains(QStringLiteral("Rostrum Music (Recording)")));
+        QCOMPARE(server.inputs[QStringLiteral("Mic/Aux")].tracks, tracks({1, 2}));
+        QVERIFY(!server.inputs.contains(QStringLiteral("Rostrum Mic (Recording)")));
+        QCOMPARE(server.recordingTracks, 3);
+    }
+
+    void recordingWritesStopIfOutputStarts()
+    {
+        FakeObs server(QStringLiteral("pw"));
+        populate(server);
+        Client client;
+        QVERIFY(connectClient(client, server.port(), QStringLiteral("pw")));
+        RecordingSnapshot scope;
+        scope.collection = server.collection;
+        scope.profile = server.profile;
+        const QList<RecordingChange> changes{{QStringLiteral("SetInputAudioTracks"),
+                                              {{QStringLiteral("inputName"), QStringLiteral("Game Audio")},
+                                               {QStringLiteral("inputAudioTracks"), tracks({4})}},
+                                              {},
+                                              {}},
+                                             {QStringLiteral("SetInputAudioTracks"),
+                                              {{QStringLiteral("inputName"), QStringLiteral("Discord Audio")},
+                                               {QStringLiteral("inputAudioTracks"), tracks({5})}},
+                                              {},
+                                              {}}};
+        const auto voiceBefore = server.inputs[QStringLiteral("Discord Audio")].tracks;
+        bool done = false;
+        applyRecordingChanges(
+            &client, scope, changes,
+            [&](const auto &) {
+                server.streaming = true;
+                return true;
+            },
+            [&](const auto &applied, const QString &error) {
+                QCOMPARE(applied.size(), 1);
+                QCOMPARE(error, QStringLiteral("activeOutput"));
+                done = true;
+            });
+        QTRY_VERIFY(done);
+        QCOMPARE(server.inputs[QStringLiteral("Discord Audio")].tracks, voiceBefore);
+    }
+
+    void recordingRefusesUnknownSnapshotAndChangedCollection()
+    {
+        FakeObs server(QStringLiteral("pw"));
+        populate(server);
+        server.refuse << QStringLiteral("GetInputAudioTracks");
+        Client client;
+        QVERIFY(connectClient(client, server.port(), QStringLiteral("pw")));
+        bool done = false;
+        fetchRecordingSnapshot(&client, [&](const auto &snapshot, const QString &error) {
+            QVERIFY(!snapshot.known);
+            QVERIFY(!error.isEmpty());
+            done = true;
+        });
+        QTRY_VERIFY(done);
+        RecordingSnapshot scope;
+        scope.collection = QStringLiteral("Old collection");
+        scope.profile = server.profile;
+        done = false;
+        applyRecordingChanges(
+            &client, scope,
+            {{QStringLiteral("SetInputMute"),
+              {{QStringLiteral("inputName"), QStringLiteral("Mic/Aux")},
+               {QStringLiteral("inputMuted"), true}},
+              {},
+              {}}},
+            [](const auto &) { return true; },
+            [&](const auto &applied, const QString &error) {
+                QVERIFY(applied.isEmpty());
+                QCOMPARE(error, QStringLiteral("scopeChanged"));
+                done = true;
+            });
+        QTRY_VERIFY(done);
+        QVERIFY(!server.requests.contains(QStringLiteral("SetInputMute")));
+    }
+
     void authMatchesProtocolExample()
     {
         QCOMPARE(Client::authResponse(QStringLiteral("supersecretpassword"),
@@ -761,6 +968,106 @@ private Q_SLOTS:
         engine.setPushToTalk(true);
         const EffectiveMutes heldTalk{engine.effectiveMicMuted(), engine.effectiveStreamMuted()};
         QVERIFY(!goLiveProblems(engine.scene(), {}, nullptr, &heldTalk).contains(GoLiveProblem::MicMuted));
+    }
+
+    void vodCaptureStatus_data()
+    {
+        QTest::addColumn<quint32>("trackMask");
+        QTest::addColumn<bool>("muted");
+        QTest::addColumn<double>("gain");
+        QTest::addColumn<VodCaptureStatus>("expected");
+        QTest::newRow("VOD track 2 only") << 2u << false << 1.0 << VodCaptureStatus::Configured;
+        QTest::newRow("wrong track") << 1u << false << 1.0 << VodCaptureStatus::WrongTracks;
+        QTest::newRow("also on stream") << 3u << false << 1.0 << VodCaptureStatus::WrongTracks;
+        QTest::newRow("no tracks") << 0u << false << 1.0 << VodCaptureStatus::WrongTracks;
+        QTest::newRow("muted VOD") << 2u << true << 1.0 << VodCaptureStatus::Muted;
+        QTest::newRow("zero-volume VOD") << 2u << false << 0.0 << VodCaptureStatus::Silent;
+    }
+
+    void vodCaptureStatus()
+    {
+        QFETCH(quint32, trackMask);
+        QFETCH(bool, muted);
+        QFETCH(double, gain);
+        QFETCH(VodCaptureStatus, expected);
+        Input input;
+        input.name = QStringLiteral("Rostrum VOD Mix");
+        input.tracks = trackMask;
+        input.muted = muted;
+        input.gain = gain;
+        input.tracksKnown = input.muteKnown = input.gainKnown = true;
+        QCOMPARE(rostrum::obs::vodCaptureStatus(&input), expected);
+        QCOMPARE(rostrum::obs::vodCaptureStatus(nullptr), VodCaptureStatus::Unknown);
+        input.tracksKnown = false;
+        QCOMPARE(rostrum::obs::vodCaptureStatus(&input), VodCaptureStatus::Unknown);
+        input.tracksKnown = true;
+        input.muteKnown = false;
+        QCOMPARE(rostrum::obs::vodCaptureStatus(&input), VodCaptureStatus::Unknown);
+        input.muteKnown = true;
+        input.gainKnown = false;
+        // The recording panel snapshot reads tracks and mute, not volume.
+        QCOMPARE(rostrum::obs::vodCaptureStatus(&input),
+                 expected == VodCaptureStatus::Silent ? VodCaptureStatus::Configured : expected);
+    }
+
+    void assignedFilteredMicWarning_data()
+    {
+        QTest::addColumn<QString>("configuredDevice");
+        QTest::addColumn<QString>("observedDevice");
+        QTest::addColumn<quint32>("tracks");
+        QTest::addColumn<quint32>("assignedTracks");
+        QTest::addColumn<bool>("intended");
+        QTest::newRow("assigned filtered mic") << QStringLiteral("rostrum.filtered")
+            << QStringLiteral("rostrum.filtered") << 4u << 4u << true;
+        QTest::newRow("unassigned filtered mic") << QStringLiteral("rostrum.filtered")
+            << QStringLiteral("rostrum.filtered") << 4u << 0u << false;
+        QTest::newRow("other recording track") << QStringLiteral("rostrum.filtered")
+            << QStringLiteral("rostrum.filtered") << 8u << 4u << false;
+        QTest::newRow("also reaches stream") << QStringLiteral("rostrum.filtered")
+            << QStringLiteral("rostrum.filtered") << 5u << 4u << false;
+        QTest::newRow("hardware mic") << QStringLiteral("alsa_input.hardware")
+            << QStringLiteral("alsa_input.hardware") << 4u << 4u << false;
+        QTest::newRow("moved to hardware") << QStringLiteral("rostrum.filtered")
+            << QStringLiteral("alsa_input.hardware") << 4u << 4u << false;
+    }
+
+    void assignedFilteredMicWarning()
+    {
+        QFETCH(QString, configuredDevice);
+        QFETCH(QString, observedDevice);
+        QFETCH(quint32, tracks);
+        QFETCH(quint32, assignedTracks);
+        QFETCH(bool, intended);
+        rostrum::pw::Graph graph;
+        rostrum::pw::Node source;
+        source.id = 1;
+        source.name = observedDevice;
+        source.mediaClass = QStringLiteral("Audio/Source");
+        graph.nodes.insert(source.id, source);
+        rostrum::pw::Node capture;
+        capture.id = 2;
+        capture.name = QStringLiteral("OBS: Rostrum Mic (Recording)");
+        capture.appName = QStringLiteral("OBS");
+        capture.mediaClass = QStringLiteral("Stream/Input/Audio");
+        graph.nodes.insert(capture.id, capture);
+        rostrum::pw::Link link;
+        link.id = 3;
+        link.outNode = source.id;
+        link.inNode = capture.id;
+        graph.links.insert(link.id, link);
+        const auto observed = obsRecordings(graph);
+        QCOMPARE(observed.size(), 1);
+        // Graph classification stays conservative for unassigned filtered sources.
+        QCOMPARE(observed.first().capture, Capture::Mic);
+        Input input;
+        input.name = QStringLiteral("Rostrum Mic (Recording)");
+        input.kind = QLatin1String(kPulseInput);
+        input.settings = {{QStringLiteral("device_id"), configuredDevice}};
+        input.settingsKnown = input.tracksKnown = true;
+        input.tracks = tracks;
+        QCOMPARE(assignedRecordingMic(observed.first(), input, assignedTracks), intended);
+        input.settingsKnown = false;
+        QVERIFY(!assignedRecordingMic(observed.first(), input, assignedTracks));
     }
 
     void goLiveProblemsAreFound()

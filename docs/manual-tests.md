@@ -193,7 +193,14 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
    Firefox to Music: the chip says Music and Always is on, and a rule appears on the right.
    Turn Always off: the rule disappears but Firefox stays on Music until it quits.
 2. Apps: drag Firefox's volume slider. The row does not jump or reset while you drag.
-   Type "disc" in the search box: only Discord rows remain in both lists.
+   Type "disc" in the search box: only Discord rows remain in both lists. With OBS monitoring
+   and speech-dispatcher running, excluded unassigned streams appear under collapsed Audio tools
+   and services with a live count. Expand it: their usual controls remain available, and no routing
+   or mute changes occur. Search for "OBS" or "sd_dummy": matching tools appear directly in results.
+   Clear search: the previous expanded/collapsed state returns. In a disposable setup, manually
+   assign a tool: it moves into Playing now without appearing twice; unassign it and it returns
+   to the tools section. A bus filter shows only apps on that bus. An app that chose its own
+   output device remains in the main list. Check keyboard expansion and a narrow window.
 3. Apps: run `pw-play -P '{ application.name = "ALSA plug-in [x]" application.process.binary = "mygame" }' file.wav`.
    A banner offers to name it. Name it "My Game" on Game: the rule shows "My Game → Game",
    matched by binary.
@@ -249,9 +256,19 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
    checks it. With "Save scene changes automatically" off, "Confirm before switching scenes" on
    and a fader moved, the hotkey raises the window and asks first.
 6. Turn on "Launch at login": `~/.config/autostart/dev.getrostrum.Rostrum.desktop` exists
-   and `desktop-file-validate` passes on it. Turn on "Start in tray", log out and in: Rostrum is
-   in the tray with no window. Starting it from the app menu while it runs raises the window.
-   Turn "Launch at login" off: the file is gone.
+   and `desktop-file-validate` passes on it. For an AppImage, `Exec=` has the quoted AppImage path
+   plus `--autostart` and `TryExec=` points at the file. For a `~/.local` install, `Exec=` and
+   `TryExec=` contain the absolute home path, such as `/home/alex/.local/bin/rostrum`, not a
+   literal `~` or an unqualified `rostrum`. With Rostrum already running, run that executable
+   with `--no-start --list-buses` under `PATH=/usr/local/bin:/usr/bin:/bin`; it reaches the
+   running instance without starting another mix. (Previously, `Exec=` wrote an unqualified
+   `rostrum --autostart` or a transient mount path that failed on session login because `~/.local/bin`
+   was not in the session manager's default `$PATH` and FUSE mounts disappeared after logout;
+   `TryExec=` and `StartupWMClass=` were also missing, and moving the binary did not rewrite the file.)
+   Verify moving the binary rewrites the entry on launch. Turn on "Start in tray", log out and in:
+   Rostrum launches silently into the tray without showing a window, even if the panel registers after
+   Rostrum. Starting Rostrum from the app menu while running raises the window, whereas a second login
+   with `--autostart` remains in the tray. Turn "Launch at login" off: the file is removed.
 7. Unplug the headset while Rostrum runs: one notification, "Headphones disconnected, scene
    held." Unplug the saved mic: one notification, "Mic disconnected, stream mic silent." (test 17).
    Mute and unmute from the window never notify.
@@ -611,7 +628,7 @@ audio.position=[MONO] }'` set as default with `wpctl set-default`.
 
 ## 26. Settings backup and restore
 
-1. Settings → Advanced → Back Up Settings…: the save dialog suggests
+1. Settings → Application → Advanced → Back Up Settings…: the save dialog suggests
    `rostrum-backup-<date>.toml` in Documents. The file has `kind = "rostrum-backup"`, a
    `[settings]` table with general, mixer, ducking, apps, obs, scenes, devices, hotkeys and
    advanced, and one `[[scene]]` per scene. It has no `privacy`, `updates`, `window`,
@@ -678,6 +695,12 @@ makes noise removal easy to hear.
 11. **Gain warning.** Raise the mic gain above 100 % with the limiter on: the page warns.
 12. **Meters and ducking.** With the fan running and filters on, the mic strip's meter stays low
     between words. With ducking on, the fan alone does not duck Music.
+13. **Mute in a call.** With Discord using Rostrum Filtered Mic, mute from the mixer,
+    OpenDeck, or `rostrum --mute-mic`: Discord's mic test and Rostrum Mic both hear silence.
+    Unmute: both hear the mic again. Repeat with Push to mute and Panic mute. Clear Panic
+    mute, mute the mic, then hold Push to talk: both sources are live only while held.
+    The hardware input remains unchanged. Apps using
+    the plain hardware mic directly do not follow Rostrum's mute.
 
 ## 29. Mic check
 
@@ -715,6 +738,85 @@ Needs Easy Effects 7 or 8 with "Process all output streams" and "Process all inp
    Filtered Mic, not Easy Effects Source, and the Mic Filters page says "Hears the filtered mic".
 5. **Own streams.** The Devices page test chime and the mic check play in the headphones, never
    through Easy Effects.
+
+## 31. OpenDeck plugin install from Settings
+
+No physical deck is needed for the install checks.
+
+1. Open Settings → Integrations → OpenDeck. Native detection uses `$XDG_CONFIG_HOME/opendeck`
+   when set, otherwise `~/.config/opendeck`. Flatpak detection uses
+   `~/.var/app/me.amankhanna.opendeck/config/opendeck`. If both exist, choose an installation;
+   neither folder changes before a choice. A custom plugins folder stays selected until cleared;
+   a missing custom folder is an error, with no switch to another installation.
+2. Record the plugins and profiles before pressing Install. If Rostrum's plugin is already
+   installed, back up only `dev.getrostrum.Rostrum.sdPlugin` outside the plugins folder first.
+   Press Install: only that directory is created under the selected config's `plugins` folder.
+   It contains `manifest.json`, executable `plugin.sh`, `plugin.py`, `inspector.html`, and the
+   five built-in SVG icons. None is a symlink into a checkout or an AppImage mount. Other plugins
+   and profiles remain unchanged. Stop OpenDeck during the comparison so its own writes do not
+   obscure the install's changes.
+3. The status says the plugin matches this release and tells the user to restart OpenDeck.
+   It does not say the plugin loaded. Try the Installed button again: it is disabled, and the
+   file contents and modification times do not change. An older copy offers Update; an
+   incomplete copy offers Repair. A failed replacement retains the previous copy.
+4. Start a test instance with a PATH containing no `python3`: the page reports Python 3 was
+   not found, Install is disabled, and no plugin is installed. Restore the normal PATH afterward.
+5. Manual copy fallback: in OpenDeck settings choose Open config directory, then copy
+   `tools/opendeck/dev.getrostrum.Rostrum.sdPlugin` into `plugins`. Flatpak OpenDeck uses its
+   own config directory. Restart OpenDeck, then drag an action onto a key.
+6. Separately, when a deck is available: with OpenDeck and Rostrum running, press Toggle mic
+   and confirm the mixer strip matches Mic live / Mic muted. The four actions are Toggle mic,
+   Panic mute, Switch scene, and Toggle bus mute. Select a scene or bus in the property inspector.
+   This hardware check is not part of the install checks above.
+
+## 32. Separate OBS recording tracks
+
+Use a disposable OBS profile and scene collection, Advanced output mode, Standard recording,
+and Rostrum's normal stream setup. Recording tracks has its own preview and Undo, separate
+from Set Up OBS. Track 1 is the Stream Mix, track 2 is the VOD Mix, and tracks 3–6 are the
+chosen buses. These are checks to run, not claims of recorded sound.
+
+1. Open OBS → Recording tracks. Each row separates the track number, proposed
+   Rostrum bus, and current OBS captures with their device paths. OBS track names are available
+   in the track tooltip and accessible name; they do not appear as bus assignments. Rename
+   a track in OBS Settings → Output → Audio and apply: the tooltip picks up the name on its next
+   periodic refresh without writing to OBS. Leave the page open for more than ten seconds: the controls
+   remain available when outputs are stopped. Narrow the window: rows stack without clipping.
+   Occupied slots default to Keep OBS assignments, even if their sources are muted. Empty
+   slots suggest 3 Mic, 4 Game, 5 Voice, 6 Music. Review and apply Keep on all four slots: no
+   OBS writes. Explicitly choose 3 Mic, 4 Game, 5 Unused, 6 Music. Review lists sources removed
+   from each changed track; Cancel leaves OBS unchanged. Apply and Undo preserve track names.
+2. Review and Apply with outputs stopped. With filters off, the mic capture uses `rostrum.mic`
+   and keeps tracks 1/2 while gaining 3. With filters on, track 3 uses a separate named
+   Rostrum Mic (Recording) capture of `rostrum.filtered`; Mic/Aux keeps tracks 1/2. Named Game
+   and Music Audio Output Captures use their bus monitors on tracks 4 and 6 only. Track 5 is
+   disabled in recording output. Other sources leave tracks 3–6; their tracks 1/2, mutes, filters, and encoder
+   settings remain. A slot left on Keep retains its source assignments and output checkbox.
+   A capture shared with a kept slot gets a separate recording capture; the kept capture's
+   mute and placements stay unchanged. Shared nested scenes/groups do not need duplicate
+   enabled placements.
+3. Apply the same choices again: no OBS writes or additional captures. Undo Recording Changes
+   restores previous track masks (including zero), mutes, enabled recording tracks, and scene
+   placements. Undo OBS Changes remains separate from recording Undo.
+4. Assign a Headphones-only bus. Its stream destination and VOD flag remain unchanged. Bus mute
+   silences its recording capture; mic mute silences track 3. With filters off, the mic track
+   captures `rostrum.mic`. Turn filters on: a stale preview cannot Apply, and readiness reports
+   the changed recording configuration without writing to OBS. Review and Apply again: track 3
+   captures `rostrum.filtered`, while the stream mic stays on tracks 1/2. Mute/unmute the mic:
+   the isolated filtered source follows it. Turn filters off and review/apply again: track 3
+   returns to `rostrum.mic`; repeating the filter cycle reuses captures, without duplicates.
+   Stream master mute and panic mute
+   silence the combined mixes while isolated playback captures keep their own bus state.
+5. Run Set Up OBS again: the intended isolated bus captures are not conflict-muted. Change a
+   track assignment in OBS, disconnect/reconnect or restart Rostrum: it reports the difference
+   and does not overwrite OBS. Rename a bus: its saved assignment follows its id. Remove it or
+   load a scene without it: Missing is shown and Apply refuses until the choice is corrected.
+6. While streaming or recording, Review/Apply/Undo are unavailable. If an output starts during
+   Apply, remaining writes stop; failed setup restores what it can or retains a separate Undo.
+   An unwritable backup directory refuses setup before any OBS write.
+7. Check readiness: it may report matching recording configuration. It still says recording
+   contents and sound were not tested. Separately make a short test recording and inspect each
+   selected track in an editor; this physical recording is not part of the unit test.
 
 ## Smoke test log
 

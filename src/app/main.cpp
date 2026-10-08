@@ -11,6 +11,7 @@
 #include "app/MicFilters.h"
 #include "app/Mixer.h"
 #include "app/Obs.h"
+#include "app/OpenDeckSetup.h"
 #include "app/Preferences.h"
 #include "app/Scenes.h"
 #include "app/Updater.h"
@@ -70,9 +71,16 @@ int main(int argc, char *argv[])
         if (rostrum::app::cli::instanceRunning()) {
             return rostrum::app::cli::forward(request);
         }
+        if (parser.isSet(QStringLiteral("no-start"))) {
+            return rostrum::app::cli::kExitUnreachable;
+        }
         if (!request.hasControls()) {
             return rostrum::app::cli::answerOffline(request);
         }
+    }
+
+    if (parser.isSet(QStringLiteral("no-start"))) {
+        return rostrum::app::cli::kExitUnreachable;
     }
 
     rostrum::logging::install(rostrum::paths::logFile());
@@ -105,6 +113,9 @@ int main(int argc, char *argv[])
                          const auto r = rostrum::app::cli::parse(forwarded);
                          if (r.hasControls() && r.errors.isEmpty()) {
                              rostrum::app::cli::apply(r, control);
+                         } else if (forwarded.isSet(QStringLiteral("autostart")) && controller.settings().startInTray) {
+                             // Autostart from a second login keeps the existing instance in the tray.
+                             return;
                          } else {
                              Q_EMIT controller.raiseRequested();
                          }
@@ -134,6 +145,7 @@ int main(int argc, char *argv[])
     rostrum::app::Obs obs(&controller, nullptr);
     rostrum::app::Desktop desktop(&controller, nullptr);
     rostrum::app::Preferences preferences(&controller, nullptr);
+    rostrum::app::OpenDeckSetup openDeckSetup(&controller, nullptr);
     rostrum::app::CrashReports crashReports(&controller, nullptr);
     crashReports.start();
     rostrum::app::Updater updater(&controller, nullptr);

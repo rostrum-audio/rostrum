@@ -12,6 +12,8 @@ qt_add_executable(rostrum
     Logging.cpp Logging.h
 )
 
+rostrum_embed_opendeck(rostrum)
+
 qt_add_qml_module(rostrum
     URI Rostrum
     VERSION 1.0
@@ -28,6 +30,8 @@ qt_add_qml_module(rostrum
         MicFilters.cpp MicFilters.h
         Mixer.cpp Mixer.h
         Obs.cpp Obs.h
+        ObsRecording.cpp ObsRecording.h
+        OpenDeckSetup.cpp OpenDeckSetup.h
         Preferences.cpp Preferences.h
         RowsModel.cpp RowsModel.h
         Scenes.cpp Scenes.h
@@ -58,6 +62,7 @@ qt_add_qml_module(rostrum
         qml/Chevron.qml
         qml/AppChip.qml
         qml/ColorPopup.qml
+        qml/PlayingApps.qml
         qml/AppsPage.qml
         qml/AppRow.qml
         qml/RuleRow.qml
@@ -69,6 +74,7 @@ qt_add_qml_module(rostrum
         qml/MicFiltersPage.qml
         qml/MicCheckCard.qml
         qml/ObsPage.qml
+        qml/RecordingTracks.qml
         qml/ReadinessPanel.qml
         qml/ObsSetupDialog.qml
         qml/ObsChoices.qml

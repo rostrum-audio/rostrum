@@ -78,6 +78,8 @@ private:
     void notifyFeedback(const QString &iconName, const QString &text);
     void notifyMicLost(const QString &description);
     void notifyMicFiltersTripped();
+    bool writeAutostartFile();
+    void ensureAutostartCurrent();
 
     static Desktop *s_instance;
     AppController *m_app = nullptr;

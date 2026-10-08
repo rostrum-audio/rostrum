@@ -3,6 +3,7 @@
 #include "core/SceneToml.h"
 #include "core/Settings.h"
 #include "engine/Engine.h"
+#include "engine/NodeSpecs.h"
 #include "engine/SceneManager.h"
 #include "pw/Graph.h"
 #include "pw/MicCheck.h"
@@ -55,6 +56,50 @@ class TestEngine : public QObject
 {
     Q_OBJECT
 private Q_SLOTS:
+    void newBusCannotUseVodMasterName()
+    {
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        const QString id = engine.addBus(QStringLiteral("VOD"));
+        QVERIFY(!id.isEmpty());
+        const Bus *bus = engine.scene().bus(id);
+        QVERIFY(bus);
+        QVERIFY2(bus->nodeName() != QString::fromLatin1(engine::kVodNode),
+                 "A playback bus must not reuse the VOD master node");
+        QSet<QString> names;
+        for (const auto &spec : engine::desiredNodes(engine.scene())) {
+            QVERIFY2(!names.contains(spec.name), qPrintable(spec.name));
+            names.insert(spec.name);
+        }
+        const auto restored = toml_io::parseScene(toml_io::serializeScene(engine.scene()));
+        QVERIFY(restored);
+        QVERIFY2(restored->bus(id), "The added bus must survive saving and loading");
+    }
+
+    void ruleIconsSurviveRestartWithoutStreams()
+    {
+        Scene scene = defaults::scene();
+        AppRule discord;
+        discord.match = QStringLiteral("WEBRTC VoiceEngine");
+        discord.busId = QStringLiteral("voice");
+        discord.iconNames = {QStringLiteral("missing-desktop-icon"), QStringLiteral("discord")};
+        scene.rules.append(discord);
+        const auto restored = toml_io::parseScene(toml_io::serializeScene(scene));
+        QVERIFY(restored);
+        QCOMPARE(restored->rules.first().iconNames, (QStringList{"missing-desktop-icon", "discord"}));
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        QCOMPARE(engine.ruleIconCandidates(restored->rules.first()),
+                 (QStringList{"missing-desktop-icon", "discord"}));
+        AppRule java;
+        java.match = QStringLiteral("java");
+        QVERIFY(engine.ruleIconCandidates(java).isEmpty());
+        AppRule obs;
+        obs.match = QStringLiteral("OBS");
+        obs.iconNames = {QStringLiteral("obs")};
+        QVERIFY(engine.ruleIconCandidates(obs).isEmpty());
+    }
+
     void savedMicIsUsedWhenPresent()
     {
         const pw::Graph g = devices();
