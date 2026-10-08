@@ -115,6 +115,10 @@ Five minutes to a split stream:
    you can name them once. Each app on the Apps page also has its own volume and Mute, without
    touching the rest of its bus; with "Always" on, they save with the scene.
 
+   Unassigned audio tools and accessibility services appear in a collapsed **Audio tools and
+   services** section. Expand it to use their existing controls. Search includes these streams;
+   manually assigned tools appear in Playing now. Grouping does not change their audio routing.
+
    ![The Apps page: what is playing now, and the saved rules](docs/screenshots/apps.png)
 
 4. **Pick destinations.** Each bus goes to Headphones, Stream or Both. Defaults: Music → Stream (excluded from headphones), the other playback buses → Both, Mic → Stream with sidetone off.

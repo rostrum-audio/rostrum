@@ -62,6 +62,7 @@ qt_add_qml_module(rostrum
         qml/Chevron.qml
         qml/AppChip.qml
         qml/ColorPopup.qml
+        qml/PlayingApps.qml
         qml/AppsPage.qml
         qml/AppRow.qml
         qml/RuleRow.qml

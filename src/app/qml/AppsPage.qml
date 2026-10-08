@@ -27,23 +27,13 @@ QQC2.Pane {
         return query === "" || fields.some(f => (f || "").toLowerCase().includes(query))
     }
     onQueryChanged: {
-        runningShown.invalidateFilter()
         rulesShown.invalidateFilter()
     }
     onBusFilterChanged: {
-        runningShown.invalidateFilter()
         rulesShown.invalidateFilter()
     }
 
     // Role Qt.UserRole + 1 is the whole row map (RowsModel).
-    KItemModels.KSortFilterProxyModel {
-        id: runningShown
-        sourceModel: Apps.runningModel
-        filterRowCallback: (sourceRow, sourceParent) => {
-            const a = sourceModel.data(sourceModel.index(sourceRow, 0, sourceParent), Qt.UserRole + 1)
-            return page.matches([a.name, a.binary, a.busName], a.busId)
-        }
-    }
     KItemModels.KSortFilterProxyModel {
         id: rulesShown
         sourceModel: Apps.rulesModel
@@ -122,29 +112,19 @@ QQC2.Pane {
                     level: 2
                     text: i18nc("@title", "Playing now")
                 }
-                QQC2.ScrollView {
+                PlayingApps {
+                    id: playingApps
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    ListView {
-                        id: runningList
-                        model: runningShown
-                        spacing: Kirigami.Units.smallSpacing
-                        clip: true
-                        delegate: AppRow {
+                    sourceModel: Apps.runningModel
+                    query: page.query
+                    busFilter: page.busFilter
+                    appDelegate: Component {
+                        AppRow {
                             required property var row
                             app: row
-                            width: ListView.view.width
-                        }
-                        Kirigami.PlaceholderMessage {
-                            anchors.centerIn: parent
-                            width: parent.width - Kirigami.Units.gridUnit * 2
-                            visible: runningList.count === 0
-                            icon.name: "applications-multimedia"
-                            text: Apps.running.length === 0 ? i18n("No apps are playing")
-                                                            : i18n("No playing apps match")
-                            explanation: Apps.running.length === 0
-                                         ? i18n("Launch Discord or a game. It will show up here while it is making audio.")
-                                         : ""
+                            width: playingApps.availableWidth
+                            Layout.fillWidth: true
                         }
                     }
                 }

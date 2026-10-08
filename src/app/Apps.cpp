@@ -223,6 +223,7 @@ void Apps::rebuild()
             {QStringLiteral("unnamed"), a.identity.unnamed},
             {QStringLiteral("nodeIds"), QVariantList{a.nodeId}},
             {QStringLiteral("automatic"), a.automatic},
+            {QStringLiteral("tool"), a.detected.excluded && a.detected.evidence != Evidence::OwnOutput},
             {QStringLiteral("detail"), detail},
             {QStringLiteral("divertedTo"), a.divertedTo},
             {QStringLiteral("divertedIds"), a.divertedTo.isEmpty() ? QVariantList{} : QVariantList{a.nodeId}},

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: rostrum 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/rostrum-audio/rostrum/issues\n"
-"POT-Creation-Date: 2026-10-07 20:16-0400\n"
+"POT-Creation-Date: 2026-10-07 20:27-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -304,25 +304,25 @@ msgctxt "@info %1 is why Rostrum recognised the app, %2 a kind of app"
 msgid "%1. No bus receives %2 yet."
 msgstr ""
 
-#: src/app/Apps.cpp:242
+#: src/app/Apps.cpp:243
 #, kde-format
 msgctxt "@info rule last seen"
 msgid "Playing now"
 msgstr ""
 
-#: src/app/Apps.cpp:244
+#: src/app/Apps.cpp:245
 #, kde-format
 msgctxt "@info rule last seen, %1 is a relative time"
 msgid "Last seen %1"
 msgstr ""
 
-#: src/app/Apps.cpp:247
+#: src/app/Apps.cpp:248
 #, kde-format
 msgctxt "@info rule last seen"
 msgid "Not seen yet"
 msgstr ""
 
-#: src/app/Apps.cpp:371
+#: src/app/Apps.cpp:372
 #, kde-format
 msgid "A rule for “%1” already exists."
 msgstr ""
@@ -2777,31 +2777,31 @@ msgctxt "@info:tooltip"
 msgid "Only this launch goes to this bus"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:71
+#: src/app/qml/AppsPage.qml:61
 #, kde-format
 msgctxt "@info:placeholder"
 msgid "Search apps and rules…"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:75
+#: src/app/qml/AppsPage.qml:65
 #, kde-format
 msgctxt "@action:button %1 is a bus"
 msgid "Only %1"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:78
+#: src/app/qml/AppsPage.qml:68
 #, kde-format
 msgctxt "@action:button accessible"
 msgid "Showing only %1. Show all buses"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:84
+#: src/app/qml/AppsPage.qml:74
 #, kde-format
 msgctxt "@option:check"
 msgid "Assign automatically"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:87
+#: src/app/qml/AppsPage.qml:77
 #, kde-format
 msgctxt "@info:tooltip"
 msgid ""
@@ -2809,87 +2809,71 @@ msgid ""
 "as they play. Your own assignments always win."
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:99 src/app/qml/AppsPage.qml:239
+#: src/app/qml/AppsPage.qml:89 src/app/qml/AppsPage.qml:219
 #, kde-format
 msgctxt "unknown program"
 msgid "unknown"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:98
+#: src/app/qml/AppsPage.qml:88
 #, kde-format
 msgid ""
 "An app is playing audio without a name. Its program is “%1”. Name it to give "
 "it a rule."
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:102
+#: src/app/qml/AppsPage.qml:92
 #, kde-format
 msgctxt "@action:button"
 msgid "Name It…"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:123
+#: src/app/qml/AppsPage.qml:113
 #, kde-format
 msgctxt "@title"
 msgid "Playing now"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:143
-#, kde-format
-msgid "No apps are playing"
-msgstr ""
-
-#: src/app/qml/AppsPage.qml:144
-#, kde-format
-msgid "No playing apps match"
-msgstr ""
-
-#: src/app/qml/AppsPage.qml:146
-#, kde-format
-msgid ""
-"Launch Discord or a game. It will show up here while it is making audio."
-msgstr ""
-
-#: src/app/qml/AppsPage.qml:160
+#: src/app/qml/AppsPage.qml:140
 #, kde-format
 msgctxt "@title"
 msgid "Saved rules"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:167
+#: src/app/qml/AppsPage.qml:147
 #, kde-format
 msgctxt "@info %1 is a scene"
 msgid "Rules in “%1”. New launches of these apps go straight to their bus."
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:188
+#: src/app/qml/AppsPage.qml:168
 #, kde-format
 msgid "No rules yet"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:188
+#: src/app/qml/AppsPage.qml:168
 #, kde-format
 msgid "No rules match"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:190
+#: src/app/qml/AppsPage.qml:170
 #, kde-format
 msgid "Assign a playing app with Always on and it gets a rule."
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:213
+#: src/app/qml/AppsPage.qml:193
 #, kde-format
 msgctxt "@title:dialog"
 msgid "Name This App"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:218
+#: src/app/qml/AppsPage.qml:198
 #, kde-format
 msgctxt "@action:button"
 msgid "Save Rule"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:227 src/app/qml/Main.qml:247
+#: src/app/qml/AppsPage.qml:207 src/app/qml/Main.qml:247
 #: src/app/qml/MixerPage.qml:177 src/app/qml/ObsSetupDialog.qml:25
 #: src/app/qml/RecordingTracks.qml:199 src/app/qml/RuleRow.qml:121
 #: src/app/qml/SceneNameDialog.qml:42 src/app/qml/ScenesPage.qml:349
@@ -2899,24 +2883,24 @@ msgctxt "@action:button"
 msgid "Cancel"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:239
+#: src/app/qml/AppsPage.qml:219
 #, kde-format
 msgid "Program: %1"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:245
+#: src/app/qml/AppsPage.qml:225
 #, kde-format
 msgctxt "@info:placeholder"
 msgid "Name, for example “Game client”"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:246
+#: src/app/qml/AppsPage.qml:226
 #, kde-format
 msgctxt "@label accessible"
 msgid "App name"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:252
+#: src/app/qml/AppsPage.qml:232
 #, kde-format
 msgctxt "@label accessible"
 msgid "Send to bus"
@@ -4704,6 +4688,50 @@ msgstr ""
 #, kde-format
 msgctxt "@action:button"
 msgid "Retry Now"
+msgstr ""
+
+#: src/app/qml/PlayingApps.qml:72
+#, kde-format
+msgctxt "@info"
+msgid "No playing apps match"
+msgstr ""
+
+#: src/app/qml/PlayingApps.qml:74
+#, kde-format
+msgctxt "@info"
+msgid "No other apps are playing"
+msgstr ""
+
+#: src/app/qml/PlayingApps.qml:75
+#, kde-format
+msgctxt "@info"
+msgid "No apps are playing. Launch Discord or a game to see it here."
+msgstr ""
+
+#: src/app/qml/PlayingApps.qml:91
+#, kde-format
+msgctxt "@title"
+msgid "Audio tools and services (%1)"
+msgstr ""
+
+#: src/app/qml/PlayingApps.qml:97
+#, kde-format
+msgctxt "@action:button accessible"
+msgid "Hide audio tools and services (%1)"
+msgstr ""
+
+#: src/app/qml/PlayingApps.qml:98
+#, kde-format
+msgctxt "@action:button accessible"
+msgid "Show audio tools and services (%1)"
+msgstr ""
+
+#: src/app/qml/PlayingApps.qml:107
+#, kde-format
+msgctxt "@info"
+msgid ""
+"These streams keep their existing audio routing. Rostrum does not assign "
+"them automatically."
 msgstr ""
 
 #: src/app/qml/PrivacyChoices.qml:19

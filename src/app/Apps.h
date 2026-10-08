@@ -27,7 +27,7 @@ class Apps : public QObject
     QML_SINGLETON
 
     // Rows: {key, name, icon, binary, matchKey, busId, busName, busColor, volume, muted, always,
-    //        unnamed, nodeIds, automatic, detail}. detail explains an automatic placement, or why an
+    //        unnamed, nodeIds, automatic, tool, detail}. detail explains an automatic placement, or why an
     //        app Rostrum recognised was left where it is; empty for the user's own choices.
     Q_PROPERTY(QVariantList running READ running NOTIFY changed)
     // Rows: {key, match, matchKey, label, icon, busId, busName, busColor, lastSeen, running}

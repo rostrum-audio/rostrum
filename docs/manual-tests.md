@@ -193,7 +193,14 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
    Firefox to Music: the chip says Music and Always is on, and a rule appears on the right.
    Turn Always off: the rule disappears but Firefox stays on Music until it quits.
 2. Apps: drag Firefox's volume slider. The row does not jump or reset while you drag.
-   Type "disc" in the search box: only Discord rows remain in both lists.
+   Type "disc" in the search box: only Discord rows remain in both lists. With OBS monitoring
+   and speech-dispatcher running, excluded unassigned streams appear under collapsed Audio tools
+   and services with a live count. Expand it: their usual controls remain available, and no routing
+   or mute changes occur. Search for "OBS" or "sd_dummy": matching tools appear directly in results.
+   Clear search: the previous expanded/collapsed state returns. In a disposable setup, manually
+   assign a tool: it moves into Playing now without appearing twice; unassign it and it returns
+   to the tools section. A bus filter shows only apps on that bus. An app that chose its own
+   output device remains in the main list. Check keyboard expansion and a narrow window.
 3. Apps: run `pw-play -P '{ application.name = "ALSA plug-in [x]" application.process.binary = "mygame" }' file.wav`.
    A banner offers to name it. Name it "My Game" on Game: the rule shows "My Game → Game",
    matched by binary.
