@@ -640,7 +640,10 @@ void Obs::rebuildRecordings()
                 }
                 break;
             case obs::Capture::Mic:
-                if (in && obs::classify(*in, obs::factsFrom(*m_app->pw())) == obs::Capture::RostrumMic) {
+                if (in && obs::assignedRecordingMic(r, *in, m_recordingTracks->assignedMicTracks())) {
+                    text = i18nc("@info", "%1, assigned to separate recording tracks", r.what);
+                    kind = QStringLiteral("ok");
+                } else if (in && obs::classify(*in, obs::factsFrom(*m_app->pw())) == obs::Capture::RostrumMic) {
                     text = i18n("%1. It's set to Rostrum Mic, but something moved it, often Easy Effects: add OBS to its excluded apps.", r.what);
                 } else {
                     text = i18n("%1 directly: your voice skips Rostrum", r.what);

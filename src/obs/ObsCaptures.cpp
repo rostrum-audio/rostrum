@@ -49,6 +49,7 @@ QList<Recording> obsRecordings(const pw::Graph &g)
             }
             Recording r;
             r.source = sourceName(n);
+            r.device = src->name;
             if (src->name == QLatin1String("rostrum.mic")) {
                 r.capture = Capture::RostrumMic;
             } else if (src->name == QLatin1String("rostrum.stream")) {
@@ -76,6 +77,15 @@ QList<Recording> obsRecordings(const pw::Graph &g)
         return a.source.localeAwareCompare(b.source) < 0;
     });
     return out;
+}
+
+bool assignedRecordingMic(const Recording &recording, const Input &input, quint32 assignedTracks)
+{
+    const auto device = input.settings.value(QLatin1String("device_id")).toString();
+    return input.settingsKnown && input.tracksKnown && input.kind == QLatin1String(kPulseInput) &&
+           recording.source == input.name && recording.capture == Capture::Mic &&
+           device == QLatin1String(kFilteredMicDevice) && recording.device == device &&
+           input.tracks != 0 && !(input.tracks & 3u) && !(input.tracks & ~assignedTracks);
 }
 
 Facts factsFrom(const pw::PwContext &pw)

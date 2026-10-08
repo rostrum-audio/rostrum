@@ -34,6 +34,7 @@ public:
     bool canApply() const;
     bool canUndo() const;
     QSet<QString> intendedDevices() const;
+    quint32 assignedMicTracks() const;
     QVariantMap readiness() const;
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void choose(int track, const QString &busId);

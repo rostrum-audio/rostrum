@@ -970,6 +970,66 @@ private Q_SLOTS:
         QVERIFY(!goLiveProblems(engine.scene(), {}, nullptr, &heldTalk).contains(GoLiveProblem::MicMuted));
     }
 
+    void assignedFilteredMicWarning_data()
+    {
+        QTest::addColumn<QString>("configuredDevice");
+        QTest::addColumn<QString>("observedDevice");
+        QTest::addColumn<quint32>("tracks");
+        QTest::addColumn<quint32>("assignedTracks");
+        QTest::addColumn<bool>("intended");
+        QTest::newRow("assigned filtered mic") << QStringLiteral("rostrum.filtered")
+            << QStringLiteral("rostrum.filtered") << 4u << 4u << true;
+        QTest::newRow("unassigned filtered mic") << QStringLiteral("rostrum.filtered")
+            << QStringLiteral("rostrum.filtered") << 4u << 0u << false;
+        QTest::newRow("other recording track") << QStringLiteral("rostrum.filtered")
+            << QStringLiteral("rostrum.filtered") << 8u << 4u << false;
+        QTest::newRow("also reaches stream") << QStringLiteral("rostrum.filtered")
+            << QStringLiteral("rostrum.filtered") << 5u << 4u << false;
+        QTest::newRow("hardware mic") << QStringLiteral("alsa_input.hardware")
+            << QStringLiteral("alsa_input.hardware") << 4u << 4u << false;
+        QTest::newRow("moved to hardware") << QStringLiteral("rostrum.filtered")
+            << QStringLiteral("alsa_input.hardware") << 4u << 4u << false;
+    }
+
+    void assignedFilteredMicWarning()
+    {
+        QFETCH(QString, configuredDevice);
+        QFETCH(QString, observedDevice);
+        QFETCH(quint32, tracks);
+        QFETCH(quint32, assignedTracks);
+        QFETCH(bool, intended);
+        rostrum::pw::Graph graph;
+        rostrum::pw::Node source;
+        source.id = 1;
+        source.name = observedDevice;
+        source.mediaClass = QStringLiteral("Audio/Source");
+        graph.nodes.insert(source.id, source);
+        rostrum::pw::Node capture;
+        capture.id = 2;
+        capture.name = QStringLiteral("OBS: Rostrum Mic (Recording)");
+        capture.appName = QStringLiteral("OBS");
+        capture.mediaClass = QStringLiteral("Stream/Input/Audio");
+        graph.nodes.insert(capture.id, capture);
+        rostrum::pw::Link link;
+        link.id = 3;
+        link.outNode = source.id;
+        link.inNode = capture.id;
+        graph.links.insert(link.id, link);
+        const auto observed = obsRecordings(graph);
+        QCOMPARE(observed.size(), 1);
+        // Graph classification stays conservative for unassigned filtered sources.
+        QCOMPARE(observed.first().capture, Capture::Mic);
+        Input input;
+        input.name = QStringLiteral("Rostrum Mic (Recording)");
+        input.kind = QLatin1String(kPulseInput);
+        input.settings = {{QStringLiteral("device_id"), configuredDevice}};
+        input.settingsKnown = input.tracksKnown = true;
+        input.tracks = tracks;
+        QCOMPARE(assignedRecordingMic(observed.first(), input, assignedTracks), intended);
+        input.settingsKnown = false;
+        QVERIFY(!assignedRecordingMic(observed.first(), input, assignedTracks));
+    }
+
     void goLiveProblemsAreFound()
     {
         Scene scene = rostrum::defaults::scene();

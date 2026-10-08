@@ -234,6 +234,20 @@ QSet<QString> ObsRecording::intendedDevices() const
                                  m_app->engine()->micFilters().enabled);
 }
 
+quint32 ObsRecording::assignedMicTracks() const
+{
+    if (!m_snapshot.known || m_client->status() != obs::Client::Status::Connected)
+        return 0;
+    quint32 mask = 0;
+    const auto saved = assignments(m_app->settings().obsRecordingTracks.value(m_scope));
+    for (auto it = saved.cbegin(); it != saved.cend(); ++it) {
+        const auto *bus = m_app->engine()->scene().bus(it.value());
+        if (it.key() >= 3 && it.key() <= 6 && bus && bus->isInput())
+            mask |= 1u << (it.key() - 1);
+    }
+    return mask;
+}
+
 QVariantMap ObsRecording::readiness() const
 {
     if (!m_app->settings().obsRecordingTracks.contains(m_scope) ||
