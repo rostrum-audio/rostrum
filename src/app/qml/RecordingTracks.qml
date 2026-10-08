@@ -18,7 +18,7 @@ ColumnLayout {
     QQC2.Label {
         Layout.fillWidth: true
         wrapMode: Text.WordWrap
-        text: i18nc("@info", "Choose the Rostrum bus to record on each track. Review the changes before applying them in OBS.")
+        text: i18nc("@info", "Keep your existing OBS assignments, or choose a Rostrum bus to replace a track. Review the changes before applying them.")
         Accessible.name: text
     }
     QQC2.Label {
@@ -41,7 +41,7 @@ ColumnLayout {
         }
         QQC2.Label {
             Layout.preferredWidth: section.width * 0.30
-            text: i18nc("@label", "Proposed Rostrum bus")
+            text: i18nc("@label", "Proposed setup")
             Accessible.name: text
             font.weight: Font.DemiBold
         }
@@ -87,10 +87,11 @@ ColumnLayout {
                     Layout.fillWidth: section.compact
                     QQC2.Label {
                         visible: section.compact
-                        text: i18nc("@label", "Proposed Rostrum bus")
+                        text: i18nc("@label", "Proposed setup")
                         Accessible.name: text
                     }
                     QQC2.ComboBox {
+                        id: choice
                         objectName: "recordingBus" + modelData.track
                         Layout.fillWidth: true
                         model: section.setup.choices
@@ -104,7 +105,18 @@ ColumnLayout {
                         }
                         enabled: section.setup.canPreview
                         onActivated: section.setup.choose(modelData.track, currentValue)
-                        Accessible.name: i18nc("@label accessible", "Proposed bus for recording track %1", modelData.track)
+                        Accessible.name: i18nc("@label accessible", "Proposed setup for recording track %1", modelData.track)
+                    }
+                    QQC2.Label {
+                        objectName: "recordingChoiceHelp" + modelData.track
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        readonly property string selected: choice.currentValue ?? ""
+                        visible: selected === ":keep-obs:" || selected === ""
+                        text: selected === ":keep-obs:"
+                            ? i18nc("@info", "Keep sources and recording output selection.")
+                            : i18nc("@info", "Clear source assignments and turn off this recording track.")
+                        Accessible.name: text
                     }
                 }
                 ColumnLayout {
@@ -161,7 +173,7 @@ ColumnLayout {
         Layout.fillWidth: true
         visible: help.checked
         wrapMode: Text.WordWrap
-        text: i18nc("@info", "OBS track names are labels; the assigned sources determine what each track records. This setup keeps the track names and reserves tracks 1 and 2 for the stream and Twitch VOD mixes. Headphones-only buses can be recorded without changing their stream destination. Bus faders and mutes affect their recordings. Mic mute silences the mic track. Panic mute and Stream master mute affect the combined mixes; isolated playback tracks keep recording.")
+        text: i18nc("@info", "OBS track names are labels; the assigned sources determine what each track records. This setup keeps track names and reserves tracks 1 and 2 for the stream and Twitch VOD mixes. Occupied tracks default to Keep OBS assignments. Empty tracks get bus suggestions. Choosing a bus replaces that track’s sources; Unused clears and disables the track. Headphones-only buses can be recorded without changing their stream destination. Bus faders and mutes affect their recordings. Mic mute silences the mic track. Panic mute and Stream master mute affect the combined mixes; isolated playback tracks keep recording.")
         Accessible.name: text
     }
     Connections {

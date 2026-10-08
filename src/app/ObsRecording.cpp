@@ -15,6 +15,8 @@
 
 namespace rostrum::app {
 namespace {
+// UI-only choice; kept tracks are omitted from the persisted assignment map.
+const QString kKeepObs = QStringLiteral(":keep-obs:");
 QString scopeKey(const QString &configDir, const QString &collection)
 {
     return QString::fromLatin1(
@@ -34,7 +36,8 @@ QMap<QString, QString> savedAssignments(const obs::RecordingAssignments &draft)
 {
     QMap<QString, QString> out;
     for (int track = 3; track <= 6; ++track)
-        out.insert(QString::number(track), draft.value(track));
+        if (draft.contains(track))
+            out.insert(QString::number(track), draft.value(track));
     return out;
 }
 
@@ -122,7 +125,9 @@ ObsRecording::ObsRecording(AppController *app, Obs *obs, obs::Client *client)
 
 QVariantList ObsRecording::choices() const
 {
-    QVariantList out{QVariantMap{{QStringLiteral("id"), QString()},
+    QVariantList out{QVariantMap{{QStringLiteral("id"), kKeepObs},
+                                 {QStringLiteral("label"), i18nc("@item:inlistbox", "Keep OBS assignments")}},
+                     QVariantMap{{QStringLiteral("id"), QString()},
                                  {QStringLiteral("label"), i18nc("@item:inlistbox", "Unused")}}};
     QSet<QString> ids;
     for (const auto &bus : m_app->engine()->scene().buses) {
@@ -147,7 +152,7 @@ QVariantList ObsRecording::rows() const
             if (input.tracksKnown && (input.tracks & (1u << (n - 1))))
                 sources << input.name;
         out << QVariantMap{{QStringLiteral("track"), n},
-                           {QStringLiteral("busId"), m_draft.value(n)},
+                           {QStringLiteral("busId"), m_draft.contains(n) ? m_draft.value(n) : kKeepObs},
                            {QStringLiteral("trackName"), m_snapshot.trackNames.value(n)},
                            {QStringLiteral("current"),
                             !m_snapshot.known ? i18nc("@info", "Assignments unavailable")
@@ -171,6 +176,8 @@ QString ObsRecording::status() const
     const auto plan = obs::recordingPlan(m_snapshot, m_app->engine()->scene(), m_draft);
     if (!plan.problems.isEmpty())
         return problemText(plan.problems.first());
+    if (m_draft.isEmpty())
+        return i18nc("@info", "Existing OBS assignments will be kept. Choose a bus to replace a track.");
     if (plan.changes.isEmpty())
         return i18nc("@info", "Recording tracks match. Recording contents and sound have not been tested.");
     return i18nc("@info",
@@ -220,7 +227,8 @@ QSet<QString> ObsRecording::intendedDevices() const
 
 QVariantMap ObsRecording::readiness() const
 {
-    if (!m_app->settings().obsRecordingTracks.contains(m_scope))
+    if (!m_app->settings().obsRecordingTracks.contains(m_scope) ||
+        m_app->settings().obsRecordingTracks.value(m_scope).isEmpty())
         return {};
     auto snapshot = m_snapshot;
     snapshot.streaming = snapshot.recording = false; // activity blocks writes, not read-only checks
@@ -256,8 +264,11 @@ void ObsRecording::acceptSnapshot(const obs::RecordingSnapshot &snapshot)
         m_scope = scope;
         const auto &saved = m_app->settings().obsRecordingTracks;
         m_draft = saved.contains(scope) ? assignments(saved.value(scope))
-                                        : obs::recordingSuggestion(m_app->engine()->scene());
+                                        : obs::recordingSuggestion(m_app->engine()->scene(), snapshot);
+        m_draftEdited = false;
         m_havePreview = false;
+    } else if (!m_draftEdited && !m_app->settings().obsRecordingTracks.contains(scope)) {
+        m_draft = obs::recordingSuggestion(m_app->engine()->scene(), snapshot);
     }
     if (m_havePreview && m_previewFingerprint != obs::recordingFingerprint(snapshot))
         m_havePreview = false;
@@ -300,7 +311,11 @@ void ObsRecording::choose(int track, const QString &busId)
 {
     if (track < 3 || track > 6 || m_obs->busy())
         return;
-    m_draft[track] = busId;
+    if (busId == kKeepObs)
+        m_draft.remove(track);
+    else
+        m_draft[track] = busId;
+    m_draftEdited = true;
     m_error.clear();
     m_havePreview = false;
     Q_EMIT changed();
@@ -331,6 +346,27 @@ void ObsRecording::preview()
 QStringList ObsRecording::previewItems() const
 {
     QStringList out;
+    for (int track = 3; track <= 6; ++track) {
+        const auto label = m_snapshot.trackNames.value(track);
+        const auto title = label.isEmpty() ? i18nc("@label", "Track %1", track)
+                                          : i18nc("@label", "Track %1 (%2)", track, label);
+        if (!m_draft.contains(track)) {
+            out << i18nc("@info", "%1: keep OBS assignments and recording output selection.", title);
+            continue;
+        }
+        QStringList removed;
+        for (const auto &input : m_snapshot.state.inputs)
+            if (input.tracksKnown && (input.tracks & (1u << (track - 1))) &&
+                !(m_preview.inputTracks.value(input.name, input.tracks) & (1u << (track - 1))))
+                removed << input.name;
+        const auto id = m_draft.value(track);
+        if (id.isEmpty())
+            out << i18nc("@info", "%1: clear source assignments and disable this recording track.", title);
+        else if (const auto *bus = m_app->engine()->scene().bus(id))
+            out << i18nc("@info", "%1: record the %2 bus exclusively.", title, bus->name);
+        if (!removed.isEmpty())
+            out << i18nc("@info", "Remove from %1: %2.", title, removed.join(QStringLiteral(", ")));
+    }
     for (const auto &c : m_preview.changes) {
         const auto name = c.data.value(QLatin1String("inputName")).toString();
         if (c.method == QLatin1String("CreateInput"))
@@ -517,10 +553,16 @@ void ObsRecording::runUndo(QJsonObject record, const obs::RecordingSnapshot &sco
                     saved.insert(it.key(), it.value().toString());
                 saveAssignments(assignments(saved),
                                 remaining->value(QLatin1String("previousPresent")).toBool());
-                m_draft = remaining->value(QLatin1String("previousPresent")).toBool()
-                              ? assignments(saved)
-                              : obs::recordingSuggestion(m_app->engine()->scene());
                 QFile::remove(undoPath());
+                m_draftEdited = false;
+                if (remaining->value(QLatin1String("previousPresent")).toBool()) {
+                    m_draft = assignments(saved);
+                } else {
+                    // Rebuild unsaved suggestions from the restored live snapshot,
+                    // rather than the stale pre-Undo assignments.
+                    m_scope.clear();
+                    m_draft.clear();
+                }
             }
             setBusy(false);
             m_havePreview = false;

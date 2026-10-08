@@ -8,7 +8,7 @@
 
 namespace rostrum::obs {
 
-using RecordingAssignments = QMap<int, QString>; // tracks 3–6 -> stable bus id; empty = unused
+using RecordingAssignments = QMap<int, QString>; // tracks 3–6 -> bus id; absent = keep OBS, empty = clear
 
 struct RecordingSnapshot
 {
@@ -37,7 +37,7 @@ struct RecordingPlan
     quint32 recordingTracks = 0;
 };
 
-RecordingAssignments recordingSuggestion(const Scene &scene);
+RecordingAssignments recordingSuggestion(const Scene &scene, const RecordingSnapshot &before);
 QSet<QString> recordingDevices(const Scene &scene, const RecordingAssignments &assignments);
 bool intendedRecording(const Input &input, const QSet<QString> &devices);
 RecordingPlan recordingPlan(const RecordingSnapshot &before, const Scene &scene,

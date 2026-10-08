@@ -34,6 +34,114 @@ class TestRecordingTracks : public QObject
     }
 
 private Q_SLOTS:
+    void suggestionsKeepOccupiedTracksEvenWhenMuted()
+    {
+        auto s = snapshot();
+        auto capture = s.state.inputs.first();
+        capture.name = QStringLiteral("My audio");
+        capture.tracks = 8; // track 4
+        capture.muted = true;
+        s.state.inputs << capture;
+        const auto suggestion = recordingSuggestion(defaults::scene(), s);
+        QCOMPARE(suggestion.value(3), QStringLiteral("mic"));
+        QVERIFY(!suggestion.contains(4));
+        QCOMPARE(suggestion.value(5), QStringLiteral("voice"));
+        QCOMPARE(suggestion.value(6), QStringLiteral("music"));
+        s.known = false;
+        QVERIFY(recordingSuggestion(defaults::scene(), s).isEmpty());
+    }
+
+    void omittedTracksKeepObsAssignments()
+    {
+        auto s = snapshot();
+        s.recordingTracks = 63;
+        s.state.inputs.first().tracks = 63;
+        s.state.inputs.first().muted = true;
+        const auto p = recordingPlan(s, defaults::scene(), {});
+        QVERIFY(p.problems.isEmpty());
+        QVERIFY(p.changes.isEmpty());
+        QCOMPARE(p.recordingTracks, 63u);
+    }
+
+    void replacementPreservesOtherTracksAndUndo()
+    {
+        auto s = snapshot();
+        s.recordingTracks = 63;
+        auto browser = s.state.inputs.first();
+        browser.name = QStringLiteral("Kick Chat");
+        browser.kind = QStringLiteral("browser_source");
+        browser.settings = {};
+        browser.tracks = 63;
+        browser.muted = true;
+        s.state.inputs << browser;
+        const RecordingAssignments a{{4, QStringLiteral("game")}};
+        const auto p = recordingPlan(s, defaults::scene(), a);
+        QVERIFY(p.problems.isEmpty());
+        QCOMPARE(p.inputTracks.value(browser.name), 55u);
+        QCOMPARE(p.recordingTracks, 63u);
+        const auto after = recordingResult(s, p);
+        QVERIFY(after.state.input(browser.name)->muted);
+        QVERIFY(recordingPlan(after, defaults::scene(), a).changes.isEmpty());
+        const auto restored = recordingResult(after, recordingUndo(p));
+        QCOMPARE(restored.state.input(browser.name)->tracks, browser.tracks);
+        QVERIFY(restored.state.input(browser.name)->muted);
+        QCOMPARE(restored.recordingTracks, s.recordingTracks);
+    }
+
+    void unusedClearsOnlyChosenTrack()
+    {
+        auto s = snapshot();
+        s.recordingTracks = 63;
+        s.state.inputs.first().tracks = 63;
+        const auto p = recordingPlan(s, defaults::scene(), {{5, QString()}});
+        QVERIFY(p.problems.isEmpty());
+        QCOMPARE(p.inputTracks.value(QStringLiteral("Mic/Aux")), 47u);
+        QCOMPARE(p.recordingTracks, 47u);
+        const auto after = recordingResult(s, p);
+        QVERIFY(recordingPlan(after, defaults::scene(), {{5, QString()}}).changes.isEmpty());
+        const auto restored = recordingResult(after, recordingUndo(p));
+        QCOMPARE(restored.state.inputs.first().tracks, 63u);
+        QCOMPARE(restored.recordingTracks, 63u);
+    }
+
+    void sharedCaptureIsCopiedWithoutChangingKeptTracks()
+    {
+        auto s = snapshot();
+        s.recordingTracks = 63;
+        auto capture = s.state.inputs.first();
+        capture.name = QStringLiteral("My Game Capture");
+        capture.kind = QLatin1String(kPulseOutput);
+        capture.settings = {{QStringLiteral("device_id"), QStringLiteral("rostrum.game.monitor")}};
+        capture.tracks = 17; // kept tracks 1 and 5
+        capture.muted = true;
+        capture.channel.clear();
+        s.state.inputs << capture;
+        const RecordingAssignments a{{4, QStringLiteral("game")}};
+        const auto p = recordingPlan(s, defaults::scene(), a);
+        QVERIFY(p.problems.isEmpty());
+        const auto after = recordingResult(s, p);
+        QCOMPARE(after.state.input(capture.name)->tracks, capture.tracks);
+        QVERIFY(after.state.input(capture.name)->muted);
+        QCOMPARE(after.state.input(QStringLiteral("Rostrum Game (Recording)"))->tracks, 8u);
+        QVERIFY(recordingPlan(after, defaults::scene(), a).changes.isEmpty());
+    }
+
+    void keptMicMuteIsNotChangedByNewMicTrack()
+    {
+        auto s = snapshot();
+        s.state.inputs.first().muted = true;
+        const auto p = recordingPlan(s, defaults::scene(), {{3, QStringLiteral("mic")}});
+        QVERIFY(p.problems.isEmpty());
+        const auto after = recordingResult(s, p);
+        QVERIFY(after.state.input(QStringLiteral("Mic/Aux"))->muted);
+        QCOMPARE(after.state.input(QStringLiteral("Mic/Aux"))->tracks, 3u);
+        QCOMPARE(after.state.input(QStringLiteral("Rostrum Mic (Recording)"))->tracks, 4u);
+        QVERIFY(recordingPlan(after, defaults::scene(), {{3, QStringLiteral("mic")}}).changes.isEmpty());
+        const auto restored = recordingResult(after, recordingUndo(p));
+        QCOMPARE(restored.state.inputs.size(), s.state.inputs.size());
+        QVERIFY(restored.state.inputs.first().muted);
+    }
+
     void isolatesGameFromMusic()
     {
         auto s = snapshot();
@@ -153,7 +261,7 @@ private Q_SLOTS:
         QVERIFY(!recordingPlan(s, defaults::scene(), {{4, QStringLiteral("game")}}).problems.isEmpty());
     }
 
-    void removesOtherAudioFromIsolatedTracks()
+    void removesOtherAudioOnlyFromChosenTrack()
     {
         auto s = snapshot();
         Input browser = s.state.inputs.first();
@@ -163,7 +271,7 @@ private Q_SLOTS:
         browser.settings = {};
         s.state.inputs << browser;
         const auto p = recordingPlan(s, defaults::scene(), {{4, QStringLiteral("game")}});
-        QCOMPARE(p.inputTracks.value(browser.name), 3u);
+        QCOMPARE(p.inputTracks.value(browser.name), 55u);
     }
 
     void reusesDisabledPlacementAndUndoRestoresIt()
@@ -191,7 +299,12 @@ private Q_SLOTS:
             {QStringLiteral("5"), QString()}};
         settings.obsRecordingTracks[QStringLiteral("collection-b")] = {
             {QStringLiteral("6"), QStringLiteral("music")}};
-        QCOMPARE(parseSettings(serializeSettings(settings)), settings);
+        settings.obsRecordingTracks[QStringLiteral("keep-all")] = {};
+        const auto restored = parseSettings(serializeSettings(settings));
+        QCOMPARE(restored, settings);
+        QVERIFY(!restored.obsRecordingTracks.value(QStringLiteral("collection-a")).contains(QStringLiteral("6")));
+        QVERIFY(restored.obsRecordingTracks.value(QStringLiteral("collection-a")).contains(QStringLiteral("5")));
+        QVERIFY(restored.obsRecordingTracks.contains(QStringLiteral("keep-all")));
     }
 };
 

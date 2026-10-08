@@ -61,7 +61,7 @@ private:
     obs::RecordingPlan m_preview;
     QByteArray m_previewFingerprint;
     QString m_scope, m_error;
-    bool m_fetching = false, m_havePreview = false;
+    bool m_fetching = false, m_havePreview = false, m_draftEdited = false;
     int m_generation = 0;
     QElapsedTimer m_age;
     QTimer m_refetch, m_snapshotRefresh;

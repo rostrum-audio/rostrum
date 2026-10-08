@@ -5,10 +5,13 @@ shells out to `pactl` in the steady state.
 
 Separate OBS recording tracks use the existing `rostrum.<bus>.monitor` devices with named
 Audio Output Captures; no additional PipeWire nodes are created. The mic uses `rostrum.mic`.
-The recording planner reserves slots 3–6, reads all current input track masks and enabled
-scene/group nesting, and previews changes independently of stream setup. Track 1/2 assignments
-are preserved, except a playback capture chosen for isolation leaves those combined tracks.
-Only assigned isolated slots are enabled in OBS's Standard recording output. Encoder settings
+The recording planner manages explicitly chosen slots on tracks 3–6, reads all current input
+track masks and enabled scene/group nesting, and previews changes independently of stream
+setup. Omitted slots mean Keep OBS assignments; an explicit empty assignment means clear the
+slot and disable it in Standard recording output. Occupied slots default to Keep, including
+muted sources. Other slots and track names are preserved. A capture shared with kept tracks
+is copied rather than unmuted or placed in more scenes; an unmuted global mic can gain a
+recording slot while retaining its track 1/2 assignments. Encoder settings
 are untouched. Each successful operation is journaled under
 `$XDG_STATE_HOME/rostrum/obs-recording/` for separate Undo; assignments live in settings.toml,
 keyed by OBS installation and scene collection, with stable Rostrum bus ids.

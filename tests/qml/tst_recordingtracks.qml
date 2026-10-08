@@ -9,12 +9,12 @@ Item {
         id: controller
         property var rows: [
             {track: 3, trackName: "Game", busId: "mic", current: "Mic/Aux"},
-            {track: 4, trackName: "Music", busId: "game", current: "Currently unused"},
+            {track: 4, trackName: "Music", busId: ":keep-obs:", current: "Currently unused"},
             {track: 5, trackName: "Discord", busId: "voice", current: "Currently unused"},
             {track: 6, trackName: "Browser", busId: "music", current: "Currently unused"}
         ]
         property var choices: [
-            {id: "", label: "Unused"}, {id: "mic", label: "Mic"},
+            {id: ":keep-obs:", label: "Keep OBS assignments"}, {id: "", label: "Unused"}, {id: "mic", label: "Mic"},
             {id: "game", label: "Game"}, {id: "voice", label: "Voice"}, {id: "music", label: "Music"}
         ]
         property string collection: "Test"
@@ -34,15 +34,18 @@ Item {
         function undo() { undone() }
     }
     RecordingTracks { id: panel; width: 800; setup: controller }
+    SignalSpy { id: choiceSpy; target: controller; signalName: "chosen" }
     SignalSpy { id: reviewed; target: controller; signalName: "reviewed" }
     TestCase {
         name: "RecordingTracks"
         when: windowShown
         function init() {
             panel.width = 800
+            findChild(panel, "recordingBus4").currentIndex = 0
             controller.canPreview = true
             controller.canUndo = false
             reviewed.clear()
+            choiceSpy.clear()
         }
         function test_reviewIsExplicit() {
             const button = findChild(panel, "reviewRecording")
@@ -59,12 +62,23 @@ Item {
             verify(findChild(panel, "recordingHelp"))
             verify(!panel.compact)
             compare(findChild(panel, "recordingBus3").currentValue, "mic")
-            compare(findChild(panel, "recordingBus4").currentValue, "game")
+            compare(findChild(panel, "recordingBus4").currentValue, ":keep-obs:")
+            compare(findChild(panel, "recordingChoiceHelp4").text, "Keep sources and recording output selection.")
             compare(findChild(panel, "recordingBus5").currentValue, "voice")
             compare(findChild(panel, "recordingBus6").currentValue, "music")
             compare(findChild(panel, "undoRecording").enabled, false)
             controller.canUndo = true
             compare(findChild(panel, "undoRecording").enabled, true)
+        }
+        function test_clearChoiceIsExplicit() {
+            const choice = findChild(panel, "recordingBus4")
+            choice.forceActiveFocus()
+            keyClick(Qt.Key_Down)
+            compare(choice.currentValue, "")
+            compare(choiceSpy.count, 1)
+            compare(choiceSpy.signalArguments[0][0], 4)
+            compare(choiceSpy.signalArguments[0][1], "")
+            compare(findChild(panel, "recordingChoiceHelp4").text, "Clear source assignments and turn off this recording track.")
         }
         function test_narrowLayout() {
             panel.width = 430

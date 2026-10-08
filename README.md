@@ -220,10 +220,13 @@ Watch out for leaks. Desktop Audio on track 2 puts Music back into the VOD. Leav
 A local OBS recording uses its own track boxes. Track 2 in a recording is the VOD mix only if the recording is set to track 2.
 
 On the OBS page, **Recording tracks** sets up separate recording audio while OBS is connected
-and its outputs are stopped. The editable suggestion is track 3 Mic, track 4 Game, track 5 Voice,
-and track 6 Music. Choose **Unused** for any slot you do not want to record. Tracks 1 and 2 keep
-their stream and VOD assignments. OBS must use Advanced output mode and Standard recording.
-**Review Recording Changes…** shows the current assignments and proposed changes before Apply.
+and its outputs are stopped. Occupied tracks default to **Keep OBS assignments**, preserving
+both their sources and recording output selection. Empty tracks suggest track 3 Mic, track 4
+Game, track 5 Voice, and track 6 Music. Choosing a Rostrum bus replaces that track's sources;
+**Unused** explicitly clears its assignments and disables it in the recording output. Tracks 1
+and 2 keep their stream and VOD assignments. OBS must use Advanced output mode and Standard recording.
+**Review Recording Changes…** lists kept tracks, replacements, and sources to remove before Apply.
+OBS track names are preserved.
 Rostrum saves a separate recording backup and offers **Undo Recording Changes**.
 
 Playback captures use each bus's existing monitor, including Headphones-only buses; recording

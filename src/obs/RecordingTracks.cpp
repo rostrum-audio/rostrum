@@ -50,8 +50,10 @@ QJsonObject recordingTracksJson(quint32 mask)
     return out;
 }
 
-RecordingAssignments recordingSuggestion(const Scene &scene)
+RecordingAssignments recordingSuggestion(const Scene &scene, const RecordingSnapshot &before)
 {
+    if (!before.known)
+        return {};
     RecordingAssignments out;
     if (scene.micBus())
         out.insert(3, scene.micBus()->id);
@@ -59,6 +61,13 @@ RecordingAssignments recordingSuggestion(const Scene &scene)
          {std::pair{4, AppCategory::Game}, {5, AppCategory::Voice}, {6, AppCategory::Music}})
         if (const auto *bus = scene.busFor(category))
             out.insert(track, bus->id);
+    // Even muted or disabled sources are existing user assignments. Names are
+    // labels, so never infer a Rostrum bus from an OBS track name.
+    for (const auto &input : before.state.inputs)
+        if (input.tracksKnown)
+            for (int track = 3; track <= 6; ++track)
+                if (input.tracks & (1u << (track - 1)))
+                    out.remove(track);
     return out;
 }
 
@@ -99,9 +108,12 @@ RecordingPlan recordingPlan(const RecordingSnapshot &before, const Scene &scene,
     if (before.recordingType != QLatin1String("Standard"))
         p.problems << QStringLiteral("standardRecording");
     QSet<QString> assigned;
+    quint32 managedTracks = 0;
     for (auto it = assignments.cbegin(); it != assignments.cend(); ++it) {
         if (it.key() < 3 || it.key() > 6)
             p.problems << QStringLiteral("reservedTrack");
+        else
+            managedTracks |= 1u << (it.key() - 1);
         if (it.value().isEmpty())
             continue;
         if (!scene.bus(it.value()))
@@ -113,8 +125,8 @@ RecordingPlan recordingPlan(const RecordingSnapshot &before, const Scene &scene,
     if (!p.problems.isEmpty())
         return p;
 
-    // The four isolated slots are exclusive. Existing track 1/2 assignments stay intact,
-    // except a playback capture selected as a stem must leave those combined tracks.
+    // Only explicitly chosen slots are exclusive. Omitted slots keep OBS input masks
+    // and recording output selection, including assignments on tracks 1 and 2.
     for (const auto &input : before.state.inputs) {
         if (!input.tracksKnown)
             continue; // non-audio inputs
@@ -122,12 +134,12 @@ RecordingPlan recordingPlan(const RecordingSnapshot &before, const Scene &scene,
             p.problems << QStringLiteral("unknownInput:") + input.name;
             continue;
         }
-        p.inputTracks.insert(input.name, input.tracks & ~kIsolatedTracks);
+        p.inputTracks.insert(input.name, input.tracks & ~managedTracks);
     }
     RecordingSnapshot placement = before;
     QList<RecordingChange> enablePlacements;
     QList<RecordingChange> unmuteInputs;
-    p.recordingTracks = before.recordingTracks & ~kIsolatedTracks;
+    p.recordingTracks = before.recordingTracks & ~managedTracks;
     QSet<QString> names;
     for (const auto &input : before.state.inputs)
         names.insert(input.name);
@@ -142,6 +154,14 @@ RecordingPlan recordingPlan(const RecordingSnapshot &before, const Scene &scene,
         const Input *pick = nullptr;
         for (const auto &input : before.state.inputs)
             if (input.kind == kind && input.settings.value(QLatin1String("device_id")).toString() == device) {
+                const quint32 kept = input.tracks & ~managedTracks;
+                // Sharing a capture must not unmute kept tracks or add their audio to
+                // new scenes. An unmuted global mic already covers every scene, and
+                // adding an isolated slot leaves its existing track 1/2 use intact.
+                const bool sharedGlobalMic = bus.isInput() && !input.channel.isEmpty() &&
+                                             !input.muted && !(kept & kIsolatedTracks);
+                if (kept && !sharedGlobalMic)
+                    continue;
                 if (!pick || (pick->muted && !input.muted))
                     pick = &input;
             }
@@ -150,7 +170,7 @@ RecordingPlan recordingPlan(const RecordingSnapshot &before, const Scene &scene,
             name = pick->name;
             if (!pick->tracksKnown || !pick->muteKnown || !pick->settingsKnown)
                 p.problems << QStringLiteral("unknownInput:") + name;
-            p.inputTracks[name] = bus.isInput() ? ((pick->tracks & ~kIsolatedTracks) | track) : track;
+            p.inputTracks[name] = bus.isInput() ? ((pick->tracks & ~managedTracks) | track) : track;
             if (pick->muted)
                 unmuteInputs << RecordingChange{
                     QStringLiteral("SetInputMute"),

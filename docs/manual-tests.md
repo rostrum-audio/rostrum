@@ -772,12 +772,17 @@ and Rostrum's normal stream setup. These are checks to run, not claims of record
    a track in OBS Settings → Output → Audio and apply: the page picks up the name on its next
    periodic refresh without writing to OBS. Leave the page open for more than ten seconds: the controls
    remain available when outputs are stopped. Narrow the window: rows stack without clipping.
-   Suggested slots are 3 Mic, 4 Game, 5 Voice, 6 Music. Choose Unused for Voice. Review, then
-   Cancel: OBS is unchanged. Apply and Undo must also preserve the OBS track names.
+   Occupied slots default to Keep OBS assignments, even if their sources are muted. Empty
+   slots suggest 3 Mic, 4 Game, 5 Voice, 6 Music. Review and apply Keep on all four slots: no
+   OBS writes. Explicitly choose 3 Mic, 4 Game, 5 Unused, 6 Music. Review lists sources removed
+   from each changed track; Cancel leaves OBS unchanged. Apply and Undo preserve track names.
 2. Review and Apply with outputs stopped. Mic keeps tracks 1/2 and gains 3; named Game and Music
    Audio Output Captures use their bus monitors on tracks 4 and 6 only. Track 5 is disabled in
    recording output. Other sources leave tracks 3–6; their tracks 1/2, mutes, filters, and encoder
-   settings remain. Shared nested scenes/groups do not need duplicate enabled placements.
+   settings remain. A slot left on Keep retains its source assignments and output checkbox.
+   A capture shared with a kept slot gets a separate recording capture; the kept capture's
+   mute and placements stay unchanged. Shared nested scenes/groups do not need duplicate
+   enabled placements.
 3. Apply the same choices again: no OBS writes or additional captures. Undo Recording Changes
    restores previous track masks (including zero), mutes, enabled recording tracks, and scene
    placements. Undo OBS Changes remains separate from recording Undo.

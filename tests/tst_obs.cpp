@@ -425,6 +425,7 @@ private Q_SLOTS:
         QCOMPARE(server.inputs[QStringLiteral("Rostrum Music (Recording)")].tracks, tracks({6}));
         QCOMPARE(server.inputs[QStringLiteral("Mic/Aux")].tracks, tracks({1, 2, 3}));
         QCOMPARE(server.recordingTracks, 47);
+        QCOMPARE(server.inputs[QStringLiteral("Discord Audio")].tracks, tracks({5}));
         server.gameTrackName = QStringLiteral("Gameplay");
         RecordingSnapshot after;
         done = false;
