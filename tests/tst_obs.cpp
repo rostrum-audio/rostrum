@@ -1005,7 +1005,9 @@ private Q_SLOTS:
         QCOMPARE(rostrum::obs::vodCaptureStatus(&input), VodCaptureStatus::Unknown);
         input.muteKnown = true;
         input.gainKnown = false;
-        QCOMPARE(rostrum::obs::vodCaptureStatus(&input), VodCaptureStatus::Unknown);
+        // The recording panel snapshot reads tracks and mute, not volume.
+        QCOMPARE(rostrum::obs::vodCaptureStatus(&input),
+                 expected == VodCaptureStatus::Silent ? VodCaptureStatus::Configured : expected);
     }
 
     void assignedFilteredMicWarning_data()

@@ -644,7 +644,7 @@ void Obs::rebuildRecordings()
                     text = i18nc("@info", "%1 is at zero volume in OBS.", r.what);
                     break;
                 case obs::VodCaptureStatus::Unknown:
-                    text = i18nc("@info", "%1: OBS audio track, mute, or volume settings could not be verified.", r.what);
+                    text = i18nc("@info", "%1: OBS audio track or mute settings could not be verified.", r.what);
                     break;
                 }
                 break;

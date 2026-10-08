@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: rostrum 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/rostrum-audio/rostrum/issues\n"
-"POT-Creation-Date: 2026-10-07 21:35-0400\n"
+"POT-Creation-Date: 2026-10-07 21:37-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1453,7 +1453,7 @@ msgstr ""
 #: src/app/Obs.cpp:647
 #, kde-format
 msgctxt "@info"
-msgid "%1: OBS audio track, mute, or volume settings could not be verified."
+msgid "%1: OBS audio track or mute settings could not be verified."
 msgstr ""
 
 #: src/app/Obs.cpp:654 src/app/Obs.cpp:664
