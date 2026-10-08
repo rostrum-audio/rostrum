@@ -15,6 +15,7 @@ struct RecordingSnapshot
     State state;
     QString collection, profile, outputMode;
     QString recordingType = QStringLiteral("Standard");
+    QMap<int, QString> trackNames;
     quint32 recordingTracks = 0;
     bool streaming = false, recording = false, known = false;
     QMap<QString, QJsonArray> sceneItems; // scenes and groups; enabled nesting is followed

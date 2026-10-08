@@ -64,6 +64,6 @@ private:
     bool m_fetching = false, m_havePreview = false;
     int m_generation = 0;
     QElapsedTimer m_age;
-    QTimer m_refetch;
+    QTimer m_refetch, m_snapshotRefresh;
 };
 } // namespace rostrum::app

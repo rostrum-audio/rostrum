@@ -82,6 +82,18 @@ ObsRecording::ObsRecording(AppController *app, Obs *obs, obs::Client *client)
     connect(obs, &Obs::planChanged, this, &ObsRecording::refresh);
     connect(client, &obs::Client::statusChanged, this, &ObsRecording::refresh);
     connect(obs, &Obs::liveChanged, this, &ObsRecording::changed);
+    // Profile track names have no dedicated WebSocket change event. Keep the
+    // read-only snapshot fresh while this page is open, including its write guards.
+    m_snapshotRefresh.setInterval(5000);
+    connect(&m_snapshotRefresh, &QTimer::timeout, this, &ObsRecording::refresh);
+    connect(obs, &Obs::activeChanged, this, [this] {
+        if (m_obs->pageActive()) {
+            m_snapshotRefresh.start();
+            refresh();
+        } else {
+            m_snapshotRefresh.stop();
+        }
+    });
     m_refetch.setSingleShot(true);
     m_refetch.setInterval(250);
     connect(&m_refetch, &QTimer::timeout, this, &ObsRecording::refresh);
@@ -136,11 +148,12 @@ QVariantList ObsRecording::rows() const
                 sources << input.name;
         out << QVariantMap{{QStringLiteral("track"), n},
                            {QStringLiteral("busId"), m_draft.value(n)},
+                           {QStringLiteral("trackName"), m_snapshot.trackNames.value(n)},
                            {QStringLiteral("current"),
-                            !m_snapshot.known ? i18nc("@info", "Current assignments unavailable")
+                            !m_snapshot.known ? i18nc("@info", "Assignments unavailable")
                             : sources.isEmpty()
-                                ? i18nc("@info", "Currently unused")
-                                : i18nc("@info", "Currently: %1", sources.join(QStringLiteral(", ")))}};
+                                ? i18nc("@info", "None")
+                                : sources.join(QStringLiteral(", "))}};
     }
     return out;
 }

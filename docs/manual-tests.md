@@ -767,8 +767,13 @@ No physical deck is needed for the install checks.
 Use a disposable OBS profile and scene collection, Advanced output mode, Standard recording,
 and Rostrum's normal stream setup. These are checks to run, not claims of recorded sound.
 
-1. Open OBS → Recording tracks. Current input assignments are shown. Suggested slots are
-   3 Mic, 4 Game, 5 Voice, 6 Music. Choose Unused for Voice. Review, then Cancel: OBS is unchanged.
+1. Open OBS → Recording tracks. Each row separates the OBS track number and name, proposed
+   Rostrum bus, and sources assigned in OBS. Names are labels, not source assignments. Rename
+   a track in OBS Settings → Output → Audio and apply: the page picks up the name on its next
+   periodic refresh without writing to OBS. Leave the page open for more than ten seconds: the controls
+   remain available when outputs are stopped. Narrow the window: rows stack without clipping.
+   Suggested slots are 3 Mic, 4 Game, 5 Voice, 6 Music. Choose Unused for Voice. Review, then
+   Cancel: OBS is unchanged. Apply and Undo must also preserve the OBS track names.
 2. Review and Apply with outputs stopped. Mic keeps tracks 1/2 and gains 3; named Game and Music
    Audio Output Captures use their bus monitors on tracks 4 and 6 only. Track 5 is disabled in
    recording output. Other sources leave tracks 3–6; their tracks 1/2, mutes, filters, and encoder

@@ -8,10 +8,10 @@ Item {
     QtObject {
         id: controller
         property var rows: [
-            {track: 3, busId: "mic", current: "Mic/Aux"},
-            {track: 4, busId: "game", current: "Currently unused"},
-            {track: 5, busId: "voice", current: "Currently unused"},
-            {track: 6, busId: "music", current: "Currently unused"}
+            {track: 3, trackName: "Game", busId: "mic", current: "Mic/Aux"},
+            {track: 4, trackName: "Music", busId: "game", current: "Currently unused"},
+            {track: 5, trackName: "Discord", busId: "voice", current: "Currently unused"},
+            {track: 6, trackName: "Browser", busId: "music", current: "Currently unused"}
         ]
         property var choices: [
             {id: "", label: "Unused"}, {id: "mic", label: "Mic"},
@@ -54,6 +54,10 @@ Item {
             compare(findChild(panel, "recordingBus3").enabled, false)
         }
         function test_labelsAndSelections() {
+            compare(findChild(panel, "recordingTrackName3").text, "Game")
+            compare(findChild(panel, "recordingTrackName4").text, "Music")
+            verify(findChild(panel, "recordingHelp"))
+            verify(!panel.compact)
             compare(findChild(panel, "recordingBus3").currentValue, "mic")
             compare(findChild(panel, "recordingBus4").currentValue, "game")
             compare(findChild(panel, "recordingBus5").currentValue, "voice")
@@ -65,6 +69,7 @@ Item {
         function test_narrowLayout() {
             panel.width = 430
             wait(10)
+            verify(panel.compact)
             const choice = findChild(panel, "recordingBus4")
             verify(choice.width > 150)
             verify(choice.mapToItem(panel, choice.width, 0).x <= panel.width + 1)

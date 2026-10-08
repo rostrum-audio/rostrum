@@ -308,7 +308,7 @@ QList<RecordingChange> recordingChangesFromJson(const QJsonArray &json)
 
 QByteArray recordingFingerprint(const RecordingSnapshot &s)
 {
-    QJsonObject inputs, items;
+    QJsonObject inputs, items, names;
     for (const auto &i : s.state.inputs)
         if (i.tracksKnown)
             inputs.insert(
@@ -318,7 +318,10 @@ QByteArray recordingFingerprint(const RecordingSnapshot &s)
                                     {QStringLiteral("muted"), i.muted}});
     for (auto it = s.sceneItems.cbegin(); it != s.sceneItems.cend(); ++it)
         items.insert(it.key(), it.value());
-    const QJsonObject o{{QStringLiteral("inputs"), inputs},
+    for (auto it = s.trackNames.cbegin(); it != s.trackNames.cend(); ++it)
+        names.insert(QString::number(it.key()), it.value());
+    const QJsonObject o{{QStringLiteral("trackNames"), names},
+                        {QStringLiteral("inputs"), inputs},
                         {QStringLiteral("items"), items},
                         {QStringLiteral("collection"), s.collection},
                         {QStringLiteral("profile"), s.profile},

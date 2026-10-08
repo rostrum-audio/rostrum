@@ -251,6 +251,20 @@ void fetchRecordingSnapshot(Client *client,
                                     f->snapshot.recordingTracks = tracks;
                                     return true;
                                 }};
+            for (int track = 1; track <= 6; ++track)
+                f->queries << Query{QStringLiteral("GetProfileParameter"),
+                                    {{QStringLiteral("parameterCategory"), QStringLiteral("AdvOut")},
+                                     {QStringLiteral("parameterName"),
+                                      QStringLiteral("Track%1Name").arg(track)}},
+                                    [weak, track](const QJsonObject &data) {
+                                        const auto f = weak.lock();
+                                        const auto value = data.value(QLatin1String("parameterValue"));
+                                        // OBS returns null when no custom name has been set.
+                                        if (!f || (!value.isString() && !value.isNull()))
+                                            return false;
+                                        f->snapshot.trackNames.insert(track, value.toString());
+                                        return true;
+                                    }};
             for (const auto &scene : state.scenes)
                 queueScene(f, scene, false);
             fetchNext(f);

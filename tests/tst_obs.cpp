@@ -123,6 +123,8 @@ public:
     QString streamService;
     int twitchVodTrack = 0;
     int recordingTracks = 3;
+    QStringList trackNamesRead;
+    QString gameTrackName = QStringLiteral("Game");
     QString profile = QStringLiteral("Test profile"), collection = QStringLiteral("Test collection");
 
     void emitEvent(const QString &type, const QJsonObject &data)
@@ -314,6 +316,11 @@ private:
                 out.insert(QStringLiteral("parameterValue"), QStringLiteral("Advanced"));
             } else if (param == QLatin1String("RecTracks")) {
                 out.insert(QStringLiteral("parameterValue"), QString::number(recordingTracks));
+            } else if (param.startsWith(QLatin1String("Track")) && param.endsWith(QLatin1String("Name"))) {
+                trackNamesRead << param;
+                out.insert(QStringLiteral("parameterValue"),
+                           param == QLatin1String("Track3Name") ? QJsonValue(gameTrackName)
+                                                               : QJsonValue(QJsonValue::Null));
             } else if (param == QLatin1String("RecType")) {
                 out.insert(QStringLiteral("parameterValue"), QStringLiteral("Standard"));
             }
@@ -392,6 +399,9 @@ private Q_SLOTS:
         });
         QTRY_VERIFY(done);
         QVERIFY(before.known);
+        QCOMPARE(server.trackNamesRead.size(), 6);
+        QCOMPARE(before.trackNames.value(3), QStringLiteral("Game"));
+        QCOMPARE(before.trackNames.value(4), QString());
         for (const auto &request : server.requests)
             QVERIFY(request.startsWith(QLatin1String("Get")));
         const auto plan = recordingPlan(
@@ -415,6 +425,7 @@ private Q_SLOTS:
         QCOMPARE(server.inputs[QStringLiteral("Rostrum Music (Recording)")].tracks, tracks({6}));
         QCOMPARE(server.inputs[QStringLiteral("Mic/Aux")].tracks, tracks({1, 2, 3}));
         QCOMPARE(server.recordingTracks, 47);
+        server.gameTrackName = QStringLiteral("Gameplay");
         RecordingSnapshot after;
         done = false;
         fetchRecordingSnapshot(&client, [&](const auto &snapshot, const QString &error) {
@@ -423,6 +434,10 @@ private Q_SLOTS:
             done = true;
         });
         QTRY_VERIFY(done);
+        QCOMPARE(after.trackNames.value(3), QStringLiteral("Gameplay"));
+        auto renamed = before;
+        renamed.trackNames[3] = QStringLiteral("Gameplay");
+        QVERIFY(recordingFingerprint(renamed) != recordingFingerprint(before));
         const auto repeated = recordingPlan(
             after, rostrum::defaults::scene(),
             {{3, QStringLiteral("mic")}, {4, QStringLiteral("game")}, {6, QStringLiteral("music")}});
