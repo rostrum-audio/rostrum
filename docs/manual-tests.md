@@ -774,9 +774,10 @@ No physical deck is needed for the install checks.
 Use a disposable OBS profile and scene collection, Advanced output mode, Standard recording,
 and Rostrum's normal stream setup. These are checks to run, not claims of recorded sound.
 
-1. Open OBS → Recording tracks. Each row separates the OBS track number and name, proposed
-   Rostrum bus, and sources assigned in OBS. Names are labels, not source assignments. Rename
-   a track in OBS Settings → Output → Audio and apply: the page picks up the name on its next
+1. Open OBS → Recording tracks. Each row separates the track number, proposed
+   Rostrum bus, and current OBS captures with their device paths. OBS track names are available
+   in the track tooltip and accessible name; they do not appear as bus assignments. Rename
+   a track in OBS Settings → Output → Audio and apply: the tooltip picks up the name on its next
    periodic refresh without writing to OBS. Leave the page open for more than ten seconds: the controls
    remain available when outputs are stopped. Narrow the window: rows stack without clipping.
    Occupied slots default to Keep OBS assignments, even if their sources are muted. Empty

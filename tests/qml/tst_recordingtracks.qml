@@ -15,7 +15,8 @@ Item {
         ]
         property var choices: [
             {id: ":keep-obs:", label: "Keep OBS assignments"}, {id: "", label: "Unused"}, {id: "mic", label: "Mic"},
-            {id: "game", label: "Game"}, {id: "voice", label: "Voice"}, {id: "music", label: "Music"}
+            {id: "game", label: "Game"}, {id: "voice", label: "Voice"}, {id: "music", label: "Music"},
+            {id: "desktop", label: "Desktop"}
         ]
         property string collection: "Test"
         property string status: "Review the changes"
@@ -57,8 +58,10 @@ Item {
             compare(findChild(panel, "recordingBus3").enabled, false)
         }
         function test_labelsAndSelections() {
-            compare(findChild(panel, "recordingTrackName3").text, "Game")
-            compare(findChild(panel, "recordingTrackName4").text, "Music")
+            compare(findChild(panel, "recordingTrack3").text, "Track 3")
+            compare(findChild(panel, "recordingTrack4").text, "Track 4")
+            compare(findChild(panel, "recordingTrack3").obsName, "Game")
+            compare(findChild(panel, "recordingTrack4").obsName, "Music")
             verify(findChild(panel, "recordingHelp"))
             verify(!panel.compact)
             compare(findChild(panel, "recordingBus3").currentValue, "mic")
@@ -69,6 +72,30 @@ Item {
             compare(findChild(panel, "undoRecording").enabled, false)
             controller.canUndo = true
             compare(findChild(panel, "undoRecording").enabled, true)
+        }
+        function test_savedSelectionSurvivesRefresh() {
+            const oldRows = controller.rows
+            const oldChoices = controller.choices
+            controller.rows = [
+                {track: 3, trackName: "Game", busId: "mic", current: "Mic/Aux"},
+                {track: 4, trackName: "Music", busId: "music", current: "Rostrum Music (Recording) (rostrum.music.monitor)"},
+                {track: 5, trackName: "Discord", busId: "voice", current: "Rostrum Voice (Recording)"},
+                {track: 6, trackName: "Browser", busId: "desktop", current: "Rostrum Desktop (Recording)"}
+            ]
+            try {
+                compare(findChild(panel, "recordingBus4").currentValue, "music")
+                compare(findChild(panel, "recordingCurrent4").text,
+                        "Rostrum Music (Recording) (rostrum.music.monitor)")
+                controller.choices = oldChoices.map(item => ({id: item.id, label: item.label}))
+                compare(findChild(panel, "recordingBus4").currentValue, "music")
+            } finally {
+                controller.rows = oldRows
+                controller.choices = oldChoices
+            }
+        }
+        function test_obsNameDoesNotLookLikeABusAssignment() {
+            const label = findChild(panel, "recordingTrackName3")
+            verify(!label || !label.visible)
         }
         function test_clearChoiceIsExplicit() {
             const choice = findChild(panel, "recordingBus4")

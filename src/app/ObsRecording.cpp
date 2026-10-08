@@ -153,8 +153,11 @@ QVariantList ObsRecording::rows() const
     for (int n = 3; n <= 6; ++n) {
         QStringList sources;
         for (const auto &input : m_snapshot.state.inputs)
-            if (input.tracksKnown && (input.tracks & (1u << (n - 1))))
-                sources << input.name;
+            if (input.tracksKnown && (input.tracks & (1u << (n - 1)))) {
+                const auto device = input.settings.value(QLatin1String("device_id")).toString();
+                sources << (device.isEmpty() ? input.name
+                                             : i18nc("@info OBS capture and device", "%1 (%2)", input.name, device));
+            }
         out << QVariantMap{{QStringLiteral("track"), n},
                            {QStringLiteral("busId"), m_draft.contains(n) ? m_draft.value(n) : kKeepObs},
                            {QStringLiteral("trackName"), m_snapshot.trackNames.value(n)},

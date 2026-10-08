@@ -47,7 +47,7 @@ ColumnLayout {
         }
         QQC2.Label {
             Layout.fillWidth: true
-            text: i18nc("@label", "Sources assigned in OBS")
+            text: i18nc("@label", "Current OBS captures")
             Accessible.name: text
             font.weight: Font.DemiBold
         }
@@ -69,17 +69,17 @@ ColumnLayout {
                     Layout.fillWidth: section.compact
                     spacing: Kirigami.Units.smallSpacing
                     QQC2.Label {
+                        objectName: "recordingTrack" + modelData.track
                         text: i18nc("@label", "Track %1", modelData.track)
-                        Accessible.name: text
+                        readonly property string obsName: modelData.trackName || ""
+                        Accessible.name: obsName.length > 0
+                            ? i18nc("@label accessible", "%1. OBS track name: %2", text, obsName)
+                            : text
                         font.weight: Font.DemiBold
-                    }
-                    QQC2.Label {
-                        objectName: "recordingTrackName" + modelData.track
-                        Layout.fillWidth: true
-                        wrapMode: Text.WordWrap
-                        visible: text.length > 0
-                        text: modelData.trackName || ""
-                        Accessible.name: i18nc("@label accessible", "OBS track name: %1", text)
+                        QQC2.ToolTip.visible: trackHover.hovered && obsName.length > 0
+                        QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                        QQC2.ToolTip.text: i18nc("@info:tooltip", "OBS track name: %1. This label does not select an audio source.", obsName)
+                        HoverHandler { id: trackHover }
                     }
                 }
                 ColumnLayout {
@@ -123,12 +123,13 @@ ColumnLayout {
                     Layout.fillWidth: true
                     QQC2.Label {
                         visible: section.compact
-                        text: i18nc("@label", "Sources assigned in OBS")
+                        text: i18nc("@label", "Current OBS captures")
                         Accessible.name: text
                     }
                     QQC2.Label {
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
+                        objectName: "recordingCurrent" + modelData.track
                         text: modelData.current
                         Accessible.name: text
                         color: Kirigami.Theme.textColor
