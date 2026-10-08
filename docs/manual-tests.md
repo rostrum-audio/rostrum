@@ -772,7 +772,9 @@ No physical deck is needed for the install checks.
 ## 32. Separate OBS recording tracks
 
 Use a disposable OBS profile and scene collection, Advanced output mode, Standard recording,
-and Rostrum's normal stream setup. These are checks to run, not claims of recorded sound.
+and Rostrum's normal stream setup. Recording tracks has its own preview and Undo, separate
+from Set Up OBS. Track 1 is the Stream Mix, track 2 is the VOD Mix, and tracks 3–6 are the
+chosen buses. These are checks to run, not claims of recorded sound.
 
 1. Open OBS → Recording tracks. Each row separates the track number, proposed
    Rostrum bus, and current OBS captures with their device paths. OBS track names are available
@@ -784,9 +786,11 @@ and Rostrum's normal stream setup. These are checks to run, not claims of record
    slots suggest 3 Mic, 4 Game, 5 Voice, 6 Music. Review and apply Keep on all four slots: no
    OBS writes. Explicitly choose 3 Mic, 4 Game, 5 Unused, 6 Music. Review lists sources removed
    from each changed track; Cancel leaves OBS unchanged. Apply and Undo preserve track names.
-2. Review and Apply with outputs stopped. Mic keeps tracks 1/2 and gains 3; named Game and Music
-   Audio Output Captures use their bus monitors on tracks 4 and 6 only. Track 5 is disabled in
-   recording output. Other sources leave tracks 3–6; their tracks 1/2, mutes, filters, and encoder
+2. Review and Apply with outputs stopped. With filters off, the mic capture uses `rostrum.mic`
+   and keeps tracks 1/2 while gaining 3. With filters on, track 3 uses a separate named
+   Rostrum Mic (Recording) capture of `rostrum.filtered`; Mic/Aux keeps tracks 1/2. Named Game
+   and Music Audio Output Captures use their bus monitors on tracks 4 and 6 only. Track 5 is
+   disabled in recording output. Other sources leave tracks 3–6; their tracks 1/2, mutes, filters, and encoder
    settings remain. A slot left on Keep retains its source assignments and output checkbox.
    A capture shared with a kept slot gets a separate recording capture; the kept capture's
    mute and placements stay unchanged. Shared nested scenes/groups do not need duplicate

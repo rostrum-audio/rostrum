@@ -3,6 +3,9 @@
 Rostrum owns a small, fixed PipeWire graph. It never runs a second audio daemon and never
 shells out to `pactl` in the steady state.
 
+Recording tracks has a separate preview and Undo from Set Up OBS. Track 1 is the Stream Mix,
+track 2 is the VOD Mix, and tracks 3–6 capture the chosen buses.
+
 Separate OBS recording tracks use the existing `rostrum.<bus>.monitor` devices with named
 Audio Output Captures; no additional PipeWire nodes are created. The mic uses an Audio Input
 Capture of `rostrum.mic` when filters are off or `rostrum.filtered` when filters are on. Changing
@@ -19,11 +22,11 @@ are untouched. Each successful operation is journaled under
 `$XDG_STATE_HOME/rostrum/obs-recording/` for separate Undo; assignments live in settings.toml,
 keyed by OBS installation and scene collection, with stable Rostrum bus ids.
 
-Bus monitor volume follows the bus's fader and mute (`monitor.channel-volumes = true`). A
-Headphones-only bus can be recorded independently of its mix destination. The Stream master
+A bus mute silences that bus capture. Bus monitor volume follows the bus's fader and mute
+(`monitor.channel-volumes = true`). A Headphones-only bus can be recorded independently of its mix destination. The Stream master
 and panic playback mute act on `rostrum.stream` and `rostrum.vod`, so they do not silence isolated
-playback captures. Mic mute still silences `rostrum.mic`. Stream setup recognizes explicitly
-assigned recording captures and does not mute them as conflicts. Reconnect is read-only.
+playback captures. Mic mute silences both `rostrum.mic` and `rostrum.filtered`. Stream setup
+recognizes explicitly assigned recording captures and does not mute them as conflicts. Reconnect is read-only.
 
 ```
 App streams ----> rostrum.<bus> ----> rostrum.phones ----> headphones device

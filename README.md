@@ -223,26 +223,31 @@ Watch out for leaks. Desktop Audio on track 2 puts Music back into the VOD. Leav
 
 A local OBS recording uses its own track boxes. Track 2 in a recording is the VOD mix only if the recording is set to track 2.
 
-On the OBS page, **Recording tracks** sets up separate recording audio while OBS is connected
-and its outputs are stopped. Occupied tracks default to **Keep OBS assignments**, preserving
+How to check the VOD mix: run a short Twitch stream with music playing. The live replay has the music; the saved VOD does not.
+
+### Recording tracks
+
+On the OBS page, **Recording tracks** has its own preview and Undo, separate from **Set Up OBS**.
+It sets up separate recording audio while OBS is connected and its outputs are stopped.
+Occupied tracks default to **Keep OBS assignments**, preserving
 both their sources and recording output selection. Empty tracks suggest track 3 Mic, track 4
 Game, track 5 Voice, and track 6 Music. Choosing a Rostrum bus replaces that track's sources;
-**Unused** explicitly clears its assignments and disables it in the recording output. Tracks 1
-and 2 keep their stream and VOD assignments. OBS must use Advanced output mode and Standard recording.
+**Unused** explicitly clears its assignments and disables it in the recording output. Track 1
+is the Stream Mix, track 2 is the VOD Mix, and tracks 3–6 capture the chosen buses.
+OBS must use Advanced output mode and Standard recording.
 **Review Recording Changes…** lists kept tracks, replacements, and sources to remove before Apply.
 OBS track names are preserved.
 Rostrum saves a separate recording backup and offers **Undo Recording Changes**.
 
 Playback captures use each bus's existing monitor, including Headphones-only buses; recording
-does not change their stream destination or Include in Twitch VOD flag. Bus faders and mutes
-affect the isolated audio. The mic track captures `rostrum.mic` with filters off and
+does not change their stream destination or Include in Twitch VOD flag. A bus mute silences
+that bus capture, and its fader controls the capture volume. The mic track captures
+`rostrum.mic` with filters off and
 `rostrum.filtered` with filters on; mic mute silences both. After changing filters, review
 and apply the recording changes again. Reconnecting does not switch the OBS source automatically.
 Panic mute and Stream master mute silence the combined stream and VOD mixes; isolated playback tracks continue recording.
 Assignments are saved by bus id for the OBS scene collection. Reconnecting checks them without
 overwriting OBS edits. A matching configuration does not prove that a recording sounds right.
-
-How to check: run a short Twitch stream with music playing. The live replay has the music; the saved VOD does not.
 
 ### ⌨️ Shortcuts
 
