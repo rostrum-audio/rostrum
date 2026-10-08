@@ -25,6 +25,17 @@ QList<Recording> obsRecordings(const pw::Graph &graph);
 // Whether this observed filtered mic belongs exclusively to the saved mic recording slots.
 bool assignedRecordingMic(const Recording &recording, const Input &input, quint32 assignedTracks);
 
+// Configuration checks for an observed VOD capture, not a recording sound test.
+enum class VodCaptureStatus
+{
+    Unknown,
+    Configured,
+    WrongTracks,
+    Muted,
+    Silent
+};
+VodCaptureStatus vodCaptureStatus(const Input *input);
+
 Facts factsFrom(const pw::PwContext &pw);
 
 } // namespace rostrum::obs

@@ -628,6 +628,26 @@ void Obs::rebuildRecordings()
                 text = r.what;
                 kind = QStringLiteral("ok");
                 break;
+            case obs::Capture::RostrumVod:
+                switch (obs::vodCaptureStatus(in)) {
+                case obs::VodCaptureStatus::Configured:
+                    text = r.what;
+                    kind = QStringLiteral("ok");
+                    break;
+                case obs::VodCaptureStatus::Muted:
+                    text = r.what; // the shared muted-input handling below adds the reason
+                    break;
+                case obs::VodCaptureStatus::WrongTracks:
+                    text = i18nc("@info", "%1 must be assigned to track 2 only.", r.what);
+                    break;
+                case obs::VodCaptureStatus::Silent:
+                    text = i18nc("@info", "%1 is at zero volume in OBS.", r.what);
+                    break;
+                case obs::VodCaptureStatus::Unknown:
+                    text = i18nc("@info", "%1: OBS audio track, mute, or volume settings could not be verified.", r.what);
+                    break;
+                }
+                break;
             case obs::Capture::RostrumBus:
                 if (in && obs::intendedRecording(*in, m_recordingTracks->intendedDevices()) &&
                     !(in->tracks & 3u)) {

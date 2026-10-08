@@ -88,6 +88,19 @@ bool assignedRecordingMic(const Recording &recording, const Input &input, quint3
            input.tracks != 0 && !(input.tracks & 3u) && !(input.tracks & ~assignedTracks);
 }
 
+VodCaptureStatus vodCaptureStatus(const Input *input)
+{
+    if (!input || !input->tracksKnown || !input->muteKnown || !input->gainKnown)
+        return VodCaptureStatus::Unknown;
+    if (input->tracks != 2u)
+        return VodCaptureStatus::WrongTracks;
+    if (input->muted)
+        return VodCaptureStatus::Muted;
+    if (input->gain <= 0)
+        return VodCaptureStatus::Silent;
+    return VodCaptureStatus::Configured;
+}
+
 Facts factsFrom(const pw::PwContext &pw)
 {
     Facts f;

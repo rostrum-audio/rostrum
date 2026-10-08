@@ -970,6 +970,44 @@ private Q_SLOTS:
         QVERIFY(!goLiveProblems(engine.scene(), {}, nullptr, &heldTalk).contains(GoLiveProblem::MicMuted));
     }
 
+    void vodCaptureStatus_data()
+    {
+        QTest::addColumn<quint32>("trackMask");
+        QTest::addColumn<bool>("muted");
+        QTest::addColumn<double>("gain");
+        QTest::addColumn<VodCaptureStatus>("expected");
+        QTest::newRow("VOD track 2 only") << 2u << false << 1.0 << VodCaptureStatus::Configured;
+        QTest::newRow("wrong track") << 1u << false << 1.0 << VodCaptureStatus::WrongTracks;
+        QTest::newRow("also on stream") << 3u << false << 1.0 << VodCaptureStatus::WrongTracks;
+        QTest::newRow("no tracks") << 0u << false << 1.0 << VodCaptureStatus::WrongTracks;
+        QTest::newRow("muted VOD") << 2u << true << 1.0 << VodCaptureStatus::Muted;
+        QTest::newRow("zero-volume VOD") << 2u << false << 0.0 << VodCaptureStatus::Silent;
+    }
+
+    void vodCaptureStatus()
+    {
+        QFETCH(quint32, trackMask);
+        QFETCH(bool, muted);
+        QFETCH(double, gain);
+        QFETCH(VodCaptureStatus, expected);
+        Input input;
+        input.name = QStringLiteral("Rostrum VOD Mix");
+        input.tracks = trackMask;
+        input.muted = muted;
+        input.gain = gain;
+        input.tracksKnown = input.muteKnown = input.gainKnown = true;
+        QCOMPARE(rostrum::obs::vodCaptureStatus(&input), expected);
+        QCOMPARE(rostrum::obs::vodCaptureStatus(nullptr), VodCaptureStatus::Unknown);
+        input.tracksKnown = false;
+        QCOMPARE(rostrum::obs::vodCaptureStatus(&input), VodCaptureStatus::Unknown);
+        input.tracksKnown = true;
+        input.muteKnown = false;
+        QCOMPARE(rostrum::obs::vodCaptureStatus(&input), VodCaptureStatus::Unknown);
+        input.muteKnown = true;
+        input.gainKnown = false;
+        QCOMPARE(rostrum::obs::vodCaptureStatus(&input), VodCaptureStatus::Unknown);
+    }
+
     void assignedFilteredMicWarning_data()
     {
         QTest::addColumn<QString>("configuredDevice");
