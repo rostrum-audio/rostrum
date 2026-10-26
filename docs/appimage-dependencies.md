@@ -44,6 +44,8 @@ by CMake. Their own upstream notices are copied without rewriting their terms:
 The statically linked AppImage launcher is pinned to runtime source commit
 `8f39b89e2ac31e1640b3d3f7e9a5108e6ce805fa` and SHA-256
 `156f4bdbde9c52d01814600013e0a273f0118dc2de98975f3c8c63427ec79074`.
+The exact executable is stored compressed in `tools/appimage/runtime/` in Rostrum's
+source tree. Packaging verifies the decompressed bytes against this checksum.
 Its upstream [build evidence](https://github.com/AppImage/type2-runtime/actions/runs/36463736478)
 records musl 1.2.5-r11, zlib 1.3.2-r0, zstd 1.5.6-r2 and mimalloc2 2.1.7-r0.
 The runtime source pins libfuse 3.15.0 (with its documented mount.c patch) and

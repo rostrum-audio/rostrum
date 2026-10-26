@@ -51,11 +51,9 @@ fetch "linuxdeploy-plugin-qt-${arch}.AppImage" \
     "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/${plugin_qt_tag}/linuxdeploy-plugin-qt-${arch}.AppImage" \
     "$plugin_qt_sha256"
 
-# The launcher is statically linked too. Pin its bytes to the build whose
-# dependency versions and upstream notices are recorded in licenses/runtime/.
-fetch "runtime-${arch}" \
-    "https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-${arch}" \
-    "156f4bdbde9c52d01814600013e0a273f0118dc2de98975f3c8c63427ec79074"
+# Keep the launcher paired with the source and notices in licenses/runtime/.
+# Upstream's continuous download changes; verify the copy stored here instead.
+python3 "$src/tools/appimage/prepare-runtime.py" "$tools/runtime-${arch}"
 export LDAI_RUNTIME_FILE="$tools/runtime-${arch}"
 
 appdir="$work/AppDir"
