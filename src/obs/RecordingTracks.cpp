@@ -51,6 +51,30 @@ QJsonObject recordingTracksJson(quint32 mask)
     return out;
 }
 
+QString recordingScopeKey(const QString &configDir, const QString &collection)
+{
+    return QString::fromLatin1(
+        QCryptographicHash::hash((configDir + QChar(0) + collection).toUtf8(), QCryptographicHash::Sha256)
+            .toHex());
+}
+
+RecordingAssignments recordingAssignments(const QMap<QString, QString> &saved)
+{
+    RecordingAssignments out;
+    for (auto it = saved.cbegin(); it != saved.cend(); ++it)
+        out.insert(it.key().toInt(), it.value());
+    return out;
+}
+
+QMap<QString, QString> savedRecordingAssignments(const RecordingAssignments &draft)
+{
+    QMap<QString, QString> out;
+    for (int track = 3; track <= 6; ++track)
+        if (draft.contains(track))
+            out.insert(QString::number(track), draft.value(track));
+    return out;
+}
+
 RecordingAssignments recordingSuggestion(const Scene &scene, const RecordingSnapshot &before)
 {
     if (!before.known)
@@ -70,6 +94,17 @@ RecordingAssignments recordingSuggestion(const Scene &scene, const RecordingSnap
                 if (input.tracks & (1u << (track - 1)))
                     out.remove(track);
     return out;
+}
+
+RecordingAssignments recordingDraft(const QMap<QString, QMap<QString, QString>> &saved,
+                                    const QString &configDir, const Scene &scene,
+                                    const RecordingSnapshot &before)
+{
+    if (configDir.isEmpty() || before.collection.isEmpty())
+        return {};
+    const auto scope = recordingScopeKey(configDir, before.collection);
+    return saved.contains(scope) ? recordingAssignments(saved.value(scope))
+                                 : recordingSuggestion(scene, before);
 }
 
 QSet<QString> recordingDevices(const Scene &scene, const RecordingAssignments &assignments, bool filteredMic)

@@ -90,6 +90,7 @@ Obs::Obs(AppController *app, QObject *parent)
 
     // Screenshot and test runs must never reach the user's own OBS on their own.
     m_offscreen = QGuiApplication::platformName() == QLatin1String("offscreen") ||
+                  qEnvironmentVariable("QT_QPA_PLATFORM") == QLatin1String("offscreen") ||
                   !qEnvironmentVariableIsEmpty("ROSTRUM_SCREENSHOT");
 
     m_poll.setInterval(kPollMs);
@@ -436,7 +437,7 @@ QString Obs::summary() const
                                             : i18n("Reading OBS…");
     }
     if (m_plan.isEmpty()) {
-        return i18n("OBS is set up: it records Rostrum Mic and Rostrum Stream Mix.");
+        return i18n("OBS is set up: it records Rostrum Mic, Rostrum Stream Mix and Rostrum VOD Mix.");
     }
     if (onlyDoubling()) {
         return i18n("OBS records some audio twice.");
@@ -469,7 +470,7 @@ QString Obs::detail() const
         return m_client.errorString();
     }
     if (onlyDoubling()) {
-        return i18n("Rostrum Mic and Rostrum Stream Mix are in place, but the sources marked below play on top of them. Fix OBS mutes them.");
+        return i18n("Rostrum Mic, Rostrum Stream Mix and Rostrum VOD Mix are in place, but the sources marked below play on top of them. Fix OBS mutes them.");
     }
     if (s == QLatin1String("closed") && m_havePlan && !m_plan.isEmpty()) {
         return i18n("OBS is closed, so Rostrum will edit its scene collection. The changes show up the next time OBS starts.");
@@ -618,36 +619,51 @@ void Obs::rebuildRecordings()
 {
     QVariantList rows;
     if (m_active && m_running) {
-        for (const auto &r : obs::obsRecordings(m_app->pw()->graph())) {
+        const auto recordings = obs::obsRecordings(m_app->pw()->graph());
+        const auto checks = obs::rostrumCaptureChecks(recordings, m_haveState ? &m_state : nullptr,
+                                                      m_recordingTracks->intendedDevices());
+        for (qsizetype n = 0; n < recordings.size(); ++n) {
+            const auto &r = recordings.at(n);
             const obs::Input *in = m_haveState ? m_state.input(r.source) : nullptr;
             QString text;
             QString kind = QStringLiteral("warning");
             switch (r.capture) {
             case obs::Capture::RostrumMic:
             case obs::Capture::RostrumStream:
-                text = r.what;
-                kind = QStringLiteral("ok");
-                break;
-            case obs::Capture::RostrumVod:
-                switch (obs::vodCaptureStatus(in)) {
-                case obs::VodCaptureStatus::Configured:
-                    text = r.what;
-                    kind = QStringLiteral("ok");
+            case obs::Capture::RostrumVod: {
+                const auto &check = checks.at(n);
+                switch (check.status) {
+                case obs::CaptureStatus::Configured:
+                case obs::CaptureStatus::Muted:
+                    text = r.what; // the muted-input note below adds the reason
                     break;
-                case obs::VodCaptureStatus::Muted:
-                    text = r.what; // the shared muted-input handling below adds the reason
+                case obs::CaptureStatus::Isolated:
+                    text = i18nc("@info", "%1, assigned to separate recording tracks", r.what);
                     break;
-                case obs::VodCaptureStatus::WrongTracks:
-                    text = i18nc("@info", "%1 must be assigned to track 2 only.", r.what);
+                case obs::CaptureStatus::WrongTracks:
+                    text = r.capture == obs::Capture::RostrumMic
+                               ? i18nc("@info", "%1 must be assigned to tracks 1 and 2.", r.what)
+                           : r.capture == obs::Capture::RostrumStream
+                               ? i18nc("@info", "%1 must be assigned to track 1, not track 2.", r.what)
+                               : i18nc("@info", "%1 must be assigned to track 2 only.", r.what);
                     break;
-                case obs::VodCaptureStatus::Silent:
+                case obs::CaptureStatus::Silent:
                     text = i18nc("@info", "%1 is at zero volume in OBS.", r.what);
                     break;
-                case obs::VodCaptureStatus::Unknown:
+                case obs::CaptureStatus::Unknown:
                     text = i18nc("@info", "%1: OBS audio track or mute settings could not be verified.", r.what);
                     break;
                 }
-                break;
+                // A mute adds to another problem rather than hiding it.
+                kind = check.kind == obs::CaptureKind::Ok      ? QStringLiteral("ok")
+                       : check.kind == obs::CaptureKind::Muted ? QStringLiteral("muted")
+                                                               : QStringLiteral("warning");
+                if (in && in->muted && check.status != obs::CaptureStatus::Muted) {
+                    text = i18n("%1 (muted in OBS)", text);
+                }
+                rows << QVariantMap{{QStringLiteral("source"), r.source}, {QStringLiteral("text"), text}, {QStringLiteral("kind"), kind}};
+                continue;
+            }
             case obs::Capture::RostrumBus:
                 if (in && obs::intendedRecording(*in, m_recordingTracks->intendedDevices()) &&
                     !(in->tracks & 3u)) {
@@ -844,6 +860,7 @@ void Obs::applyBackground()
 void Obs::settingsRestored()
 {
     applyBackground();
+    m_recordingTracks->settingsRestored();
     refreshWarnings();
     Q_EMIT preferencesChanged();
     Q_EMIT sceneMapChanged();

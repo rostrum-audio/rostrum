@@ -37,7 +37,13 @@ struct RecordingPlan
     quint32 recordingTracks = 0;
 };
 
+QString recordingScopeKey(const QString &configDir, const QString &collection);
+RecordingAssignments recordingAssignments(const QMap<QString, QString> &saved);
+QMap<QString, QString> savedRecordingAssignments(const RecordingAssignments &draft);
 RecordingAssignments recordingSuggestion(const Scene &scene, const RecordingSnapshot &before);
+RecordingAssignments recordingDraft(const QMap<QString, QMap<QString, QString>> &saved,
+                                    const QString &configDir, const Scene &scene,
+                                    const RecordingSnapshot &before);
 QSet<QString> recordingDevices(const Scene &scene, const RecordingAssignments &assignments,
                                bool filteredMic = false);
 bool intendedRecording(const Input &input, const QSet<QString> &devices);

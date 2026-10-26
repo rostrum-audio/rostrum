@@ -24,7 +24,14 @@ class ObsRecording : public QObject
     Q_PROPERTY(bool canApply READ canApply NOTIFY changed)
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY changed)
 public:
-    ObsRecording(AppController *app, Obs *obs, obs::Client *client);
+    using SnapshotCallback = std::function<void(const obs::RecordingSnapshot &, const QString &)>;
+    using SnapshotProvider = std::function<void(obs::Client *, SnapshotCallback)>;
+
+    ObsRecording(AppController *app, Obs *obs, obs::Client *client,
+                 SnapshotProvider snapshotProvider = obs::fetchRecordingSnapshot);
+    void setSnapshotProvider(SnapshotProvider provider, const QString &configDir = {});
+    obs::Client *client() const { return m_client; }
+    bool fetching() const { return m_fetching; }
     QVariantList rows() const;
     QVariantList choices() const;
     QString status() const;
@@ -36,6 +43,7 @@ public:
     QSet<QString> intendedDevices() const;
     quint32 assignedMicTracks() const;
     QVariantMap readiness() const;
+    void settingsRestored();
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void choose(int track, const QString &busId);
     Q_INVOKABLE void preview();
@@ -46,24 +54,33 @@ Q_SIGNALS:
     void previewReady();
 
 private:
+    enum class DeferredFetch { None, Refresh, Preview };
+
+    void cancelFetch();
+    void startSnapshotFetch(int generation, bool forPreview);
     void acceptSnapshot(const obs::RecordingSnapshot &snapshot);
     void setBusy(bool busy);
     void saveAssignments(const obs::RecordingAssignments &assignments, bool present = true);
     QString undoPath() const;
     QJsonObject readUndo() const;
     bool writeUndo(const QJsonObject &record) const;
-    void runUndo(QJsonObject record, const obs::RecordingSnapshot &scope, bool rollback);
+    void runUndo(QJsonObject record, const obs::RecordingSnapshot &scope, bool rollback, int settingsGen);
     void notify(const QString &text);
     AppController *m_app;
     Obs *m_obs;
     obs::Client *m_client;
+    SnapshotProvider m_snapshotProvider;
     obs::RecordingSnapshot m_snapshot;
     obs::RecordingAssignments m_draft;
     obs::RecordingPlan m_preview;
     QByteArray m_previewFingerprint;
     QString m_scope, m_error;
-    bool m_fetching = false, m_havePreview = false, m_draftEdited = false;
+    bool m_fetching = false, m_previewing = false, m_havePreview = false, m_draftEdited = false,
+         m_customSnapshotProvider = false;
+    DeferredFetch m_deferredFetch = DeferredFetch::None;
+    int m_inFlight = 0;
     int m_generation = 0;
+    int m_settingsGeneration = 0;
     QElapsedTimer m_age;
     QTimer m_refetch, m_snapshotRefresh;
 };
