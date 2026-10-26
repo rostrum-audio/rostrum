@@ -214,6 +214,25 @@ in OBS's own config. That traffic never leaves your computer. It is used in two 
 
 Runs with `QT_QPA_PLATFORM=offscreen` or `ROSTRUM_SCREENSHOT` never connect in the background.
 
+## Website hosting
+
+getrostrum.dev is hosted on Cloudflare Pages. The site's source files contain no
+JavaScript or tracking code, set no application cookies, and serve styles and
+images from the same site. Cloudflare processes request information to serve and
+protect the site and provide operational statistics.
+
+Cloudflare adds a Web Analytics script tag to pages on the custom domains.
+Browser checks showed that the site's Content Security Policy blocked the script.
+Delivered HTML can contain this tag even though the site's source files contain
+no JavaScript.
+
+Cloudflare also sends [Network Error Logging](https://developers.cloudflare.com/network-error-logging/)
+headers. Supporting browsers can report failed requests directly to Cloudflare
+without JavaScript. The headers checked on October 26, 2026 disabled reporting of
+successful requests. Blocking the analytics script does not disable NEL or
+Cloudflare's processing of website requests. These are separate from Rostrum's
+optional app features.
+
 ## Builds and testing
 
 Official builds use the `official` preset, which turns crash reports on with the DSN of Rostrum's
