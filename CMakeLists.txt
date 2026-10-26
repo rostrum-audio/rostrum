@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(rostrum VERSION 0.1.0 LANGUAGES CXX)
+project(rostrum VERSION 0.2.0 LANGUAGES CXX)
 
 set(ROSTRUM_APP_ID "dev.getrostrum.Rostrum")
 
