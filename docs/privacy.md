@@ -199,20 +199,21 @@ name ends in `-<arch>.AppImage`, using GitHub's `digest` (`sha256:…`) as the c
 
 ## OBS
 
-Rostrum talks to OBS through obs-websocket on `127.0.0.1` only, on the port and with the password
-in OBS's own config. That traffic never leaves your computer. It is used in two ways:
+Rostrum talks to OBS through obs-websocket on `127.0.0.1` only, using the port and password
+in OBS's own config. That traffic stays on your computer.
 
-- **Set Up OBS and Undo** on the OBS page, when you press them. These are the only requests that
-  change OBS.
-- **Following OBS while it runs** (Settings → OBS, `[obs] background`, on by default; also offered
-  in first-run setup and in the one-time dialog after upgrading). While an OBS process runs with
-  its WebSocket server turned on, Rostrum stays connected and only reads: whether OBS is streaming
-  or recording and for how long, the scene on program, and the scene list, for the LIVE and REC
-  badges, go-live warnings and scene mapping. Readiness also reads capture configuration without
-  changing it. Nothing is stored apart from the scene mapping you choose. When OBS is not running, no connection is attempted. Turn the switch off and Rostrum
-  connects only while the OBS page is open.
+- **Set Up OBS and Undo OBS Changes** modify OBS when you choose them.
+- **Recording tracks** has separate Review, Apply and Undo controls. Review reads the current
+  configuration; Apply and Undo change it only when you choose those actions.
+- **Following OBS while it runs** (Settings → Integrations → OBS, `[obs] background`, on by
+  default) reads streaming/recording status, the current scene and scene list. Readiness also
+  reads capture configuration. Background following does not apply setup changes. Turn it off
+  to connect only while the OBS page is open.
 
-Runs with `QT_QPA_PLATFORM=offscreen` or `ROSTRUM_SCREENSHOT` never connect in the background.
+Scene mappings, recording-track choices, and local backups and Undo records are saved on your
+computer. These are separate from the status reads; they are not sent to a remote service.
+When OBS is not running, no connection is attempted. Runs with `QT_QPA_PLATFORM=offscreen` or
+`ROSTRUM_SCREENSHOT` do not automatically connect to OBS.
 
 ## Website hosting
 
