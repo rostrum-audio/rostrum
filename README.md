@@ -66,8 +66,8 @@ bus goes to your headphones, to the stream, or to both. OBS captures Stream Mix 
 separately. Tools like qpwgraph and Helvum show every port and every link. Rostrum hides the graph and gives you a mixing
 desk instead: faders, meters, mute and solo, and scenes you can switch live.
 
-**Released:** [Rostrum 0.1.0](https://github.com/rostrum-audio/rostrum/releases/tag/v0.1.0),
-with an [x86_64 AppImage](https://github.com/rostrum-audio/rostrum/releases/download/v0.1.0/Rostrum-0.1.0-x86_64.AppImage).
+**Released:** [Rostrum 0.2.0](https://github.com/rostrum-audio/rostrum/releases/tag/v0.2.0),
+with an [x86_64 AppImage](https://github.com/rostrum-audio/rostrum/releases/download/v0.2.0/Rostrum-0.2.0-x86_64.AppImage).
 The AppImage was functionally validated in clean Ubuntu 26.04 x86_64 with glibc 2.43,
 PipeWire 1.6.2 and WirePlumber 0.5.13. Its glibc 2.43 binary floor is not a guarantee
 that every newer Linux distribution works. Other desktop/hardware combinations need
@@ -83,7 +83,7 @@ Rostrum is made by [Rostrum Audio](https://github.com/rostrum-audio). More at
 
 Five minutes to a split stream:
 
-1. **Start Rostrum** with the AppImage ([download and launch](#appimage-010-x86_64)),
+1. **Start Rostrum** with the AppImage ([download and launch](#appimage-020-x86_64)),
    from the app menu after a source install, or run `./build/src/app/rostrum`. Fully quit any
    existing instance first; closing its window may leave it in the tray.
 2. **Run first-time setup.** Follow the short steps, with a summary at the end:
@@ -369,18 +369,18 @@ or crashes. To remove Rostrum completely, quit it, delete the files above, and r
 
 ## ⬇️ Installation
 
-### AppImage 0.1.0 (x86_64)
+### AppImage 0.2.0 (x86_64)
 
-Download [Rostrum-0.1.0-x86_64.AppImage](https://github.com/rostrum-audio/rostrum/releases/download/v0.1.0/Rostrum-0.1.0-x86_64.AppImage)
-and [SHA256SUMS](https://github.com/rostrum-audio/rostrum/releases/download/v0.1.0/SHA256SUMS)
-into the same folder. [Release notes and compatibility limits](https://github.com/rostrum-audio/rostrum/releases/tag/v0.1.0).
+Download [Rostrum-0.2.0-x86_64.AppImage](https://github.com/rostrum-audio/rostrum/releases/download/v0.2.0/Rostrum-0.2.0-x86_64.AppImage)
+and [SHA256SUMS](https://github.com/rostrum-audio/rostrum/releases/download/v0.2.0/SHA256SUMS)
+into the same folder. [Release notes and compatibility limits](https://github.com/rostrum-audio/rostrum/releases/tag/v0.2.0).
 
 ```sh
 sha256sum -c SHA256SUMS
-chmod +x Rostrum-0.1.0-x86_64.AppImage
-./Rostrum-0.1.0-x86_64.AppImage
+chmod +x Rostrum-0.2.0-x86_64.AppImage
+./Rostrum-0.2.0-x86_64.AppImage
 # If FUSE is unavailable:
-./Rostrum-0.1.0-x86_64.AppImage --appimage-extract-and-run
+./Rostrum-0.2.0-x86_64.AppImage --appimage-extract-and-run
 ```
 
 Fully quit an existing instance through tray/menu **Quit** before launching another build.
