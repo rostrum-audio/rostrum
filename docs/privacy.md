@@ -2,8 +2,8 @@
 
 Rostrum can check for updates on getrostrum.dev and GitHub and download an AppImage update
 from GitHub. Optional crash reports go to Sentry. Update checks, automatic AppImage installation
-and crash reporting are separate choices offered during setup and available in Settings → Updates
-and Settings → Privacy. Manual Check Now and Install actions also make requests. OBS communication
+and crash reporting are separate choices offered during setup and available in Settings → Application → Updates
+and Settings → Application → Privacy. Manual Check Now and Install actions also make requests. OBS communication
 uses localhost separately (see [OBS](#obs) below).
 
 Rostrum does not upload your audio. Mic filters run locally inside PipeWire, with RNNoise's model
