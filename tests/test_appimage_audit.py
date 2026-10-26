@@ -1,5 +1,7 @@
 """Offline packaging regressions; no application or audio daemon is launched."""
 import importlib.util
+import gzip
+import hashlib
 import json
 from pathlib import Path
 import tempfile
@@ -10,6 +12,49 @@ import unittest
 spec = importlib.util.spec_from_file_location('audit', Path(__file__).resolve().parents[1] / 'tools/appimage/package-audit.py')
 audit = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(audit)
+
+
+class RuntimeTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.script = Path(spec.origin).with_name('prepare-runtime.py')
+
+    def load_runtime(self):
+        runtime_spec = importlib.util.spec_from_file_location('runtime', self.script)
+        runtime = importlib.util.module_from_spec(runtime_spec)
+        runtime_spec.loader.exec_module(runtime)
+        return runtime
+
+    def test_repository_runtime_matches_license_identity(self):
+        output = self.root / 'runtime with spaces'
+        result = subprocess.run(['python3', '-B', str(self.script), str(output)],
+                                capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        identity = json.loads((audit.RUNTIME_DIR / 'sources.json').read_text())
+        self.assertEqual(audit.digest(output), identity['sha256'])
+        self.assertTrue(output.stat().st_mode & 0o111)
+        audit.check_runtime(output)
+
+    def test_wrong_runtime_keeps_existing_output(self):
+        runtime = self.load_runtime()
+        archive = self.root / 'runtime.gz'
+        archive.write_bytes(gzip.compress(b'wrong runtime'))
+        output = self.root / 'runtime'
+        output.write_bytes(b'previous file')
+        with self.assertRaisesRegex(ValueError, 'checksum'):
+            runtime.prepare_runtime(archive, hashlib.sha256(b'expected runtime').hexdigest(), output)
+        self.assertEqual(output.read_bytes(), b'previous file')
+
+    def test_corrupt_archive_creates_no_output(self):
+        runtime = self.load_runtime()
+        archive = self.root / 'runtime.gz'
+        archive.write_bytes(b'not gzip')
+        output = self.root / 'runtime'
+        with self.assertRaises(gzip.BadGzipFile):
+            runtime.prepare_runtime(archive, '0' * 64, output)
+        self.assertFalse(output.exists())
 
 
 class LicenseTests(unittest.TestCase):

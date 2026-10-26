@@ -91,6 +91,12 @@ linuxdeploy's exclude list leaves PipeWire's client library, OpenGL, fontconfig 
 to the system. These are explicit host requirements; a minimal image may not have them.
 `libpipewire` must match the system's PipeWire modules.
 
+The AppImage launcher is kept in
+[`tools/appimage/runtime/`](../tools/appimage/runtime/) as a compressed copy of the
+verified upstream executable. Packaging unpacks it and checks the existing checksum
+in the runtime licence record; it does not depend on upstream's moving `continuous`
+download. The packaged launcher's build ID and code hash must still match that record.
+
 The mic filter plugin (`usr/lib/rostrum/librostrum-dsp.so`) is the exception to bundling: the
 host's PipeWire daemon loads it into its own process, from a copy outside the AppImage, so it can
 use nothing the AppImage carries. The `official` preset compiles RNNoise into it
