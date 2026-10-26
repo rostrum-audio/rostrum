@@ -228,10 +228,7 @@ void Desktop::ensureAutostartCurrent()
     }
     const QString existing = QString::fromUtf8(f.readAll());
     f.close();
-    const QString expectedExec = autostart::execLine(currentLauncher);
-    if (!existing.contains(QStringLiteral("Exec=") + expectedExec) ||
-        !existing.contains(QStringLiteral("TryExec=") + currentLauncher) ||
-        !existing.contains(QStringLiteral("StartupWMClass=rostrum"))) {
+    if (!autostart::isCurrent(existing, currentLauncher)) {
         qCInfo(lcDesktop) << "Updating autostart entry for binary:" << currentLauncher;
         writeAutostartFile();
     }

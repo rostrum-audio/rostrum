@@ -20,6 +20,9 @@
 #include <QWebSocket>
 #include <QWebSocketServer>
 
+#include <cmath>
+#include <limits>
+
 using namespace rostrum::obs;
 using rostrum::Scene;
 
@@ -375,6 +378,9 @@ bool connectClient(Client &client, quint16 port, const QString &password)
 }
 
 } // namespace
+
+Q_DECLARE_METATYPE(rostrum::obs::Capture)
+Q_DECLARE_METATYPE(rostrum::obs::CaptureStatus)
 
 class TestObs : public QObject
 {
@@ -982,6 +988,7 @@ private Q_SLOTS:
         QTest::newRow("no tracks") << 0u << false << 1.0 << VodCaptureStatus::WrongTracks;
         QTest::newRow("muted VOD") << 2u << true << 1.0 << VodCaptureStatus::Muted;
         QTest::newRow("zero-volume VOD") << 2u << false << 0.0 << VodCaptureStatus::Silent;
+        QTest::newRow("simultaneous mute and silent gain") << 2u << true << 0.0 << VodCaptureStatus::Silent;
     }
 
     void vodCaptureStatus()
@@ -1007,7 +1014,261 @@ private Q_SLOTS:
         input.gainKnown = false;
         // The recording panel snapshot reads tracks and mute, not volume.
         QCOMPARE(rostrum::obs::vodCaptureStatus(&input),
-                 expected == VodCaptureStatus::Silent ? VodCaptureStatus::Configured : expected);
+                 expected == VodCaptureStatus::Silent ? (muted ? VodCaptureStatus::Muted : VodCaptureStatus::Configured) : expected);
+    }
+
+    void captureStatus_data()
+    {
+        QTest::addColumn<Capture>("capture");
+        QTest::addColumn<quint32>("trackMask");
+        QTest::addColumn<bool>("muted");
+        QTest::addColumn<double>("gain");
+        QTest::addColumn<CaptureStatus>("expected");
+
+        // RostrumMic: requires tracks 1 and 2 (track 3u). Tracks 3-6 allowed.
+        QTest::newRow("Mic: valid tracks 1 and 2") << Capture::RostrumMic << 3u << false << 1.0 << CaptureStatus::Configured;
+        QTest::newRow("Mic: valid with recording tracks") << Capture::RostrumMic << 7u << false << 1.0 << CaptureStatus::Configured;
+        QTest::newRow("Mic: missing track 1") << Capture::RostrumMic << 2u << false << 1.0 << CaptureStatus::WrongTracks;
+        QTest::newRow("Mic: missing track 2") << Capture::RostrumMic << 1u << false << 1.0 << CaptureStatus::WrongTracks;
+        QTest::newRow("Mic: no tracks") << Capture::RostrumMic << 0u << false << 1.0 << CaptureStatus::WrongTracks;
+        QTest::newRow("Mic: muted") << Capture::RostrumMic << 3u << true << 1.0 << CaptureStatus::Muted;
+        QTest::newRow("Mic: silent gain") << Capture::RostrumMic << 3u << false << 0.0 << CaptureStatus::Silent;
+        QTest::newRow("Mic: simultaneous mute and wrong tracks") << Capture::RostrumMic << 1u << true << 1.0 << CaptureStatus::WrongTracks;
+        QTest::newRow("Mic: simultaneous mute and no tracks") << Capture::RostrumMic << 0u << true << 1.0 << CaptureStatus::WrongTracks;
+        QTest::newRow("Mic: simultaneous mute and silent gain") << Capture::RostrumMic << 3u << true << 0.0 << CaptureStatus::Silent;
+
+        // RostrumStream: requires track 1, forbids track 2.
+        QTest::newRow("Stream: valid track 1") << Capture::RostrumStream << 1u << false << 1.0 << CaptureStatus::Configured;
+        QTest::newRow("Stream: conflict on VOD track 2") << Capture::RostrumStream << 3u << false << 1.0 << CaptureStatus::WrongTracks;
+        QTest::newRow("Stream: missing track 1") << Capture::RostrumStream << 2u << false << 1.0 << CaptureStatus::WrongTracks;
+        QTest::newRow("Stream: no tracks") << Capture::RostrumStream << 0u << false << 1.0 << CaptureStatus::WrongTracks;
+        QTest::newRow("Stream: muted") << Capture::RostrumStream << 1u << true << 1.0 << CaptureStatus::Muted;
+        QTest::newRow("Stream: silent gain") << Capture::RostrumStream << 1u << false << 0.0 << CaptureStatus::Silent;
+        QTest::newRow("Stream: negative gain") << Capture::RostrumStream << 1u << false << -0.5 << CaptureStatus::Silent;
+        QTest::newRow("Stream: simultaneous mute and track 2 conflict") << Capture::RostrumStream << 3u << true << 1.0 << CaptureStatus::WrongTracks;
+        QTest::newRow("Stream: simultaneous mute and missing track 1") << Capture::RostrumStream << 0u << true << 1.0 << CaptureStatus::WrongTracks;
+        QTest::newRow("Stream: simultaneous mute and silent gain") << Capture::RostrumStream << 1u << true << 0.0 << CaptureStatus::Silent;
+
+        // RostrumVod: requires track 2 only.
+        QTest::newRow("VOD: valid track 2 only") << Capture::RostrumVod << 2u << false << 1.0 << CaptureStatus::Configured;
+        QTest::newRow("VOD: wrong track (track 1)") << Capture::RostrumVod << 1u << false << 1.0 << CaptureStatus::WrongTracks;
+        QTest::newRow("VOD: conflict on stream track 1") << Capture::RostrumVod << 3u << false << 1.0 << CaptureStatus::WrongTracks;
+        QTest::newRow("VOD: no tracks") << Capture::RostrumVod << 0u << false << 1.0 << CaptureStatus::WrongTracks;
+        QTest::newRow("VOD: muted") << Capture::RostrumVod << 2u << true << 1.0 << CaptureStatus::Muted;
+        QTest::newRow("VOD: zero-volume") << Capture::RostrumVod << 2u << false << 0.0 << CaptureStatus::Silent;
+        QTest::newRow("VOD: simultaneous mute and track 1 conflict") << Capture::RostrumVod << 1u << true << 1.0 << CaptureStatus::WrongTracks;
+        QTest::newRow("VOD: simultaneous mute and stream conflict") << Capture::RostrumVod << 3u << true << 1.0 << CaptureStatus::WrongTracks;
+        QTest::newRow("VOD: simultaneous mute and no tracks") << Capture::RostrumVod << 0u << true << 1.0 << CaptureStatus::WrongTracks;
+        QTest::newRow("VOD: simultaneous mute and silent gain") << Capture::RostrumVod << 2u << true << 0.0 << CaptureStatus::Silent;
+    }
+
+    void captureStatus()
+    {
+        QFETCH(Capture, capture);
+        QFETCH(quint32, trackMask);
+        QFETCH(bool, muted);
+        QFETCH(double, gain);
+        QFETCH(CaptureStatus, expected);
+        Input input;
+        input.name = QStringLiteral("ObsCapture");
+        input.tracks = trackMask;
+        input.muted = muted;
+        input.gain = gain;
+        input.tracksKnown = input.muteKnown = input.gainKnown = true;
+        QCOMPARE(rostrum::obs::captureStatus(capture, &input), expected);
+        QCOMPARE(rostrum::obs::captureStatus(capture, nullptr), CaptureStatus::Unknown);
+        input.tracksKnown = false;
+        QCOMPARE(rostrum::obs::captureStatus(capture, &input), CaptureStatus::Unknown);
+        input.tracksKnown = true;
+        input.muteKnown = false;
+        QCOMPARE(rostrum::obs::captureStatus(capture, &input), CaptureStatus::Unknown);
+        input.muteKnown = true;
+        input.gain = std::numeric_limits<double>::quiet_NaN();
+        QCOMPARE(rostrum::obs::captureStatus(capture, &input), CaptureStatus::Unknown);
+        input.gain = std::numeric_limits<double>::infinity();
+        QCOMPARE(rostrum::obs::captureStatus(capture, &input), CaptureStatus::Unknown);
+        input.gain = gain;
+        input.gainKnown = false;
+        QCOMPARE(rostrum::obs::captureStatus(capture, &input),
+                 expected == CaptureStatus::Silent ? (muted ? CaptureStatus::Muted : CaptureStatus::Configured) : expected);
+    }
+
+    void rostrumCaptureChecks()
+    {
+        const QList<Recording> recordings{
+            {QStringLiteral("Mic/Aux"), QStringLiteral("Rostrum Mic"), Capture::RostrumMic},
+            {QStringLiteral("Desktop Audio"), QStringLiteral("Rostrum Stream Mix"), Capture::RostrumStream},
+            {QStringLiteral("Rostrum VOD Mix"), QStringLiteral("Rostrum VOD Mix"), Capture::RostrumVod}};
+
+        // 1. Valid configuration
+        State state;
+        Input mic{QStringLiteral("Mic/Aux")};
+        mic.tracks = 3u;
+        mic.muted = false;
+        mic.gain = 1.0;
+        mic.tracksKnown = mic.muteKnown = mic.gainKnown = true;
+
+        Input stream{QStringLiteral("Desktop Audio")};
+        stream.tracks = 1u;
+        stream.muted = false;
+        stream.gain = 1.0;
+        stream.tracksKnown = stream.muteKnown = stream.gainKnown = true;
+
+        Input vod{QStringLiteral("Rostrum VOD Mix")};
+        vod.tracks = 2u;
+        vod.muted = false;
+        vod.gain = 1.0;
+        vod.tracksKnown = vod.muteKnown = vod.gainKnown = true;
+
+        state.inputs << mic << stream << vod;
+
+        auto checks = rostrum::obs::rostrumCaptureChecks(recordings, &state, {});
+        QCOMPARE(checks.size(), 3);
+        QCOMPARE(checks[0].status, CaptureStatus::Configured);
+        QCOMPARE(checks[0].kind, CaptureKind::Ok);
+        QCOMPARE(checks[1].status, CaptureStatus::Configured);
+        QCOMPARE(checks[1].kind, CaptureKind::Ok);
+        QCOMPARE(checks[2].status, CaptureStatus::Configured);
+        QCOMPARE(checks[2].kind, CaptureKind::Ok);
+
+        // 2. Simultaneous mute and track conflicts: mute does NOT hide track conflict!
+        state.inputs[0].tracks = 1u; // mic missing track 2
+        state.inputs[0].muted = true;
+        state.inputs[1].tracks = 3u; // stream also on track 2
+        state.inputs[1].muted = true;
+        state.inputs[2].tracks = 1u; // vod on track 1 instead of 2
+        state.inputs[2].muted = true;
+
+        checks = rostrum::obs::rostrumCaptureChecks(recordings, &state, {});
+        QCOMPARE(checks[0].status, CaptureStatus::WrongTracks);
+        QCOMPARE(checks[0].kind, CaptureKind::Warning);
+        QCOMPARE(checks[1].status, CaptureStatus::WrongTracks);
+        QCOMPARE(checks[1].kind, CaptureKind::Warning);
+        QCOMPARE(checks[2].status, CaptureStatus::WrongTracks);
+        QCOMPARE(checks[2].kind, CaptureKind::Warning);
+
+        // 3. Valid tracks but muted -> CaptureKind::Muted
+        state.inputs[0].tracks = 3u;
+        state.inputs[0].muted = true;
+        state.inputs[1].tracks = 1u;
+        state.inputs[1].muted = true;
+        state.inputs[2].tracks = 2u;
+        state.inputs[2].muted = true;
+
+        checks = rostrum::obs::rostrumCaptureChecks(recordings, &state, {});
+        QCOMPARE(checks[0].status, CaptureStatus::Muted);
+        QCOMPARE(checks[0].kind, CaptureKind::Muted);
+        QCOMPARE(checks[1].status, CaptureStatus::Muted);
+        QCOMPARE(checks[1].kind, CaptureKind::Muted);
+        QCOMPARE(checks[2].status, CaptureStatus::Muted);
+        QCOMPARE(checks[2].kind, CaptureKind::Muted);
+
+        // 4. Silent gain -> CaptureStatus::Silent and CaptureKind::Warning
+        state.inputs[0].muted = false;
+        state.inputs[0].gain = 0.0;
+        state.inputs[1].muted = false;
+        state.inputs[1].gain = 0.0;
+        state.inputs[2].muted = false;
+        state.inputs[2].gain = 0.0;
+
+        checks = rostrum::obs::rostrumCaptureChecks(recordings, &state, {});
+        QCOMPARE(checks[0].status, CaptureStatus::Silent);
+        QCOMPARE(checks[0].kind, CaptureKind::Warning);
+        QCOMPARE(checks[1].status, CaptureStatus::Silent);
+        QCOMPARE(checks[1].kind, CaptureKind::Warning);
+        QCOMPARE(checks[2].status, CaptureStatus::Silent);
+        QCOMPARE(checks[2].kind, CaptureKind::Warning);
+
+        // 4b. Simultaneous mute and silent gain -> CaptureStatus::Silent and CaptureKind::Warning
+        state.inputs[0].muted = true;
+        state.inputs[0].gain = 0.0;
+        state.inputs[1].muted = true;
+        state.inputs[1].gain = 0.0;
+        state.inputs[2].muted = true;
+        state.inputs[2].gain = 0.0;
+
+        checks = rostrum::obs::rostrumCaptureChecks(recordings, &state, {});
+        QCOMPARE(checks[0].status, CaptureStatus::Silent);
+        QCOMPARE(checks[0].kind, CaptureKind::Warning);
+        QCOMPARE(checks[1].status, CaptureStatus::Silent);
+        QCOMPARE(checks[1].kind, CaptureKind::Warning);
+        QCOMPARE(checks[2].status, CaptureStatus::Silent);
+        QCOMPARE(checks[2].kind, CaptureKind::Warning);
+
+        // 5. Unknown state: null state or unverified tracks
+        checks = rostrum::obs::rostrumCaptureChecks(recordings, nullptr, {});
+        for (const auto &c : checks) {
+            QCOMPARE(c.status, CaptureStatus::Unknown);
+            QCOMPARE(c.kind, CaptureKind::Warning);
+        }
+
+        state.inputs[0].tracksKnown = false;
+        state.inputs[1].muteKnown = false;
+        state.inputs[2].gain = std::numeric_limits<double>::quiet_NaN();
+        checks = rostrum::obs::rostrumCaptureChecks(recordings, &state, {});
+        for (const auto &c : checks) {
+            QCOMPARE(c.status, CaptureStatus::Unknown);
+            QCOMPARE(c.kind, CaptureKind::Warning);
+        }
+
+        // 6. Isolated recording mic on tracks 3-6
+        QList<Recording> isolatedRec{
+            {QStringLiteral("Rostrum Mic (Recording)"), QStringLiteral("Rostrum Mic (Recording)"), Capture::RostrumMic}};
+        State isoState;
+        Input isoMic{QStringLiteral("Rostrum Mic (Recording)")};
+        isoMic.kind = QLatin1String(kPulseInput);
+        isoMic.settings = {{QStringLiteral("device_id"), QStringLiteral("rostrum.filtered")}};
+        isoMic.tracks = 4u; // track 3
+        isoMic.gain = 1.0;
+        isoMic.tracksKnown = isoMic.settingsKnown = isoMic.muteKnown = isoMic.gainKnown = true;
+        isoState.inputs << isoMic;
+        const QSet<QString> recDevices{QStringLiteral("rostrum.filtered")};
+
+        checks = rostrum::obs::rostrumCaptureChecks(isolatedRec, &isoState, recDevices);
+        QCOMPARE(checks.size(), 1);
+        QCOMPARE(checks[0].status, CaptureStatus::Isolated);
+        QCOMPARE(checks[0].kind, CaptureKind::Ok);
+
+        isoState.inputs[0].muted = true;
+        checks = rostrum::obs::rostrumCaptureChecks(isolatedRec, &isoState, recDevices);
+        QCOMPARE(checks[0].status, CaptureStatus::Isolated);
+        QCOMPARE(checks[0].kind, CaptureKind::Muted);
+
+        // Silent gain on isolated mic -> Silent and Warning
+        isoState.inputs[0].muted = false;
+        isoState.inputs[0].gain = 0.0;
+        checks = rostrum::obs::rostrumCaptureChecks(isolatedRec, &isoState, recDevices);
+        QCOMPARE(checks[0].status, CaptureStatus::Silent);
+        QCOMPARE(checks[0].kind, CaptureKind::Warning);
+
+        // Simultaneous mute and silent gain on isolated mic -> Silent and Warning
+        isoState.inputs[0].muted = true;
+        isoState.inputs[0].gain = 0.0;
+        checks = rostrum::obs::rostrumCaptureChecks(isolatedRec, &isoState, recDevices);
+        QCOMPARE(checks[0].status, CaptureStatus::Silent);
+        QCOMPARE(checks[0].kind, CaptureKind::Warning);
+
+        // Non-finite gain on isolated mic -> Unknown and Warning
+        isoState.inputs[0].muted = false;
+        isoState.inputs[0].gain = std::numeric_limits<double>::quiet_NaN();
+        checks = rostrum::obs::rostrumCaptureChecks(isolatedRec, &isoState, recDevices);
+        QCOMPARE(checks[0].status, CaptureStatus::Unknown);
+        QCOMPARE(checks[0].kind, CaptureKind::Warning);
+
+        isoState.inputs[0].gain = std::numeric_limits<double>::infinity();
+        checks = rostrum::obs::rostrumCaptureChecks(isolatedRec, &isoState, recDevices);
+        QCOMPARE(checks[0].status, CaptureStatus::Unknown);
+        QCOMPARE(checks[0].kind, CaptureKind::Warning);
+
+        // Reset gain to valid
+        isoState.inputs[0].gain = 1.0;
+
+        // If also on track 1, not isolated! Evaluated as stream mic: missing track 2 -> Warning
+        isoState.inputs[0].tracks = 5u; // tracks 1 and 3
+        isoState.inputs[0].muted = false;
+        checks = rostrum::obs::rostrumCaptureChecks(isolatedRec, &isoState, recDevices);
+        QCOMPARE(checks[0].status, CaptureStatus::WrongTracks);
+        QCOMPARE(checks[0].kind, CaptureKind::Warning);
     }
 
     void assignedFilteredMicWarning_data()

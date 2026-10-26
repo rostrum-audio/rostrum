@@ -1,9 +1,12 @@
 #include "obs/ObsCaptures.h"
 
+#include "obs/RecordingTracks.h"
 #include "pw/Graph.h"
 #include "pw/PwContext.h"
 
 #include <QSet>
+
+#include <cmath>
 
 namespace rostrum::obs {
 
@@ -88,17 +91,81 @@ bool assignedRecordingMic(const Recording &recording, const Input &input, quint3
            input.tracks != 0 && !(input.tracks & 3u) && !(input.tracks & ~assignedTracks);
 }
 
+CaptureStatus captureStatus(Capture capture, const Input *input)
+{
+    if (!input || !input->tracksKnown || !input->muteKnown ||
+        (input->gainKnown && !std::isfinite(input->gain)))
+        return CaptureStatus::Unknown;
+    const quint32 t = input->tracks;
+    bool wrongTracks = false;
+    switch (capture) {
+    case Capture::RostrumMic:
+        wrongTracks = (t & 3u) != 3u;
+        break;
+    case Capture::RostrumStream:
+        wrongTracks = !(t & 1u) || (t & 2u);
+        break;
+    case Capture::RostrumVod:
+        wrongTracks = t != 2u;
+        break;
+    default:
+        return CaptureStatus::Unknown;
+    }
+    if (wrongTracks)
+        return CaptureStatus::WrongTracks;
+    if (input->gainKnown && input->gain <= 0)
+        return CaptureStatus::Silent;
+    if (input->muted)
+        return CaptureStatus::Muted;
+    return CaptureStatus::Configured;
+}
+
 VodCaptureStatus vodCaptureStatus(const Input *input)
 {
-    if (!input || !input->tracksKnown || !input->muteKnown)
-        return VodCaptureStatus::Unknown;
-    if (input->tracks != 2u)
-        return VodCaptureStatus::WrongTracks;
-    if (input->muted)
-        return VodCaptureStatus::Muted;
-    if (input->gainKnown && input->gain <= 0)
-        return VodCaptureStatus::Silent;
-    return VodCaptureStatus::Configured;
+    return captureStatus(Capture::RostrumVod, input);
+}
+
+QList<CaptureCheck> rostrumCaptureChecks(const QList<Recording> &recordings, const State *state,
+                                         const QSet<QString> &recordingDevices)
+{
+    auto isRostrum = [](Capture c) {
+        return c == Capture::RostrumMic || c == Capture::RostrumStream || c == Capture::RostrumVod;
+    };
+    auto inputOf = [&](const Recording &r) { return state ? state->input(r.source) : nullptr; };
+    // Same rule as the readiness evaluator: a mic capture only on tracks 3–6 that the
+    // recording slots assigned is not the stream mic.
+    auto isolated = [&](const Recording &r, const Input *in) {
+        return r.capture == Capture::RostrumMic && in && in->tracksKnown && in->muteKnown &&
+               intendedRecording(*in, recordingDevices) && !(in->tracks & 3u) && (in->tracks & 0x3cu);
+    };
+    QList<CaptureCheck> out(recordings.size());
+    for (qsizetype n = 0; n < recordings.size(); ++n) {
+        const auto &r = recordings.at(n);
+        if (!isRostrum(r.capture))
+            continue;
+        const Input *in = inputOf(r);
+        const bool muted = in && in->muted;
+        auto &check = out[n];
+        if (isolated(r, in)) {
+            if (in->gainKnown && !std::isfinite(in->gain)) {
+                check = {CaptureStatus::Unknown, CaptureKind::Warning};
+            } else if (in->gainKnown && in->gain <= 0) {
+                check = {CaptureStatus::Silent, CaptureKind::Warning};
+            } else {
+                check = {CaptureStatus::Isolated, muted ? CaptureKind::Muted : CaptureKind::Ok};
+            }
+            continue;
+        }
+        check.status = captureStatus(r.capture, in);
+        if (check.status == CaptureStatus::Configured) {
+            check.kind = CaptureKind::Ok;
+        } else if (check.status == CaptureStatus::Muted) {
+            check.kind = CaptureKind::Muted;
+        } else {
+            check.kind = CaptureKind::Warning;
+        }
+    }
+    return out;
 }
 
 Facts factsFrom(const pw::PwContext &pw)

@@ -76,6 +76,10 @@ Item {
         function test_savedSelectionSurvivesRefresh() {
             const oldRows = controller.rows
             const oldChoices = controller.choices
+            const choice = findChild(panel, "recordingBus4")
+            choice.forceActiveFocus()
+            keyClick(Qt.Key_Down)
+            compare(choice.currentValue, "")
             controller.rows = [
                 {track: 3, trackName: "Game", busId: "mic", current: "Mic/Aux"},
                 {track: 4, trackName: "Music", busId: "music", current: "Rostrum Music (Recording) (rostrum.music.monitor)"},
@@ -84,6 +88,7 @@ Item {
             ]
             try {
                 compare(findChild(panel, "recordingBus4").currentValue, "music")
+                verify(!findChild(panel, "recordingChoiceHelp4").visible)
                 compare(findChild(panel, "recordingCurrent4").text,
                         "Rostrum Music (Recording) (rostrum.music.monitor)")
                 controller.choices = oldChoices.map(item => ({id: item.id, label: item.label}))

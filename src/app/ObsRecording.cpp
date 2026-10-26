@@ -10,6 +10,7 @@
 #include <QDir>
 #include <QFile>
 #include <QJsonDocument>
+#include <QPointer>
 #include <QSaveFile>
 #include <QSettings>
 
@@ -17,29 +18,10 @@ namespace rostrum::app {
 namespace {
 // UI-only choice; kept tracks are omitted from the persisted assignment map.
 const QString kKeepObs = QStringLiteral(":keep-obs:");
-QString scopeKey(const QString &configDir, const QString &collection)
-{
-    return QString::fromLatin1(
-        QCryptographicHash::hash((configDir + QChar(0) + collection).toUtf8(), QCryptographicHash::Sha256)
-            .toHex());
-}
-
-obs::RecordingAssignments assignments(const QMap<QString, QString> &saved)
-{
-    obs::RecordingAssignments out;
-    for (auto it = saved.cbegin(); it != saved.cend(); ++it)
-        out.insert(it.key().toInt(), it.value());
-    return out;
-}
-
-QMap<QString, QString> savedAssignments(const obs::RecordingAssignments &draft)
-{
-    QMap<QString, QString> out;
-    for (int track = 3; track <= 6; ++track)
-        if (draft.contains(track))
-            out.insert(QString::number(track), draft.value(track));
-    return out;
-}
+constexpr int kMaxInFlightSnapshots = 2;
+using obs::recordingAssignments;
+using obs::recordingScopeKey;
+using obs::savedRecordingAssignments;
 
 QString problemText(const QString &problem)
 {
@@ -79,12 +61,29 @@ QString trackNames(quint32 mask)
 }
 } // namespace
 
-ObsRecording::ObsRecording(AppController *app, Obs *obs, obs::Client *client)
-    : QObject(obs), m_app(app), m_obs(obs), m_client(client)
+ObsRecording::ObsRecording(AppController *app, Obs *obs, obs::Client *client,
+                           SnapshotProvider snapshotProvider)
+    : QObject(obs)
+    , m_app(app)
+    , m_obs(obs)
+    , m_client(client)
+    , m_snapshotProvider(snapshotProvider ? std::move(snapshotProvider) : obs::fetchRecordingSnapshot)
 {
     connect(obs, &Obs::planChanged, this, &ObsRecording::refresh);
     connect(client, &obs::Client::statusChanged, this, &ObsRecording::refresh);
-    connect(obs, &Obs::liveChanged, this, &ObsRecording::changed);
+    connect(obs, &Obs::changed, this, [this] {
+        if (m_obs->busy())
+            cancelFetch();
+        Q_EMIT changed();
+    });
+    connect(obs, &Obs::liveChanged, this, [this] {
+        if (m_obs->streaming() || m_obs->recording()) {
+            m_havePreview = false;
+            m_preview = {};
+            m_previewFingerprint.clear();
+        }
+        Q_EMIT changed();
+    });
     // Profile track names have no dedicated WebSocket change event. Keep the
     // read-only snapshot fresh while this page is open, including its write guards.
     m_snapshotRefresh.setInterval(5000);
@@ -110,21 +109,38 @@ ObsRecording::ObsRecording(AppController *app, Obs *obs, obs::Client *client)
                                    QStringLiteral("CurrentSceneCollectionChanged"),
                                    QStringLiteral("CurrentProfileChanged")};
         if (relevant.contains(type) || type.startsWith(QLatin1String("Scene"))) {
+            const bool wasFetching = m_fetching || m_deferredFetch != DeferredFetch::None;
+            if (!m_obs->busy())
+                cancelFetch();
             m_snapshot.known = false;
             m_havePreview = false;
+            m_preview = {};
+            m_previewFingerprint.clear();
             Q_EMIT changed();
-            if (m_obs->pageActive() && !m_obs->busy())
+            if ((m_obs->pageActive() || wasFetching) && !m_obs->busy())
                 m_refetch.start();
         }
     });
     connect(app->engine(), &engine::Engine::micFiltersChanged, this, [this] {
+        if (m_previewing || m_deferredFetch == DeferredFetch::Preview)
+            cancelFetch();
         m_havePreview = false;
+        m_preview = {};
+        m_previewFingerprint.clear();
         Q_EMIT changed(); // read-only: the changed mic path needs a new preview
     });
     connect(app->engine(), &engine::Engine::sceneChanged, this, [this] {
         // Bus ids can disappear when Rostrum changes scene. Never rewrite OBS here.
         Q_EMIT changed();
     });
+}
+
+void ObsRecording::setSnapshotProvider(SnapshotProvider provider, const QString &configDir)
+{
+    m_customSnapshotProvider = bool(provider);
+    m_snapshotProvider = provider ? std::move(provider) : obs::fetchRecordingSnapshot;
+    if (!configDir.isEmpty())
+        m_obs->m_install = obs::Install{configDir, QStringLiteral("test")};
 }
 
 QVariantList ObsRecording::choices() const
@@ -229,8 +245,8 @@ QSet<QString> ObsRecording::intendedDevices() const
         }
     }
     const auto saved =
-        m_app->settings().obsRecordingTracks.value(scopeKey(m_obs->m_install->configDir, collection));
-    return obs::recordingDevices(m_app->engine()->scene(), assignments(saved),
+        m_app->settings().obsRecordingTracks.value(recordingScopeKey(m_obs->m_install->configDir, collection));
+    return obs::recordingDevices(m_app->engine()->scene(), recordingAssignments(saved),
                                  m_app->engine()->micFilters().enabled);
 }
 
@@ -239,7 +255,7 @@ quint32 ObsRecording::assignedMicTracks() const
     if (!m_snapshot.known || m_client->status() != obs::Client::Status::Connected)
         return 0;
     quint32 mask = 0;
-    const auto saved = assignments(m_app->settings().obsRecordingTracks.value(m_scope));
+    const auto saved = recordingAssignments(m_app->settings().obsRecordingTracks.value(m_scope));
     for (auto it = saved.cbegin(); it != saved.cend(); ++it) {
         const auto *bus = m_app->engine()->scene().bus(it.value());
         if (it.key() >= 3 && it.key() <= 6 && bus && bus->isInput())
@@ -255,9 +271,10 @@ QVariantMap ObsRecording::readiness() const
         return {};
     auto snapshot = m_snapshot;
     snapshot.streaming = snapshot.recording = false; // activity blocks writes, not read-only checks
-    const auto plan = obs::recordingPlan(snapshot, m_app->engine()->scene(),
-                                         assignments(m_app->settings().obsRecordingTracks.value(m_scope)),
-                                         m_app->engine()->micFilters().enabled);
+    const auto plan = obs::recordingPlan(
+        snapshot, m_app->engine()->scene(),
+        recordingAssignments(m_app->settings().obsRecordingTracks.value(m_scope)),
+        m_app->engine()->micFilters().enabled);
     const bool known = snapshot.known && m_age.isValid() && m_age.elapsed() < 10000 &&
                        m_client->status() == obs::Client::Status::Connected && m_error.isEmpty();
     const bool matches = known && plan.problems.isEmpty() && plan.changes.isEmpty();
@@ -283,58 +300,153 @@ void ObsRecording::acceptSnapshot(const obs::RecordingSnapshot &snapshot)
     m_age.start();
     if (!m_obs->m_install)
         return;
-    const auto scope = scopeKey(m_obs->m_install->configDir, snapshot.collection);
+    const auto scope = recordingScopeKey(m_obs->m_install->configDir, snapshot.collection);
     if (m_scope != scope) {
         m_scope = scope;
-        const auto &saved = m_app->settings().obsRecordingTracks;
-        m_draft = saved.contains(scope) ? assignments(saved.value(scope))
-                                        : obs::recordingSuggestion(m_app->engine()->scene(), snapshot);
         m_draftEdited = false;
         m_havePreview = false;
-    } else if (!m_draftEdited && !m_app->settings().obsRecordingTracks.contains(scope)) {
-        m_draft = obs::recordingSuggestion(m_app->engine()->scene(), snapshot);
+    }
+    if (!m_draftEdited) {
+        m_draft = obs::recordingDraft(m_app->settings().obsRecordingTracks, m_obs->m_install->configDir,
+                                      m_app->engine()->scene(), snapshot);
     }
     if (m_havePreview && m_previewFingerprint != obs::recordingFingerprint(snapshot))
         m_havePreview = false;
 }
 
+void ObsRecording::cancelFetch()
+{
+    ++m_generation;
+    m_fetching = false;
+    m_previewing = false;
+    m_deferredFetch = DeferredFetch::None;
+    m_havePreview = false;
+    m_preview = {};
+    m_previewFingerprint.clear();
+}
+
+void ObsRecording::startSnapshotFetch(int generation, bool forPreview)
+{
+    ++m_inFlight;
+    QPointer<ObsRecording> self = this;
+    m_snapshotProvider(
+        m_client,
+        [self, generation, forPreview, called = false](const auto &snapshot,
+                                                       const QString &error) mutable {
+            if (!self || std::exchange(called, true))
+                return;
+            --self->m_inFlight;
+        const auto resumeDeferred = [self] {
+            if (self->m_inFlight >= kMaxInFlightSnapshots || self->m_deferredFetch == DeferredFetch::None)
+                return;
+            const auto next = std::exchange(self->m_deferredFetch, DeferredFetch::None);
+            if (self->m_client->status() != obs::Client::Status::Connected || self->m_obs->busy()) {
+                self->cancelFetch();
+                return;
+            }
+            self->startSnapshotFetch(self->m_generation, next == DeferredFetch::Preview);
+        };
+        if (generation != self->m_generation ||
+            self->m_client->status() != obs::Client::Status::Connected || self->m_obs->busy()) {
+            resumeDeferred();
+            return;
+        }
+        self->m_fetching = false;
+        self->m_previewing = false;
+        self->m_error = error;
+        if (error.isEmpty()) {
+            self->acceptSnapshot(snapshot);
+            if (forPreview) {
+                self->m_preview = obs::recordingPlan(snapshot, self->m_app->engine()->scene(), self->m_draft,
+                                                     self->m_app->engine()->micFilters().enabled);
+                if (self->m_obs->streaming() || self->m_obs->recording())
+                    self->m_preview.problems.prepend(QStringLiteral("activeOutput"));
+                self->m_havePreview = self->m_preview.problems.isEmpty();
+                self->m_previewFingerprint = obs::recordingFingerprint(snapshot);
+                if (!self->m_preview.problems.isEmpty()) {
+                    self->m_preview.changes.clear();
+                    self->m_error = self->m_preview.problems.first();
+                }
+            }
+        } else {
+            self->m_snapshot.known = false;
+            self->m_havePreview = false;
+            self->m_preview = {};
+            self->m_previewFingerprint.clear();
+        }
+        Q_EMIT self->changed();
+        self->m_obs->rebuildReadiness();
+        // Refresh conflict classification only; reconnect never applies a recording plan.
+        self->m_fetching = true;
+        if (self->m_obs->m_haveState)
+            self->m_obs->setPlan(self->m_obs->m_state, self->m_obs->m_plan.mode);
+        self->m_fetching = false;
+        if (forPreview && self->m_havePreview)
+            Q_EMIT self->previewReady();
+    });
+}
+
+void ObsRecording::settingsRestored()
+{
+    ++m_settingsGeneration;
+    cancelFetch();
+    m_draftEdited = false;
+    m_error.clear();
+    if (m_obs->m_install && !m_snapshot.collection.isEmpty()) {
+        const auto scope = recordingScopeKey(m_obs->m_install->configDir, m_snapshot.collection);
+        if (m_snapshot.known || m_app->settings().obsRecordingTracks.contains(scope)) {
+            m_scope = scope;
+            m_draft = obs::recordingDraft(m_app->settings().obsRecordingTracks, m_obs->m_install->configDir,
+                                          m_app->engine()->scene(), m_snapshot);
+        } else {
+            m_scope.clear();
+            m_draft.clear();
+        }
+    } else {
+        m_scope.clear();
+        m_draft.clear();
+    }
+    Q_EMIT changed();
+    m_obs->rebuildReadiness();
+    m_fetching = true;
+    if (m_obs->m_haveState)
+        m_obs->setPlan(m_obs->m_state, m_obs->m_plan.mode);
+    else
+        m_obs->rebuildRecordings();
+    m_fetching = false;
+    refresh();
+}
+
 void ObsRecording::refresh()
 {
-    Q_EMIT changed();
     if (m_client->status() != obs::Client::Status::Connected) {
-        ++m_generation;
-        m_fetching = false;
+        cancelFetch();
         m_snapshot.known = false;
-        m_havePreview = false;
-        return;
-    }
-    if (m_fetching || m_obs->busy() || m_obs->m_offscreen || !m_obs->m_install)
-        return;
-    m_fetching = true;
-    const int generation = ++m_generation;
-    obs::fetchRecordingSnapshot(m_client, [this, generation](const auto &snapshot, const QString &error) {
-        if (generation != m_generation)
-            return;
-        m_fetching = false;
-        m_error = error;
-        if (error.isEmpty())
-            acceptSnapshot(snapshot);
-        else
-            m_snapshot.known = false;
+        m_error.clear();
         Q_EMIT changed();
         m_obs->rebuildReadiness();
-        // Refresh conflict classification only; reconnect never applies a recording plan.
-        m_fetching = true;
-        if (m_obs->m_haveState)
-            m_obs->setPlan(m_obs->m_state, m_obs->m_plan.mode);
-        m_fetching = false;
-    });
+        return;
+    }
+    Q_EMIT changed();
+    if (m_fetching || m_obs->busy() || (m_obs->m_offscreen && !m_customSnapshotProvider) || !m_obs->m_install)
+        return;
+    m_fetching = true;
+    m_previewing = false;
+    const int generation = ++m_generation;
+    if (m_inFlight >= kMaxInFlightSnapshots) {
+        if (m_deferredFetch == DeferredFetch::None)
+            m_deferredFetch = DeferredFetch::Refresh;
+        return;
+    }
+    startSnapshotFetch(generation, false);
 }
 
 void ObsRecording::choose(int track, const QString &busId)
 {
     if (track < 3 || track > 6 || m_obs->busy())
         return;
+    if (m_previewing || m_deferredFetch == DeferredFetch::Preview)
+        cancelFetch();
     if (busId == kKeepObs)
         m_draft.remove(track);
     else
@@ -342,30 +454,28 @@ void ObsRecording::choose(int track, const QString &busId)
     m_draftEdited = true;
     m_error.clear();
     m_havePreview = false;
+    m_preview = {};
+    m_previewFingerprint.clear();
     Q_EMIT changed();
 }
 
 void ObsRecording::preview()
 {
-    if (!canPreview() || m_fetching)
+    if (!canPreview() || (m_fetching && m_previewing))
         return;
     m_fetching = true;
-    obs::fetchRecordingSnapshot(m_client, [this](const auto &snapshot, const QString &error) {
-        m_fetching = false;
-        m_error = error;
-        if (error.isEmpty()) {
-            acceptSnapshot(snapshot);
-            m_preview = obs::recordingPlan(snapshot, m_app->engine()->scene(), m_draft,
-                                           m_app->engine()->micFilters().enabled);
-            m_havePreview = m_preview.problems.isEmpty();
-            m_previewFingerprint = obs::recordingFingerprint(snapshot);
-            if (!m_preview.problems.isEmpty())
-                m_error = m_preview.problems.first();
-        }
-        Q_EMIT changed();
-        if (m_havePreview)
-            Q_EMIT previewReady();
-    });
+    m_previewing = true;
+    m_havePreview = false;
+    m_preview = {};
+    m_previewFingerprint.clear();
+    m_error.clear();
+    const int generation = ++m_generation;
+    if (m_inFlight >= kMaxInFlightSnapshots) {
+        m_deferredFetch = DeferredFetch::Preview;
+        return;
+    }
+    m_deferredFetch = DeferredFetch::None;
+    startSnapshotFetch(generation, true);
 }
 
 QStringList ObsRecording::previewItems() const
@@ -392,7 +502,7 @@ QStringList ObsRecording::previewItems() const
             if (bus->isInput())
                 out << i18nc("@info", "Mic recording source: %1.",
                              QString::fromLatin1(m_app->engine()->micFilters().enabled
-                                                    ? obs::kFilteredMicDevice : obs::kMicDevice));
+                                                     ? obs::kFilteredMicDevice : obs::kMicDevice));
         }
         if (!removed.isEmpty())
             out << i18nc("@info", "Remove from %1: %2.", title, removed.join(QStringLiteral(", ")));
@@ -427,21 +537,20 @@ QStringList ObsRecording::previewItems() const
 void ObsRecording::setBusy(bool busy)
 {
     m_obs->m_busy = busy;
-    if (busy) {
-        ++m_generation;
-        m_fetching = false;
-    }
+    if (busy)
+        cancelFetch();
     Q_EMIT m_obs->changed();
     Q_EMIT changed();
 }
 
 void ObsRecording::saveAssignments(const obs::RecordingAssignments &a, bool present)
 {
+    m_draftEdited = false;
     if (present && m_app->settings().obsRecordingTracks.contains(m_scope) &&
-        m_app->settings().obsRecordingTracks.value(m_scope) == savedAssignments(a))
+        m_app->settings().obsRecordingTracks.value(m_scope) == savedRecordingAssignments(a))
         return;
     if (present)
-        m_app->settings().obsRecordingTracks[m_scope] = savedAssignments(a);
+        m_app->settings().obsRecordingTracks[m_scope] = savedRecordingAssignments(a);
     else
         m_app->settings().obsRecordingTracks.remove(m_scope);
     m_app->saveSettingsNow();
@@ -490,124 +599,147 @@ void ObsRecording::apply()
     const auto draft = m_draft;
     const auto expectedScope = m_scope;
     const auto expectedChanges = obs::recordingChangesJson(m_preview.changes);
+    const int settingsGen = m_settingsGeneration;
     setBusy(true);
-    obs::fetchRecordingSnapshot(m_client, [this, expected, draft, expectedScope,
-                                           expectedChanges](const auto &fresh, const QString &error) {
-        if (!error.isEmpty() || obs::recordingFingerprint(fresh) != expected || expectedScope != m_scope) {
-            setBusy(false);
-            m_havePreview = false;
-            notify(
+    QPointer<ObsRecording> self = this;
+    m_snapshotProvider(m_client, [self, settingsGen, expected, draft, expectedScope, expectedChanges,
+                                  called = false](const auto &fresh, const QString &error) mutable {
+        if (!self || std::exchange(called, true))
+            return;
+        if (!error.isEmpty() || obs::recordingFingerprint(fresh) != expected ||
+            expectedScope != self->m_scope) {
+            self->setBusy(false);
+            self->m_havePreview = false;
+            self->notify(
                 i18nc("@info",
                       "OBS changed since the preview. Nothing was changed; review recording tracks again."));
-            refresh();
+            self->refresh();
             return;
         }
-        const auto plan =
-            obs::recordingPlan(fresh, m_app->engine()->scene(), draft, m_app->engine()->micFilters().enabled);
-        if (obs::recordingChangesJson(plan.changes) != expectedChanges) {
-            setBusy(false);
-            m_havePreview = false;
-            notify(i18nc(
+        auto plan = obs::recordingPlan(fresh, self->m_app->engine()->scene(), draft,
+                                       self->m_app->engine()->micFilters().enabled);
+        if (self->m_obs->streaming() || self->m_obs->recording())
+            plan.problems.prepend(QStringLiteral("activeOutput"));
+        if (!plan.problems.isEmpty()) {
+            self->setBusy(false);
+            self->m_havePreview = false;
+            self->notify(problemText(plan.problems.first()));
+            self->refresh();
+            return;
+        }
+        if (settingsGen != self->m_settingsGeneration || self->m_draft != draft ||
+            obs::recordingChangesJson(plan.changes) != expectedChanges) {
+            self->setBusy(false);
+            self->m_havePreview = false;
+            self->notify(i18nc(
                 "@info",
                 "Rostrum changed since the preview. Nothing was changed; review recording tracks again."));
-            refresh();
-            return;
-        }
-        if (!plan.problems.isEmpty()) {
-            setBusy(false);
-            notify(problemText(plan.problems.first()));
-            refresh();
+            self->refresh();
             return;
         }
         if (plan.changes.isEmpty()) {
-            saveAssignments(draft);
-            setBusy(false);
-            m_havePreview = false;
-            notify(i18nc("@info", "Recording tracks already match. No OBS changes were made."));
-            refresh();
+            self->saveAssignments(draft);
+            self->setBusy(false);
+            self->m_havePreview = false;
+            self->notify(i18nc("@info", "Recording tracks already match. No OBS changes were made."));
+            self->refresh();
             return;
         }
-        const auto old = m_app->settings().obsRecordingTracks.value(m_scope);
+        const auto old = self->m_app->settings().obsRecordingTracks.value(self->m_scope);
         QJsonObject previous;
         for (auto it = old.cbegin(); it != old.cend(); ++it)
             previous.insert(it.key(), it.value());
         auto record = std::make_shared<QJsonObject>(QJsonObject{
-            {QStringLiteral("configDir"), m_obs->m_install->configDir},
+            {QStringLiteral("configDir"), self->m_obs->m_install->configDir},
             {QStringLiteral("collection"), fresh.collection},
             {QStringLiteral("profile"), fresh.profile},
             {QStringLiteral("previousAssignments"), previous},
-            {QStringLiteral("previousPresent"), m_app->settings().obsRecordingTracks.contains(m_scope)},
+            {QStringLiteral("previousPresent"),
+             self->m_app->settings().obsRecordingTracks.contains(self->m_scope)},
             {QStringLiteral("planned"), obs::recordingChangesJson(plan.changes)},
             {QStringLiteral("undo"), QJsonArray()},
             {QStringLiteral("createdAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODate)}});
-        if (!writeUndo(*record)) {
-            setBusy(false);
-            notify(i18nc("@info", "The recording backup could not be saved. Nothing was changed."));
+        if (!self->writeUndo(*record)) {
+            self->setBusy(false);
+            self->notify(i18nc("@info", "The recording backup could not be saved. Nothing was changed."));
             return;
         }
         obs::applyRecordingChanges(
-            m_client, fresh, plan.changes,
-            [this, record](const auto &applied) {
+            self->m_client, fresh, plan.changes,
+            [self, record](const auto &applied) {
+                if (!self)
+                    return false;
                 obs::RecordingPlan completed;
                 completed.changes = applied;
                 record->insert(QStringLiteral("undo"),
                                obs::recordingChangesJson(obs::recordingUndo(completed).changes));
-                return writeUndo(*record);
+                return self->writeUndo(*record);
             },
-            [this, record, draft, fresh](const auto &applied, const QString &error) {
+            [self, settingsGen, record, draft, fresh](const auto &applied, const QString &error) {
+                if (!self)
+                    return;
                 obs::RecordingPlan completed;
                 completed.changes = applied;
                 record->insert(QStringLiteral("undo"),
                                obs::recordingChangesJson(obs::recordingUndo(completed).changes));
-                writeUndo(*record);
-                m_havePreview = false;
+                self->writeUndo(*record);
+                self->m_havePreview = false;
                 if (!error.isEmpty()) {
-                    runUndo(*record, fresh, true);
+                    self->runUndo(*record, fresh, true, settingsGen);
                     return;
                 }
-                saveAssignments(draft);
-                setBusy(false);
-                notify(
+                if (settingsGen == self->m_settingsGeneration)
+                    self->saveAssignments(draft);
+                self->setBusy(false);
+                self->notify(
                     i18nc("@info",
                           "Recording tracks configured. Recording contents and sound have not been tested."));
-                m_obs->fetchLive();
-                refresh();
+                self->m_obs->fetchLive();
+                self->refresh();
             });
     });
 }
 
-void ObsRecording::runUndo(QJsonObject record, const obs::RecordingSnapshot &scope, bool rollback)
+void ObsRecording::runUndo(QJsonObject record, const obs::RecordingSnapshot &scope, bool rollback,
+                           int settingsGen)
 {
     const auto changes = obs::recordingChangesFromJson(record.value(QLatin1String("undo")).toArray());
     auto remaining = std::make_shared<QJsonObject>(record);
+    QPointer<ObsRecording> self = this;
     obs::applyRecordingChanges(
         m_client, scope, changes,
-        [this, remaining, changes](const auto &applied) {
+        [self, remaining, changes](const auto &applied) {
+            if (!self)
+                return false;
             remaining->insert(QStringLiteral("undo"), obs::recordingChangesJson(changes.mid(applied.size())));
-            return writeUndo(*remaining);
+            return self->writeUndo(*remaining);
         },
-        [this, remaining, rollback](const auto &, const QString &error) {
+        [self, settingsGen, remaining, rollback](const auto &, const QString &error) {
+            if (!self)
+                return;
             if (error.isEmpty()) {
                 QMap<QString, QString> saved;
                 const auto previous = remaining->value(QLatin1String("previousAssignments")).toObject();
                 for (auto it = previous.begin(); it != previous.end(); ++it)
                     saved.insert(it.key(), it.value().toString());
-                saveAssignments(assignments(saved),
-                                remaining->value(QLatin1String("previousPresent")).toBool());
-                QFile::remove(undoPath());
-                m_draftEdited = false;
-                if (remaining->value(QLatin1String("previousPresent")).toBool()) {
-                    m_draft = assignments(saved);
-                } else {
-                    // Rebuild unsaved suggestions from the restored live snapshot,
-                    // rather than the stale pre-Undo assignments.
-                    m_scope.clear();
-                    m_draft.clear();
+                if (settingsGen == self->m_settingsGeneration) {
+                    self->saveAssignments(recordingAssignments(saved),
+                                          remaining->value(QLatin1String("previousPresent")).toBool());
+                    self->m_draftEdited = false;
+                    if (remaining->value(QLatin1String("previousPresent")).toBool()) {
+                        self->m_draft = recordingAssignments(saved);
+                    } else {
+                        // Rebuild unsaved suggestions from the restored live snapshot,
+                        // rather than the stale pre-Undo assignments.
+                        self->m_scope.clear();
+                        self->m_draft.clear();
+                    }
                 }
+                QFile::remove(self->undoPath());
             }
-            setBusy(false);
-            m_havePreview = false;
-            notify(
+            self->setBusy(false);
+            self->m_havePreview = false;
+            self->notify(
                 error.isEmpty()
                     ? rollback ? i18nc("@info",
                                        "Recording setup failed. The previous OBS assignments were restored.")
@@ -615,8 +747,8 @@ void ObsRecording::runUndo(QJsonObject record, const obs::RecordingSnapshot &sco
                     : i18nc("@info",
                             "Some recording changes remain. Stop outputs and use Undo Recording Changes. %1",
                             problemText(error)));
-            m_obs->fetchLive();
-            refresh();
+            self->m_obs->fetchLive();
+            self->refresh();
         });
 }
 
@@ -625,18 +757,24 @@ void ObsRecording::undo()
     if (!canUndo())
         return;
     const auto record = readUndo();
+    const int settingsGen = m_settingsGeneration;
     setBusy(true);
-    obs::fetchRecordingSnapshot(m_client, [this, record](const auto &fresh, const QString &error) {
-        if (!error.isEmpty() || fresh.collection != record.value(QLatin1String("collection")).toString() ||
+    QPointer<ObsRecording> self = this;
+    m_snapshotProvider(m_client, [self, settingsGen, record,
+                                  called = false](const auto &fresh, const QString &error) mutable {
+        if (!self || std::exchange(called, true))
+            return;
+        if (!error.isEmpty() ||
+            fresh.collection != record.value(QLatin1String("collection")).toString() ||
             fresh.profile != record.value(QLatin1String("profile")).toString() || fresh.streaming ||
-            fresh.recording) {
-            setBusy(false);
-            notify(i18nc("@info", "Recording Undo requires the original OBS profile and scene collection "
-                                  "with outputs stopped."));
-            refresh();
+            fresh.recording || self->m_obs->streaming() || self->m_obs->recording()) {
+            self->setBusy(false);
+            self->notify(i18nc("@info", "Recording Undo requires the original OBS profile and scene collection "
+                                        "with outputs stopped."));
+            self->refresh();
             return;
         }
-        runUndo(record, fresh, false);
+        self->runUndo(record, fresh, false, settingsGen);
     });
 }
 } // namespace rostrum::app

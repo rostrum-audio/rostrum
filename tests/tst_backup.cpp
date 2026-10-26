@@ -48,6 +48,14 @@ Settings configured()
     s.obsBackground = false;
     s.obsGoLiveWarnings = false;
     s.obsSceneMap = {{QStringLiteral("BRB"), QStringLiteral("Ranked")}};
+    s.obsRecordingTracks = {
+        {QStringLiteral("scope-live"),
+         {{QStringLiteral("3"), QStringLiteral("mic")},
+          {QStringLiteral("4"), QStringLiteral("game")},
+          {QStringLiteral("5"), QString()}}},
+        {QStringLiteral("scope-keep"), {}}};
+    s.openDeckPluginsFolder = QStringLiteral("/home/streamer/.config/opendeck/plugins");
+    s.openDeckInstallation = QStringLiteral("flatpak");
     s.micFallback = true;
     s.monoHeadphones = true;
     return s;
@@ -102,6 +110,9 @@ private Q_SLOTS:
         QCOMPARE(r.obsBackground, false);
         QCOMPARE(r.obsGoLiveWarnings, false);
         QCOMPARE(r.obsSceneMap, s.obsSceneMap);
+        QCOMPARE(r.obsRecordingTracks, s.obsRecordingTracks);
+        QVERIFY(r.openDeckPluginsFolder.isEmpty());
+        QVERIFY(r.openDeckInstallation.isEmpty());
         QCOMPARE(r.micFallback, true);
         QCOMPARE(r.monoHeadphones, true);
 
@@ -109,6 +120,10 @@ private Q_SLOTS:
         Settings other = defaultSettings();
         other.crashReports = QString::fromLatin1(crashmode::kNever);
         other.windowWidth = 1200;
+        other.openDeckPluginsFolder = QStringLiteral("/var/home/other/opendeck/plugins");
+        other.openDeckInstallation = QStringLiteral("native");
+        other.obsRecordingTracks = {
+            {QStringLiteral("stale-scope"), {{QStringLiteral("6"), QStringLiteral("music")}}}};
         const Settings merged = backup::restoredSettings(other, r);
         Settings expected = s;
         for (bool Settings::*field :
@@ -126,7 +141,36 @@ private Q_SLOTS:
         expected.lastPage = other.lastPage;
         expected.compactWidth = other.compactWidth;
         expected.compactHeight = other.compactHeight;
+        expected.openDeckPluginsFolder = other.openDeckPluginsFolder;
+        expected.openDeckInstallation = other.openDeckInstallation;
         QCOMPARE(merged, expected);
+    }
+
+    void preservesMachineLocalOpenDeckFromLegacyBackup()
+    {
+        const QString legacy = QStringLiteral(
+            "kind = 'rostrum-backup'\n"
+            "format = 1\n"
+            "[settings.opendeck]\n"
+            "plugins_folder = '/home/alice/.config/opendeck/plugins'\n"
+            "installation = 'flatpak'\n"
+            "[settings.obs]\n"
+            "background = false\n");
+        QString err;
+        const auto parsed = backup::parse(legacy, &err);
+        QVERIFY2(parsed.has_value(), qPrintable(err));
+
+        Settings current = defaultSettings();
+        current.openDeckPluginsFolder = QStringLiteral("/home/bob/custom/opendeck/plugins");
+        current.openDeckInstallation = QStringLiteral("native");
+        current.obsRecordingTracks = {
+            {QStringLiteral("local-scope"), {{QStringLiteral("3"), QStringLiteral("mic")}}}};
+
+        const Settings merged = backup::restoredSettings(current, parsed->settings);
+        QCOMPARE(merged.openDeckPluginsFolder, current.openDeckPluginsFolder);
+        QCOMPARE(merged.openDeckInstallation, current.openDeckInstallation);
+        QCOMPARE(merged.obsBackground, false);
+        QVERIFY(merged.obsRecordingTracks.isEmpty());
     }
 
     void leavesOutPrivateData()
@@ -134,7 +178,8 @@ private Q_SLOTS:
         const QString text = backup::serialize(configured(), scenes(), kNow);
         for (const char *word : {"crash_reports", "privacy", "updates", "skipped_version", "last_check",
                                  "wizard_done", "setup_version", "last_seen", "[window]", "compact",
-                                 "keep_on_top", "solo"}) {
+                                 "keep_on_top", "solo", "opendeck", "plugins_folder", "installation",
+                                 "/home/streamer"}) {
             QVERIFY2(!text.contains(QLatin1String(word), Qt::CaseInsensitive), word);
         }
         QVERIFY(!text.contains(QStringLiteral("2026-10-02"))); // the rule's last-seen date

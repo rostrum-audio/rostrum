@@ -27,7 +27,7 @@ QString toText(const toml::table &t)
 QString serialize(const Settings &settings, const QList<Scene> &scenes, const QDateTime &now)
 {
     toml::table s = toml::parse(serializeSettings(settings).toStdString());
-    for (const char *key : {"format", "privacy", "updates", "window"}) {
+    for (const char *key : {"format", "privacy", "updates", "opendeck", "window"}) {
         s.erase(key);
     }
     if (auto *general = s["general"].as_table()) {
@@ -102,6 +102,8 @@ Settings restoredSettings(const Settings &current, const Settings &backup)
     r.installUpdates = current.installUpdates;
     r.skippedVersion = current.skippedVersion;
     r.lastUpdateCheck = current.lastUpdateCheck;
+    r.openDeckPluginsFolder = current.openDeckPluginsFolder;
+    r.openDeckInstallation = current.openDeckInstallation;
     r.windowWidth = current.windowWidth;
     r.windowHeight = current.windowHeight;
     r.lastPage = current.lastPage;

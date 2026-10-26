@@ -89,7 +89,7 @@ QQC2.Pane {
 
     function obsText() {
         if (Obs.setUp) {
-            return i18nc("@info OBS", "Records Rostrum Mic and Rostrum Stream Mix")
+            return i18nc("@info OBS", "Records Rostrum Mic, Rostrum Stream Mix and Rostrum VOD Mix")
         }
         if (Obs.state === "notInstalled") {
             return i18nc("@info OBS", "Not installed")

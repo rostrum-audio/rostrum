@@ -28,8 +28,16 @@ rostrum_add_test(tst_testtone)
 rostrum_add_test(tst_micfilters)
 rostrum_add_test(tst_obs)
 target_link_libraries(tst_obs PRIVATE rostrum_obs)
+find_package(KF6I18n 6.8 REQUIRED)
+find_package(Qt6 REQUIRED COMPONENTS Gui Qml)
 rostrum_add_test(tst_recordingtracks)
-target_link_libraries(tst_recordingtracks PRIVATE rostrum_obs)
+target_sources(tst_recordingtracks PRIVATE
+    ../src/app/AppController.cpp
+    ../src/app/Obs.cpp
+    ../src/app/ObsRecording.cpp
+)
+target_include_directories(tst_recordingtracks PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(tst_recordingtracks PRIVATE rostrum_obs Qt6::Gui Qt6::Qml KF6::I18n)
 rostrum_add_test(tst_readiness)
 target_link_libraries(tst_readiness PRIVATE rostrum_obs)
 
