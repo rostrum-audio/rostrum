@@ -12,12 +12,16 @@
 #include <KLocalizedString>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QScopeGuard>
 #include <QSignalSpy>
 #include <QStandardPaths>
+#include <QTcpServer>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QWebSocket>
 #include <QWebSocketServer>
+#include <sys/prctl.h>
+#include <utility>
 
 namespace rostrum::app {
 Desktop *Desktop::s_instance = nullptr;
@@ -950,9 +954,24 @@ private Q_SLOTS:
         qDeleteAll(sockets);
     }
 
+    void obsSummaryAndDetailDescribesVodMix_data()
+    {
+        QTest::addColumn<bool>("screenshot");
+        QTest::newRow("offscreen") << false;
+        QTest::newRow("screenshot") << true;
+    }
+
     void obsSummaryAndDetailDescribesVodMix()
     {
+        QFETCH(bool, screenshot);
         QTemporaryDir tempDir;
+        char oldName[16]{};
+        QVERIFY(::prctl(PR_GET_NAME, oldName) == 0);
+        const auto restoreName = qScopeGuard([&] { ::prctl(PR_SET_NAME, oldName); });
+        QVERIFY(::prctl(PR_SET_NAME, "obs") == 0);
+        QVERIFY(isObsRunning());
+        QTcpServer server;
+        QVERIFY(server.listen(QHostAddress::LocalHost, 0));
         const QString configDir = tempDir.path() + QStringLiteral("/obs-studio");
         QVERIFY(QDir().mkpath(configDir + QStringLiteral("/basic/scenes")));
         QVERIFY(QDir().mkpath(configDir + QStringLiteral("/plugin_config/obs-websocket")));
@@ -963,7 +982,9 @@ private Q_SLOTS:
         };
         write(configDir + QStringLiteral("/user.ini"), "[Basic]\nProfile=Test\nSceneCollectionFile=config\n");
         write(configDir + QStringLiteral("/plugin_config/obs-websocket/config.json"),
-              R"({"server_enabled":false})");
+              QJsonDocument(QJsonObject{{QStringLiteral("server_enabled"), true},
+                                       {QStringLiteral("server_port"), server.serverPort()},
+                                       {QStringLiteral("auth_required"), false}}).toJson());
 
         // Complete collection with Rostrum Mic, Rostrum Stream Mix, Rostrum VOD Mix
         QFile fixtureFile(QStringLiteral(ROSTRUM_TEST_DATA "/obs-collection.json"));
@@ -976,12 +997,36 @@ private Q_SLOTS:
         write(configDir + QStringLiteral("/basic/scenes/config.json"), QJsonDocument(configured).toJson());
 
         const QByteArray oldConfigHome = qgetenv("XDG_CONFIG_HOME");
+        const QByteArray oldPlatform = qgetenv("QT_QPA_PLATFORM");
+        const QByteArray oldScreenshot = qgetenv("ROSTRUM_SCREENSHOT");
+        const auto restoreEnvironment = qScopeGuard([&] {
+            for (const auto &[name, value] :
+                 {std::pair{"XDG_CONFIG_HOME", oldConfigHome},
+                  std::pair{"QT_QPA_PLATFORM", oldPlatform},
+                  std::pair{"ROSTRUM_SCREENSHOT", oldScreenshot}}) {
+                if (value.isNull()) {
+                    qunsetenv(name);
+                } else {
+                    qputenv(name, value);
+                }
+            }
+        });
         qputenv("XDG_CONFIG_HOME", tempDir.path().toUtf8());
+        if (screenshot) {
+            qunsetenv("QT_QPA_PLATFORM");
+            qputenv("ROSTRUM_SCREENSHOT", (tempDir.path() + QStringLiteral("/unused.png")).toUtf8());
+        } else {
+            qputenv("QT_QPA_PLATFORM", "offscreen");
+            qunsetenv("ROSTRUM_SCREENSHOT");
+        }
 
         app::Obs obs(&app, &app);
         obs.setActive(true);
 
         QVERIFY(obs.setUp());
+        QCOMPARE(obs.state(), QStringLiteral("closed"));
+        QTest::qWait(100);
+        QVERIFY(!server.hasPendingConnections());
         QCOMPARE(obs.summary(),
                  QStringLiteral("OBS is set up: it records Rostrum Mic, Rostrum Stream Mix and Rostrum VOD Mix."));
 
@@ -999,12 +1044,6 @@ private Q_SLOTS:
         QVERIFY(obs.onlyDoubling());
         QCOMPARE(obs.detail(),
                  QStringLiteral("Rostrum Mic, Rostrum Stream Mix and Rostrum VOD Mix are in place, but the sources marked below play on top of them. Fix OBS mutes them."));
-
-        if (oldConfigHome.isEmpty()) {
-            qunsetenv("XDG_CONFIG_HOME");
-        } else {
-            qputenv("XDG_CONFIG_HOME", oldConfigHome);
-        }
     }
 };
 

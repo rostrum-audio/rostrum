@@ -289,7 +289,7 @@ void Obs::poll()
     }
     m_install = installs.first();
     const bool wasRunning = m_running;
-    m_running = obs::isObsRunning();
+    m_running = !m_offscreen && obs::isObsRunning();
     if (m_running && !wasRunning) {
         m_failures = 0;
         m_retryAt = 0;
