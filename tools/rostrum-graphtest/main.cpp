@@ -98,6 +98,11 @@ int main(int argc, char **argv)
         QStringLiteral("After losing PipeWire, reconnect once this test command file holds a new request id, "
                        "as the app retries."),
         QStringLiteral("path"));
+    QCommandLineOption micFilterFile(
+        QStringLiteral("mic-filter-file"),
+        QStringLiteral("Poll a test command file: request-id settings|unavailable|available. 'settings' reloads the "
+                       "saved filter settings; the others make the filter library fail or load."),
+        QStringLiteral("path"));
     QCommandLineOption meter(QStringLiteral("meter"),
                              QStringLiteral("Print the peak level of a node (node.name) four times a second."),
                              QStringLiteral("node"));
@@ -123,6 +128,7 @@ int main(int argc, char **argv)
                        micFilterPlugin,
                        micFilterDenoise,
                        micFiltersUnavailable,
+                       micFilterFile,
                        reconnectFile});
     parser.process(app);
 
@@ -218,6 +224,37 @@ int main(int argc, char **argv)
             QTextStream(stdout) << "Destination request " << words.first() << ": " << words.last() << Qt::endl;
         });
         destinationPoll.start(25); // Observe commands; tests wait for acknowledgement and the real graph.
+    }
+    // Live mic filter changes for tests: the engine is told exactly what the app's settings page would.
+    QTimer micFilterPoll;
+    QString lastMicFilterRequest;
+    if (parser.isSet(micFilterFile)) {
+        QObject::connect(&micFilterPoll, &QTimer::timeout, &app, [&] {
+            QFile file(parser.value(micFilterFile));
+            const QString request =
+                file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()).trimmed() : QString();
+            if (request.isEmpty() || request == lastMicFilterRequest) {
+                return;
+            }
+            const auto words = request.split(QLatin1Char(' '));
+            const QString what = words.value(1);
+            if (words.size() != 2 || (what != QLatin1String("settings") && what != QLatin1String("unavailable") &&
+                                      what != QLatin1String("available"))) {
+                QTextStream(stderr) << "Invalid mic filter request: " << request << Qt::endl;
+                QCoreApplication::exit(2);
+                return;
+            }
+            if (what == QLatin1String("settings")) {
+                engine.setMicFilters(loadSettings(paths::settingsFile()).micFilters);
+            } else if (what == QLatin1String("unavailable")) {
+                engine.setMicFilterPlugin({}, false, QStringLiteral("The mic filter library failed to load (test)."));
+            } else {
+                engine.setMicFilterPlugin(parser.value(micFilterPlugin), parser.isSet(micFilterDenoise), {});
+            }
+            lastMicFilterRequest = request;
+            QTextStream(stdout) << "Mic filter request " << words.first() << ": " << what << Qt::endl;
+        });
+        micFilterPoll.start(25);
     }
     // The app retries on a timer; a test decides when, so it can restart PipeWire first.
     QTimer reconnectPoll;

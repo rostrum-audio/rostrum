@@ -634,7 +634,8 @@ void Engine::reconcileMicRoutes()
             // WirePlumber remembers where a stream was moved and puts the app back there when it
             // next starts. An app set to raw since goes back to the mic, and clearing the target
             // makes WirePlumber forget it; so does every app while the mix runs without filters
-            // (turned off, failed or unavailable), since the filtered mic is about to go. An app that
+            // (turned off, failed or unavailable), so it records the mic directly instead of a
+            // remembered target on rostrum.filtered (which stays, carrying the raw mic). An app that
             // picked the filtered mic itself sets target.object in its own properties instead,
             // which WirePlumber leaves alone.
             qCInfo(lcEngine) << "raw mic for" << r.identity.displayName << n.id << "(remembered by WirePlumber)";
