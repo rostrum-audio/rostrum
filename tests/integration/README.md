@@ -237,7 +237,9 @@ is built) has an app record `rostrum.filtered` by its `object.serial`, then driv
 driver (`--mic-filter-file`, the same engine calls as the settings page) through filters on, off,
 on, failed (library cannot load) and recovered. Each time the filtered mic must keep the same
 serial and be fed by exactly one source: `micfx` when processed, the raw mic when not, never both
-(polled throughout) and no leftover `micfx` link. The app must record 440 Hz after each change,
+(sampled by polling the graph while each request is in flight and while settling, so an overlap
+shorter than one poll could be missed) and no leftover `micfx` link. The test was not run against
+pre-fix code; the filtered-removal detection rests on the earlier mic-filter-release RED run. The app must record 440 Hz after each change,
 and the recording may be silent only for one handoff (about 80 ms measured, limit 150 ms) starting
 within 400 ms of a request. "Failed" is the plugin-unavailable path; the crash breaker's real
 failure needs a PipeWire restart, which would change the serial. The 440 Hz tone passes the

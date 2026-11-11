@@ -7,6 +7,15 @@ recovered in one running engine. Every time the filtered mic must be the same Pi
 (same object.serial), must be fed by exactly one source (the processed path micfx -> filtered, or
 the raw mic directly, never both at once and never neither once settled), the app's recording must
 carry the 440 Hz test tone, and the recording must not have a dropout across the handoffs.
+
+The serial and exclusive-feed checks (audit) run on every graph poll (about every 50 ms plus the
+pw-dump time), including while each request is in flight and while settling. That is sampled
+polling, not a guarantee about every instant; a feed overlap shorter than one poll could be missed.
+
+Negative control: this test was not run against pre-fix code. The Task 3 mic-filter-release RED run
+already showed the old code removing rostrum.filtered when filters went away, which audit()'s
+serial check (and the removal/recreation log check) would also flag. A dual feed (micfx and raw mic
+both linked into rostrum.filtered) fails audit() and settle()'s exclusive-source assertions.
 """
 import argparse
 import array
@@ -121,7 +130,15 @@ class Stable:
         temporary.write_text(f"{self.request} {what}\n")
         temporary.replace(self.control)
         done = f"Mic filter request {self.request}: {what}\n"
-        self.s.wait(f"engine applied mic filter request {what}", lambda: done in self.log.read_text())
+
+        def applied():
+            # The transition itself is audited, not only the settled states on either side: every
+            # graph read from the request until the engine acknowledges it must keep the serial
+            # and never show both feeds into rostrum.filtered.
+            self.audit(self.s.graph(), f"during {what} (request {self.request})")
+            return done in self.log.read_text()
+
+        self.s.wait(f"engine applied mic filter request {what}", applied)
 
 
 def gaps_ms(raw):
