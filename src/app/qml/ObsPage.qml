@@ -214,6 +214,20 @@ QQC2.ScrollView {
             visible: page.obsRunning
             spacing: Kirigami.Units.smallSpacing
 
+            Kirigami.InlineMessage {
+                Layout.fillWidth: true
+                type: Obs.captureLostLive ? Kirigami.MessageType.Error : Kirigami.MessageType.Warning
+                visible: Obs.captureLost
+                text: Obs.captureLostText
+                actions: [
+                    Kirigami.Action {
+                        text: i18nc("@action:button", "Dismiss")
+                        icon.name: "dialog-close"
+                        onTriggered: Obs.dismissCaptureLost()
+                    }
+                ]
+            }
+
             Kirigami.Heading {
                 level: 3
                 text: i18nc("@title", "What OBS records right now")

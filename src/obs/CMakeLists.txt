@@ -6,6 +6,7 @@ add_library(rostrum_obs STATIC
     ObsClient.cpp ObsClient.h
     ObsLive.cpp ObsLive.h
     ObsCaptures.cpp ObsCaptures.h
+    CaptureWatch.cpp CaptureWatch.h
     ObsStatus.cpp ObsStatus.h
     Readiness.cpp Readiness.h
     RecordingTracks.cpp RecordingTracks.h

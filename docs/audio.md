@@ -660,6 +660,18 @@ It only shows sources that are running, which is also how it catches a mismatch.
 say `Rostrum Mic` but PipeWire links the source to the hardware mic, something moved it. Easy
 Effects does this to every recording app unless OBS is on its excluded list.
 
+### After a PipeWire restart
+
+A full user-level restart of PipeWire (`pipewire`, `pipewire-pulse`, WirePlumber) drops OBS's
+audio clients. Rostrum reconnects and recreates its graph with the same stable node names
+(`rostrum.mic`, `rostrum.stream.monitor`, and the rest); that is not enough. Sources Set Up OBS
+configures record by those names, not by PipeWire serial, so the break is not Rostrum churning
+serials. OBS's pulse backend keeps a dead `pa_context` with an intentional no-op state callback
+and an upstream `@todo` to reconnect; the PipeWire audio-capture plugin holds a dead `pw_core` the
+same way. Until OBS is restarted, its Rostrum captures stay out of the graph and silent. When
+"Follow OBS while it runs" and go-live warnings are on, Rostrum detects the loss and tells you to
+restart OBS.
+
 ### One-click setup
 
 The plan is the same whether OBS is running or not (`makePlan` in `src/obs/ObsPlan.cpp`):

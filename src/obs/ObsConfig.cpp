@@ -146,7 +146,7 @@ QString sceneCollectionFile(const QString &configDir)
     return QFileInfo(path).isFile() ? path : QString();
 }
 
-bool isObsRunning()
+std::optional<ObsProcess> runningObs()
 {
     const uint uid = ::getuid();
     const QStringList pids = QDir(QStringLiteral("/proc")).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
@@ -158,11 +158,39 @@ bool isObsRunning()
         if (!comm.open(QIODevice::ReadOnly) || comm.readAll().trimmed() != "obs") {
             continue;
         }
-        if (QFileInfo(QLatin1String("/proc/") + pid).ownerId() == uid) {
-            return true;
+        if (QFileInfo(QLatin1String("/proc/") + pid).ownerId() != uid) {
+            continue;
         }
+        // /proc/<pid>/stat: "pid (comm) state ppid ...". comm may contain spaces and parentheses,
+        // so split after the last ')'. The first field after it is field 3 (state); starttime is
+        // field 22, i.e. the 20th token.
+        QFile stat(QLatin1String("/proc/") + pid + QLatin1String("/stat"));
+        if (!stat.open(QIODevice::ReadOnly)) {
+            continue;
+        }
+        const QByteArray line = stat.readAll();
+        const qsizetype close = line.lastIndexOf(')');
+        if (close < 0) {
+            continue;
+        }
+        const QList<QByteArray> fields = line.mid(close + 1).simplified().split(' ');
+        constexpr qsizetype kStartTimeIndex = 22 - 3;
+        if (fields.size() <= kStartTimeIndex || fields.at(0) == "Z" || fields.at(0) == "X") {
+            continue;
+        }
+        bool ok = false;
+        const qint64 start = fields.at(kStartTimeIndex).toLongLong(&ok);
+        if (!ok || start <= 0) {
+            continue;
+        }
+        return ObsProcess{pid.toLongLong(), start};
     }
-    return false;
+    return std::nullopt;
+}
+
+bool isObsRunning()
+{
+    return runningObs().has_value();
 }
 
 } // namespace rostrum::obs

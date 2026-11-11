@@ -16,7 +16,7 @@ FormCard.FormCard {
     FormCard.FormDelegateSeparator {}
     FormCard.FormSwitchDelegate {
         text: i18nc("@option:check", "Warn me when a stream starts with a problem")
-        description: i18n("A banner and a notification if your mic is muted, nothing reaches the stream, or OBS isn't recording Rostrum Mic and Rostrum Stream Mix.")
+        description: i18n("A banner and a notification if your mic is muted, nothing reaches the stream, OBS isn't recording Rostrum Mic and Rostrum Stream Mix, or OBS did not pick Rostrum back up after PipeWire restarted.")
         enabled: Obs.background
         checked: Obs.goLiveWarnings
         onToggled: Obs.goLiveWarnings = checked

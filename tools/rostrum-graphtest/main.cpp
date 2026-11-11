@@ -7,6 +7,9 @@
 #include "core/Volume.h"
 #include "engine/Engine.h"
 #include "engine/SceneManager.h"
+#include "obs/CaptureWatch.h"
+#include "obs/ObsCaptures.h"
+#include "obs/ObsConfig.h"
 #include "obs/Readiness.h"
 #include "pw/MeterBank.h"
 #include "pw/PwContext.h"
@@ -14,6 +17,7 @@
 
 #include <QCommandLineParser>
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -103,6 +107,10 @@ int main(int argc, char **argv)
         QStringLiteral("Poll a test command file: request-id settings|unavailable|available. 'settings' reloads the "
                        "saved filter settings; the others make the filter library fail or load."),
         QStringLiteral("path"));
+    QCommandLineOption captureLostFile(
+        QStringLiteral("capture-lost-file"),
+        QStringLiteral("Write capture-lost state for integration tests (same CaptureWatch logic as the app)."),
+        QStringLiteral("path"));
     QCommandLineOption meter(QStringLiteral("meter"),
                              QStringLiteral("Print the peak level of a node (node.name) four times a second."),
                              QStringLiteral("node"));
@@ -129,7 +137,8 @@ int main(int argc, char **argv)
                        micFilterDenoise,
                        micFiltersUnavailable,
                        micFilterFile,
-                       reconnectFile});
+                       reconnectFile,
+                       captureLostFile});
     parser.process(app);
 
     pw::PwContext pw;
@@ -271,7 +280,66 @@ int main(int argc, char **argv)
         QTextStream(stdout) << "Reconnect request " << request << Qt::endl;
         pw.start();
     });
+    // Exercise production CaptureWatch while the graph runs headlessly.
+    obs::CaptureWatch captureWatch;
+    bool pwReady = pw.state() == pw::PwContext::State::Ready;
+    bool needsCaptureEpoch = false;
+    const auto publishCaptureLost = [&] {
+        if (!parser.isSet(captureLostFile)) {
+            return;
+        }
+        QJsonObject row;
+        row.insert(QStringLiteral("alert"), captureWatch.alertActive());
+        QJsonArray missing;
+        for (const QString &name : captureWatch.missingDevices()) {
+            missing.append(name);
+        }
+        row.insert(QStringLiteral("missing"), missing);
+        if (const auto obs = obs::runningObs()) {
+            row.insert(QStringLiteral("obsPid"), obs->pid);
+            row.insert(QStringLiteral("obsStart"), obs->startTime);
+        }
+        QSaveFile file(parser.value(captureLostFile));
+        if (!file.open(QIODevice::WriteOnly) || file.write(QJsonDocument(row).toJson()) < 0 || !file.commit()) {
+            QCoreApplication::exit(2);
+        }
+    };
+    const auto updateCaptureWatch = [&] {
+        if (!parser.isSet(captureLostFile)) {
+            return;
+        }
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        captureWatch.setNowMs(now);
+        captureWatch.setMix(engine.mixEnabled(), engine.mixReady(), !engine.mixError().isEmpty());
+        captureWatch.setObsLive(false);
+        if (pw.state() == pw::PwContext::State::Ready) {
+            captureWatch.observe(obs::obsRecordings(pw.graph()), obs::runningObs(), now);
+        }
+        captureWatch.tick(now);
+        publishCaptureLost();
+    };
+    QTimer captureWatchTick;
+    if (parser.isSet(captureLostFile)) {
+        QObject::connect(&captureWatchTick, &QTimer::timeout, &app, updateCaptureWatch);
+        captureWatchTick.start(250);
+        QObject::connect(&pw, &pw::PwContext::graphChanged, &app, updateCaptureWatch);
+        QObject::connect(&engine, &engine::Engine::mixStateChanged, &app, updateCaptureWatch);
+    }
+
     QObject::connect(&pw, &pw::PwContext::stateChanged, &app, [&] {
+        const bool ready = pw.state() == pw::PwContext::State::Ready;
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        if (parser.isSet(captureLostFile)) {
+            if (pwReady && !ready) {
+                captureWatch.onDisconnected(now);
+                needsCaptureEpoch = true;
+            } else if (!pwReady && ready && needsCaptureEpoch) {
+                captureWatch.onReconnected(now);
+                needsCaptureEpoch = false;
+            }
+            pwReady = ready;
+            updateCaptureWatch();
+        }
         if (pw.state() == pw::PwContext::State::Failed) {
             QTextStream(stderr) << pw.errorString() << "\n";
             if (parser.isSet(reconnectFile)) {

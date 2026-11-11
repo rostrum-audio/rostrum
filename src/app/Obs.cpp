@@ -105,7 +105,13 @@ Obs::Obs(AppController *app, QObject *parent)
         if (m_active || !m_problems.isEmpty()) {
             m_graphDebounce.start();
         }
+        if (m_active || backgroundAllowed()) {
+            updateCaptureWatch();
+        }
     });
+    connect(app->pw(), &pw::PwContext::stateChanged, this, &Obs::onPwStateChanged);
+    connect(app, &AppController::mixChanged, this, &Obs::updateCaptureWatch);
+    m_pwReady = app->pw()->state() == pw::PwContext::State::Ready;
     connect(app, &AppController::levelsChanged, this, &Obs::refreshWarnings);
     connect(app->engine(), &engine::Engine::soloChanged, this, &Obs::refreshWarnings);
     connect(app, &AppController::scenesChanged, this, &Obs::sceneMapChanged);
@@ -152,6 +158,7 @@ Obs::Obs(AppController *app, QObject *parent)
         }
         Q_EMIT liveChanged();
         Q_EMIT sceneMapChanged();
+        updateCaptureWatch();
     });
     connect(&m_live, &obs::LiveStatus::streamStarted, this, &Obs::checkGoLive);
     connect(&m_live, &obs::LiveStatus::programSceneChanged, this, &Obs::followProgramScene);
@@ -307,6 +314,7 @@ void Obs::poll()
     } else {
         openClient();
     }
+    updateCaptureWatch();
     Q_EMIT changed();
 }
 
@@ -936,6 +944,7 @@ void Obs::applyBackground()
         m_stateName.clear();
     }
     updatePolling();
+    syncCaptureLostUi();
 }
 
 void Obs::settingsRestored()
@@ -960,6 +969,7 @@ void Obs::setGoLiveWarnings(bool on)
     m_app->settings().obsGoLiveWarnings = on;
     m_app->saveSettingsSoon();
     refreshWarnings();
+    syncCaptureLostUi();
     Q_EMIT preferencesChanged();
 }
 
@@ -1177,6 +1187,69 @@ void Obs::dismissWarnings()
         m_problems.clear();
         Q_EMIT warningsChanged();
     }
+}
+
+void Obs::onPwStateChanged()
+{
+    const bool ready = m_app->pw()->state() == pw::PwContext::State::Ready;
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (m_pwReady && !ready) {
+        m_captureWatch.onDisconnected(now);
+        m_needsCaptureEpoch = true;
+    } else if (!m_pwReady && ready && m_needsCaptureEpoch) {
+        m_captureWatch.onReconnected(now);
+        m_needsCaptureEpoch = false;
+    }
+    m_pwReady = ready;
+    updateCaptureWatch();
+}
+
+void Obs::updateCaptureWatch()
+{
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    m_captureWatch.setNowMs(now);
+    m_captureWatch.setMix(m_app->mixEnabled(), m_app->mixReady(), !m_app->mixError().isEmpty());
+    m_captureWatch.setObsLive(m_live.streaming() || m_live.recording());
+    if (m_app->connected()) {
+        m_captureWatch.observe(obs::obsRecordings(m_app->pw()->graph()), obs::runningObs(), now);
+    }
+    m_captureWatch.tick(now);
+    syncCaptureLostUi();
+}
+
+void Obs::syncCaptureLostUi()
+{
+    const bool show = backgroundAllowed() && goLiveWarnings() && m_captureWatch.alertActive();
+    const bool live = show && m_captureWatch.liveSeverity();
+    QString text;
+    if (show) {
+        const QStringList labels = m_captureWatch.missingDevices();
+        text = i18n("PipeWire restarted, and OBS did not pick Rostrum back up. Restart OBS to restore %1.",
+                    labels.join(i18nc("List separator for missing OBS capture devices", ", ")));
+    }
+    const bool changed = show != m_captureLost || live != m_captureLostLive || text != m_captureLostText;
+    m_captureLost = show;
+    m_captureLostLive = live;
+    m_captureLostText = text;
+    if (show && !m_captureLostNotified && Desktop::instance()) {
+        Desktop::instance()->notifyCaptureLost(text, m_captureWatch.liveSeverity() ? 2 : 1);
+        m_captureLostNotified = true;
+    }
+    if (!m_captureWatch.alertActive()) {
+        m_captureLostNotified = false;
+    }
+    if (changed) {
+        Q_EMIT captureLostChanged();
+    }
+}
+
+void Obs::dismissCaptureLost()
+{
+    if (!m_captureWatch.alertActive()) {
+        return;
+    }
+    m_captureWatch.dismiss();
+    syncCaptureLostUi();
 }
 
 QStringList Obs::warnings() const

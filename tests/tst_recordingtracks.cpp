@@ -26,6 +26,7 @@
 namespace rostrum::app {
 Desktop *Desktop::s_instance = nullptr;
 void Desktop::notifyGoLive(const QString &) {}
+void Desktop::notifyCaptureLost(const QString &, uchar) {}
 } // namespace rostrum::app
 
 using namespace rostrum;
