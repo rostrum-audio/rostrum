@@ -74,6 +74,23 @@ private Q_SLOTS:
         }
     }
 
+    void runningObs_skipsZombie()
+    {
+        if (runningObs().has_value()) {
+            QSKIP("a real OBS process is running for this user");
+        }
+        const pid_t child = ::fork();
+        QVERIFY(child >= 0);
+        if (child == 0) {
+            ::prctl(PR_SET_NAME, "obs");
+            ::_exit(0);
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(procState(child) == 'Z', 5000);
+        const std::optional<ObsProcess> found = runningObs();
+        QVERIFY(!found.has_value() || found->pid != child);
+        ::waitpid(child, nullptr, 0);
+    }
+
     // ---- CaptureWatch ----
 
     void watch_baselineDisconnectReconnectGraceAlerts()
@@ -392,6 +409,50 @@ private Q_SLOTS:
         QVERIFY(f.w.alertActive());
     }
 
+    void watch_observeWhileDisconnected_ignored()
+    {
+        Fixture f;
+        f.baseline();
+        f.w.onDisconnected(f.now);
+        f.step(5000);
+        f.observe({}); // must not touch state while PipeWire is down
+        QVERIFY(!f.w.alertActive());
+        f.w.onReconnected(f.now);
+        f.epochBase = f.now;
+        f.w.setMix(true, true, false);
+        f.at(CaptureWatch::kGraceAfterMixReadyMs);
+        f.observe({});
+        QVERIFY(f.w.alertActive());
+    }
+
+    void watch_reconnectChurnWithinGrace_noAlert()
+    {
+        Fixture f;
+        f.baseline();
+        f.restart();
+        f.w.setMix(true, true, false);
+        f.at(1000);
+        f.observe({});
+        f.at(2500);
+        f.observe({Fixture::mic()});
+        f.at(5000);
+        f.observe(Fixture::both());
+        f.at(CaptureWatch::kEpochCapAfterReadyMs + 1);
+        f.observe(Fixture::both());
+        QVERIFY(!f.w.alertActive());
+    }
+
+    void watch_stableWithoutPipeWireRestart_noAlert()
+    {
+        Fixture f;
+        f.baseline();
+        f.step(CaptureWatch::kEpochCapAfterReadyMs);
+        f.observe({});
+        f.step(1000);
+        f.observe({Fixture::mic()});
+        QVERIFY(!f.w.alertActive());
+    }
+
 private:
     struct Fixture
     {
@@ -448,6 +509,17 @@ private:
         const QByteArray line = f.readAll();
         const QList<QByteArray> rest = line.mid(line.lastIndexOf(')') + 2).split(' ');
         return rest.value(19).toLongLong();
+    }
+
+    static char procState(pid_t pid)
+    {
+        QFile f(QStringLiteral("/proc/%1/stat").arg(pid));
+        if (!f.open(QIODevice::ReadOnly)) {
+            return '\0';
+        }
+        const QByteArray line = f.readAll();
+        const QList<QByteArray> rest = line.mid(line.lastIndexOf(')') + 2).split(' ');
+        return rest.value(0).isEmpty() ? '\0' : rest.at(0).at(0);
     }
 };
 
