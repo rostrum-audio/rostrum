@@ -819,7 +819,26 @@ chosen buses. These are checks to run, not claims of recorded sound.
    An unwritable backup directory refuses setup before any OBS write.
 7. Check readiness: it may report matching recording configuration. It still says recording
    contents and sound were not tested. Separately make a short test recording and inspect each
-   selected track in an editor; this physical recording is not part of the unit test.
+   selected    track in an editor; this physical recording is not part of the unit test.
+
+## 33. OBS after a PipeWire restart (Case A)
+
+Needs real OBS with Set Up OBS applied, Rostrum connected, "Follow OBS while it runs" on
+(Settings → Integrations → OBS) and "Warn me when a stream starts with a problem" on (same page).
+
+1. Start OBS and Rostrum. Confirm the OBS page lists Rostrum Mic and Stream Mix with signal, and
+   OBS's meters move when you speak or play audio.
+2. While OBS stays open, run `systemctl --user restart pipewire pipewire-pulse wireplumber`.
+3. Wait until Rostrum is connected again and the mix is ready (about ten seconds after PipeWire
+   comes back).
+4. OBS's Rostrum meters stay flat. `pw-dump | rg -i 'application.name.*obs'` shows no capture
+   streams linked to `rostrum.mic` or `rostrum.stream` (OBS's clients died with PipeWire).
+5. A header banner and one desktop notification ("OBS stopped recording Rostrum.") say PipeWire
+   restarted and OBS did not pick Rostrum back up, and to restart OBS. The OBS page shows the same
+   warning above "What OBS records right now". Dismiss clears the banner until the next PipeWire
+   disconnect.
+6. Quit and start OBS (or restart the Flatpak). Rostrum captures return, meters move, and the
+   warning clears without Set Up OBS again.
 
 ## Smoke test log
 

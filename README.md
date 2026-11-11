@@ -366,7 +366,9 @@ mixer's Mic strip matches its Mic live / Mic muted title.
 
 Rostrum's virtual devices live in PipeWire, not in the app, so audio keeps flowing if Rostrum quits
 or crashes. To remove Rostrum completely, quit it, delete the files above, and run
-`systemctl --user restart pipewire pipewire-pulse wireplumber` to drop its devices.
+`systemctl --user restart pipewire pipewire-pulse wireplumber` to drop its devices. If OBS was
+open, restart OBS too: a full PipeWire restart drops OBS's Rostrum audio clients, and Rostrum
+reconnecting does not bring them back.
 
 
 ## ⬇️ Installation
