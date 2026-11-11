@@ -418,7 +418,9 @@ Rostrum quits. Turning on Always carries the current volume and mute into the ne
 fragments never carry either: they only set `target.object`.
 
 When Rostrum quits normally it unmutes every stream it muted and waits for PipeWire to confirm,
-so quitting never leaves an app silent (and WirePlumber does not remember the app as muted). A
+so quitting never leaves an app silent (and WirePlumber does not remember the app as muted).
+SIGTERM (logging out, `systemctl --user stop`, `kill`), SIGINT (Ctrl+C) and SIGHUP are a normal
+quit too; a second signal while it runs ends the process at once, like a crash. A
 saved mute applies again when Rostrum starts. After a crash, a stream Rostrum muted stays muted
 until it is unmuted in any mixer; WirePlumber may also restore that mute when the app restarts,
 exactly as it does for a mute set in Plasma's volume applet.

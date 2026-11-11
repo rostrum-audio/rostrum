@@ -10,6 +10,7 @@ qt_add_executable(rostrum
     CrashCapture.cpp CrashCapture.h
     DBusControl.cpp DBusControl.h
     Logging.cpp Logging.h
+    QuitSignals.cpp QuitSignals.h
 )
 
 rostrum_embed_opendeck(rostrum)

@@ -208,6 +208,15 @@ the Stream Mix and silence at the fake headphones. Before the fix Rostrum kept t
 `target.object` values in its cache, believed the app was still routed and left it on the default
 sink.
 
+## Quit signals
+
+`audio_quit_signals` (`quit-signals.py`, registered only when the app is built) runs the real
+`rostrum` offscreen in the private session. The driver writes the default scene first; the test
+adds a rule that mutes the test app. For SIGTERM, SIGINT and SIGHUP in turn, sent through a pinned
+pidfd, the app's stream must be muted with Game silent while Rostrum runs, and after the signal
+Rostrum must exit with status 0 and leave the stream unmuted, with 440 Hz back on the lingering
+Game bus. Before the fix SIGTERM ended Rostrum with status -15 and left the app muted.
+
 ## Mic-filter scheduling regression
 
 `audio_mic_filter_scheduling` is registered when the DSP plugin is built and audio

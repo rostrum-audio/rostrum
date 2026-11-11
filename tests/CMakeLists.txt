@@ -130,6 +130,14 @@ if(ROSTRUM_AUDIO_INTEGRATION_TESTS)
     add_test(NAME audio_wireplumber_restart COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/integration/wireplumber-restart.py $<TARGET_FILE:rostrum-graphtest>
         $<TARGET_FILE:rostrum-test-stream>)
+    if(TARGET rostrum)
+        # The real app's quit path; needs the app build.
+        add_test(NAME audio_quit_signals COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/integration/quit-signals.py $<TARGET_FILE:rostrum>
+            $<TARGET_FILE:rostrum-graphtest> $<TARGET_FILE:rostrum-test-stream>)
+        set_tests_properties(audio_quit_signals PROPERTIES
+            TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
+    endif()
     if(TARGET rostrum-dsp)
         set(mic_filter_test_options "")
         if(ROSTRUM_DSP_DENOISE)
