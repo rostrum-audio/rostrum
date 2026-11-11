@@ -49,13 +49,18 @@ Hardware mic ---> rostrum.mic (virtual source, "Rostrum Mic")      (OBS captures
              \--> rostrum.sidetone ---> rostrum.phones             (optional, default off)
 ```
 
-With mic filters on, the voice goes through one filter node first, and apps record its output:
+While the mix runs, `rostrum.filtered` always exists. With mic filters on, the voice goes through
+the filter node first:
 
 ```
 Hardware mic ---> rostrum.micfx ---> rostrum.mic, rostrum.sidetone   (as above)
                                 \--> rostrum.filtered ("Rostrum Filtered Mic")
                                          ^ app capture streams are moved here
 ```
+
+With filters off, failed or unavailable, `rostrum.micfx` is not in the graph; hardware mic links
+straight to `rostrum.mic`, `rostrum.sidetone` and `rostrum.filtered` (unity bypass into the
+latter; apps are not moved onto filtered in that state).
 
 ## Nodes
 
@@ -71,7 +76,7 @@ Every Rostrum node is a `support.null-audio-sink` adapter created in the PipeWir
 | `rostrum.mic` | `Audio/Source/Virtual` | MONO | `Rostrum Mic` | The hardware mic after Rostrum's gain and mute. OBS captures this. |
 | `rostrum.sidetone` | `Audio/Sink` | MONO | `Rostrum Sidetone` | Mic monitoring into headphones. Volume = sidetone fader. |
 | `rostrum.micfx` | none | MONO | `Rostrum Mic Filters` | Only while mic filters are on. Runs the filter chain (below). |
-| `rostrum.filtered` | `Audio/Source/Virtual` | MONO | `Rostrum Filtered Mic` | Only while mic filters are on. The filtered voice for apps, at unity gain. |
+| `rostrum.filtered` | `Audio/Source/Virtual` | MONO | `Rostrum Filtered Mic` | While the mix runs. With filters on, the voice after `micfx`; with filters off, failed or unavailable, a unity bypass of the hardware mic for apps. |
 
 Properties set on every node:
 
@@ -109,12 +114,14 @@ Rostrum creates links port by port with `link-factory` (`object.linger = true`),
 | `rostrum.phones` monitor | headphone device | always; with mono headphones each side also goes into the other front channel |
 | hardware mic | `rostrum.mic` | mic filters off (mute/destination act on the node, not the link) |
 | hardware mic | `rostrum.sidetone` | mic filters off |
+| hardware mic | `rostrum.filtered` | mic filters off, failed or unavailable (unity bypass; never both this and the processed path) |
 | hardware mic | `rostrum.micfx` | mic filters on |
 | `rostrum.micfx` | `rostrum.mic`, `rostrum.sidetone`, `rostrum.filtered` | mic filters on |
 | `rostrum.sidetone` monitor | `rostrum.phones` | always (muted unless sidetone is on) |
 
 Rostrum only removes links it manages: links that start at a Rostrum node and end at a Rostrum node
-or a hardware sink, and links into `rostrum.mic`, `rostrum.sidetone` and `rostrum.micfx`. App streams going into a bus
+or a hardware sink, and links into `rostrum.mic`, `rostrum.sidetone`, `rostrum.micfx` and
+`rostrum.filtered`. App streams going into a bus
 and OBS capturing a Rostrum monitor are never touched. A link you patch by hand from a Rostrum node
 to a hardware sink will be removed.
 
@@ -297,8 +304,9 @@ plugin to `$XDG_DATA_HOME/rostrum/dsp/<hash>/` and removes older copies.
 Mic filters need PipeWire 1.4 or newer (filter graphs in audioconvert) and `spa-node-factory`,
 which PipeWire loads by default. Otherwise the page says why, and the mic works as before.
 
-1. Rostrum creates `rostrum.micfx` and `rostrum.filtered`, and adopts them when they already exist
-   (duplicates from a race are removed, oldest wins).
+1. While the mix runs, Rostrum creates `rostrum.filtered` and adopts it when it already exists
+   (duplicates from a race are removed, oldest wins). It creates `rostrum.micfx` only when mic
+   filters are wanted and the chain can run.
 2. A new `audio.convert` node starts in convert mode with one port per side and no channel.
    Rostrum sends a mono DSP `PortConfig` for both directions, and only uses the node once it has
    `MONO` ports on both sides. If they do not show up within 4 s the filters fail (below).
@@ -315,7 +323,8 @@ which PipeWire loads by default. Otherwise the page says why, and the mic works 
    them when a control is set but not when the graph starts. So while the node runs and the graph
    is not yet seen, Rostrum sends the controls every 250 ms, which brings it into view.
 6. A running node that shows no graph after 4 s has failed: the filters go off for this session,
-   the nodes are removed, and the page says "Your mic is used without filters". A graph that ran
+   `rostrum.micfx` is removed (after the app-release hold), `rostrum.filtered` stays and switches
+   to the hardware bypass, and the page says "Your mic is used without filters". A graph that ran
    and then disappeared is sent again, keeping the links and app moves in place.
 
 A control changed by another tool is set back at most once a second, like volumes. audioconvert
@@ -344,8 +353,8 @@ filters off, or an app to plain, restores that target or clears it. It moves:
 
 - only streams that record the mic apps use (the saved mic, or the default source). A stream that
   picked another source keeps it.
-- only once `rostrum.filtered` carries sound (mic, filter and filtered mic linked), so an app is
-  never cut off for a moment.
+- only once `rostrum.filtered` carries sound (processed or bypass), so an app is never cut off for
+  a moment.
 - never OBS (the OBS plan decides what OBS records), Rostrum's own streams, streams that record a
   sink's monitor, or streams with `node.dont-move`.
 
@@ -364,23 +373,28 @@ own settings carries `target.object` in its own properties; WirePlumber and Rost
 ### Meters, ducking and OBS
 
 While the filters run, the mic strip's meter and the ducking mic trigger read `rostrum.filtered`
-times the mic gain, so they show what the stream hears, after noise removal. OBS treats
-`rostrum.filtered` like the hardware mic: a source recording it doubles the voice that Rostrum Mic
-already carries, so Set Up OBS points it at `rostrum.mic` or mutes it.
+times the mic gain, so they show what the stream hears, after noise removal. OBS is never moved by
+the mic router; a source that records `rostrum.filtered` by name (including one chosen in OBS's
+own settings) keeps that node across filter toggles and hears processed audio with filters on or
+unity bypass with filters off. That is separate from the stream mix: recording `rostrum.filtered`
+still doubles the voice that `rostrum.mic` already carries on Track 1 and Track 2, so Set Up OBS
+still points the global mic at `rostrum.mic` or mutes a duplicate filtered capture.
 
 ### Quitting, crashes and turning off
 
-Like every Rostrum node, both nodes and their links linger. If Rostrum quits or crashes, apps keep
-the filtered mic with the last settings, and the next start adopts the nodes without moving an
-app. Turning the filters off moves apps back, links the hardware mic straight to `rostrum.mic` and
-`rostrum.sidetone` again, and removes both nodes. The same happens whenever the mix runs without
-filters: turned off in settings, failed, or unavailable (no filter library, an old PipeWire). The
-nodes are removed only after the apps have left: Rostrum clears each app's target first, including
-one WirePlumber remembered from an earlier run, and waits up to 3 s for WirePlumber to relink them.
-For that the first pass after connecting must see the targets, so Rostrum reports PipeWire ready
-only once the objects bound during the first registry listing (node info, the `default` metadata)
-have reported in. While the mix is off they are left alone, like
-the others.
+Like every Rostrum node, filtered and its links linger. If Rostrum quits or crashes while filters
+were on, apps keep the filtered mic with the last settings, and the next start adopts the nodes
+without moving an app. Turning the filters off moves apps back, links the hardware mic straight
+to `rostrum.mic` and `rostrum.sidetone` again, and removes `rostrum.micfx` only: while the mix
+runs, `rostrum.filtered` stays and is fed by the unity bypass. The same separation applies whenever
+the mix runs without an active filter chain: turned off in settings, failed, or unavailable (no
+filter library, an old PipeWire). `rostrum.micfx` goes away only after apps have left filtered:
+Rostrum clears each app's target first, including one WirePlumber remembered from an earlier run,
+and waits up to 3 s for WirePlumber to relink them before dropping the processed feed and
+releasing the filter node. For that the first pass after connecting must see the targets, so
+Rostrum reports PipeWire ready only once the objects bound during the first registry listing (node
+info, the `default` metadata) have reported in. While the mix is off, filtered is left alone like
+the other nodes.
 
 If PipeWire goes away twice within 10 s of the filter node starting to run with the graph (not of
 controls being sent again, and not while the node sits idle), the graph is taken to be crashing the
