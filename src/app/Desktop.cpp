@@ -376,6 +376,11 @@ void Desktop::notifyGoLive(const QString &body)
     notify(i18n("Check your stream audio"), body, 2, &m_goLiveNotificationId);
 }
 
+void Desktop::notifyCaptureLost(const QString &body, uchar urgency)
+{
+    notify(i18n("OBS stopped recording Rostrum."), body, urgency, &m_captureLostNotificationId);
+}
+
 void Desktop::notifyMicLost(const QString &description)
 {
     if (m_app->engine()->micSilenced()) {

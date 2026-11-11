@@ -44,6 +44,26 @@ ColumnLayout {
     Kirigami.InlineMessage {
         Layout.fillWidth: true
         position: Kirigami.InlineMessage.Position.Header
+        type: Obs.captureLostLive ? Kirigami.MessageType.Error : Kirigami.MessageType.Warning
+        visible: Obs.captureLost
+        text: Obs.captureLostText
+        actions: [
+            Kirigami.Action {
+                text: i18nc("@action:button", "Open OBS Page")
+                icon.name: "media-record"
+                onTriggered: applicationWindow().showPage("obs")
+            },
+            Kirigami.Action {
+                text: i18nc("@action:button", "Dismiss")
+                icon.name: "dialog-close"
+                onTriggered: Obs.dismissCaptureLost()
+            }
+        ]
+    }
+
+    Kirigami.InlineMessage {
+        Layout.fillWidth: true
+        position: Kirigami.InlineMessage.Position.Header
         type: Kirigami.MessageType.Warning
         visible: App.headphonesMissing
         text: i18n("Headphones disconnected, scene held. Playing through %1 until they come back.", App.headphonesText)

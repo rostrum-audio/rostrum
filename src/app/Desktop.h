@@ -57,6 +57,8 @@ public:
     QString shortcutBackend() const;
     // A stream started with a problem: `body` says what it is.
     void notifyGoLive(const QString &body);
+    // OBS lost Rostrum captures after PipeWire restarted; `urgency` 2 if live, else 1.
+    void notifyCaptureLost(const QString &body, uchar urgency);
 
 Q_SIGNALS:
     void trayChanged();
@@ -90,6 +92,7 @@ private:
     bool m_startHidden = false;
     uint m_notificationId = 0;
     uint m_goLiveNotificationId = 0;
+    uint m_captureLostNotificationId = 0;
     uint m_feedbackNotificationId = 0;
     uint m_micNotificationId = 0;
     uint m_micFiltersNotificationId = 0;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "app/ObsRecording.h"
+#include "obs/CaptureWatch.h"
 #include "obs/ObsClient.h"
 #include "obs/ObsConfig.h"
 #include "obs/ObsModel.h"
@@ -73,6 +74,10 @@ class Obs : public QObject
     // "noStreamCapture", "noMicCapture".
     Q_PROPERTY(QStringList warnings READ warnings NOTIFY warningsChanged)
     Q_PROPERTY(QString warningText READ warningText NOTIFY warningsChanged)
+    // OBS still running but lost its Rostrum captures after a PipeWire restart.
+    Q_PROPERTY(bool captureLost READ captureLost NOTIFY captureLostChanged)
+    Q_PROPERTY(bool captureLostLive READ captureLostLive NOTIFY captureLostChanged)
+    Q_PROPERTY(QString captureLostText READ captureLostText NOTIFY captureLostChanged)
     Q_PROPERTY(QVariantList readiness READ readiness NOTIFY readinessChanged)
     Q_PROPERTY(bool readinessChecking READ readinessChecking NOTIFY readinessChanged)
     Q_PROPERTY(ObsRecording *recordingTracks READ recordingTracks CONSTANT)
@@ -117,6 +122,9 @@ public:
     QVariantList sceneMap() const;
     QStringList warnings() const;
     QString warningText() const;
+    bool captureLost() const { return m_captureLost; }
+    bool captureLostLive() const { return m_captureLostLive; }
+    QString captureLostText() const { return m_captureLostText; }
 
     QVariantList readiness() const { return m_readiness; }
     bool readinessChecking() const { return m_readinessChecking; }
@@ -129,6 +137,7 @@ public:
     // An empty `rostrumScene` removes the mapping.
     Q_INVOKABLE void setSceneMapping(const QString &obsScene, const QString &rostrumScene);
     Q_INVOKABLE void dismissWarnings();
+    Q_INVOKABLE void dismissCaptureLost();
 
 Q_SIGNALS:
     void activeChanged();
@@ -139,6 +148,7 @@ Q_SIGNALS:
     void liveChanged();
     void sceneMapChanged();
     void warningsChanged();
+    void captureLostChanged();
     void readinessChanged();
 
 private:
@@ -170,11 +180,15 @@ private:
     void checkGoLive();
     void refreshWarnings();
     void followProgramScene(const QString &obsScene);
+    void onPwStateChanged();
+    void updateCaptureWatch();
+    void syncCaptureLostUi();
 
     static Obs *s_instance;
     AppController *m_app = nullptr;
     obs::Client m_client;
     obs::LiveStatus m_live{&m_client};
+    obs::CaptureWatch m_captureWatch;
     ObsRecording *m_recordingTracks = nullptr;
     QTimer m_poll;
     QTimer m_refetch;
@@ -198,6 +212,12 @@ private:
     bool m_havePlan = false;
     QVariantList m_recordings;
     QList<obs::GoLiveProblem> m_problems;
+    bool m_pwReady = false;
+    bool m_needsCaptureEpoch = false;
+    bool m_captureLost = false;
+    bool m_captureLostLive = false;
+    QString m_captureLostText;
+    bool m_captureLostNotified = false;
     QVariantList m_readiness;
     bool m_readinessRequested = false, m_readinessChecking = false, m_readinessFresh = false;
     int m_readinessGeneration = 0;
