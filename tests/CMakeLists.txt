@@ -119,8 +119,14 @@ if(ROSTRUM_AUDIO_INTEGRATION_TESTS)
     foreach(tool pipewire-pulse pacat)
         find_program(AUDIO_${tool} NAMES ${tool} REQUIRED)
     endforeach()
+    # A playback app that replaces its stream in one burst, so PipeWire can reuse the node ID.
+    add_executable(rostrum-test-stream integration/stream-recreate.cpp)
+    target_link_libraries(rostrum-test-stream PRIVATE PkgConfig::PipeWire m)
     add_test(NAME audio_rule_fragments COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/integration/rule-fragments.py $<TARGET_FILE:rostrum-graphtest>)
+    add_test(NAME audio_stream_replacement COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/integration/stream-replacement.py $<TARGET_FILE:rostrum-graphtest>
+        $<TARGET_FILE:rostrum-test-stream>)
     if(TARGET rostrum-dsp)
         set(mic_filter_test_options "")
         if(ROSTRUM_DSP_DENOISE)
@@ -134,6 +140,6 @@ if(ROSTRUM_AUDIO_INTEGRATION_TESTS)
     endif()
     # Lifecycle regressions deliberately interrupt private jobs; serialize audio tests.
     set_tests_properties(audio_safety audio_safety_fixture audio_safety_lifecycle audio_readiness
-        audio_rule_fragments PROPERTIES
+        audio_rule_fragments audio_stream_replacement PROPERTIES
         TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
 endif()

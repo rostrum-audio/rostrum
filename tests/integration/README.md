@@ -188,6 +188,17 @@ must carry no rule target, be linked only from the fake mic and record 330 Hz. W
 not link a capture stream to a sink named by `target.object`, so the property check is what catches
 a rule reaching a recording; the audio check proves the app still hears its mic.
 
+## Stream replacement
+
+`audio_stream_replacement` (`stream-replacement.py`) uses `rostrum-test-stream`
+(`stream-recreate.cpp`), a playback client that, on request, destroys its stream and creates an
+identical one in the same loop iteration, as browsers do. It opts out of WirePlumber's target
+restore, so only Rostrum's router can place the new stream. With a `name:SafetyPlayer=game` rule
+and Game sent to the stream only, each of three replacements must get the old node ID back with a
+new `object.serial` (otherwise the run fails: it could not exercise ID reuse), be linked only to
+Game, deliver 440 Hz there, and leave the fake headphones silent. Before the fix the router kept
+the old stream's "already requested" state and left the replacement on the default sink.
+
 ## Mic-filter scheduling regression
 
 `audio_mic_filter_scheduling` is registered when the DSP plugin is built and audio

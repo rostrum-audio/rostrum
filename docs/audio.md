@@ -480,6 +480,12 @@ After a reboot or re-login, the order is as follows:
 
 If Discord stays on the default sink until it is restarted, that is a router bug.
 
+The router remembers each stream by its registry ID, and PipeWire gives a freed ID to the next
+object. A browser that replaces its playback stream (on a track or format change) gets the same ID
+back in one burst, before Rostrum reconciles. Rostrum therefore forgets everything about a node
+when PipeWire removes it, and again if a stream turns up under a known ID with a different
+`object.serial`, so the new stream is routed, and its volume and mute applied, like any new stream.
+
 ### Automatic assignment
 
 With **Assign apps automatically** on (the default), a stream that matches no rule is sorted by

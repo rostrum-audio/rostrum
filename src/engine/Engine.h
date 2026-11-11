@@ -416,6 +416,13 @@ protected:
 
     bool isOwnedNode(const pw::Node &n) const;
     void destroyOnce(uint32_t id);
+    // Everything remembered about a node is keyed by its registry ID, which PipeWire hands to the
+    // next object once the node goes (a browser replacing its stream gets the same ID back in one
+    // burst, before any reconciliation). Forget it all when the node is removed, and whenever a
+    // stream shows up under a known ID with a different object.serial.
+    void forgetNode(uint32_t id);
+    void checkNodeSerial(const pw::Node &n);
+    QHash<uint32_t, QString> m_nodeSerial;
 
     pw::PwContext *m_pw = nullptr;
     Scene m_scene;

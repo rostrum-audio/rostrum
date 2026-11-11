@@ -499,6 +499,7 @@ void Engine::reconcileMicRoutes()
             continue;
         }
         present.insert(n.id);
+        checkNodeSerial(n);
         QElapsedTimer &firstSeen = m_micFirstSeen[n.id];
         if (!firstSeen.isValid()) {
             firstSeen.start();
