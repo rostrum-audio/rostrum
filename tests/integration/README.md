@@ -208,6 +208,36 @@ the Stream Mix and silence at the fake headphones. Before the fix Rostrum kept t
 `target.object` values in its cache, believed the app was still routed and left it on the default
 sink.
 
+## PipeWire restart
+
+`audio_pipewire_restart` (`pipewire-restart.py`) stops the private WirePlumber and PipeWire and
+starts them again, twice: once with Rostrum reconnecting before the test app and once after it.
+The run must reuse the old bus IDs and serials (it fails otherwise, since it could not exercise
+ID reuse). Each time the app must be only on Game, Music muted again by solo, and Game must reach
+the stream only. The driver reconnects when `--reconnect-file` holds a new request id, as the
+app's retry timer would. This is a regression test, not a red one: it also passes without the
+state reset on disconnect, because the first pass after reconnecting already drops per-ID state.
+
+## Mic filter release
+
+`audio_mic_filter_release` (`mic-filter-release.py`, registered when the DSP plugin is built)
+leaves a call app on `rostrum.filtered` with its `target.object` in the metadata, stops the
+driver, and starts it again without filters: once with `--mic-filters-unavailable` (settings
+still enabled, no filter library) and once with filters turned off in settings. Each time the
+app's target must be cleared, the app linked only from the mic and recording 440 Hz, both filter
+nodes gone, and the driver's log must show the app pointed back before the nodes were removed,
+without the 3 s wait running out. Before the fix the first start left the stale target for good,
+and both removed the nodes on the first pass, before the metadata had been read.
+
+## Mic filter crash breaker
+
+`audio_mic_filter_breaker` (`mic-filter-breaker.py`, registered when the DSP plugin is built)
+records the stream mic so the filter node runs, then restarts the private PipeWire twice. Both
+losses must count as strikes, and the filter nodes must be gone afterwards. The breaker now times
+from when the filter node began running with the graph, not from when controls were last sent.
+The other side, that a restart with the filter node idle does not count, is not covered here:
+every node in the private session stays running.
+
 ## Quit signals
 
 `audio_quit_signals` (`quit-signals.py`, registered only when the app is built) runs the real
