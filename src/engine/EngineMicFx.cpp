@@ -20,6 +20,8 @@ constexpr int kFxRecheckMs = 250;
 constexpr qint64 kFxCrashWindowMs = 10000;
 constexpr int kFxCrashStrikes = 2;
 constexpr qint64 kFxControlResendMs = 1000;
+// How long removing the filter nodes waits for apps to move back to the mic.
+constexpr qint64 kFxReleaseMs = 3000;
 
 // A new audio.convert node starts in convert mode with one channel-less port per side; only after
 // PortConfig does it expose the mono DSP ports the filter graph runs on.
@@ -213,11 +215,27 @@ void Engine::reconcileMicFx()
 
     if (!micFxWanted()) {
         // Nodes left by an earlier run stay while the mix is off: nothing else is linked either.
-        if (m_mixEnabled) {
-            for (const pw::Node *n : std::as_const(fxNodes) + filteredNodes) {
+        // Apps still on the filtered mic are pointed back at the mic first (reconcileMicRoutes,
+        // later in this pass); the nodes go once they have moved, or after kFxReleaseMs.
+        const auto filterNodes = std::as_const(fxNodes) + filteredNodes;
+        bool holding = false;
+        if (m_mixEnabled && !filterNodes.isEmpty() && micStreamsOnFilter(filterNodes)) {
+            if (!m_fxReleaseClock.isValid()) {
+                m_fxReleaseClock.start();
+                QTimer::singleShot(kFxReleaseMs + 100, this, &Engine::scheduleReconcile);
+            }
+            holding = m_fxReleaseClock.elapsed() < kFxReleaseMs;
+            if (!holding) {
+                qCWarning(lcEngine) << "removing the mic filters with apps still on them";
+            }
+        }
+        if (m_mixEnabled && !holding) {
+            for (const pw::Node *n : filterNodes) {
                 qCInfo(lcEngine) << "removing" << n->name;
                 destroyOnce(n->id);
             }
+            m_fxReleaseClock.invalidate();
+            m_micReleased.clear();
         }
         m_pendingCreate.remove(fxName);
         m_pendingCreate.remove(filteredName);
@@ -237,6 +255,9 @@ void Engine::reconcileMicFx()
         }
         return;
     }
+
+    m_fxReleaseClock.invalidate();
+    m_micReleased.clear();
 
     // Duplicates from a create race: keep the oldest.
     for (qsizetype i = 1; i < fxNodes.size(); ++i) {
@@ -428,6 +449,8 @@ void Engine::micFxConnectionChanged()
         m_micRouted.clear();
         m_micRecognised.clear();
         m_micFirstSeen.clear();
+        m_micReleased.clear();
+        m_fxReleaseClock.invalidate();
         setMicFxState(m_micFx.enabled && !m_fxFailed ? MicFxState::Starting : MicFxState::Off, m_fxError);
     }
 }
@@ -554,18 +577,23 @@ void Engine::reconcileMicRoutes()
                 continue; // moved by the user since
             }
             qCInfo(lcEngine) << "raw mic for" << r.identity.displayName << n.id;
+            m_micReleased.insert(n.id);
             if (was.previousTarget.isEmpty()) {
                 m_pw->clearMetadata(n.id, targetKey);
                 m_pw->clearMetadata(n.id, QStringLiteral("target.node"));
             } else {
                 m_pw->setMetadata(n.id, targetKey, QStringLiteral("Spa:Id"), was.previousTarget);
             }
-        } else if (!micfx::useFiltered(m_micFx, choice, r.excluded) && names(anyFiltered, current)) {
+        } else if (((m_mixEnabled && !micFxWanted()) || !micfx::useFiltered(m_micFx, choice, r.excluded)) &&
+                   names(anyFiltered, current)) {
             // WirePlumber remembers where a stream was moved and puts the app back there when it
             // next starts. An app set to raw since goes back to the mic, and clearing the target
-            // makes WirePlumber forget it. An app that picked the filtered mic itself sets
-            // target.object in its own properties instead, which WirePlumber leaves alone.
+            // makes WirePlumber forget it; so does every app while the mix runs without filters
+            // (turned off, failed or unavailable), since the filtered mic is about to go. An app that
+            // picked the filtered mic itself sets target.object in its own properties instead,
+            // which WirePlumber leaves alone.
             qCInfo(lcEngine) << "raw mic for" << r.identity.displayName << n.id << "(remembered by WirePlumber)";
+            m_micReleased.insert(n.id);
             m_pw->clearMetadata(n.id, targetKey);
             m_pw->clearMetadata(n.id, QStringLiteral("target.node"));
         }
@@ -579,6 +607,30 @@ void Engine::reconcileMicRoutes()
     for (auto it = m_micFirstSeen.begin(); it != m_micFirstSeen.end();) {
         it = present.contains(it.key()) ? std::next(it) : m_micFirstSeen.erase(it);
     }
+    for (auto it = m_micReleased.begin(); it != m_micReleased.end();) {
+        it = present.contains(*it) ? std::next(it) : m_micReleased.erase(it);
+    }
+}
+
+bool Engine::micStreamsOnFilter(const QList<const pw::Node *> &filterNodes) const
+{
+    const QString targetKey = QStringLiteral("target.object");
+    for (const auto &n : m_pw->graph().nodes) {
+        if (!isMicCapture(n)) {
+            continue;
+        }
+        const QString target = m_pw->metadataValue(n.id, targetKey);
+        for (const pw::Node *f : filterNodes) {
+            // Rostrum's (or WirePlumber's remembered) target still names it, or Rostrum pointed
+            // the stream back and WirePlumber has not relinked it yet.
+            if ((!target.isEmpty() &&
+                 (target == f->serial || target == f->name || target == QString::number(f->id))) ||
+                (m_micReleased.contains(n.id) && linked(f->id, n.id))) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 const pw::Node *Engine::nodeNamed(const QString &target) const

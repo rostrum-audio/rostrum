@@ -413,6 +413,11 @@ protected:
     bool linked(uint32_t outNode, uint32_t inNode) const;
     mutable QHash<uint32_t, MicRecognised> m_micRecognised;
     QHash<uint32_t, QElapsedTimer> m_micFirstSeen;
+    // Turning filters off points apps back at the mic before the filter nodes go, so no app
+    // records a node that is being removed. Streams pointed back, until the nodes are gone:
+    QSet<uint32_t> m_micReleased;
+    QElapsedTimer m_fxReleaseClock; // since removing the filter nodes was first held back
+    bool micStreamsOnFilter(const QList<const pw::Node *> &filterNodes) const;
 
     bool isOwnedNode(const pw::Node &n) const;
     void destroyOnce(uint32_t id);
