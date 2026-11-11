@@ -268,7 +268,7 @@ protected:
     bool micFxWanted() const;
     bool micFxRunning() const;            // wanted, and this run sent the graph to the node
     const pw::Node *micFxNode() const;    // processing node with both port sides, if usable
-    const pw::Node *filteredNode() const; // the filtered mic, if micFxNode is usable too
+    const pw::Node *filteredNode() const; // owned rostrum.filtered, whether or not micfx DSP is running
     const pw::Node *appsMic() const;      // the mic apps record: saved mic if present, else the default
     void setMicFxState(MicFxState state, const QString &error = QString());
     void duckTick();

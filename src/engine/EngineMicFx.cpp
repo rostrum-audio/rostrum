@@ -153,9 +153,6 @@ const pw::Node *Engine::micFxNode() const
 
 const pw::Node *Engine::filteredNode() const
 {
-    if (!micFxNode()) {
-        return nullptr;
-    }
     const pw::Node *n = m_pw->graph().nodeByName(QString::fromLatin1(kFilteredNode));
     return n && isOwnedNode(*n) && !m_pendingDestroy.contains(n->id) ? n : nullptr;
 }
