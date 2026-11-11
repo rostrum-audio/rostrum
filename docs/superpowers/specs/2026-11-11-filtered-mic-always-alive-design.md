@@ -85,6 +85,12 @@ Update `docs/audio.md`:
 
 External review agreed with this architecture. Emphasized: (1) exclusive audio paths during transitions, (2) never destroy filtered when cleaning up failed micfx, including after decoupling `filteredNode()` from `micFxNode()`.
 
+Plan review follow-ups (required before / during implementation):
+
+1. **`managed()` must own hardware→filtered** so bypass links are torn down when leaving bypass (`EngineMix.cpp` today only special-cases feeds into mic / sidetone / micfx for non-owned outputs).
+2. **Two-stage async handoff:** do not create the replacement feed until the old managed link has disappeared from the graph; same-pass unlink+create can overlap because PipeWire deletions are asynchronous.
+3. Integration tests: when the same PipeWire daemon stays up, assert identical `object.serial` across toggles (not only node name).
+
 ## Success criteria
 
 1. Toggle mic filters off then on with an OBS (or `pw-record`) capture of `rostrum.filtered`: capture stays linked and audible in both states without restarting the capturer.

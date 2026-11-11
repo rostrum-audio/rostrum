@@ -14,8 +14,10 @@
 
 - Never destroy `rostrum.filtered` while cleaning up a failed or unwanted `micfx` (mix still on).
 - During transitions, hardware→filtered and hardware→micfx→filtered must not both feed filtered at once.
+- **Managed bypass ownership:** `EngineMix`’s `managed()` lambda must treat hardware→`rostrum.filtered` as a Rostrum-managed link (today it only special-cases feeds into mic / sidetone / micfx when the output is not owned). Without that, bypass links are created but never unlinked when filters return → dual feed.
+- **Async exclusive handoff:** PipeWire link deletion is asynchronous. Do not create the replacement feed in the same reconcile pass as the unlink request. Use a two-stage transition: (1) drop the old feed from `wanted` and destroy managed old links; (2) only after the old link is gone from the graph, add the new feed to `wanted` / create it.
 - Do not auto-move OBS; do not change Set Up OBS default device choices; do not fix [#21](https://github.com/rostrum-audio/rostrum/issues/21) in this plan.
-- Prefer same filtered node id/serial across filter toggles (no destroy/recreate when the node already exists).
+- Prefer same filtered node id/serial across filter toggles (no destroy/recreate when the node already exists). When the same PipeWire daemon stays up, integration tests **must** assert identical `object.serial` (not only node name).
 - Work on a dedicated branch for issue #22; frequent small commits; TDD where tests already exist.
 
 ## File map
@@ -86,48 +88,67 @@ EOF
 
 ---
 
-### Task 2: Exclusive mix links — processed vs bypass
+### Task 2: Exclusive mix links — managed bypass + async handoff
 
 **Files:**
-- Modify: `src/engine/EngineMix.cpp` (mic/filter linking ~690–710 and any link-repair for filtered)
-- Modify: `src/engine/EngineMicFx.cpp` `reconcileMicFx` / route gates as needed so “filtered carries sound” is true for bypass
+- Modify: `src/engine/EngineMix.cpp` (mic/filter linking ~690–710; `managed()` ~742–759; link create/destroy loop ~761–788)
+- Modify: `src/engine/Engine.h` / `EngineMicFx.cpp` if a small pending-mode flag is needed for two-stage handoff
+- Modify: `src/engine/EngineMicFx.cpp` route gates only as needed (app moves stay `micFxRunning()`-gated)
 
 **Interfaces:**
-- Consumes: `micFxRunning()`, `micFxNode()`, `filteredNode()`, hardware source node
-- Produces: when mix on + fx running → `hw → micfx → filtered`; when mix on + fx not running → `hw → filtered` only; never both into filtered
+- Consumes: `micFxRunning()`, `micFxNode()`, `filteredNode()`, hardware source node, graph links
+- Produces: when mix on + fx running → `hw → micfx → filtered`; when mix on + fx not running → `hw → filtered` only; never both into filtered; bypass links are destroyed when leaving bypass
 
-- [ ] **Step 1: Inspect current link pairs**
-
-Read `EngineMix.cpp` around the micFx/filtered linking block. Note how unwanted links are dropped today.
-
-- [ ] **Step 2: Implement exclusive feeds**
-
-Pseudo-structure (match local style; do not invent new abstractions unless needed):
+**Critical: `managed()` today** (`EngineMix.cpp` ~742–759):
 
 ```cpp
-const pw::Node *micFx = micFxRunning() ? micFxNode() : nullptr;
-const pw::Node *filtered = filteredNode(); // may exist in bypass
-// If micFx: link hw→micFx and micFx→filtered (and existing mic/sidetone from micFx).
-// Else if filtered && mix on: link hw→filtered (bypass), and ensure no micFx→filtered / stale micFx links remain.
-// Never append both bypass and processed pairs in the same reconcile.
+if (in == mic || in == sidetone || (in == micFxAny && isOwnedNode(*in))) {
+    return true;
+}
+if (!isOwnedNode(*out)) {
+    return false;  // hardware → filtered falls through HERE and is NOT managed
+}
 ```
 
-Transition rule: if switching modes in one pass, omit the old feed from desired links so the existing link reconciler deletes it before/as the new feed is added (same mechanism other Rostrum links use).
+Hardware→`rostrum.filtered` has a non-owned output, so Rostrum would create the bypass link but **never unlink it** when filters turn back on → dual feed / phasing.
 
-- [ ] **Step 3: “Carries sound” for app moves**
+- [ ] **Step 1: Extend `managed()` for bypass**
 
-In `reconcileMicRoutes` (`EngineMicFx.cpp` ~517+), today apps move onto filtered only when `micFxRunning()`. **Keep that** (apps should not be moved onto filtered when filters are off). Bypass is for name-pinned capturers (OBS), not for expanding auto-move.
+Add an explicit case (mirror mic/sidetone/micfx): if `in` is owned `rostrum.filtered`, return true even when `out` is the hardware source. Keep OBS/app→bus exclusions unchanged.
 
-- [ ] **Step 4: Manual or graphtest sanity (optional if integration is next)**
+- [ ] **Step 2: Implement two-stage exclusive handoff (not same-pass swap)**
 
-With a private graphtest session if available: filters on → see micfx in path; filters off → filtered still linked from hw, no micfx.
+PipeWire `destroy` on a link is async. Same-pass “omit old from wanted + create new” can overlap.
+
+Required state machine (names illustrative; match local style):
+
+1. **Desired mode** = processed if `micFxRunning()`, else bypass if mix on && `filteredNode()`, else neither.
+2. If graph still has the **other** mode’s feed into filtered (e.g. switching to processed while `hw→filtered` still exists, or switching to bypass while `micfx→filtered` / `hw→micfx` still exist):
+   - Put only the teardown in this reconcile: old feed **absent** from `wanted`, so `managed` unlinks fire.
+   - Do **not** add the new feed to `wanted` yet.
+   - `scheduleReconcile` (or equivalent) so the next pass runs after the graph updates.
+3. When the old feed’s links are **gone** from `g.links`, then add the new feed to `wanted` and create it.
+
+Optional helper: `bool filteredFedBy(const pw::Graph&, enum Feed { Bypass, Processed })` for the “old still present?” check.
+
+- [ ] **Step 3: Wire desired pairs for the steady states**
+
+```cpp
+// Steady processed: hw→micFx, micFx→filtered (+ mic/sidetone from voice as today).
+// Steady bypass: hw→filtered only; no micFx→filtered; mic/sidetone from hw as today’s filters-off path.
+// Never append both bypass and processed pairs into nodePairs/wanted in one pass.
+```
+
+- [ ] **Step 4: “Carries sound” for app moves**
+
+In `reconcileMicRoutes` (`EngineMicFx.cpp` ~517+), keep moving apps onto filtered only when `micFxRunning()`. Bypass is for name-pinned capturers (OBS), not auto-move.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/engine/EngineMix.cpp src/engine/EngineMicFx.cpp
+git add src/engine/EngineMix.cpp src/engine/Engine.h src/engine/EngineMicFx.cpp
 git commit -m "$(cat <<'EOF'
-Feed rostrum.filtered from hardware when filters are off.
+Manage filtered bypass links and hand off feeds without overlap.
 
 EOF
 )"
@@ -203,12 +224,12 @@ EOF
 
 Script steps:
 
-1. Start private PW + Rostrum with filters on; confirm `rostrum.filtered` id/serial I0.
+1. Start private PW + Rostrum with filters on; record `rostrum.filtered` **object.serial** S0 (and node id).
 2. Start capture/record of `rostrum.filtered` (keep process alive).
-3. Toggle filters off; assert same node id (or at least name still present), capture still receives non-silent audio (bypass).
-4. Toggle filters on; assert same node id; capture still non-silent (processed).
-5. Force filter failure if the harness already has a breaker pattern (`mic-filter-breaker.py`); assert filtered survives and bypass audio returns.
-6. Recover filters if applicable; assert filtered still present.
+3. Toggle filters off; assert **same object.serial S0** (strict, same daemon), capture still non-silent (bypass); assert no `micfx→filtered` link.
+4. Toggle filters on; assert **same object.serial S0**; capture still non-silent (processed); assert no `hw→filtered` bypass link remains.
+5. Force filter failure if the harness already has a breaker pattern (`mic-filter-breaker.py`); assert filtered serial still S0 and bypass audio returns.
+6. Recover filters if applicable; assert serial still S0 and processed path without bypass overlap.
 
 - [ ] **Step 2: Run — expect fail on current main without full Tasks 2–3** (or pass once those land; if already green, keep the test as regression).
 
@@ -269,10 +290,12 @@ gh issue comment 22 --body "Implementation on <branch>: filtered kept with hw by
 ## Definition of done
 
 - [ ] `filteredNode()` works without micfx
+- [ ] `managed()` owns hardware→filtered bypass links (unlink works when leaving bypass)
+- [ ] Transitions are two-stage: old feed gone before new feed created
 - [ ] Mix never dual-feeds filtered
 - [ ] Filters off/fail keep filtered + bypass audio
 - [ ] Filters on restore processed path without recreating filtered when avoidable
 - [ ] Apps still leave filtered when filters turn off
-- [ ] Integration test covers off → on → failed → recovered capture
+- [ ] Integration test covers off → on → failed → recovered capture with **strict same object.serial**
 - [ ] `docs/audio.md` updated
 - [ ] PR open against main referencing #22
