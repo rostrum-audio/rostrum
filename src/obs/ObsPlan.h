@@ -49,8 +49,11 @@ struct Plan
     // incomplete plan has no actions and does not mean OBS is set up.
     QStringList unreadInputs;
     bool streamSettingsUnread = false;
+    // Which scene collection (live: and profile) the state came from. Applying checks OBS is
+    // still on them, and undo is kept for them.
+    bool scopeUnread = false;
 
-    bool incomplete() const { return !unreadInputs.isEmpty() || streamSettingsUnread; }
+    bool incomplete() const { return !unreadInputs.isEmpty() || streamSettingsUnread || scopeUnread; }
     bool isEmpty() const { return actions.isEmpty(); }
     QList<Action> enabledActions() const;
 };
@@ -75,16 +78,32 @@ struct UndoOp
     QString channel; // RemoveGlobal
     quint32 tracks = 0;              // RestoreDevice
     QList<ProfileParameter> profile; // RestoreProfile: the values before, never removed
+    QString configDir;               // the OBS install it was made in
+    // The scene collection it was made in, or for RestoreProfile the profile. Empty for an op
+    // from Rostrum 0.2.0, which did not record it.
+    QString scope;
 };
 
+// Where undo runs: an install, and OBS's current scene collection and profile. Offline the
+// profile is empty, and profile values wait for a live undo.
+struct UndoScope
+{
+    QString configDir, collection, profile;
+};
+
+// Every change Set Up OBS made and has not undone, oldest first.
 struct Undo
 {
-    QString configDir;
     QList<UndoOp> ops;
 
     bool isEmpty() const { return ops.isEmpty(); }
-    QJsonObject toJson() const;
-    static Undo fromJson(const QJsonObject &json);
+    // The ops undo may put back in `scope`, as indices, oldest first. Ops from Rostrum 0.2.0
+    // carry no scope: their inputs are put back only if every one of them exists in `now`.
+    QList<qsizetype> runnable(const UndoScope &scope, const State &now) const;
+    Undo only(const QList<qsizetype> &indices) const;
+    Undo without(const QList<qsizetype> &indices) const;
+    QJsonObject toJson() const;                    // format 2
+    static Undo fromJson(const QJsonObject &json); // format 1 too
 };
 
 // The undo op for one action, given the state before it ran.

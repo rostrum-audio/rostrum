@@ -161,8 +161,10 @@ private:
     void rebuildRecordings();
     void finish(bool ok, const QString &message);
     obs::Undo loadUndo() const;
-    void saveUndo(const obs::Undo &undo) const;
+    void saveUndo(const obs::Undo &undo) const; // an empty record removes the file
     void appendUndo(const QList<obs::UndoOp> &ops);
+    // The install, scene collection and (live) profile the shown state came from.
+    obs::UndoScope undoScope() const;
     QList<obs::GoLiveProblem> currentProblems() const;
     void checkGoLive();
     void refreshWarnings();

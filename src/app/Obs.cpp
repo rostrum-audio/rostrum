@@ -505,8 +505,22 @@ bool Obs::canUndo() const
     if (m_busy || !m_install) {
         return false;
     }
-    const obs::Undo u = loadUndo();
-    return !u.isEmpty() && u.configDir == m_install->configDir;
+    return !loadUndo().runnable(undoScope(), m_state).isEmpty();
+}
+
+obs::UndoScope Obs::undoScope() const
+{
+    obs::UndoScope scope;
+    if (!m_install || !m_haveState) {
+        return scope;
+    }
+    scope.configDir = m_install->configDir;
+    const bool live = m_havePlan && m_plan.mode == obs::Mode::Live;
+    if (m_state.collectionKnown && (!live || m_state.profileKnown)) {
+        scope.collection = m_state.collection;
+        scope.profile = live ? m_state.profile : QString();
+    }
+    return scope;
 }
 
 QVariantList Obs::planItems() const
@@ -751,6 +765,11 @@ void Obs::apply()
         finish(false, i18n("Couldn't read OBS's scene collection: %1", error));
         return;
     }
+    if (obs::stateFromCollection(doc).collection != before.collection) {
+        finish(false, i18n("OBS's scene collection changed. Check what Set Up OBS will do again."));
+        loadOffline(true);
+        return;
+    }
     const QString backup = path + QLatin1String(".rostrum-") +
                            QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss")) + QLatin1String(".bak");
     if (!QFile::copy(path, backup)) {
@@ -776,16 +795,35 @@ void Obs::undo()
     if (m_busy || !canUndo()) {
         return;
     }
-    const obs::Undo u = loadUndo();
+    // Only what was changed in this install, scene collection and profile. The rest stays
+    // recorded, for when OBS is back on them.
+    const obs::Undo all = loadUndo();
     if (m_stateName == QLatin1String("connected")) {
+        const obs::UndoScope scope = undoScope();
+        const QList<qsizetype> picked = all.runnable(scope, m_state);
         m_busy = true;
         Q_EMIT changed();
-        obs::applyUndo(&m_client, u, [this](int failed, const QString &error) {
-            QFile::remove(undoFile());
+        obs::applyUndo(&m_client, all.only(picked), scope, [this, all, picked](const obs::UndoResult &r) {
+            QList<qsizetype> settled;
+            for (const qsizetype n : r.settled) {
+                settled << picked.at(n);
+            }
+            const obs::Undo rest = all.without(settled);
+            saveUndo(rest);
             m_busy = false;
-            finish(failed == 0, failed == 0 ? i18n("OBS is back the way it was.")
-                                            : i18np("OBS is mostly back. One change couldn't be undone: %2",
-                                                    "OBS is mostly back. %1 changes couldn't be undone: %2", failed, error));
+            if (!r.stopped.isEmpty()) {
+                finish(false, i18n("Undo stopped: %1 What's left can still be undone.", r.stopped));
+            } else if (r.failed > 0) {
+                finish(false,
+                       i18np("OBS is mostly back. One change couldn't be undone: %2",
+                             "OBS is mostly back. %1 changes couldn't be undone: %2", r.failed, r.lastError));
+            } else if (!rest.isEmpty()) {
+                finish(true,
+                       i18n("OBS is back the way it was here. Changes made in another scene collection or "
+                            "profile can be undone there."));
+            } else {
+                finish(true, i18n("OBS is back the way it was."));
+            }
             fetchLive();
         });
         return;
@@ -797,12 +835,30 @@ void Obs::undo()
     const QString path = obs::sceneCollectionFile(m_install->configDir);
     QString error;
     const QJsonObject doc = readJson(path, &error);
-    if (doc.isEmpty() || !writeJson(path, obs::undoInCollection(doc, u), &error)) {
+    if (doc.isEmpty()) {
         finish(false, i18n("Couldn't change OBS's scene collection: %1", error));
         return;
     }
-    QFile::remove(undoFile());
-    finish(true, i18n("OBS is back the way it was."));
+    // The collection OBS opens next, which may not be the one shown.
+    const obs::State now = obs::stateFromCollection(doc);
+    const QList<qsizetype> picked = all.runnable(
+        {m_install->configDir, now.collectionKnown ? now.collection : QString(), QString()}, now);
+    if (picked.isEmpty()) {
+        finish(false,
+               i18n("Nothing Rostrum changed in this scene collection can be undone with OBS closed."));
+        loadOffline(true);
+        return;
+    }
+    if (!writeJson(path, obs::undoInCollection(doc, all.only(picked)), &error)) {
+        finish(false, i18n("Couldn't change OBS's scene collection: %1", error));
+        return;
+    }
+    const obs::Undo rest = all.without(picked);
+    saveUndo(rest);
+    finish(true, rest.isEmpty()
+                     ? i18n("OBS is back the way it was.")
+                     : i18n("OBS's scene collection is back the way it was. Other changes can be undone "
+                            "with OBS running, or in their own scene collection."));
     loadOffline(true);
 }
 
@@ -823,6 +879,10 @@ obs::Undo Obs::loadUndo() const
 
 void Obs::saveUndo(const obs::Undo &undo) const
 {
+    if (undo.isEmpty()) {
+        QFile::remove(undoFile());
+        return;
+    }
     QDir().mkpath(paths::stateDir());
     QString error;
     if (!writeJson(undoFile(), undo.toJson(), &error)) {
@@ -835,12 +895,13 @@ void Obs::appendUndo(const QList<obs::UndoOp> &ops)
     if (ops.isEmpty() || !m_install) {
         return;
     }
+    // Kept per install and scene collection (profile values: per profile), so changes made in
+    // one are never undone in another.
     obs::Undo u = loadUndo();
-    if (u.configDir != m_install->configDir) {
-        u = {};
-        u.configDir = m_install->configDir;
+    for (obs::UndoOp op : ops) {
+        op.configDir = m_install->configDir;
+        u.ops << op;
     }
-    u.ops += ops;
     saveUndo(u);
 }
 

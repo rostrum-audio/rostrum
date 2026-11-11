@@ -86,6 +86,8 @@ QString globalKey(const QString &channel)
 State stateFromCollection(const QJsonObject &doc)
 {
     State state;
+    state.collection = doc.value(QLatin1String("name")).toString();
+    state.collectionKnown = !state.collection.isEmpty();
     for (const QString &ch : kChannels) {
         const QJsonObject o = doc.value(globalKey(ch)).toObject();
         if (!o.isEmpty()) {

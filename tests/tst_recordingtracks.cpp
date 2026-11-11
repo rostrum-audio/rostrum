@@ -44,6 +44,9 @@ class TestRecordingTracks : public QObject
         s.known = true;
         s.state.scenes = {QStringLiteral("Game"), QStringLiteral("BRB")};
         s.state.streamServiceKnown = true; // not streaming to Twitch
+        s.state.collection = s.collection; // as fetchState reads them
+        s.state.profile = s.profile;
+        s.state.collectionKnown = s.state.profileKnown = true;
         for (const auto &name : s.state.scenes)
             s.sceneItems.insert(name, {});
         Input mic;

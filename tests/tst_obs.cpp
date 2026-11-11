@@ -51,11 +51,15 @@ Facts facts()
     return f;
 }
 
-// What a complete live read adds to a scene collection's state: the streaming settings, here
-// not Twitch. The inputs keep the known flags stateFromCollection gave them.
+// What a complete live read adds to a scene collection's state: the profile and the streaming
+// settings, here not Twitch. The inputs keep the known flags stateFromCollection gave them.
 State liveRead(State s)
 {
-    s.streamServiceKnown = s.vodKnown = true;
+    if (s.collection.isEmpty()) {
+        s.collection = QStringLiteral("Test");
+    }
+    s.profile = QStringLiteral("Test profile");
+    s.collectionKnown = s.profileKnown = s.streamServiceKnown = s.vodKnown = true;
     return s;
 }
 
@@ -143,6 +147,7 @@ public:
     QMap<QString, QStringList> scenes;
     QHash<QString, QString> special;
     QStringList ignored, requests;
+    std::function<void(const QString &type)> onRequest; // before the request is handled
     bool nested = false;
     QStringList refuse; // request types to fail
     bool streaming = false;
@@ -202,6 +207,8 @@ private:
         }
         const QString type = d.value(QLatin1String("requestType")).toString();
         requests << type;
+        if (onRequest)
+            onRequest(type);
         if (ignored.contains(type))
             return;
         const QJsonObject rd = d.value(QLatin1String("requestData")).toObject();
@@ -801,6 +808,8 @@ private Q_SLOTS:
     void unreadStreamSettingsBlockLivePlans()
     {
         State s = stateFromCollection(fixture());
+        s.profile = QStringLiteral("Test profile"); // read; only the streaming settings were not
+        s.profileKnown = true;
         const Plan unread = makePlan(s, facts(), Mode::Live);
         QVERIFY(unread.streamSettingsUnread);
         QVERIFY(unread.unreadInputs.isEmpty());
@@ -937,11 +946,15 @@ private Q_SLOTS:
         QTRY_VERIFY(refetched);
 
         bool undone = false;
-        applyUndo(&client, undo, [&](int failed, const QString &) {
-            QCOMPARE(failed, 0);
+        UndoResult result;
+        applyUndo(&client, undo, {QString(), obs.collection, obs.profile}, [&](const UndoResult &r) {
+            result = r;
             undone = true;
         });
         QTRY_VERIFY(undone);
+        QCOMPARE(result.failed, 0);
+        QVERIFY(result.stopped.isEmpty());
+        QCOMPARE(result.settled.size(), undo.ops.size());
         QCOMPARE(obs.inputs[QStringLiteral("Mic/Aux")].settings.value(QLatin1String("device_id")).toString(), kHwMic);
         QVERIFY(!obs.inputs.contains(QStringLiteral("Rostrum Stream Mix")));
         QVERIFY(!obs.inputs.contains(QStringLiteral("Rostrum VOD Mix")));
@@ -1763,13 +1776,14 @@ private Q_SLOTS:
         undo.ops = applied;
         undo = Undo::fromJson(undo.toJson());
         done = false;
-        int refused = -1;
-        applyUndo(&client, undo, [&](int failed, const QString &) {
-            refused = failed;
+        UndoResult result;
+        applyUndo(&client, undo, {QString(), obs.collection, obs.profile}, [&](const UndoResult &r) {
+            result = r;
             done = true;
         });
         QTRY_VERIFY(done);
-        QCOMPARE(refused, 0);
+        QCOMPARE(result.failed, 0);
+        QVERIFY(result.stopped.isEmpty());
         QCOMPARE(obs.profileWrites, undoWrites);
         QCOMPARE(twitchVod(fetched(client).vod), TwitchVod::Off);
     }
@@ -1800,6 +1814,205 @@ private Q_SLOTS:
                  (QList<ProfileParameter>{
                      {QStringLiteral("AdvOut"), QStringLiteral("VodTrackIndex"), QStringLiteral("3")}}));
         QCOMPARE(Undo::fromJson(undo.toJson()).ops.first().profile, undo.ops.first().profile);
+    }
+
+    void undoRunsOnlyWhereItWasMade()
+    {
+        const auto op = [](UndoOp::Type type, const QString &input, const QString &dir,
+                           const QString &scope) {
+            UndoOp o;
+            o.type = type;
+            o.input = input;
+            o.configDir = dir;
+            o.scope = scope;
+            if (type == UndoOp::Type::RestoreProfile) {
+                o.profile = {
+                    {QStringLiteral("AdvOut"), QStringLiteral("VodTrackEnabled"), QStringLiteral("false")}};
+            }
+            return o;
+        };
+        const QString dir = QStringLiteral("/obs"), flatpak = QStringLiteral("/flatpak/obs");
+        Undo undo;
+        undo.ops << op(UndoOp::Type::RestoreMute, QStringLiteral("Game Audio"), dir,
+                       QStringLiteral("Main")) // 0
+                 << op(UndoOp::Type::RemoveInput, QStringLiteral("Rostrum VOD Mix"), dir,
+                       QStringLiteral("Other")) // 1
+                 << op(UndoOp::Type::RestoreProfile, QStringLiteral("Twitch VOD Track"), dir,
+                       QStringLiteral("Live")) // 2
+                 << op(UndoOp::Type::RestoreMute, QStringLiteral("Game Audio"), flatpak,
+                       QStringLiteral("Main")); // 3
+        State now = stateFromCollection(fixture());
+        QCOMPARE(undo.runnable({dir, QStringLiteral("Main"), QStringLiteral("Live")}, now),
+                 (QList<qsizetype>{0, 2}));
+        QCOMPARE(undo.runnable({dir, QStringLiteral("Main"), QStringLiteral("Practice")}, now),
+                 (QList<qsizetype>{0}));
+        QCOMPARE(undo.runnable({dir, QStringLiteral("Other"), QStringLiteral("Live")}, now),
+                 (QList<qsizetype>{1, 2}));
+        // Offline: profile values wait for OBS to run.
+        QCOMPARE(undo.runnable({dir, QStringLiteral("Main"), QString()}, now), (QList<qsizetype>{0}));
+        QCOMPARE(undo.runnable({flatpak, QStringLiteral("Main"), QString()}, now), (QList<qsizetype>{3}));
+        // An unread collection runs nothing.
+        QVERIFY(undo.runnable({dir, QString(), QString()}, now).isEmpty());
+        QCOMPARE(undo.without({0, 2}).ops.size(), 2);
+        QCOMPARE(undo.only({1}).ops.first().scope, QStringLiteral("Other"));
+
+        // The record keeps install and scope; format 1 had one install and no scope.
+        const Undo back = Undo::fromJson(undo.toJson());
+        QCOMPARE(back.ops.size(), 4);
+        for (qsizetype n = 0; n < 4; ++n) {
+            QCOMPARE(back.ops.at(n).configDir, undo.ops.at(n).configDir);
+            QCOMPARE(back.ops.at(n).scope, undo.ops.at(n).scope);
+        }
+        QJsonObject v1{{QStringLiteral("format"), 1},
+                       {QStringLiteral("configDir"), dir},
+                       {QStringLiteral("ops"),
+                        QJsonArray{QJsonObject{{QStringLiteral("type"), QStringLiteral("mute")},
+                                               {QStringLiteral("input"), QStringLiteral("Game Audio")},
+                                               {QStringLiteral("muted"), false}},
+                                   QJsonObject{{QStringLiteral("type"), QStringLiteral("remove")},
+                                               {QStringLiteral("input"), QStringLiteral("Rostrum Mic")}}}}};
+        const Undo legacy = Undo::fromJson(v1);
+        QCOMPARE(legacy.ops.size(), 2);
+        QCOMPARE(legacy.ops.first().configDir, dir);
+        QVERIFY(legacy.ops.first().scope.isEmpty());
+        // Its inputs are put back only in a collection that has every one of them.
+        QVERIFY(legacy.runnable({dir, QStringLiteral("Test"), QString()}, now).isEmpty());
+        now.inputs << readInput(QStringLiteral("Rostrum Mic"), kPulseInput, QString::fromLatin1(kMicDevice));
+        QCOMPARE(legacy.runnable({dir, QStringLiteral("Test"), QString()}, now), (QList<qsizetype>{0, 1}));
+        QVERIFY(legacy.runnable({flatpak, QStringLiteral("Test"), QString()}, now).isEmpty());
+        QVERIFY(Undo::fromJson(
+                    {{QStringLiteral("format"), 3}, {QStringLiteral("ops"), v1.value(QLatin1String("ops"))}})
+                    .isEmpty());
+    }
+
+    void liveReadKnowsItsScope()
+    {
+        FakeObs obs(QStringLiteral("pw"));
+        populate(obs);
+        Client client;
+        QVERIFY(connectClient(client, obs.port(), QStringLiteral("pw")));
+        State s = fetched(client);
+        QVERIFY(s.collectionKnown && s.profileKnown);
+        QCOMPARE(s.collection, obs.collection);
+        QCOMPARE(s.profile, obs.profile);
+        QVERIFY(!makePlan(s, facts(), Mode::Live).incomplete());
+
+        // A switch while reading: the inputs may be either collection's.
+        int lists = 0;
+        obs.onRequest = [&](const QString &type) {
+            if (type == QLatin1String("GetSceneCollectionList") && ++lists == 2) {
+                obs.collection = QStringLiteral("Switched");
+            }
+        };
+        s = fetched(client);
+        QVERIFY(!s.collectionKnown);
+        QVERIFY(makePlan(s, facts(), Mode::Live).scopeUnread);
+        QVERIFY(makePlan(s, facts(), Mode::Live).isEmpty());
+        obs.onRequest = {};
+        obs.refuse = {QStringLiteral("GetProfileList")};
+        s = fetched(client);
+        QVERIFY(s.collectionKnown && !s.profileKnown);
+        QVERIFY(makePlan(s, facts(), Mode::Live).incomplete());
+        // Offline needs only the collection, which its file names.
+        s = stateFromCollection(fixture());
+        QVERIFY(s.collectionKnown && !s.profileKnown);
+        QCOMPARE(s.collection, QStringLiteral("Test"));
+        QVERIFY(!makePlan(s, facts(), Mode::Offline).incomplete());
+    }
+
+    void applyAndUndoStopWhenObsSwitched()
+    {
+        FakeObs obs(QStringLiteral("pw"));
+        populate(obs);
+        Client client;
+        QVERIFY(connectClient(client, obs.port(), QStringLiteral("pw")));
+        const State before = fetched(client);
+        const Plan plan = makePlan(before, facts(), Mode::Live);
+        QVERIFY(!plan.isEmpty());
+        const auto writes = [&] {
+            return std::count_if(obs.requests.cbegin(), obs.requests.cend(),
+                                 [](const QString &r) { return !r.startsWith(QLatin1String("Get")); });
+        };
+        for (const bool profile : {false, true}) {
+            (profile ? obs.profile : obs.collection) = QStringLiteral("Switched");
+            obs.requests.clear();
+            bool done = false;
+            QString error;
+            QList<UndoOp> ops{UndoOp{}};
+            applyPlan(&client, plan.enabledActions(), before,
+                      [&](const QList<UndoOp> &applied, const QString &e) {
+                          ops = applied;
+                          error = e;
+                          done = true;
+                      });
+            QTRY_VERIFY(done);
+            QVERIFY(error.contains(QLatin1String("switched")));
+            QVERIFY(ops.isEmpty());
+            QCOMPARE(writes(), 0);
+
+            Undo undo;
+            undo.ops << undoFor(plan.enabledActions().first(), before);
+            done = false;
+            UndoResult result;
+            applyUndo(&client, undo, {QString(), before.collection, before.profile},
+                      [&](const UndoResult &r) {
+                          result = r;
+                          done = true;
+                      });
+            QTRY_VERIFY(done);
+            QVERIFY(result.stopped.contains(QLatin1String("switched")));
+            QVERIFY(result.settled.isEmpty());
+            QCOMPARE(writes(), 0);
+            obs.collection = QStringLiteral("Test collection");
+            obs.profile = QStringLiteral("Test profile");
+        }
+    }
+
+    void undoKeepsWhatItDidNotTry()
+    {
+        FakeObs obs(QStringLiteral("pw"));
+        populate(obs);
+        Client client;
+        QVERIFY(connectClient(client, obs.port(), QStringLiteral("pw")));
+        Undo undo;
+        UndoOp unmute; // oldest: tried last
+        unmute.type = UndoOp::Type::RestoreMute;
+        unmute.input = QStringLiteral("Game Audio");
+        UndoOp remove;
+        remove.type = UndoOp::Type::RemoveInput;
+        remove.input = QStringLiteral("Discord Audio");
+        undo.ops << unmute << remove;
+        const UndoScope scope{QString(), obs.collection, obs.profile};
+
+        // A refusal while OBS is there is reported and done with.
+        obs.refuse = {QStringLiteral("RemoveInput")};
+        bool done = false;
+        UndoResult result;
+        applyUndo(&client, undo, scope, [&](const UndoResult &r) {
+            result = r;
+            done = true;
+        });
+        QTRY_VERIFY(done);
+        QVERIFY(result.stopped.isEmpty());
+        QCOMPARE(result.failed, 1);
+        QCOMPARE(result.settled, (QList<qsizetype>{0, 1}));
+
+        // OBS going away part way: the op it was on and the ones after stay.
+        obs.refuse.clear();
+        obs.ignored = {QStringLiteral("RemoveInput")};
+        obs.requests.clear();
+        done = false;
+        applyUndo(&client, undo, scope, [&](const UndoResult &r) {
+            result = r;
+            done = true;
+        });
+        QTRY_VERIFY(obs.requests.contains(QStringLiteral("RemoveInput")));
+        obs.dropClients();
+        QTRY_VERIFY(done);
+        QVERIFY(!result.stopped.isEmpty());
+        QVERIFY(result.settled.isEmpty());
+        QCOMPARE(result.failed, 0);
+        QVERIFY(obs.inputs.contains(QStringLiteral("Discord Audio")));
     }
 };
 

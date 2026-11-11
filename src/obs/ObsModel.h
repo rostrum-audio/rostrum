@@ -77,6 +77,10 @@ QList<ProfileParameter> twitchVodWrites(const VodTrackSettings &s);
 
 struct State
 {
+    // OBS's current scene collection and profile, by display name: live from obs-websocket,
+    // offline the collection file's "name" (the profile is not needed then).
+    QString collection, profile;
+    bool collectionKnown = false, profileKnown = false;
     QList<Input> inputs;
     QStringList scenes; // top-level scenes
     bool scopeKnown = false;
