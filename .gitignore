@@ -5,3 +5,5 @@ compile_commands.json
 .cursor/
 *.wav
 __pycache__/
+
+.worktrees/
