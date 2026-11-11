@@ -13,6 +13,7 @@ namespace rostrum::engine {
 namespace {
 constexpr qint64 kLinkRetryMs = 3000;
 constexpr qint64 kVolumeResendMs = 1000;
+constexpr int kFeedHandoffBackstopMs = 250;
 constexpr double kMicMaxGain = 1.5;
 } // namespace
 
@@ -717,7 +718,13 @@ void Engine::reconcileLinks()
         if (fxOwned && l.inNode == micFxAny->id) {
             processedPresent = true; // hw -> micfx
         } else if (filteredOwned && l.inNode == filteredAny->id) {
-            (fxOwned && l.outNode == micFxAny->id ? processedPresent : bypassPresent) = true;
+            if (fxOwned && l.outNode == micFxAny->id) {
+                processedPresent = true;
+            } else if (const pw::Node *out = g.node(l.outNode); out && out->isSource() && !out->isRostrum()) {
+                // Only the hardware-mic link counts: it is the one managed() removes. A stray
+                // link patched in by the user is never destroyed and must not block the handoff.
+                bypassPresent = true;
+            }
         }
     }
     const bool addProcessed = desired == Feed::Processed && !bypassPresent;
@@ -733,7 +740,7 @@ void Engine::reconcileLinks()
     if (handoffWait && !m_feedHandoffWait) {
         // Link removal normally raises graphChanged; this only covers a destroy that never lands.
         m_feedHandoffWait = true;
-        QTimer::singleShot(250, this, [this] {
+        QTimer::singleShot(kFeedHandoffBackstopMs, this, [this] {
             m_feedHandoffWait = false;
             scheduleReconcile();
         });
