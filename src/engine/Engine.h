@@ -423,6 +423,7 @@ protected:
     void forgetNode(uint32_t id);
     void checkNodeSerial(const pw::Node &n);
     void metadataReset();
+    void connectionChanged();
     QHash<uint32_t, QString> m_nodeSerial;
 
     pw::PwContext *m_pw = nullptr;

@@ -27,6 +27,7 @@ Engine::Engine(pw::PwContext *pw, QObject *parent)
     , m_scene(defaults::scene())
 {
     connect(m_pw, &pw::PwContext::graphChanged, this, &Engine::scheduleReconcile);
+    connect(m_pw, &pw::PwContext::stateChanged, this, &Engine::connectionChanged);
     connect(m_pw, &pw::PwContext::stateChanged, this, &Engine::scheduleReconcile);
     connect(m_pw, &pw::PwContext::stateChanged, this, &Engine::micFxConnectionChanged);
     // Nodes and links reuse registry IDs. Clear at removal, not in a later reconciliation where
@@ -232,6 +233,27 @@ void Engine::forgetNode(uint32_t id)
     m_micRecognised.remove(id);
     m_micFirstSeen.remove(id);
     m_nodeSerial.remove(id);
+}
+
+void Engine::connectionChanged()
+{
+    if (m_pw->state() == pw::PwContext::State::Ready) {
+        return;
+    }
+    // A new connection sees a new registry, and a restarted PipeWire numbers every object afresh,
+    // serials included, so a reused ID can even keep its old serial. Nothing remembered by ID, or
+    // as already sent, still describes the graph: a stale entry would skip routing a new stream,
+    // re-sending a bus level or managing a node whose ID was pending removal. Where streams were
+    // before Rostrum moved them went with the old daemon. Placements by app key are kept.
+    m_routed.clear();
+    m_appliedStreamVolume.clear();
+    m_appliedStreamMute.clear();
+    m_recognised.clear();
+    m_sentVolume.clear();
+    m_nodeSerial.clear();
+    m_pendingDestroy.clear();
+    m_pendingCreate.clear();
+    m_pendingLinks.clear();
 }
 
 void Engine::metadataReset()
