@@ -76,10 +76,14 @@ Update `docs/audio.md`:
 
 ## Risks
 
-- **Double path:** bypass and `micfx` must not both feed filtered at once during transitions.
+- **Double path:** bypass and `micfx` must not both feed filtered at once during transitions (doubled level / phasing). Tear down one feed before enabling the other; never leave both linked.
 - **Release hold:** apps still on filtered when filters turn off must still be moved before tearing down `micfx`; filtered itself stays.
-- **Failed filters:** bypass must still keep filtered alive so OBS does not break when filters fail mid-session.
+- **Failed filters / cleanup:** bypass must keep filtered alive when filters fail mid-session. Cleanup that removes a failed `micfx` must **never** destroy `rostrum.filtered`. Today `filteredNode()` returns null unless `micFxNode()` is usable — that coupling must be broken so callers can see filtered in bypass mode without implying DSP is running.
 - **Docs/product copy:** “Filtered Mic” while filters are off is unfiltered unity audio; that matches the node’s role for apps at unity, but UI strings should not imply processing is active.
+
+## Review notes (2026-11-11)
+
+External review agreed with this architecture. Emphasized: (1) exclusive audio paths during transitions, (2) never destroy filtered when cleaning up failed micfx, including after decoupling `filteredNode()` from `micFxNode()`.
 
 ## Success criteria
 
