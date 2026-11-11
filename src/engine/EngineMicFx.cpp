@@ -229,11 +229,14 @@ void Engine::reconcileMicFx()
 
     if (!micFxWanted()) {
         // Nodes left by an earlier run stay while the mix is off: nothing else is linked either.
-        // Apps still on the filtered mic are pointed back at the mic first (reconcileMicRoutes,
-        // later in this pass); the nodes go once they have moved, or after kFxReleaseMs.
+        // With the mix on, rostrum.filtered always stays (it carries the raw mic when filters are
+        // off, failed or unavailable) and only rostrum.micfx goes. Apps still on the filtered mic
+        // are pointed back at the mic first (reconcileMicRoutes, later in this pass); micfx goes
+        // once they have moved, or after kFxReleaseMs. reconcileLinks keeps the processed path
+        // linked for exactly that long (micFxReleaseHeld), then hands filtered over to the mic.
         const auto filterNodes = std::as_const(fxNodes) + filteredNodes;
         bool holding = false;
-        if (m_mixEnabled && !filterNodes.isEmpty() && micStreamsOnFilter(filterNodes)) {
+        if (m_mixEnabled && !fxNodes.isEmpty() && micStreamsOnFilter(filterNodes)) {
             if (!m_fxReleaseClock.isValid()) {
                 m_fxReleaseClock.start();
                 QTimer::singleShot(kFxReleaseMs + 100, this, &Engine::scheduleReconcile);
@@ -244,15 +247,32 @@ void Engine::reconcileMicFx()
             }
         }
         if (m_mixEnabled && !holding) {
-            for (const pw::Node *n : filterNodes) {
+            for (const pw::Node *n : std::as_const(fxNodes)) {
                 qCInfo(lcEngine) << "removing" << n->name;
                 destroyOnce(n->id);
             }
             m_fxReleaseClock.invalidate();
             m_micReleased.clear();
+            if (filteredNodes.isEmpty()) {
+                const auto it = m_pendingCreate.find(filteredName);
+                if (it == m_pendingCreate.end() || it->elapsed() >= kFxCreateRetryMs) {
+                    qCInfo(lcEngine) << "creating" << filteredName;
+                    m_pw->createNullNode(filteredMicSpec().properties());
+                    QElapsedTimer t;
+                    t.start();
+                    m_pendingCreate.insert(filteredName, t);
+                }
+            } else {
+                for (qsizetype i = 1; i < filteredNodes.size(); ++i) {
+                    qCInfo(lcEngine) << "removing duplicate" << filteredName << filteredNodes.at(i)->id;
+                    destroyOnce(filteredNodes.at(i)->id);
+                }
+            }
         }
         m_pendingCreate.remove(fxName);
-        m_pendingCreate.remove(filteredName);
+        if (!filteredNodes.isEmpty()) {
+            m_pendingCreate.remove(filteredName);
+        }
         m_fxConfigured = 0;
         m_fxGraphNode = 0;
         m_fxBuildClock.invalidate();
