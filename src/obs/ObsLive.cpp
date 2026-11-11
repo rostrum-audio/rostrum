@@ -2,7 +2,7 @@
 
 #include <QJsonArray>
 #include <QPointer>
-
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -188,7 +188,21 @@ void fetchState(Client *client, std::function<void(const State &, const QString 
                         f->state.inputs << in;
                     }
                 }
-                f->pending = int(f->state.inputs.size()) * 3 + 2;
+                struct VodKey
+                {
+                    const char *category, *name;
+                    QString VodTrackSettings::*value;
+                };
+                static const VodKey vodKeys[] = {
+                    {"Output", "Mode", &VodTrackSettings::outputMode},
+                    {"AdvOut", "VodTrackEnabled", &VodTrackSettings::advEnabled},
+                    {"AdvOut", "VodTrackIndex", &VodTrackSettings::advTrack},
+                    {"AdvOut", "TrackIndex", &VodTrackSettings::advStreamTrack},
+                    {"SimpleOutput", "VodTrackEnabled", &VodTrackSettings::simpleEnabled},
+                    {"SimpleOutput", "UseAdvanced", &VodTrackSettings::simpleAdvanced},
+                };
+                const int vodCount = int(std::size(vodKeys));
+                f->pending = int(f->state.inputs.size()) * 3 + 1 + vodCount;
                 c->request(QStringLiteral("GetStreamServiceSettings"), {}, [=](bool ok, const QJsonObject &d, const QString &err) {
                     if (stopped(err)) {
                         return;
@@ -202,21 +216,30 @@ void fetchState(Client *client, std::function<void(const State &, const QString 
                     }
                     finishOne();
                 });
-                c->request(QStringLiteral("GetProfileParameter"),
-                           {{QStringLiteral("parameterCategory"), QStringLiteral("AdvOut")},
-                            {QStringLiteral("parameterName"), QStringLiteral("VodTrackIndex")}},
-                           [=](bool ok, const QJsonObject &d, const QString &err) {
-                    if (stopped(err)) {
-                        return;
-                    }
-                    // obs-websocket answers null for a parameter the profile has never set.
-                    const QJsonValue value = d.value(QLatin1String("parameterValue"));
-                    if (ok && (value.isString() || value.isNull())) {
-                        f->state.twitchVodTrackKnown = true;
-                        f->state.twitchVodTrack = value.toString().toInt();
-                    }
-                    finishOne();
-                });
+                // The settings OBS reads for a Twitch VOD track. Known only once every one is.
+                auto vodRead = std::make_shared<int>(0);
+                for (const VodKey &k : vodKeys) {
+                    c->request(QStringLiteral("GetProfileParameter"),
+                               {{QStringLiteral("parameterCategory"), QLatin1String(k.category)},
+                                {QStringLiteral("parameterName"), QLatin1String(k.name)}},
+                               [=](bool ok, const QJsonObject &d, const QString &err) {
+                                   if (stopped(err)) {
+                                       return;
+                                   }
+                                   // obs-websocket answers OBS's default for a parameter the profile never
+                                   // set, and null when there is none either.
+                                   QJsonValue value = d.value(QLatin1String("parameterValue"));
+                                   if (value.isNull() &&
+                                       d.value(QLatin1String("defaultParameterValue")).isString()) {
+                                       value = d.value(QLatin1String("defaultParameterValue"));
+                                   }
+                                   if (ok && (value.isString() || value.isNull())) {
+                                       f->state.vod.*(k.value) = value.toString();
+                                       f->state.vodKnown = ++*vodRead == vodCount;
+                                   }
+                                   finishOne();
+                               });
+                }
                 for (qsizetype n = 0; n < f->state.inputs.size(); ++n) {
                     const QJsonObject who{{QStringLiteral("inputName"), f->state.inputs.at(n).name}};
                     c->request(QStringLiteral("GetInputSettings"), who, [=](bool ok, const QJsonObject &d, const QString &err) {
@@ -384,19 +407,18 @@ void applyPlan(Client *client, const QList<Action> &actions, const State &before
         case Action::Type::CreateGlobal:
             break;
         case Action::Type::SetTwitchVodTrack: {
-            for (const QString &cat : {QStringLiteral("AdvOut"), QStringLiteral("SimpleOutput")}) {
-                QJsonObject d1{
-                    {QStringLiteral("parameterCategory"), cat},
-                    {QStringLiteral("parameterName"), QStringLiteral("VodTrackIndex")},
-                    {QStringLiteral("parameterValue"), QString::number(a.tracks ? a.tracks : 2)},
-                };
-                run->steps << Step{QStringLiteral("SetProfileParameter"), d1, undoFor(a, before), true};
-                QJsonObject d2{
-                    {QStringLiteral("parameterCategory"), cat},
-                    {QStringLiteral("parameterName"), QStringLiteral("TwitchVodTrack")},
-                    {QStringLiteral("parameterValue"), QStringLiteral("true")},
-                };
-                run->steps << Step{QStringLiteral("SetProfileParameter"), d2, std::nullopt, true};
+            // One step per value, each undoing only itself, so a refusal part way still undoes
+            // what was written.
+            const UndoOp all = undoFor(a, before);
+            for (qsizetype n = 0; n < a.profile.size(); ++n) {
+                const ProfileParameter &p = a.profile.at(n);
+                UndoOp one = all;
+                one.profile = {all.profile.at(n)};
+                run->steps << Step{QStringLiteral("SetProfileParameter"),
+                                   {{QStringLiteral("parameterCategory"), p.category},
+                                    {QStringLiteral("parameterName"), p.name},
+                                    {QStringLiteral("parameterValue"), p.value}},
+                                   one};
             }
             break;
         }
@@ -431,25 +453,16 @@ void applyUndo(Client *client, const Undo &undo, std::function<void(int, const Q
         case UndoOp::Type::RemoveGlobal:
             run->steps << Step{QStringLiteral("RemoveInput"), d, std::nullopt, true};
             break;
-        case UndoOp::Type::RestoreTwitchVodTrack: {
-            const QString val = it->tracks > 0 ? QString::number(it->tracks) : QStringLiteral("0");
-            const QString enabled = it->tracks > 0 ? QStringLiteral("true") : QStringLiteral("false");
-            for (const QString &cat : {QStringLiteral("AdvOut"), QStringLiteral("SimpleOutput")}) {
-                QJsonObject d1{
-                    {QStringLiteral("parameterCategory"), cat},
-                    {QStringLiteral("parameterName"), QStringLiteral("VodTrackIndex")},
-                    {QStringLiteral("parameterValue"), val},
-                };
-                run->steps << Step{QStringLiteral("SetProfileParameter"), d1, std::nullopt, true};
-                QJsonObject d2{
-                    {QStringLiteral("parameterCategory"), cat},
-                    {QStringLiteral("parameterName"), QStringLiteral("TwitchVodTrack")},
-                    {QStringLiteral("parameterValue"), enabled},
-                };
-                run->steps << Step{QStringLiteral("SetProfileParameter"), d2, std::nullopt, true};
+        case UndoOp::Type::RestoreProfile:
+            for (const ProfileParameter &p : it->profile) {
+                run->steps << Step{QStringLiteral("SetProfileParameter"),
+                                   {{QStringLiteral("parameterCategory"), p.category},
+                                    {QStringLiteral("parameterName"), p.name},
+                                    {QStringLiteral("parameterValue"), p.value}},
+                                   std::nullopt,
+                                   true};
             }
             break;
-        }
         }
     }
     run->done = [done = std::move(done)](const std::shared_ptr<Run> &r, const QString &) { done(r->failed, r->lastError); };

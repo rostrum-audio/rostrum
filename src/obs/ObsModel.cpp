@@ -36,6 +36,66 @@ QString State::freeChannel(const QString &family) const
     return {};
 }
 
+namespace {
+
+// config_get_bool: "true" in any case, or a non-zero number.
+bool obsBool(const QString &value)
+{
+    return value.compare(QLatin1String("true"), Qt::CaseInsensitive) == 0 || value.toULongLong() != 0;
+}
+
+int obsInt(const QString &value, int fallback)
+{
+    bool ok = false;
+    const int n = value.trimmed().toInt(&ok);
+    return ok ? n : fallback;
+}
+
+bool advancedOutput(const VodTrackSettings &s)
+{
+    return s.outputMode.compare(QLatin1String("Advanced"), Qt::CaseInsensitive) == 0;
+}
+
+} // namespace
+
+TwitchVod twitchVod(const VodTrackSettings &s)
+{
+    if (advancedOutput(s)) {
+        // OBS's defaults: stream track 1, VOD track 2.
+        const int stream = obsInt(s.advStreamTrack, 1);
+        if (stream == 2) {
+            return TwitchVod::StreamsTrack2;
+        }
+        return obsBool(s.advEnabled) && obsInt(s.advTrack, 2) == 2 ? TwitchVod::Track2 : TwitchVod::Off;
+    }
+    if (!obsBool(s.simpleAdvanced)) {
+        return TwitchVod::NeedsCustomEncoder;
+    }
+    return obsBool(s.simpleEnabled) ? TwitchVod::Track2 : TwitchVod::Off;
+}
+
+QList<ProfileParameter> twitchVodWrites(const VodTrackSettings &s)
+{
+    QList<ProfileParameter> out;
+    if (twitchVod(s) != TwitchVod::Off) {
+        return out;
+    }
+    if (advancedOutput(s)) {
+        if (!obsBool(s.advEnabled)) {
+            out << ProfileParameter{QStringLiteral("AdvOut"), QStringLiteral("VodTrackEnabled"),
+                                    QStringLiteral("true")};
+        }
+        if (obsInt(s.advTrack, 2) != 2) {
+            out << ProfileParameter{QStringLiteral("AdvOut"), QStringLiteral("VodTrackIndex"),
+                                    QStringLiteral("2")};
+        }
+    } else {
+        out << ProfileParameter{QStringLiteral("SimpleOutput"), QStringLiteral("VodTrackEnabled"),
+                                QStringLiteral("true")};
+    }
+    return out;
+}
+
 bool isAudioCaptureKind(const QString &kind)
 {
     return kind == QLatin1String(kPulseInput) || kind == QLatin1String(kPulseOutput) ||

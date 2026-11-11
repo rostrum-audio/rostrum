@@ -42,6 +42,31 @@ struct Target
     bool retargetLocal;     // whether a non-global input may be taken over
 };
 
+// The value a profile key had, for undo: what OBS reported, else OBS's default.
+QString profileValueBefore(const VodTrackSettings &before, const ProfileParameter &p)
+{
+    const QString key = p.key();
+    QString value;
+    if (key == QLatin1String("AdvOut/VodTrackEnabled")) {
+        value = before.advEnabled;
+    } else if (key == QLatin1String("AdvOut/VodTrackIndex")) {
+        value = before.advTrack;
+    } else if (key == QLatin1String("SimpleOutput/VodTrackEnabled")) {
+        value = before.simpleEnabled;
+    }
+    if (value.isEmpty()) {
+        value = p.name == QLatin1String("VodTrackIndex") ? QStringLiteral("2") : QStringLiteral("false");
+    }
+    return value;
+}
+
+// Undo only puts back the keys Set Up OBS writes, whatever an edited journal says.
+bool restorableProfileKey(const QString &key)
+{
+    return key == QLatin1String("AdvOut/VodTrackEnabled") || key == QLatin1String("AdvOut/VodTrackIndex") ||
+           key == QLatin1String("SimpleOutput/VodTrackEnabled");
+}
+
 } // namespace
 
 Plan makePlan(const State &state, const Facts &facts, Mode mode, const QSet<QString> &recordingDevices)
@@ -59,7 +84,7 @@ Plan makePlan(const State &state, const Facts &facts, Mode mode, const QSet<QStr
     }
     const bool twitch = state.streamService.compare(QLatin1String("Twitch"), Qt::CaseInsensitive) == 0;
     plan.streamSettingsUnread =
-        mode == Mode::Live && (!state.streamServiceKnown || (twitch && !state.twitchVodTrackKnown));
+        mode == Mode::Live && (!state.streamServiceKnown || (twitch && !state.vodKnown));
     if (plan.incomplete()) {
         return plan;
     }
@@ -200,12 +225,16 @@ Plan makePlan(const State &state, const Facts &facts, Mode mode, const QSet<QStr
         plan.actions << mute;
     }
 
-    if (mode == Mode::Live && twitch && state.twitchVodTrack != 2) {
+    // Only what OBS reads for the current output mode. Streaming track 2, or simple output
+    // without custom encoder settings, is left to the user: readiness says what to change.
+    const QList<ProfileParameter> vodWrites =
+        mode == Mode::Live && twitch ? twitchVodWrites(state.vod) : QList<ProfileParameter>{};
+    if (!vodWrites.isEmpty()) {
         Action setTwitchVod;
         setTwitchVod.type = Action::Type::SetTwitchVodTrack;
         setTwitchVod.role = Action::Role::Vod;
         setTwitchVod.input = QStringLiteral("Twitch VOD Track");
-        setTwitchVod.tracks = 2;
+        setTwitchVod.profile = vodWrites;
         plan.actions << setTwitchVod;
     }
 
@@ -241,8 +270,10 @@ UndoOp undoFor(const Action &action, const State &before)
         op.channel = action.channel;
         break;
     case Action::Type::SetTwitchVodTrack:
-        op.type = UndoOp::Type::RestoreTwitchVodTrack;
-        op.tracks = before.twitchVodTrack > 0 ? quint32(before.twitchVodTrack) : 0;
+        op.type = UndoOp::Type::RestoreProfile;
+        for (const ProfileParameter &p : action.profile) {
+            op.profile << ProfileParameter{p.category, p.name, profileValueBefore(before.vod, p)};
+        }
         break;
     }
     return op;
@@ -272,10 +303,17 @@ QJsonObject Undo::toJson() const
             o.insert(QStringLiteral("type"), QStringLiteral("removeGlobal"));
             o.insert(QStringLiteral("channel"), op.channel);
             break;
-        case UndoOp::Type::RestoreTwitchVodTrack:
-            o.insert(QStringLiteral("type"), QStringLiteral("twitchVodTrack"));
-            o.insert(QStringLiteral("track"), int(op.tracks));
+        case UndoOp::Type::RestoreProfile: {
+            o.insert(QStringLiteral("type"), QStringLiteral("profile"));
+            QJsonArray values;
+            for (const ProfileParameter &p : op.profile) {
+                values.append(QJsonObject{{QStringLiteral("category"), p.category},
+                                          {QStringLiteral("name"), p.name},
+                                          {QStringLiteral("value"), p.value}});
+            }
+            o.insert(QStringLiteral("parameters"), values);
             break;
+        }
         }
         list.append(o);
     }
@@ -303,9 +341,30 @@ Undo Undo::fromJson(const QJsonObject &json)
         } else if (type == QLatin1String("removeGlobal")) {
             op.type = UndoOp::Type::RemoveGlobal;
             op.channel = o.value(QLatin1String("channel")).toString();
+        } else if (type == QLatin1String("profile")) {
+            op.type = UndoOp::Type::RestoreProfile;
+            for (const auto &pv : o.value(QLatin1String("parameters")).toArray()) {
+                const QJsonObject p = pv.toObject();
+                const ProfileParameter param{p.value(QLatin1String("category")).toString(),
+                                             p.value(QLatin1String("name")).toString(),
+                                             p.value(QLatin1String("value")).toString()};
+                if (restorableProfileKey(param.key()) && p.value(QLatin1String("value")).isString()) {
+                    op.profile << param;
+                }
+            }
+            if (op.profile.isEmpty()) {
+                continue;
+            }
         } else if (type == QLatin1String("twitchVodTrack")) {
-            op.type = UndoOp::Type::RestoreTwitchVodTrack;
-            op.tracks = quint32(o.value(QLatin1String("track")).toInt(0));
+            // Rostrum 0.2.0 set AdvOut/VodTrackIndex to 2 (and keys OBS does not read). Put back
+            // the index it read; it read an unset one as 0, and then OBS was already on 2.
+            const int track = o.value(QLatin1String("track")).toInt(0);
+            if (track <= 0) {
+                continue;
+            }
+            op.type = UndoOp::Type::RestoreProfile;
+            op.profile << ProfileParameter{QStringLiteral("AdvOut"), QStringLiteral("VodTrackIndex"),
+                                           QString::number(track)};
         } else {
             continue;
         }

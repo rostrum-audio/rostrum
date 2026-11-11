@@ -55,7 +55,7 @@ Facts facts()
 // not Twitch. The inputs keep the known flags stateFromCollection gave them.
 State liveRead(State s)
 {
-    s.streamServiceKnown = s.twitchVodTrackKnown = true;
+    s.streamServiceKnown = s.vodKnown = true;
     return s;
 }
 
@@ -95,9 +95,14 @@ QStringList describe(const Plan &plan)
         case Action::Type::CreateGlobal:
             out << QStringLiteral("global %1 %2 %3 %4 tracks %5").arg(a.channel, a.input, a.kind, a.device).arg(a.tracks);
             break;
-        case Action::Type::SetTwitchVodTrack:
-            out << QStringLiteral("twitch-vod-track %1").arg(a.tracks);
+        case Action::Type::SetTwitchVodTrack: {
+            QStringList values;
+            for (const auto &p : a.profile) {
+                values << p.key() + QLatin1Char('=') + p.value;
+            }
+            out << QStringLiteral("twitch-vod %1").arg(values.join(QLatin1Char(' ')));
             break;
+        }
         }
     }
     return out;
@@ -146,7 +151,15 @@ public:
     qint64 outputDuration = 0;
     QString programScene;
     QString streamService;
-    int twitchVodTrack = 0;
+    // The profile by "Category/Name", as OBS keeps it: a key the profile never set reads as OBS's
+    // default, or null. Rostrum may write only keys OBS reads; every write is recorded.
+    QHash<QString, QString> profileValues{{QStringLiteral("Output/Mode"), QStringLiteral("Advanced")}};
+    const QHash<QString, QString> profileDefaults{
+        {QStringLiteral("Output/Mode"), QStringLiteral("Simple")},
+        {QStringLiteral("AdvOut/TrackIndex"), QStringLiteral("1")},
+        {QStringLiteral("AdvOut/VodTrackIndex"), QStringLiteral("2")},
+        {QStringLiteral("SimpleOutput/UseAdvanced"), QStringLiteral("false")}};
+    QStringList profileWrites; // "Category/Name=value"
     int recordingTracks = 3;
     QStringList trackNamesRead;
     QString gameTrackName = QStringLiteral("Game");
@@ -332,13 +345,19 @@ private:
                        QJsonObject{{QStringLiteral("service"), streamService}});
         } else if (type == QLatin1String("GetProfileParameter")) {
             const QString param = rd.value(QLatin1String("parameterName")).toString();
-            if (param == QLatin1String("VodTrackIndex")) {
-                out.insert(QStringLiteral("parameterValue"), QString::number(twitchVodTrack));
-            } else if (param == QLatin1String("TwitchVodTrack")) {
+            const QString key =
+                rd.value(QLatin1String("parameterCategory")).toString() + QLatin1Char('/') + param;
+            if (key == QLatin1String("Output/Mode") || key.contains(QLatin1String("Vod")) ||
+                key == QLatin1String("AdvOut/TrackIndex") ||
+                key == QLatin1String("SimpleOutput/UseAdvanced")) {
+                const auto value = [](const QHash<QString, QString> &values, const QString &key) {
+                    return values.contains(key) ? QJsonValue(values.value(key))
+                                                : QJsonValue(QJsonValue::Null);
+                };
+                const QJsonValue fallback = value(profileDefaults, key);
                 out.insert(QStringLiteral("parameterValue"),
-                           twitchVodTrack > 0 ? QStringLiteral("true") : QStringLiteral("false"));
-            } else if (param == QLatin1String("Mode")) {
-                out.insert(QStringLiteral("parameterValue"), QStringLiteral("Advanced"));
+                           profileValues.contains(key) ? value(profileValues, key) : fallback);
+                out.insert(QStringLiteral("defaultParameterValue"), fallback);
             } else if (param == QLatin1String("RecTracks")) {
                 out.insert(QStringLiteral("parameterValue"), QString::number(recordingTracks));
             } else if (param.startsWith(QLatin1String("Track")) && param.endsWith(QLatin1String("Name"))) {
@@ -350,11 +369,20 @@ private:
                 out.insert(QStringLiteral("parameterValue"), QStringLiteral("Standard"));
             }
         } else if (type == QLatin1String("SetProfileParameter")) {
-            const QString param = rd.value(QLatin1String("parameterName")).toString();
-            if (param == QLatin1String("VodTrackIndex")) {
-                twitchVodTrack = rd.value(QLatin1String("parameterValue")).toString().toInt();
-            } else if (param == QLatin1String("RecTracks")) {
-                recordingTracks = rd.value(QLatin1String("parameterValue")).toString().toInt();
+            const QString key = rd.value(QLatin1String("parameterCategory")).toString() + QLatin1Char('/') +
+                                rd.value(QLatin1String("parameterName")).toString();
+            const QJsonValue value = rd.value(QLatin1String("parameterValue"));
+            static const QSet<QString> writable{
+                QStringLiteral("AdvOut/RecTracks"), QStringLiteral("AdvOut/VodTrackEnabled"),
+                QStringLiteral("AdvOut/VodTrackIndex"), QStringLiteral("SimpleOutput/VodTrackEnabled")};
+            if (!writable.contains(key) || !value.isString()) {
+                return false;
+            }
+            profileWrites << key + QLatin1Char('=') + value.toString();
+            if (key == QLatin1String("AdvOut/RecTracks")) {
+                recordingTracks = value.toString().toInt();
+            } else {
+                profileValues.insert(key, value.toString());
             }
         } else {
             return false;
@@ -397,6 +425,23 @@ bool connectClient(Client &client, quint16 port, const QString &password)
     client.open(port, password);
     return QTest::qWaitFor([&] { return client.status() != Client::Status::Connecting; }, 5000) &&
            client.status() == Client::Status::Connected;
+}
+
+// A complete live read, or an empty state.
+State fetched(Client &client)
+{
+    State got;
+    bool done = false;
+    QString error;
+    fetchState(&client, [&](const State &s, const QString &e) {
+        got = s;
+        error = e;
+        done = true;
+    });
+    if (!QTest::qWaitFor([&] { return done; }, 5000) || !error.isEmpty()) {
+        return {};
+    }
+    return got;
 }
 
 } // namespace
@@ -766,10 +811,10 @@ private Q_SLOTS:
         s.streamServiceKnown = true;
         s.streamService = QStringLiteral("Twitch");
         QVERIFY(makePlan(s, facts(), Mode::Live).streamSettingsUnread); // VOD track unknown
-        s.twitchVodTrackKnown = true;
+        s.vodKnown = true;
         QVERIFY(!makePlan(s, facts(), Mode::Live).incomplete());
         s.streamService = QStringLiteral("YouTube - RTMPS");
-        s.twitchVodTrackKnown = false; // irrelevant away from Twitch
+        s.vodKnown = false; // irrelevant away from Twitch
         QVERIFY(!makePlan(s, facts(), Mode::Live).incomplete());
     }
 
@@ -1556,21 +1601,72 @@ private Q_SLOTS:
         QVERIFY(mappedScene(map, QString(), ours).isEmpty());
     }
 
+    void twitchVodTrackPlanAndReadiness_data()
+    {
+        QTest::addColumn<QString>("mode");
+        QTest::addColumn<QString>("advEnabled");
+        QTest::addColumn<QString>("advTrack");
+        QTest::addColumn<QString>("advStreamTrack");
+        QTest::addColumn<QString>("simpleEnabled");
+        QTest::addColumn<QString>("simpleAdvanced");
+        QTest::addColumn<QStringList>("writes");
+        QTest::addColumn<int>("status");
+        const int attention = int(ReadinessStatus::Attention), verified = int(ReadinessStatus::Verified);
+        // OBS's defaults read back as values: stream track 1, VOD track 2, custom encoder off.
+        QTest::newRow("advanced, off on the default track")
+            << "Advanced" << "" << "2" << "1" << "" << "false"
+            << QStringList{QStringLiteral("AdvOut/VodTrackEnabled=true")} << attention;
+        QTest::newRow("advanced, on track 3")
+            << "Advanced" << "true" << "3" << "1" << "" << "false"
+            << QStringList{QStringLiteral("AdvOut/VodTrackIndex=2")} << attention;
+        QTest::newRow("advanced, off on track 4")
+            << "Advanced" << "false" << "4" << "1" << "" << "false"
+            << QStringList{QStringLiteral("AdvOut/VodTrackEnabled=true"),
+                           QStringLiteral("AdvOut/VodTrackIndex=2")}
+            << attention;
+        QTest::newRow("advanced, sends track 2")
+            << "Advanced" << "true" << "2" << "1" << "" << "false" << QStringList{} << verified;
+        QTest::newRow("advanced, on written as a number")
+            << "Advanced" << "1" << "2" << "1" << "" << "false" << QStringList{} << verified;
+        // OBS sends no VOD track when it is the stream track; Rostrum leaves the stream track alone.
+        QTest::newRow("advanced, streams track 2")
+            << "Advanced" << "true" << "2" << "2" << "" << "false" << QStringList{} << attention;
+        // Simple output: always track 2, and only with custom encoder settings on.
+        QTest::newRow("simple, custom encoder, off")
+            << "Simple" << "true" << "2" << "1" << "false" << "true"
+            << QStringList{QStringLiteral("SimpleOutput/VodTrackEnabled=true")} << attention;
+        QTest::newRow("simple, custom encoder, on")
+            << "Simple" << "" << "" << "1" << "true" << "true" << QStringList{} << verified;
+        QTest::newRow("simple, no custom encoder")
+            << "Simple" << "true" << "2" << "1" << "true" << "false" << QStringList{} << attention;
+        QTest::newRow("mode unset") << "" << "true" << "2" << "1" << "true" << "" << QStringList{}
+                                    << attention;
+    }
+
     void twitchVodTrackPlanAndReadiness()
     {
+        QFETCH(QString, mode);
+        QFETCH(QString, advEnabled);
+        QFETCH(QString, advTrack);
+        QFETCH(QString, advStreamTrack);
+        QFETCH(QString, simpleEnabled);
+        QFETCH(QString, simpleAdvanced);
+        QFETCH(QStringList, writes);
+        QFETCH(int, status);
         State state = liveRead(stateFromCollection(fixture()));
         state.streamService = QStringLiteral("Twitch");
-        state.twitchVodTrack = 1; // Not track 2
-        Plan plan = makePlan(state, facts(), Mode::Live);
+        state.vod = {mode, advEnabled, advTrack, advStreamTrack, simpleEnabled, simpleAdvanced};
+        const Plan plan = makePlan(state, facts(), Mode::Live);
         QVERIFY(!plan.incomplete());
-        bool hasTwitchVodAction = false;
-        for (const auto &a : plan.actions) {
-            if (a.type == Action::Type::SetTwitchVodTrack) {
-                hasTwitchVodAction = true;
-                QCOMPARE(a.tracks, 2u);
+        QStringList planned;
+        for (const auto &d : describe(plan)) {
+            if (d.startsWith(QLatin1String("twitch-vod"))) {
+                planned << d;
             }
         }
-        QVERIFY(hasTwitchVodAction);
+        QCOMPARE(planned, writes.isEmpty()
+                              ? QStringList{}
+                              : QStringList{QStringLiteral("twitch-vod ") + writes.join(QLatin1Char(' '))});
 
         rostrum::pw::Graph g;
         ReadinessInput ri;
@@ -1578,47 +1674,132 @@ private Q_SLOTS:
         ri.obsFresh = true;
         state.scopeKnown = true;
         for (auto &in : state.inputs) {
-            in.gainKnown = true;
-            in.settingsKnown = true;
-            in.tracksKnown = true;
-            in.muteKnown = true;
+            in.gainKnown = in.settingsKnown = in.tracksKnown = in.muteKnown = true;
             in.gain = 1.0;
         }
         ri.obsState = &state;
         ri.facts = facts();
         ri.scene = rostrum::defaults::scene();
-        auto results = evaluateReadiness(ri);
-        bool hasAttention = false;
-        for (const auto &r : results) {
-            if (r.id == QLatin1String("obs-twitch-vod")) {
-                QCOMPARE(r.status, ReadinessStatus::Attention);
-                hasAttention = true;
+        const auto vodStatus = [&] {
+            int found = -1;
+            for (const auto &r : evaluateReadiness(ri)) {
+                if (r.id == QLatin1String("obs-twitch-vod")) {
+                    found = int(r.status);
+                }
+            }
+            return found;
+        };
+        QCOMPARE(vodStatus(), status);
+        state.vodKnown = false;
+        QCOMPARE(vodStatus(), int(ReadinessStatus::Unknown));
+    }
+
+    void twitchVodTrackLiveWritesOnlyKeysObsReads_data()
+    {
+        QTest::addColumn<QStringList>("profile"); // "Category/Name=value" set before
+        QTest::addColumn<QStringList>("writes");
+        QTest::addColumn<QStringList>("undoWrites");
+        QTest::newRow("advanced, never set") << QStringList{QStringLiteral("Output/Mode=Advanced")}
+                                             << QStringList{QStringLiteral("AdvOut/VodTrackEnabled=true")}
+                                             << QStringList{QStringLiteral("AdvOut/VodTrackEnabled=false")};
+        QTest::newRow("advanced, track 3") << QStringList{QStringLiteral("Output/Mode=Advanced"),
+                                                          QStringLiteral("AdvOut/VodTrackEnabled=true"),
+                                                          QStringLiteral("AdvOut/VodTrackIndex=3")}
+                                           << QStringList{QStringLiteral("AdvOut/VodTrackIndex=2")}
+                                           << QStringList{QStringLiteral("AdvOut/VodTrackIndex=3")};
+        QTest::newRow("simple with custom encoder settings")
+            << QStringList{QStringLiteral("Output/Mode=Simple"),
+                           QStringLiteral("SimpleOutput/UseAdvanced=true")}
+            << QStringList{QStringLiteral("SimpleOutput/VodTrackEnabled=true")}
+            << QStringList{QStringLiteral("SimpleOutput/VodTrackEnabled=false")};
+    }
+
+    void twitchVodTrackLiveWritesOnlyKeysObsReads()
+    {
+        QFETCH(QStringList, profile);
+        QFETCH(QStringList, writes);
+        QFETCH(QStringList, undoWrites);
+        FakeObs obs(QStringLiteral("pw"));
+        populate(obs);
+        obs.streamService = QStringLiteral("Twitch");
+        obs.profileValues.clear();
+        for (const QString &entry : profile) {
+            obs.profileValues.insert(entry.section(QLatin1Char('='), 0, 0),
+                                     entry.section(QLatin1Char('='), 1));
+        }
+        Client client;
+        QVERIFY(connectClient(client, obs.port(), QStringLiteral("pw")));
+        const State before = fetched(client);
+        QVERIFY(before.vodKnown);
+        QCOMPARE(twitchVod(before.vod), TwitchVod::Off);
+        QList<Action> vod;
+        for (const auto &a : makePlan(before, facts(), Mode::Live).actions) {
+            if (a.type == Action::Type::SetTwitchVodTrack) {
+                vod << a;
             }
         }
-        QVERIFY(hasAttention);
+        QCOMPARE(vod.size(), 1);
 
-        // When set to 2:
-        state.twitchVodTrack = 2;
-        Plan plan2 = makePlan(state, facts(), Mode::Live);
-        QVERIFY(!plan2.incomplete());
-        for (const auto &a : plan2.actions) {
+        bool done = false;
+        QList<UndoOp> applied;
+        QString error;
+        applyPlan(&client, vod, before, [&](const QList<UndoOp> &ops, const QString &e) {
+            applied = ops;
+            error = e;
+            done = true;
+        });
+        QTRY_VERIFY(done);
+        QVERIFY2(error.isEmpty(), qPrintable(error));
+        QCOMPARE(obs.profileWrites, writes);
+        const State after = fetched(client);
+        QCOMPARE(twitchVod(after.vod), TwitchVod::Track2);
+        for (const auto &a : makePlan(after, facts(), Mode::Live).actions) {
             QVERIFY(a.type != Action::Type::SetTwitchVodTrack);
         }
-        results = evaluateReadiness(ri);
-        bool hasVerified = false;
-        bool vodMissingAttention = false;
-        for (const auto &r : results) {
-            if (r.id == QLatin1String("obs-twitch-vod")) {
-                QCOMPARE(r.status, ReadinessStatus::Verified);
-                hasVerified = true;
-            }
-            if (r.id == QLatin1String("obs-vod")) {
-                QCOMPARE(r.status, ReadinessStatus::Attention);
-                vodMissingAttention = true;
-            }
-        }
-        QVERIFY(hasVerified);
-        QVERIFY(vodMissingAttention);
+
+        // Undo goes through the journal, as after a restart.
+        obs.profileWrites.clear();
+        Undo undo;
+        undo.ops = applied;
+        undo = Undo::fromJson(undo.toJson());
+        done = false;
+        int refused = -1;
+        applyUndo(&client, undo, [&](int failed, const QString &) {
+            refused = failed;
+            done = true;
+        });
+        QTRY_VERIFY(done);
+        QCOMPARE(refused, 0);
+        QCOMPARE(obs.profileWrites, undoWrites);
+        QCOMPARE(twitchVod(fetched(client).vod), TwitchVod::Off);
+    }
+
+    void twitchVodUndoJournal()
+    {
+        const QString input = QStringLiteral("Twitch VOD Track");
+        const auto op = [&](const char *type) {
+            return QJsonObject{{QStringLiteral("type"), QLatin1String(type)},
+                               {QStringLiteral("input"), input}};
+        };
+        QJsonObject legacy = op("twitchVodTrack");
+        legacy.insert(QStringLiteral("track"), 3);
+        QJsonObject legacyUnset = op("twitchVodTrack");
+        legacyUnset.insert(QStringLiteral("track"), 0);
+        QJsonObject foreign = op("profile");
+        foreign.insert(QStringLiteral("parameters"),
+                       QJsonArray{QJsonObject{{QStringLiteral("category"), QStringLiteral("Output")},
+                                              {QStringLiteral("name"), QStringLiteral("Mode")},
+                                              {QStringLiteral("value"), QStringLiteral("Simple")}}});
+        const Undo undo = Undo::fromJson({{QStringLiteral("format"), 1},
+                                          {QStringLiteral("ops"), QJsonArray{legacy, legacyUnset, foreign}}});
+        // Rostrum 0.2.0's op puts back the index it changed; one that read no index has nothing to
+        // put back, and undo never writes keys Set Up OBS does not.
+        QCOMPARE(undo.ops.size(), 1);
+        QCOMPARE(undo.ops.first().type, UndoOp::Type::RestoreProfile);
+        QCOMPARE(undo.ops.first().profile,
+                 (QList<ProfileParameter>{
+                     {QStringLiteral("AdvOut"), QStringLiteral("VodTrackIndex"), QStringLiteral("3")}}));
+        QCOMPARE(Undo::fromJson(undo.toJson()).ops.first().profile, undo.ops.first().profile);
     }
 };
 

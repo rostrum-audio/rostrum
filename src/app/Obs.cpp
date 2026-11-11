@@ -562,8 +562,9 @@ QVariantList Obs::planItems() const
             detail = i18n("Global audio devices play in every scene.");
             break;
         case T::SetTwitchVodTrack:
-            title = i18n("Set Output → Streaming → Twitch VOD Track to 2");
-            detail = i18n("OBS sends track 2 to Twitch for your VOD.");
+            title = i18n("Turn on Output → Streaming → Twitch VOD Track, using track 2");
+            detail = i18n("OBS sends track 2, Rostrum VOD Mix, to Twitch for your VODs. It takes effect the "
+                          "next time you go live.");
             break;
         case T::Mute:
             title = i18n("Mute %1", quoted(a.input));

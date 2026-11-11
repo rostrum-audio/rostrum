@@ -42,6 +42,39 @@ struct Input
     double gain = 1.0;
 };
 
+// One value in OBS's current profile (basic.ini), as obs-websocket reads and writes it.
+struct ProfileParameter
+{
+    QString category, name, value;
+    QString key() const { return category + QLatin1Char('/') + name; }
+    bool operator==(const ProfileParameter &) const = default;
+};
+
+// The Output settings that decide whether OBS sends Twitch a VOD track. Each holds what
+// obs-websocket reported: the profile's value, else OBS's default, else empty.
+struct VodTrackSettings
+{
+    QString outputMode;     // Output/Mode: "Simple" or "Advanced"
+    QString advEnabled;     // AdvOut/VodTrackEnabled
+    QString advTrack;       // AdvOut/VodTrackIndex, 1-based
+    QString advStreamTrack; // AdvOut/TrackIndex, 1-based: the track OBS streams
+    QString simpleEnabled;  // SimpleOutput/VodTrackEnabled, always track 2
+    QString simpleAdvanced; // SimpleOutput/UseAdvanced: the VOD track needs custom encoder settings
+};
+
+// What OBS does with a Twitch VOD track, read the way OBS reads its settings when a stream starts.
+enum class TwitchVod
+{
+    Track2,             // track 2 (Rostrum VOD Mix) goes to Twitch as the VOD track
+    Off,                // no VOD track or another track; Set Up OBS can send track 2
+    StreamsTrack2,      // advanced output streams track 2 itself, so OBS sends no VOD track
+    NeedsCustomEncoder, // simple output sends one only with custom encoder settings turned on
+};
+TwitchVod twitchVod(const VodTrackSettings &s);
+// The profile values that make OBS send track 2 as the VOD track. Empty when it already does,
+// or when only a change Rostrum leaves to the user would (StreamsTrack2, NeedsCustomEncoder).
+QList<ProfileParameter> twitchVodWrites(const VodTrackSettings &s);
+
 struct State
 {
     QList<Input> inputs;
@@ -50,9 +83,9 @@ struct State
     QString programScene;
     QSet<QString> programInputs; // enabled direct program-scene items; groups/nesting not supported
 
-    QString streamService;       // e.g. "Twitch"
-    int twitchVodTrack = 0;      // 0 = unset/disabled, 2 = track 2
-    bool streamServiceKnown = false, twitchVodTrackKnown = false; // live only: read from OBS
+    QString streamService; // e.g. "Twitch"
+    VodTrackSettings vod;
+    bool streamServiceKnown = false, vodKnown = false; // live only: read from OBS
 
     const Input *input(const QString &name) const;
     const Input *channel(const QString &channel) const;

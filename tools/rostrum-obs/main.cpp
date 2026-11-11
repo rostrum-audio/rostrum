@@ -62,7 +62,13 @@ void printPlan(const obs::Plan &plan)
         case obs::Action::Type::CreateGlobal:
             out << "  global " << a.channel << " \"" << a.input << "\" = " << a.device << ", tracks mask " << a.tracks << "\n";
             break;
-        case obs::Action::Type::SetTwitchVodTrack: out << "  set the Twitch VOD track to " << a.tracks << "\n"; break;
+        case obs::Action::Type::SetTwitchVodTrack:
+            out << "  send track 2 to Twitch as the VOD track:";
+            for (const auto &p : a.profile) {
+                out << " " << p.key() << "=" << p.value;
+            }
+            out << "\n";
+            break;
         }
     }
 }
