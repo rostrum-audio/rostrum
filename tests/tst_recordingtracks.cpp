@@ -90,6 +90,39 @@ private Q_SLOTS:
         QCOMPARE(p.recordingTracks, 63u);
     }
 
+    void unreadTracksBlockThePlan()
+    {
+        // An input whose tracks were not read may already be on track 3. Putting Game there too
+        // would mix the two, so the plan stops; an input OBS says has no audio does not.
+        const RecordingAssignments a{{3, QStringLiteral("game")}};
+        auto s = snapshot();
+        Input image;
+        image.name = QStringLiteral("Logo");
+        image.kind = QStringLiteral("image_source");
+        image.noTracks = true;
+        s.state.inputs << image;
+        QVERIFY(recordingPlan(s, defaults::scene(), a).problems.isEmpty());
+
+        Input browser;
+        browser.name = QStringLiteral("Alerts");
+        browser.kind = QStringLiteral("browser_source");
+        browser.settingsKnown = browser.muteKnown = true; // its tracks request went unanswered
+        s.state.inputs << browser;
+        QCOMPARE(recordingPlan(s, defaults::scene(), a).problems,
+                 QStringList{QStringLiteral("unknownInput:Alerts")});
+        s.state.inputs.last().tracksKnown = true;
+        QVERIFY(recordingPlan(s, defaults::scene(), a).problems.isEmpty());
+
+        Input capture;
+        capture.name = QStringLiteral("Desktop Audio");
+        capture.kind = QLatin1String(kPulseOutput);
+        capture.settingsKnown = capture.muteKnown = true;
+        capture.noTracks = true; // refused: still an audio capture, so still unread
+        s.state.inputs << capture;
+        QCOMPARE(recordingPlan(s, defaults::scene(), a).problems,
+                 QStringList{QStringLiteral("unknownInput:Desktop Audio")});
+    }
+
     void replacementPreservesOtherTracksAndUndo()
     {
         auto s = snapshot();

@@ -47,10 +47,19 @@ struct Run
     QList<Step> steps;
     qsizetype next = 0;
     QList<UndoOp> applied;
+    std::function<void(const UndoOp &)> onApplied;
     QList<qsizetype> settled; // undo: ops whose every step OBS answered
     int failed = 0;
     QString lastError;
     std::function<void(const std::shared_ptr<Run> &, const QString &fatal)> done;
+
+    void record(const UndoOp &op)
+    {
+        applied << op;
+        if (onApplied) {
+            onApplied(op);
+        }
+    }
 };
 
 bool connected(const QPointer<Client> &client)
@@ -72,6 +81,15 @@ void step(const std::shared_ptr<Run> &run)
             run->done(run, QStringLiteral("Disconnected from OBS."));
             return;
         }
+        // No answer in time: the change may have happened. Setup keeps its undo; undo keeps the
+        // op, having not settled it. Either way stop, since OBS is not keeping up.
+        if (!ok && Client::timedOut(error)) {
+            if (s.undo) {
+                run->record(*s.undo);
+            }
+            run->done(run, error);
+            return;
+        }
         if (!ok) {
             run->failed++;
             run->lastError = error;
@@ -80,7 +98,7 @@ void step(const std::shared_ptr<Run> &run)
                 return;
             }
         } else if (s.undo) {
-            run->applied << *s.undo;
+            run->record(*s.undo);
         }
         if (s.op >= 0 && (index + 1 >= run->steps.size() || run->steps.at(index + 1).op != s.op)) {
             run->settled << s.op;
@@ -383,6 +401,8 @@ void fetchState(Client *client, std::function<void(const State &, const QString 
                                                 f->state.inputs[n].tracksKnown = complete;
                                                 f->state.inputs[n].tracks = tracksFrom(
                                                     d.value(QLatin1String("inputAudioTracks")).toObject());
+                                            } else {
+                                                f->state.inputs[n].noTracks = !Client::timedOut(err);
                                             }
                                             finishOne();
                                         });
@@ -482,10 +502,12 @@ void fetchReadinessState(Client *client, std::function<void(const State &, const
 }
 
 void applyPlan(Client *client, const QList<Action> &actions, const State &before,
-               std::function<void(const QList<UndoOp> &, const QString &)> done)
+               std::function<void(const QList<UndoOp> &, const QString &)> done,
+               std::function<void(const UndoOp &)> onApplied)
 {
     auto run = std::make_shared<Run>();
     run->client = client;
+    run->onApplied = std::move(onApplied);
     for (const auto &a : actions) {
         const QJsonObject who{{QStringLiteral("inputName"), a.input}};
         switch (a.type) {
@@ -578,7 +600,7 @@ void applyUndo(Client *client, const Undo &undo, const UndoScope &scope,
             d.insert(QStringLiteral("inputSettings"), QJsonObject{{QStringLiteral("device_id"), it->device}});
             d.insert(QStringLiteral("overlay"), true);
             run->steps << Step{QStringLiteral("SetInputSettings"), d, std::nullopt, true};
-            if (it->tracks) {
+            if (it->tracksSet) {
                 QJsonObject td{{QStringLiteral("inputName"), it->input}};
                 td.insert(QStringLiteral("inputAudioTracks"), tracksJson(it->tracks));
                 run->steps << Step{QStringLiteral("SetInputAudioTracks"), td, std::nullopt, true};

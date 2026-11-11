@@ -77,6 +77,7 @@ struct UndoOp
     bool muted = false; // RestoreMute
     QString channel; // RemoveGlobal
     quint32 tracks = 0;              // RestoreDevice
+    bool tracksSet = false;          // RestoreDevice: put `tracks` back, which may be none at all
     QList<ProfileParameter> profile; // RestoreProfile: the values before, never removed
     QString configDir;               // the OBS install it was made in
     // The scene collection it was made in, or for RestoreProfile the profile. Empty for an op

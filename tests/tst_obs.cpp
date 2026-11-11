@@ -729,6 +729,25 @@ private Q_SLOTS:
         QVERIFY(s.input(QStringLiteral("Game Audio"))->muted);
         QVERIFY(setUp(makePlan(s, facts(), Mode::Offline)));
         QVERIFY(setUp(makePlan(liveRead(s), facts(), Mode::Live)));
+        // OBS loads a scene item without "visible" hidden, which silences an audio source there,
+        // and numbers one without an "id" itself.
+        int placed = 0;
+        for (const auto &v : after.value(QLatin1String("sources")).toArray()) {
+            const QJsonObject source = v.toObject();
+            if (source.value(QLatin1String("id")).toString() != QLatin1String("scene")) {
+                continue;
+            }
+            for (const auto &iv :
+                 source.value(QLatin1String("settings")).toObject().value(QLatin1String("items")).toArray()) {
+                const QJsonObject item = iv.toObject();
+                if (item.value(QLatin1String("name")).toString() == QLatin1String("Rostrum VOD Mix")) {
+                    ++placed;
+                    QCOMPARE(item.value(QLatin1String("visible")), QJsonValue(true));
+                    QVERIFY(!item.contains(QLatin1String("id")));
+                }
+            }
+        }
+        QCOMPARE(placed, 4);
 
         Undo undo;
         for (const auto &a : plan.actions) {
@@ -2013,6 +2032,109 @@ private Q_SLOTS:
         QVERIFY(result.settled.isEmpty());
         QCOMPARE(result.failed, 0);
         QVERIFY(obs.inputs.contains(QStringLiteral("Discord Audio")));
+    }
+
+    void unansweredWritesTimeOutAndStayUndoable()
+    {
+        FakeObs obs(QStringLiteral("pw"));
+        populate(obs);
+        Client client;
+        client.setWriteTimeoutMs(300);
+        QVERIFY(connectClient(client, obs.port(), QStringLiteral("pw")));
+        const State before = fetched(client);
+        const Plan plan = makePlan(before, facts(), Mode::Live);
+
+        // OBS stops answering at the first mute. Setup ends, and what it did, the unanswered
+        // mute included, was reported step by step for the undo record.
+        obs.ignored = {QStringLiteral("SetInputMute")};
+        bool done = false;
+        QString error;
+        QList<UndoOp> applied, asTheyHappened;
+        applyPlan(
+            &client, plan.enabledActions(), before,
+            [&](const QList<UndoOp> &ops, const QString &e) {
+                applied = ops;
+                error = e;
+                done = true;
+            },
+            [&](const UndoOp &op) {
+                QVERIFY(!done);
+                asTheyHappened << op;
+            });
+        QTRY_VERIFY(done);
+        QVERIFY2(Client::timedOut(error), qPrintable(error));
+        QVERIFY(!applied.isEmpty());
+        QCOMPARE(applied.last().type, UndoOp::Type::RestoreMute);
+        QCOMPARE(asTheyHappened.size(), applied.size());
+        QCOMPARE(obs.requests.count(QStringLiteral("SetInputMute")), 1);
+
+        // Undo is not settled by silence either: the unanswered op and the ones after it stay.
+        Undo undo;
+        undo.ops = applied;
+        done = false;
+        UndoResult result;
+        applyUndo(&client, undo, {QString(), obs.collection, obs.profile}, [&](const UndoResult &r) {
+            result = r;
+            done = true;
+        });
+        QTRY_VERIFY(done);
+        QVERIFY(Client::timedOut(result.stopped));
+        QVERIFY(result.settled.isEmpty()); // the mute is newest, so it was tried first
+        obs.ignored.clear();
+        done = false;
+        applyUndo(&client, undo, {QString(), obs.collection, obs.profile}, [&](const UndoResult &r) {
+            result = r;
+            done = true;
+        });
+        QTRY_VERIFY(done);
+        QVERIFY(result.stopped.isEmpty());
+        QCOMPARE(result.settled.size(), undo.ops.size());
+        QVERIFY(!obs.inputs.contains(QStringLiteral("Rostrum Stream Mix")));
+    }
+
+    void undoPutsBackAnInputWithNoTracks()
+    {
+        // The mic source Rostrum takes over is given tracks 1 and 2. One that was on no track
+        // (kept for monitoring, say) goes back to none, live and offline, through the record.
+        FakeObs obs(QStringLiteral("pw"));
+        populate(obs);
+        obs.inputs[QStringLiteral("Mic/Aux")].tracks = tracks({});
+        Client client;
+        QVERIFY(connectClient(client, obs.port(), QStringLiteral("pw")));
+        const State before = fetched(client);
+        QCOMPARE(before.input(QStringLiteral("Mic/Aux"))->tracks, 0u);
+        const Plan plan = makePlan(before, facts(), Mode::Live);
+        bool done = false;
+        Undo undo;
+        applyPlan(&client, plan.enabledActions(), before,
+                  [&](const QList<UndoOp> &ops, const QString &error) {
+                      QVERIFY2(error.isEmpty(), qPrintable(error));
+                      undo.ops = ops;
+                      done = true;
+                  });
+        QTRY_VERIFY(done);
+        QCOMPARE(obs.inputs[QStringLiteral("Mic/Aux")].tracks, tracks({1, 2}));
+        undo = Undo::fromJson(undo.toJson());
+        done = false;
+        applyUndo(&client, undo, {QString(), obs.collection, obs.profile},
+                  [&](const UndoResult &) { done = true; });
+        QTRY_VERIFY(done);
+        QCOMPARE(obs.inputs[QStringLiteral("Mic/Aux")].tracks, tracks({}));
+
+        QJsonObject doc = fixture();
+        QJsonObject mic = doc.value(QLatin1String("AuxAudioDevice1")).toObject();
+        QVERIFY(!mic.isEmpty());
+        mic.insert(QStringLiteral("mixers"), 0);
+        doc.insert(QStringLiteral("AuxAudioDevice1"), mic);
+        const State offline = stateFromCollection(doc);
+        const Plan offlinePlan = makePlan(offline, facts(), Mode::Offline);
+        Undo offlineUndo;
+        for (const auto &a : offlinePlan.actions) {
+            offlineUndo.ops << undoFor(a, offline);
+        }
+        const QJsonObject changed = applyToCollection(doc, offlinePlan.actions);
+        QCOMPARE(stateFromCollection(changed).input(QStringLiteral("Mic/Aux"))->tracks, 3u);
+        QCOMPARE(undoInCollection(changed, Undo::fromJson(offlineUndo.toJson())), doc);
     }
 };
 

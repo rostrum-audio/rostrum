@@ -53,13 +53,13 @@ bool editSource(QJsonObject &doc, const QString &name, const std::function<void(
     return false;
 }
 
-void setDevice(QJsonObject &doc, const QString &name, const QString &device, quint32 tracks = 0)
+void setDevice(QJsonObject &doc, const QString &name, const QString &device, quint32 tracks, bool setTracks)
 {
     editSource(doc, name, [&](QJsonObject &o) {
         QJsonObject settings = o.value(QLatin1String("settings")).toObject();
         settings.insert(QStringLiteral("device_id"), device);
         o.insert(QStringLiteral("settings"), settings);
-        if (tracks > 0) {
+        if (setTracks) {
             o.insert(QStringLiteral("mixers"), int(tracks));
         }
     });
@@ -123,7 +123,7 @@ QJsonObject applyToCollection(QJsonObject doc, const QList<Action> &actions)
     for (const auto &a : actions) {
         switch (a.type) {
         case Action::Type::SetDevice:
-            setDevice(doc, a.input, a.device, a.tracks);
+            setDevice(doc, a.input, a.device, a.tracks, a.tracks != 0);
             break;
         case Action::Type::Unmute:
             setMuted(doc, a.input, false);
@@ -170,7 +170,15 @@ QJsonObject applyToCollection(QJsonObject doc, const QList<Action> &actions)
                     a.scenes.contains(o.value(QLatin1String("name")).toString())) {
                     QJsonObject settings = o.value(QLatin1String("settings")).toObject();
                     QJsonArray items = settings.value(QLatin1String("items")).toArray();
-                    items.append(QJsonObject{{QStringLiteral("name"), a.input}});
+                    // OBS loads an item saved without "visible" hidden, and a hidden audio
+                    // source is not mixed in that scene. It numbers an item without an "id"
+                    // from the scene's own counter, so none is written.
+                    items.append(
+                        QJsonObject{{QStringLiteral("name"), a.input},
+                                    {QStringLiteral("visible"), true},
+                                    {QStringLiteral("locked"), false},
+                                    {QStringLiteral("scale"),
+                                     QJsonObject{{QStringLiteral("x"), 1.0}, {QStringLiteral("y"), 1.0}}}});
                     settings.insert(QStringLiteral("items"), items);
                     o.insert(QStringLiteral("settings"), settings);
                     sources.replace(n, o);
@@ -192,7 +200,7 @@ QJsonObject undoInCollection(QJsonObject doc, const Undo &undo)
         const UndoOp &op = *it;
         switch (op.type) {
         case UndoOp::Type::RestoreDevice:
-            setDevice(doc, op.input, op.device, op.tracks);
+            setDevice(doc, op.input, op.device, op.tracks, op.tracksSet);
             break;
         case UndoOp::Type::RestoreMute:
             setMuted(doc, op.input, op.muted);

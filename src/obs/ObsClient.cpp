@@ -70,20 +70,25 @@ void Client::request(const QString &type, const QJsonObject &data, Callback done
     }
     const QString id = QString::number(m_nextId++);
     m_pending.insert(id, std::move(done));
-    // Readiness reads are bounded; preserve existing write/undo transaction behavior.
-    if (type.startsWith(QLatin1String("Get")))
-        QTimer::singleShot(5000, this, [this, id] {
-            if (!m_pending.contains(id))
-                return;
-            auto callback = m_pending.take(id);
-            if (callback)
-                callback(false, {}, tr("OBS request timed out."));
-        });
+    // A hung OBS must not leave setup or undo busy for good. Writes get longer: OBS can take a
+    // while to create a source, and a late answer is ignored.
+    QTimer::singleShot(type.startsWith(QLatin1String("Get")) ? 5000 : m_writeTimeoutMs, this, [this, id] {
+        if (!m_pending.contains(id))
+            return;
+        auto callback = m_pending.take(id);
+        if (callback)
+            callback(false, {}, timeoutError());
+    });
     const QJsonObject msg{{QStringLiteral("op"), Request},
                           {QStringLiteral("d"), QJsonObject{{QStringLiteral("requestType"), type},
                                                             {QStringLiteral("requestId"), id},
                                                             {QStringLiteral("requestData"), data}}}};
     m_socket.sendTextMessage(QString::fromUtf8(QJsonDocument(msg).toJson(QJsonDocument::Compact)));
+}
+
+QString Client::timeoutError()
+{
+    return tr("OBS request timed out.");
 }
 
 QString Client::authResponse(const QString &password, const QString &salt, const QString &challenge)

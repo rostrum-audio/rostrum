@@ -39,6 +39,9 @@ struct Input
     quint32 tracks = 0;
     QString channel; // "desktop1", "mic1"... for OBS's global audio devices, else empty
     bool settingsKnown = false, muteKnown = false, tracksKnown = false, gainKnown = false;
+    // OBS answered that the input has no audio tracks (an image, a colour), as opposed to not
+    // answering, which leaves an input that may well have them unread.
+    bool noTracks = false;
     double gain = 1.0;
 };
 

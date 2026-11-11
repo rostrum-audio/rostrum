@@ -33,7 +33,12 @@ public:
     QString errorString() const { return m_error; }
     QString obsVersion() const { return m_obsVersion; }
 
+    // Every request is answered: by OBS, by the connection ending, or by a timeout (reads 5 s,
+    // writes `writeTimeoutMs`). A write that timed out may still have happened in OBS.
     void request(const QString &type, const QJsonObject &data, Callback done);
+    void setWriteTimeoutMs(int ms) { m_writeTimeoutMs = ms; }
+    static QString timeoutError();
+    static bool timedOut(const QString &error) { return error == timeoutError(); }
 
     static QString authResponse(const QString &password, const QString &salt, const QString &challenge);
 
@@ -58,6 +63,7 @@ private:
     QString m_obsVersion;
     int m_events = 0;
     quint64 m_nextId = 1;
+    int m_writeTimeoutMs = 15000;
     QHash<QString, Callback> m_pending;
 };
 

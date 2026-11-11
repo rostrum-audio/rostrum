@@ -127,7 +127,7 @@ Plan makePlan(const State &state, const Facts &facts, Mode mode, const QSet<QStr
             }
         }
 
-        // Take over an input that records the hardware today: it keeps its filters, tracks and
+        // Take over an input that records the hardware today: it keeps its filters and
         // scene placement. Global devices first, unmuted before muted.
         const Input *pick = nullptr;
         auto consider = [&](bool global, bool muted) {
@@ -254,6 +254,7 @@ UndoOp undoFor(const Action &action, const State &before)
         op.device = i ? i->settings.value(QLatin1String("device_id")).toString(QStringLiteral("default"))
                       : QStringLiteral("default");
         op.tracks = i ? i->tracks : 0;
+        op.tracksSet = i && i->tracksKnown && action.tracks != 0; // only if the action changes them
         break;
     }
     case Action::Type::Unmute:
@@ -342,7 +343,7 @@ QJsonObject Undo::toJson() const
         case UndoOp::Type::RestoreDevice:
             o.insert(QStringLiteral("type"), QStringLiteral("device"));
             o.insert(QStringLiteral("device"), op.device);
-            if (op.tracks) {
+            if (op.tracksSet) {
                 o.insert(QStringLiteral("tracks"), int(op.tracks));
             }
             break;
@@ -394,6 +395,7 @@ Undo Undo::fromJson(const QJsonObject &json)
             op.type = UndoOp::Type::RestoreDevice;
             op.device = o.value(QLatin1String("device")).toString(QStringLiteral("default"));
             op.tracks = quint32(o.value(QLatin1String("tracks")).toInt(0));
+            op.tracksSet = o.value(QLatin1String("tracks")).isDouble(); // older records left out "none"
         } else if (type == QLatin1String("mute")) {
             op.type = UndoOp::Type::RestoreMute;
             op.muted = o.value(QLatin1String("muted")).toBool();

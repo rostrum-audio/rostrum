@@ -17,8 +17,12 @@ void fetchReadinessState(Client *client, std::function<void(const State &, const
 
 // Runs the actions in order and stops at the first one OBS refuses. `applied` holds the undo
 // ops for everything that did happen, so a partial run can still be undone.
+// `onApplied` is told of each undo op as its step happens, so the record survives a crash part
+// way; `applied` repeats them all at the end. A step OBS did not answer in time is included: it
+// may have happened.
 void applyPlan(Client *client, const QList<Action> &actions, const State &before,
-               std::function<void(const QList<UndoOp> &applied, const QString &error)> done);
+               std::function<void(const QList<UndoOp> &applied, const QString &error)> done,
+               std::function<void(const UndoOp &op)> onApplied = {});
 
 // Both first check that OBS is still on the scene collection and profile they were planned for
 // (applyPlan: `before`'s; applyUndo: `scope`'s, the profile only when given).

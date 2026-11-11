@@ -165,6 +165,7 @@ private:
     void appendUndo(const QList<obs::UndoOp> &ops);
     // The install, scene collection and (live) profile the shown state came from.
     obs::UndoScope undoScope() const;
+    quint64 m_fetchGeneration = 0; // only the newest live read is used
     QList<obs::GoLiveProblem> currentProblems() const;
     void checkGoLive();
     void refreshWarnings();

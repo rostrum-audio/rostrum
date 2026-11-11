@@ -2,6 +2,7 @@
 
 #include "app/AppController.h"
 #include "app/Desktop.h"
+#include "app/Headless.h"
 #include "core/Paths.h"
 #include "obs/ObsCaptures.h"
 #include "obs/ObsLive.h"
@@ -18,7 +19,6 @@
 #include <QLoggingCategory>
 #include <QSaveFile>
 #include <QSet>
-
 #include <algorithm>
 
 Q_LOGGING_CATEGORY(lcObs, "rostrum.obs", QtInfoMsg)
@@ -89,9 +89,7 @@ Obs::Obs(AppController *app, QObject *parent)
     m_recordingTracks = new ObsRecording(app, this, &m_client);
 
     // Screenshot and test runs must never reach the user's own OBS on their own.
-    m_offscreen = QGuiApplication::platformName() == QLatin1String("offscreen") ||
-                  qEnvironmentVariable("QT_QPA_PLATFORM") == QLatin1String("offscreen") ||
-                  !qEnvironmentVariableIsEmpty("ROSTRUM_SCREENSHOT");
+    m_offscreen = headless();
 
     m_poll.setInterval(kPollMs);
     connect(&m_poll, &QTimer::timeout, this, &Obs::poll);
@@ -336,10 +334,16 @@ void Obs::openClient()
 
 void Obs::fetchLive()
 {
-    if (!m_active || m_client.status() != obs::Client::Status::Connected) {
+    if (!m_active || m_busy || m_client.status() != obs::Client::Status::Connected) {
         return;
     }
-    obs::fetchState(&m_client, [this](const obs::State &state, const QString &error) {
+    // Reads overlap (refresh, OBS events, status changes). Only the newest counts, and none that
+    // was under way while Set Up OBS or Undo changed OBS.
+    const quint64 generation = ++m_fetchGeneration;
+    obs::fetchState(&m_client, [this, generation](const obs::State &state, const QString &error) {
+        if (generation != m_fetchGeneration || m_busy) {
+            return;
+        }
         if (!error.isEmpty()) {
             qCWarning(lcObs) << "reading OBS failed:" << error;
             return;
@@ -744,12 +748,16 @@ void Obs::apply()
     if (m_plan.mode == obs::Mode::Live) {
         m_busy = true;
         Q_EMIT changed();
-        obs::applyPlan(&m_client, actions, before, [this](const QList<obs::UndoOp> &ops, const QString &error) {
-            appendUndo(ops);
-            m_busy = false;
-            finish(error.isEmpty(), error.isEmpty() ? i18n("OBS is set up.") : i18n("OBS stopped the setup: %1", error));
-            fetchLive();
-        });
+        // Each step's undo is saved as it happens: a crash or power loss part way leaves it undoable.
+        obs::applyPlan(
+            &m_client, actions, before,
+            [this](const QList<obs::UndoOp> &, const QString &error) {
+                m_busy = false;
+                finish(error.isEmpty(),
+                       error.isEmpty() ? i18n("OBS is set up.") : i18n("OBS stopped the setup: %1", error));
+                fetchLive();
+            },
+            [this](const obs::UndoOp &op) { appendUndo({op}); });
         return;
     }
 

@@ -172,8 +172,13 @@ RecordingPlan recordingPlan(const RecordingSnapshot &before, const Scene &scene,
     // Only explicitly chosen slots are exclusive. Omitted slots keep OBS input masks
     // and recording output selection, including assignments on tracks 1 and 2.
     for (const auto &input : before.state.inputs) {
-        if (!input.tracksKnown)
-            continue; // non-audio inputs
+        if (!input.tracksKnown) {
+            // An input without audio has no tracks to clear. One whose tracks were not read may
+            // sit on a managed track already, and would then share it with the bus put there.
+            if (isAudioCaptureKind(input.kind) || !input.noTracks)
+                p.problems << QStringLiteral("unknownInput:") + input.name;
+            continue;
+        }
         if (!input.settingsKnown || !input.muteKnown) {
             p.problems << QStringLiteral("unknownInput:") + input.name;
             continue;

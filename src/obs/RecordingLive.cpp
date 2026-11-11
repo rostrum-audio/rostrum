@@ -108,6 +108,11 @@ void guard(const std::shared_ptr<Run> &run, int stage)
         run->client->request(c.method, data,
                              [run, c](bool ok, const QJsonObject &result, const QString &error) mutable {
                                  if (!ok) {
+                                     // Unanswered, it may still have happened: keep its undo.
+                                     if (Client::timedOut(error)) {
+                                         run->applied << c;
+                                         run->journal(run->applied);
+                                     }
                                      run->done(run->applied, error.isEmpty() ? c.method : error);
                                      return;
                                  }
