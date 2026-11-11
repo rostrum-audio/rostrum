@@ -895,6 +895,29 @@ private Q_SLOTS:
         QCOMPARE(installs.size(), 1);
         QCOMPARE(installs.first().flavor, QStringLiteral("flatpak"));
         QCOMPARE(sceneCollectionFile(dir), dir + QStringLiteral("/basic/scenes/config.json"));
+
+        // OBS 33 writes the file name with its extension, as in this user.ini.
+        const auto current = [&](const char *file) {
+            write(dir + QStringLiteral("/user.ini"),
+                  QByteArray("[General]\nFirstRun=false\n\n[Basic]\nProfile=Me\nProfileDir=Me\n"
+                             "SceneCollection=Live Show\nSceneCollectionFile=") +
+                      file + "\nConfigOnNewProfile=true\n");
+        };
+        write(dir + QStringLiteral("/basic/scenes/Live_Show.json"), "{}");
+        current("Live_Show.json");
+        QCOMPARE(sceneCollectionFile(dir), dir + QStringLiteral("/basic/scenes/Live_Show.json"));
+        current("Live_Show");
+        QCOMPARE(sceneCollectionFile(dir), dir + QStringLiteral("/basic/scenes/Live_Show.json"));
+        // A base name that itself ends in ".json", from an older OBS.
+        write(dir + QStringLiteral("/basic/scenes/old.json.json"), "{}");
+        current("old.json");
+        QCOMPARE(sceneCollectionFile(dir), dir + QStringLiteral("/basic/scenes/old.json.json"));
+        // Missing files and paths out of the scenes folder are refused.
+        current("gone.json");
+        QVERIFY(sceneCollectionFile(dir).isEmpty());
+        current("../Me/basic.json");
+        QVERIFY(sceneCollectionFile(dir).isEmpty());
+        current("config");
         const WebSocketConfig ws = readWebSocketConfig(dir);
         QVERIFY(ws.found && ws.enabled && ws.authRequired);
         QCOMPARE(ws.port, quint16(4466));
