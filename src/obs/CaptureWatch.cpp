@@ -127,6 +127,8 @@ void CaptureWatch::onReconnected(qint64 nowMs)
     m_dismissed = false;
     m_alert = false;
     m_haveCurrent = false;
+    // Grace counts from the reconnect, not from a mix state reported while PipeWire was down.
+    m_mixReadySince = (m_mixEnabled && m_mixReady && !m_mixError) ? nowMs : -1;
 }
 
 void CaptureWatch::setMix(bool enabled, bool ready, bool error)
@@ -179,6 +181,12 @@ QList<CaptureKey> CaptureWatch::missing() const
 
 void CaptureWatch::evaluate()
 {
+    // Nothing was baselined, so there is nothing to lose. End the epoch so promoteCandidate()
+    // may commit the captures that appear now; otherwise the next restart goes unnoticed.
+    if (m_epoch && m_watching && m_haveCurrent && m_obs && m_committed.isEmpty()) {
+        m_epoch = false;
+        return;
+    }
     if (!m_epoch || !m_watching || !m_haveCurrent || !m_obs || !m_committedObs
         || !sameObs(*m_committedObs, *m_obs) || m_committed.isEmpty()) {
         return;

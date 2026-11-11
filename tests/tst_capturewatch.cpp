@@ -1,5 +1,4 @@
 #include "obs/CaptureWatch.h"
-#include "obs/CaptureWatch.h"
 #include "obs/ObsConfig.h"
 
 #include <QFile>
@@ -182,6 +181,41 @@ private Q_SLOTS:
         f.at(CaptureWatch::kEpochCapAfterReadyMs + 1);
         f.observe({});
         QVERIFY(!f.w.alertActive());
+    }
+
+    void watch_reconnectWithoutBaseline_thenStabilize_laterRestartAlerts()
+    {
+        Fixture f;
+        f.restart(); // no baseline yet
+        f.w.setMix(true, true, false);
+        f.at(100);
+        f.observe(Fixture::both());
+        f.step(CaptureWatch::kBaselineStableMs);
+        f.observe(Fixture::both()); // stable: must become the baseline despite the earlier epoch
+        f.restart();
+        f.w.setMix(true, true, false);
+        f.at(CaptureWatch::kGraceAfterMixReadyMs);
+        f.observe({});
+        QVERIFY(f.w.alertActive());
+        QCOMPARE(f.w.missingDevices(), QStringList({"Mic", "Mix"}));
+    }
+
+    void watch_mixReadyDuringDisconnect_graceRestartsAtReconnect()
+    {
+        Fixture f;
+        f.baseline();
+        f.w.onDisconnected(f.now);
+        f.step(1000);
+        f.w.setMix(true, true, false); // reported ready while PipeWire is down
+        f.step(CaptureWatch::kGraceAfterMixReadyMs);
+        f.w.onReconnected(f.now);
+        f.epochBase = f.now;
+        f.at(CaptureWatch::kGraceAfterMixReadyMs - 1);
+        f.observe({});
+        QVERIFY(!f.w.alertActive());
+        f.at(CaptureWatch::kGraceAfterMixReadyMs);
+        f.observe({});
+        QVERIFY(f.w.alertActive());
     }
 
     void watch_mixOffOrError_noAlert_data()
