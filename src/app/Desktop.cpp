@@ -2,6 +2,7 @@
 
 #include "app/AppController.h"
 #include "app/Cli.h"
+#include "app/Headless.h"
 #include "app/Hotkeys.h"
 #include "app/Preferences.h"
 #include "app/Tray.h"
@@ -72,8 +73,7 @@ Desktop::Desktop(AppController *app, QObject *parent) : QObject(parent), m_app(a
     s_instance = this;
 
     // Screenshot and test runs must leave the user's tray, shortcuts and notifications alone.
-    m_enabled = QGuiApplication::platformName() != QLatin1String("offscreen") &&
-                qEnvironmentVariableIsEmpty("ROSTRUM_SCREENSHOT");
+    m_enabled = !headless();
 
     if (m_enabled) {
         dropOldShortcuts();

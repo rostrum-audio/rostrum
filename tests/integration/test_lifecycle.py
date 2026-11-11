@@ -27,7 +27,7 @@ def state(pid):
     try:
         fields = Path(f'/proc/{pid}/stat').read_text().rpartition(')')[2].split()
         return fields[0], int(fields[1]), int(fields[19])
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
         return None
 
 
@@ -249,6 +249,31 @@ class LifecycleTests(unittest.TestCase):
             if sentinel.poll() is None:
                 sentinel.kill()
                 sentinel.wait(timeout=3)
+            if identity:
+                identity.close()
+
+    def test_process_exiting_during_stat_read_is_gone(self):
+        # /proc/<pid>/stat opens for a process that then exits, and the read fails with ESRCH.
+        # That is a process that is gone, as a missing file is: the supervisor used to take it
+        # for a failure of its own and report a clean reclaim as an ownership error.
+        from process_lifecycle import Identity, record
+        sentinel = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
+        identity = None
+        try:
+            identity = Identity(sentinel.pid, os.getpid())
+            with patch.object(Path, 'read_text', side_effect=ProcessLookupError(3, 'No such process')), \
+                    patch.object(signal, 'pidfd_send_signal', wraps=signal.pidfd_send_signal) as send:
+                self.assertIsNone(record(sentinel.pid))
+                self.assertFalse(identity.send(signal.SIGKILL))
+                send.assert_not_called()
+            # Anything else reading /proc is still an error, not a vanished process.
+            with patch.object(Path, 'read_text', side_effect=PermissionError(13, 'Permission denied')):
+                with self.assertRaises(PermissionError):
+                    record(sentinel.pid)
+            self.assertIsNone(sentinel.poll(), 'sentinel was signaled')
+        finally:
+            sentinel.kill()
+            sentinel.wait(timeout=3)
             if identity:
                 identity.close()
 

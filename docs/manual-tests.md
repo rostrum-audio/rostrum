@@ -215,12 +215,13 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
 6. OBS, live: with OBS running and obs-websocket on, the page says "Connected to OBS …" and lists
    what OBS records, with warnings for desktop audio and a direct mic. Press Set Up OBS: the
    preview lists the mic switch (tracks 1 and 2), the Stream Mix source (track 1), the "Rostrum VOD
-   Mix" Audio Output Capture (track 2 only; Desktop Audio 2 is never assigned), setting Twitch VOD
-   Track to 2 when streaming to Twitch, and the mutes. Untick one mute and Apply.
+   Mix" Audio Output Capture (track 2 only; Desktop Audio 2 is never assigned), turning on Twitch VOD
+   Track on track 2 when streaming to Twitch and it is not already sent, and the mutes. Untick one mute and Apply.
    In OBS, the mic source records Rostrum Mic, "Rostrum Stream Mix" and "Rostrum VOD Mix" are in
    scenes, the ticked sources are muted and the unticked one is not. The page now shows a check
    mark. Press Undo OBS Changes: OBS is back as it was, the Stream Mix and VOD Mix sources are gone,
-   and the Twitch VOD track setting is restored.
+   and the Twitch VOD track setting is restored. Apply again, switch OBS to another scene
+   collection: Undo OBS Changes is unavailable there, and available again back on the first one.
 7. OBS, closed: quit OBS and press Set Up OBS, then Apply. A `.rostrum-….bak` file appears next to
    the scene collection. Start OBS: Settings → Audio has Desktop Audio on Rostrum Stream Mix (track 1),
    Mic/Aux on Rostrum Mic (tracks 1 and 2), Desktop Audio 2 unassigned, and "Rostrum VOD Mix"
@@ -390,9 +391,11 @@ anything, or OBS's "Record" only for the REC steps). obs-websocket on, Rostrum s
    soloed and set to Headphones only: the same warning. In OBS, point the Rostrum Stream Mix
    source at Default and start streaming: the banner says OBS isn't recording Rostrum Stream Mix;
    Open OBS Page opens it.
-   When the stream service is Twitch, verify Output → Streaming → Twitch VOD Track: if it is not
-   set to 2 (e.g. disabled or 1), stream readiness stays "Needs attention" ("Output → Streaming →
-   Twitch VOD Track is not set to track 2."). Setting Twitch VOD Track to 2 clears that item, but a
+   When the stream service is Twitch, verify Output → Streaming → Twitch VOD Track: if it is off
+   or on another track, stream readiness stays "Needs attention" ("OBS does not send track 2 to
+   Twitch as the VOD track. …"). In Advanced mode with Audio Track 2, or Simple mode without Enable
+   Custom Encoder Settings, the item names that setting instead. Turning Twitch VOD Track on with
+   track 2 clears that item, but a
    missing Rostrum VOD Mix capture stays "Needs attention" ("No supported enabled input configured
    for Rostrum VOD Mix.") even when Twitch VOD Track is already 2. Setting an input track mask alone
    is not enough.

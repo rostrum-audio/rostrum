@@ -131,7 +131,8 @@ Five minutes to a split stream:
    every scene, and sources that would double audio (desktop audio, single-app captures) are
    muted, never deleted. With OBS running this goes through obs-websocket (included in
    OBS 28+; enable its server in OBS if needed; Rostrum reads the local port/password settings). With OBS closed, Rostrum edits the
-   scene collection after backing it up. **Undo OBS Changes** puts everything back. The page also
+   scene collection after backing it up. If Rostrum can't read every OBS audio source, the page says
+   so and changes nothing. **Undo OBS Changes** puts back what was changed in the scene collection and profile OBS is on. The page also
    shows observed OBS capture targets from the PipeWire graph. "Set it up by hand" has the manual steps.
 
    For manual setup, add **Audio Output Capture** (or the PipeWire audio capture plugin)
@@ -214,7 +215,7 @@ A Headphones-only bus is in neither mix. Switching it back to Stream or Both kee
 
 Check these settings in OBS:
 - **Settings → Stream:** Service is Twitch.
-- **Settings → Output:** Twitch VOD Track is 2. This setting appears only when the service is Twitch and Enable Custom Encoder Settings is on. Enhanced Broadcasting ignores this track.
+- **Settings → Output → Streaming:** Twitch VOD Track is on and uses track 2. In Advanced output mode, Audio Track (the stream's own) must be another track, normally 1. In Simple output mode the setting appears only with Enable Custom Encoder Settings on. It shows only when the service is Twitch, and Enhanced Broadcasting ignores it. With OBS running, Set Up OBS turns it on for you, except where that needs the stream's track or custom encoder settings changed.
 - **Advanced Audio Properties:** Rostrum Mic has tracks 1 and 2 checked. Rostrum Stream Mix has track 1 checked. Rostrum VOD Mix has track 2 checked. Desktop Audio is off both tracks.
 
 Stream readiness stays Needs attention until track 2 is selected and Rostrum VOD Mix is captured.
@@ -359,7 +360,8 @@ mixer's Mic strip matches its Mic live / Mic muted title.
 - Crash reports waiting to be sent or discarded: `~/.local/state/rostrum/crashes/` (at most 10,
   none older than 30 days), and sentry-native's own database in `~/.local/state/rostrum/sentry/`.
 - App rules for the next login: `~/.config/pipewire/pipewire-pulse.conf.d/50-rostrum.conf` and
-  `~/.config/pipewire/client.conf.d/50-rostrum.conf`. Nothing is written to `~/.config/wireplumber/`.
+  `~/.config/pipewire/client.conf.d/50-rostrum.conf`. They match apps' playback only, never their
+  mic. Nothing is written to `~/.config/wireplumber/`.
 - Autostart, when on: `~/.config/autostart/dev.getrostrum.Rostrum.desktop`.
 
 Rostrum's virtual devices live in PipeWire, not in the app, so audio keeps flowing if Rostrum quits

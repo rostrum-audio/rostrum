@@ -17,10 +17,27 @@ void fetchReadinessState(Client *client, std::function<void(const State &, const
 
 // Runs the actions in order and stops at the first one OBS refuses. `applied` holds the undo
 // ops for everything that did happen, so a partial run can still be undone.
+// `onApplied` is told of each undo op as its step happens, so the record survives a crash part
+// way; `applied` repeats them all at the end. A step OBS did not answer in time is included: it
+// may have happened.
 void applyPlan(Client *client, const QList<Action> &actions, const State &before,
-               std::function<void(const QList<UndoOp> &applied, const QString &error)> done);
+               std::function<void(const QList<UndoOp> &applied, const QString &error)> done,
+               std::function<void(const UndoOp &op)> onApplied = {});
 
-// Best effort: every op is tried. `failed` counts the ones OBS refused.
-void applyUndo(Client *client, const Undo &undo, std::function<void(int failed, const QString &lastError)> done);
+// Both first check that OBS is still on the scene collection and profile they were planned for
+// (applyPlan: `before`'s; applyUndo: `scope`'s, the profile only when given).
+
+struct UndoResult
+{
+    QList<qsizetype> settled; // ops (indices into the undo) OBS answered: put back, or refused
+    int failed = 0;           // requests OBS refused
+    QString lastError;
+    QString stopped; // why the other ops were not tried (OBS disconnected or switched); else empty
+};
+
+// Best effort while OBS stays connected and on `scope`: every op is tried, newest first. Ops
+// not settled were not tried and belong in the undo record still.
+void applyUndo(Client *client, const Undo &undo, const UndoScope &scope,
+               std::function<void(const UndoResult &)> done);
 
 } // namespace rostrum::obs

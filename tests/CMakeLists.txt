@@ -115,6 +115,32 @@ if(ROSTRUM_AUDIO_INTEGRATION_TESTS)
         $<TARGET_FILE:rostrum-graphtest> -v)
     add_test(NAME audio_readiness COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/integration/readiness-routing.py $<TARGET_FILE:rostrum-graphtest>)
+    # Exported rules read by native clients and by a private pipewire-pulse.
+    foreach(tool pipewire-pulse pacat)
+        find_program(AUDIO_${tool} NAMES ${tool} REQUIRED)
+    endforeach()
+    # A playback app that replaces its stream in one burst, so PipeWire can reuse the node ID.
+    add_executable(rostrum-test-stream integration/stream-recreate.cpp)
+    target_link_libraries(rostrum-test-stream PRIVATE PkgConfig::PipeWire m)
+    add_test(NAME audio_rule_fragments COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/integration/rule-fragments.py $<TARGET_FILE:rostrum-graphtest>)
+    add_test(NAME audio_stream_replacement COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/integration/stream-replacement.py $<TARGET_FILE:rostrum-graphtest>
+        $<TARGET_FILE:rostrum-test-stream>)
+    add_test(NAME audio_wireplumber_restart COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/integration/wireplumber-restart.py $<TARGET_FILE:rostrum-graphtest>
+        $<TARGET_FILE:rostrum-test-stream>)
+    add_test(NAME audio_pipewire_restart COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/integration/pipewire-restart.py $<TARGET_FILE:rostrum-graphtest>
+        $<TARGET_FILE:rostrum-test-stream>)
+    if(TARGET rostrum)
+        # The real app's quit path; needs the app build.
+        add_test(NAME audio_quit_signals COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/integration/quit-signals.py $<TARGET_FILE:rostrum>
+            $<TARGET_FILE:rostrum-graphtest> $<TARGET_FILE:rostrum-test-stream>)
+        set_tests_properties(audio_quit_signals PROPERTIES
+            TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
+    endif()
     if(TARGET rostrum-dsp)
         set(mic_filter_test_options "")
         if(ROSTRUM_DSP_DENOISE)
@@ -125,8 +151,19 @@ if(ROSTRUM_AUDIO_INTEGRATION_TESTS)
             $<TARGET_FILE:rostrum-graphtest> $<TARGET_FILE:rostrum-dsp> ${mic_filter_test_options})
         set_tests_properties(audio_mic_filter_scheduling PROPERTIES
             TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
+        add_test(NAME audio_mic_filter_release COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/integration/mic-filter-release.py
+            $<TARGET_FILE:rostrum-graphtest> $<TARGET_FILE:rostrum-dsp>)
+        set_tests_properties(audio_mic_filter_release PROPERTIES
+            TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
+        add_test(NAME audio_mic_filter_breaker COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/integration/mic-filter-breaker.py
+            $<TARGET_FILE:rostrum-graphtest> $<TARGET_FILE:rostrum-dsp>)
+        set_tests_properties(audio_mic_filter_breaker PROPERTIES
+            TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
     endif()
     # Lifecycle regressions deliberately interrupt private jobs; serialize audio tests.
-    set_tests_properties(audio_safety audio_safety_fixture audio_safety_lifecycle audio_readiness PROPERTIES
+    set_tests_properties(audio_safety audio_safety_fixture audio_safety_lifecycle audio_readiness
+        audio_rule_fragments audio_stream_replacement audio_wireplumber_restart audio_pipewire_restart PROPERTIES
         TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
 endif()

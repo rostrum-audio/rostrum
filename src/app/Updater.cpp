@@ -1,6 +1,7 @@
 #include "app/Updater.h"
 
 #include "app/AppController.h"
+#include "app/Headless.h"
 
 #include <QDateTime>
 #include <QDir>
@@ -11,7 +12,6 @@
 #include <QLoggingCategory>
 #include <QNetworkReply>
 #include <QSysInfo>
-
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
@@ -63,8 +63,7 @@ Updater::Updater(AppController *app, QObject *parent)
     const QString override = qEnvironmentVariable("ROSTRUM_UPDATE_URL");
     m_feed = QUrl(override.isEmpty() ? QStringLiteral(ROSTRUM_UPDATE_URL) : override);
     m_checkSoon = !override.isEmpty();
-    const bool testRun = QGuiApplication::platformName() == QLatin1String("offscreen") ||
-                         !qEnvironmentVariableIsEmpty("ROSTRUM_SCREENSHOT");
+    const bool testRun = headless();
     m_networkAllowed = updates::trustedUrl(m_feed) && (!testRun || !override.isEmpty());
 
     if (m_kind == updates::InstallKind::AppImage) {

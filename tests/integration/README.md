@@ -10,8 +10,9 @@ telemetry or audio delivery outside the private graph are introduced.
 Linux with readable `/proc`, child subreapers and pidfd support (kernel 5.3+
 with these syscalls allowed), Python 3.9+ (standard library), PipeWire 1.x with `pipewire`, `pw-cat`,
 `pw-cli`, `pw-dump`, `pw-link`, WirePlumber 0.5+ with its installed configuration
-and scripts in `/usr/share/wireplumber`, and `dbus-daemon`. On Ubuntu 26.04 the
-additional runtime packages are `pipewire-bin wireplumber dbus python3`.
+and scripts in `/usr/share/wireplumber`, `dbus-daemon`, and `pipewire-pulse` and `pacat` for the
+rule fragment test. On Ubuntu 26.04 the additional runtime packages are
+`pipewire-bin pipewire-pulse pulseaudio-utils wireplumber dbus python3`.
 Build dependencies remain those documented in the main README.
 
 ```sh
@@ -173,6 +174,78 @@ The original failure evidence and cleanup-phase diagnostic remain in
 `build-appimage-validation/out/hosted-97b5dd6-run37190536318/`. The exact phase of
 that historical CI signal was not observed; the new protocol proves the intended
 phase rather than assuming it from timing. No production audio behavior changed.
+
+## Rule fragments
+
+`audio_rule_fragments` (`rule-fragments.py`, needs `pipewire-pulse` and `pacat` from
+`pipewire-pulse` and `pulseaudio-utils`) has the real exporter write both fragments for a
+`name:SafetyPlayer=game` rule into the private configuration, then stops the driver so only the
+fragments and WirePlumber place streams; the Game bus lingers as it does after a quit. A native
+`pw-cat` and a PulseAudio `pacat` client (through a private `pipewire-pulse` identified by its
+process and config name) each play 440 Hz and record from the default source, a fake mic carrying
+330 Hz. Playback must carry the rule's `target.object` and reach Game with the tone. Each recording
+must carry no rule target, be linked only from the fake mic and record 330 Hz. WirePlumber 0.5 does
+not link a capture stream to a sink named by `target.object`, so the property check is what catches
+a rule reaching a recording; the audio check proves the app still hears its mic.
+
+## Stream replacement
+
+`audio_stream_replacement` (`stream-replacement.py`) uses `rostrum-test-stream`
+(`stream-recreate.cpp`), a playback client that, on request, destroys its stream and creates an
+identical one in the same loop iteration, as browsers do. It opts out of WirePlumber's target
+restore, so only Rostrum's router can place the new stream. With a `name:SafetyPlayer=game` rule
+and Game sent to the stream only, each of three replacements must get the old node ID back with a
+new `object.serial` (otherwise the run fails: it could not exercise ID reuse), be linked only to
+Game, deliver 440 Hz there, and leave the fake headphones silent. Before the fix the router kept
+the old stream's "already requested" state and left the replacement on the default sink.
+
+## WirePlumber restart
+
+`audio_wireplumber_restart` (`wireplumber-restart.py`) routes the same no-restore test app to
+Game, then twice stops the private WirePlumber, waits until its `default` metadata is gone and
+starts a new instance. Each time the app must be linked only to Game again, with 440 Hz at Game and
+the Stream Mix and silence at the fake headphones. Before the fix Rostrum kept the old metadata's
+`target.object` values in its cache, believed the app was still routed and left it on the default
+sink.
+
+## PipeWire restart
+
+`audio_pipewire_restart` (`pipewire-restart.py`) stops the private WirePlumber and PipeWire and
+starts them again, twice: once with Rostrum reconnecting before the test app and once after it.
+The run must reuse the old bus IDs and serials (it fails otherwise, since it could not exercise
+ID reuse). Each time the app must be only on Game, Music muted again by solo, and Game must reach
+the stream only. The driver reconnects when `--reconnect-file` holds a new request id, as the
+app's retry timer would. This is a regression test, not a red one: it also passes without the
+state reset on disconnect, because the first pass after reconnecting already drops per-ID state.
+
+## Mic filter release
+
+`audio_mic_filter_release` (`mic-filter-release.py`, registered when the DSP plugin is built)
+leaves a call app on `rostrum.filtered` with its `target.object` in the metadata, stops the
+driver, and starts it again without filters: once with `--mic-filters-unavailable` (settings
+still enabled, no filter library) and once with filters turned off in settings. Each time the
+app's target must be cleared, the app linked only from the mic and recording 440 Hz, both filter
+nodes gone, and the driver's log must show the app pointed back before the nodes were removed,
+without the 3 s wait running out. Before the fix the first start left the stale target for good,
+and both removed the nodes on the first pass, before the metadata had been read.
+
+## Mic filter crash breaker
+
+`audio_mic_filter_breaker` (`mic-filter-breaker.py`, registered when the DSP plugin is built)
+records the stream mic so the filter node runs, then restarts the private PipeWire twice. Both
+losses must count as strikes, and the filter nodes must be gone afterwards. The breaker now times
+from when the filter node began running with the graph, not from when controls were last sent.
+The other side, that a restart with the filter node idle does not count, is not covered here:
+every node in the private session stays running.
+
+## Quit signals
+
+`audio_quit_signals` (`quit-signals.py`, registered only when the app is built) runs the real
+`rostrum` offscreen in the private session. The driver writes the default scene first; the test
+adds a rule that mutes the test app. For SIGTERM, SIGINT and SIGHUP in turn, sent through a pinned
+pidfd, the app's stream must be muted with Game silent while Rostrum runs, and after the signal
+Rostrum must exit with status 0 and leave the stream unmuted, with 440 Hz back on the lingering
+Game bus. Before the fix SIGTERM ended Rostrum with status -15 and left the app muted.
 
 ## Mic-filter scheduling regression
 

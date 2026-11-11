@@ -27,7 +27,8 @@ def record(pid):
     try:
         fields = Path(f'/proc/{pid}/stat').read_text().rpartition(')')[2].split()
         return int(fields[1]), int(fields[19]), fields[0]  # parent, birth tick, state
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
+        # Gone. A process that exits between open and read fails the read with ESRCH.
         return None
 
 

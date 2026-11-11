@@ -125,7 +125,16 @@ bool ruleMatches(const AppRule &rule, const StreamProps &props)
         return false;
     }
     if (rule.key == MatchKey::Name) {
-        return rule.match.compare(props.appName.trimmed(), Qt::CaseInsensitive) == 0;
+        if (rule.match.compare(props.appName.trimmed(), Qt::CaseInsensitive) == 0) {
+            return true;
+        }
+        // An app with no name and no binary is known by its stream's name, and its rule is
+        // written with that. Rule fragments cannot match it, so Rostrum moves it once it plays.
+        if (!props.appName.trimmed().isEmpty() || !cleanBinary(props.binary).isEmpty()) {
+            return false;
+        }
+        const AppIdentity id = identify(props);
+        return id.key.key == MatchKey::Name && rule.match.compare(id.key.match, Qt::CaseInsensitive) == 0;
     }
     return rule.match.compare(cleanBinary(props.binary), Qt::CaseInsensitive) == 0;
 }

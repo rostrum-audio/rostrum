@@ -39,19 +39,60 @@ struct Input
     quint32 tracks = 0;
     QString channel; // "desktop1", "mic1"... for OBS's global audio devices, else empty
     bool settingsKnown = false, muteKnown = false, tracksKnown = false, gainKnown = false;
+    // OBS answered that the input has no audio tracks (an image, a colour), as opposed to not
+    // answering, which leaves an input that may well have them unread.
+    bool noTracks = false;
     double gain = 1.0;
 };
 
+// One value in OBS's current profile (basic.ini), as obs-websocket reads and writes it.
+struct ProfileParameter
+{
+    QString category, name, value;
+    QString key() const { return category + QLatin1Char('/') + name; }
+    bool operator==(const ProfileParameter &) const = default;
+};
+
+// The Output settings that decide whether OBS sends Twitch a VOD track. Each holds what
+// obs-websocket reported: the profile's value, else OBS's default, else empty.
+struct VodTrackSettings
+{
+    QString outputMode;     // Output/Mode: "Simple" or "Advanced"
+    QString advEnabled;     // AdvOut/VodTrackEnabled
+    QString advTrack;       // AdvOut/VodTrackIndex, 1-based
+    QString advStreamTrack; // AdvOut/TrackIndex, 1-based: the track OBS streams
+    QString simpleEnabled;  // SimpleOutput/VodTrackEnabled, always track 2
+    QString simpleAdvanced; // SimpleOutput/UseAdvanced: the VOD track needs custom encoder settings
+};
+
+// What OBS does with a Twitch VOD track, read the way OBS reads its settings when a stream starts.
+enum class TwitchVod
+{
+    Track2,             // track 2 (Rostrum VOD Mix) goes to Twitch as the VOD track
+    Off,                // no VOD track or another track; Set Up OBS can send track 2
+    StreamsTrack2,      // advanced output streams track 2 itself, so OBS sends no VOD track
+    NeedsCustomEncoder, // simple output sends one only with custom encoder settings turned on
+};
+TwitchVod twitchVod(const VodTrackSettings &s);
+// The profile values that make OBS send track 2 as the VOD track. Empty when it already does,
+// or when only a change Rostrum leaves to the user would (StreamsTrack2, NeedsCustomEncoder).
+QList<ProfileParameter> twitchVodWrites(const VodTrackSettings &s);
+
 struct State
 {
+    // OBS's current scene collection and profile, by display name: live from obs-websocket,
+    // offline the collection file's "name" (the profile is not needed then).
+    QString collection, profile;
+    bool collectionKnown = false, profileKnown = false;
     QList<Input> inputs;
     QStringList scenes; // top-level scenes
     bool scopeKnown = false;
     QString programScene;
     QSet<QString> programInputs; // enabled direct program-scene items; groups/nesting not supported
 
-    QString streamService;       // e.g. "Twitch"
-    int twitchVodTrack = 0;      // 0 = unset/disabled, 2 = track 2
+    QString streamService; // e.g. "Twitch"
+    VodTrackSettings vod;
+    bool streamServiceKnown = false, vodKnown = false; // live only: read from OBS
 
     const Input *input(const QString &name) const;
     const Input *channel(const QString &channel) const;

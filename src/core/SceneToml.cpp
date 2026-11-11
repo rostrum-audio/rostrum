@@ -5,7 +5,8 @@
 #include <QRegularExpression>
 #include <QSet>
 #include <QTimeZone>
-
+#include <algorithm>
+#include <cmath>
 #include <sstream>
 #include <toml++/toml.hpp>
 
@@ -213,9 +214,13 @@ Scene sanitize(Scene scene)
     const Scene defaults = defaults::scene();
 
     scene.name = scene.name.trimmed().isEmpty() ? QString::fromLatin1(kDefaultSceneName) : scene.name.trimmed();
-    scene.masterPhones = std::clamp(scene.masterPhones, 0.0, 1.0);
-    scene.masterStream = std::clamp(scene.masterStream, 0.0, 1.0);
-    scene.sidetoneVolume = std::clamp(scene.sidetoneVolume, 0.0, 1.0);
+    // TOML has nan and inf, and std::clamp passes NaN through to PipeWire.
+    const auto level = [](double v, double max, double fallback) {
+        return std::isfinite(v) ? std::clamp(v, 0.0, max) : fallback;
+    };
+    scene.masterPhones = level(scene.masterPhones, 1.0, defaults.masterPhones);
+    scene.masterStream = level(scene.masterStream, 1.0, defaults.masterStream);
+    scene.sidetoneVolume = level(scene.sidetoneVolume, 1.0, defaults.sidetoneVolume);
 
     QList<Bus> out;
     QSet<QString> seen;
@@ -247,7 +252,7 @@ Scene sanitize(Scene scene)
         if (!hex.match(b.color).hasMatch()) {
             b.color = QString::fromLatin1(defaults::palette().at(k % defaults::palette().size()).hex);
         }
-        b.volume = std::clamp(b.volume, 0.0, b.isInput() ? 1.5 : 1.0);
+        b.volume = level(b.volume, b.isInput() ? 1.5 : 1.0, Bus{}.volume);
         b.balance = b.isInput() ? 0.0 : volume::clampBalance(b.balance);
     }
     QSet<int> claimed;
@@ -273,7 +278,7 @@ Scene sanitize(Scene scene)
             continue;
         }
         AppRule c = r;
-        c.volume = std::clamp(c.volume, 0.0, 1.0);
+        c.volume = level(c.volume, 1.0, AppRule{}.volume);
         rules.append(c);
     }
     scene.rules = rules;

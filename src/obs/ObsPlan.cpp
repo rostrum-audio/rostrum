@@ -42,12 +42,53 @@ struct Target
     bool retargetLocal;     // whether a non-global input may be taken over
 };
 
+// The value a profile key had, for undo: what OBS reported, else OBS's default.
+QString profileValueBefore(const VodTrackSettings &before, const ProfileParameter &p)
+{
+    const QString key = p.key();
+    QString value;
+    if (key == QLatin1String("AdvOut/VodTrackEnabled")) {
+        value = before.advEnabled;
+    } else if (key == QLatin1String("AdvOut/VodTrackIndex")) {
+        value = before.advTrack;
+    } else if (key == QLatin1String("SimpleOutput/VodTrackEnabled")) {
+        value = before.simpleEnabled;
+    }
+    if (value.isEmpty()) {
+        value = p.name == QLatin1String("VodTrackIndex") ? QStringLiteral("2") : QStringLiteral("false");
+    }
+    return value;
+}
+
+// Undo only puts back the keys Set Up OBS writes, whatever an edited journal says.
+bool restorableProfileKey(const QString &key)
+{
+    return key == QLatin1String("AdvOut/VodTrackEnabled") || key == QLatin1String("AdvOut/VodTrackIndex") ||
+           key == QLatin1String("SimpleOutput/VodTrackEnabled");
+}
+
 } // namespace
 
 Plan makePlan(const State &state, const Facts &facts, Mode mode, const QSet<QString> &recordingDevices)
 {
     Plan plan;
     plan.mode = mode;
+
+    // An unread device reads as "default", so it would look like the hardware mic or output and
+    // be retargeted, duplicated or muted; an unread mute reads as unmuted, so a Mute's undo would
+    // unmute it. Plan nothing until everything was read.
+    for (const auto &i : state.inputs) {
+        if (isAudioCaptureKind(i.kind) && !(i.settingsKnown && i.muteKnown && i.tracksKnown)) {
+            plan.unreadInputs << i.name;
+        }
+    }
+    const bool twitch = state.streamService.compare(QLatin1String("Twitch"), Qt::CaseInsensitive) == 0;
+    plan.streamSettingsUnread =
+        mode == Mode::Live && (!state.streamServiceKnown || (twitch && !state.vodKnown));
+    plan.scopeUnread = !state.collectionKnown || (mode == Mode::Live && !state.profileKnown);
+    if (plan.incomplete()) {
+        return plan;
+    }
 
     QHash<QString, Capture> caps;
     for (const auto &i : state.inputs) {
@@ -86,7 +127,7 @@ Plan makePlan(const State &state, const Facts &facts, Mode mode, const QSet<QStr
             }
         }
 
-        // Take over an input that records the hardware today: it keeps its filters, tracks and
+        // Take over an input that records the hardware today: it keeps its filters and
         // scene placement. Global devices first, unmuted before muted.
         const Input *pick = nullptr;
         auto consider = [&](bool global, bool muted) {
@@ -185,12 +226,16 @@ Plan makePlan(const State &state, const Facts &facts, Mode mode, const QSet<QStr
         plan.actions << mute;
     }
 
-    if (state.streamService.compare(QLatin1String("Twitch"), Qt::CaseInsensitive) == 0 && state.twitchVodTrack != 2) {
+    // Only what OBS reads for the current output mode. Streaming track 2, or simple output
+    // without custom encoder settings, is left to the user: readiness says what to change.
+    const QList<ProfileParameter> vodWrites =
+        mode == Mode::Live && twitch ? twitchVodWrites(state.vod) : QList<ProfileParameter>{};
+    if (!vodWrites.isEmpty()) {
         Action setTwitchVod;
         setTwitchVod.type = Action::Type::SetTwitchVodTrack;
         setTwitchVod.role = Action::Role::Vod;
         setTwitchVod.input = QStringLiteral("Twitch VOD Track");
-        setTwitchVod.tracks = 2;
+        setTwitchVod.profile = vodWrites;
         plan.actions << setTwitchVod;
     }
 
@@ -201,6 +246,7 @@ UndoOp undoFor(const Action &action, const State &before)
 {
     UndoOp op;
     op.input = action.input;
+    op.scope = action.type == Action::Type::SetTwitchVodTrack ? before.profile : before.collection;
     switch (action.type) {
     case Action::Type::SetDevice: {
         op.type = UndoOp::Type::RestoreDevice;
@@ -208,6 +254,7 @@ UndoOp undoFor(const Action &action, const State &before)
         op.device = i ? i->settings.value(QLatin1String("device_id")).toString(QStringLiteral("default"))
                       : QStringLiteral("default");
         op.tracks = i ? i->tracks : 0;
+        op.tracksSet = i && i->tracksKnown && action.tracks != 0; // only if the action changes them
         break;
     }
     case Action::Type::Unmute:
@@ -226,23 +273,77 @@ UndoOp undoFor(const Action &action, const State &before)
         op.channel = action.channel;
         break;
     case Action::Type::SetTwitchVodTrack:
-        op.type = UndoOp::Type::RestoreTwitchVodTrack;
-        op.tracks = before.twitchVodTrack > 0 ? quint32(before.twitchVodTrack) : 0;
+        op.type = UndoOp::Type::RestoreProfile;
+        for (const ProfileParameter &p : action.profile) {
+            op.profile << ProfileParameter{p.category, p.name, profileValueBefore(before.vod, p)};
+        }
         break;
     }
     return op;
+}
+
+QList<qsizetype> Undo::runnable(const UndoScope &scope, const State &now) const
+{
+    // Rostrum 0.2.0 kept one record per install, whatever collection was open. Its input ops
+    // are taken as this collection's only if every input they name is here.
+    bool legacyHere = true;
+    for (const UndoOp &op : ops) {
+        if (op.configDir == scope.configDir && op.scope.isEmpty() &&
+            op.type != UndoOp::Type::RestoreProfile && !now.input(op.input)) {
+            legacyHere = false;
+        }
+    }
+    QList<qsizetype> out;
+    for (qsizetype n = 0; n < ops.size(); ++n) {
+        const UndoOp &op = ops.at(n);
+        if (op.configDir != scope.configDir) {
+            continue;
+        }
+        const bool profileOp = op.type == UndoOp::Type::RestoreProfile;
+        const bool here = profileOp
+                              ? !scope.profile.isEmpty() && (op.scope.isEmpty() || op.scope == scope.profile)
+                              : !scope.collection.isEmpty() &&
+                                    (op.scope.isEmpty() ? legacyHere : op.scope == scope.collection);
+        if (here) {
+            out << n;
+        }
+    }
+    return out;
+}
+
+Undo Undo::only(const QList<qsizetype> &indices) const
+{
+    Undo out;
+    for (const qsizetype n : indices) {
+        out.ops << ops.at(n);
+    }
+    return out;
+}
+
+Undo Undo::without(const QList<qsizetype> &indices) const
+{
+    Undo out;
+    for (qsizetype n = 0; n < ops.size(); ++n) {
+        if (!indices.contains(n)) {
+            out.ops << ops.at(n);
+        }
+    }
+    return out;
 }
 
 QJsonObject Undo::toJson() const
 {
     QJsonArray list;
     for (const auto &op : ops) {
-        QJsonObject o{{QStringLiteral("input"), op.input}};
+        QJsonObject o{{QStringLiteral("input"), op.input}, {QStringLiteral("configDir"), op.configDir}};
+        if (!op.scope.isEmpty()) {
+            o.insert(QStringLiteral("scope"), op.scope);
+        }
         switch (op.type) {
         case UndoOp::Type::RestoreDevice:
             o.insert(QStringLiteral("type"), QStringLiteral("device"));
             o.insert(QStringLiteral("device"), op.device);
-            if (op.tracks) {
+            if (op.tracksSet) {
                 o.insert(QStringLiteral("tracks"), int(op.tracks));
             }
             break;
@@ -257,29 +358,44 @@ QJsonObject Undo::toJson() const
             o.insert(QStringLiteral("type"), QStringLiteral("removeGlobal"));
             o.insert(QStringLiteral("channel"), op.channel);
             break;
-        case UndoOp::Type::RestoreTwitchVodTrack:
-            o.insert(QStringLiteral("type"), QStringLiteral("twitchVodTrack"));
-            o.insert(QStringLiteral("track"), int(op.tracks));
+        case UndoOp::Type::RestoreProfile: {
+            o.insert(QStringLiteral("type"), QStringLiteral("profile"));
+            QJsonArray values;
+            for (const ProfileParameter &p : op.profile) {
+                values.append(QJsonObject{{QStringLiteral("category"), p.category},
+                                          {QStringLiteral("name"), p.name},
+                                          {QStringLiteral("value"), p.value}});
+            }
+            o.insert(QStringLiteral("parameters"), values);
             break;
+        }
         }
         list.append(o);
     }
-    return {{QStringLiteral("format"), 1}, {QStringLiteral("configDir"), configDir}, {QStringLiteral("ops"), list}};
+    return {{QStringLiteral("format"), 2}, {QStringLiteral("ops"), list}};
 }
 
 Undo Undo::fromJson(const QJsonObject &json)
 {
     Undo undo;
-    undo.configDir = json.value(QLatin1String("configDir")).toString();
+    const int format = json.value(QLatin1String("format")).toInt(1);
+    if (format > 2) {
+        return undo; // from a newer Rostrum: leave it alone
+    }
+    // Format 1 kept the install once, and no scope.
+    const QString journalDir = json.value(QLatin1String("configDir")).toString();
     for (const auto &v : json.value(QLatin1String("ops")).toArray()) {
         const QJsonObject o = v.toObject();
         UndoOp op;
         op.input = o.value(QLatin1String("input")).toString();
+        op.configDir = format == 1 ? journalDir : o.value(QLatin1String("configDir")).toString();
+        op.scope = format == 1 ? QString() : o.value(QLatin1String("scope")).toString();
         const QString type = o.value(QLatin1String("type")).toString();
         if (type == QLatin1String("device")) {
             op.type = UndoOp::Type::RestoreDevice;
             op.device = o.value(QLatin1String("device")).toString(QStringLiteral("default"));
             op.tracks = quint32(o.value(QLatin1String("tracks")).toInt(0));
+            op.tracksSet = o.value(QLatin1String("tracks")).isDouble(); // older records left out "none"
         } else if (type == QLatin1String("mute")) {
             op.type = UndoOp::Type::RestoreMute;
             op.muted = o.value(QLatin1String("muted")).toBool();
@@ -288,9 +404,30 @@ Undo Undo::fromJson(const QJsonObject &json)
         } else if (type == QLatin1String("removeGlobal")) {
             op.type = UndoOp::Type::RemoveGlobal;
             op.channel = o.value(QLatin1String("channel")).toString();
+        } else if (type == QLatin1String("profile")) {
+            op.type = UndoOp::Type::RestoreProfile;
+            for (const auto &pv : o.value(QLatin1String("parameters")).toArray()) {
+                const QJsonObject p = pv.toObject();
+                const ProfileParameter param{p.value(QLatin1String("category")).toString(),
+                                             p.value(QLatin1String("name")).toString(),
+                                             p.value(QLatin1String("value")).toString()};
+                if (restorableProfileKey(param.key()) && p.value(QLatin1String("value")).isString()) {
+                    op.profile << param;
+                }
+            }
+            if (op.profile.isEmpty()) {
+                continue;
+            }
         } else if (type == QLatin1String("twitchVodTrack")) {
-            op.type = UndoOp::Type::RestoreTwitchVodTrack;
-            op.tracks = quint32(o.value(QLatin1String("track")).toInt(0));
+            // Rostrum 0.2.0 set AdvOut/VodTrackIndex to 2 (and keys OBS does not read). Put back
+            // the index it read; it read an unset one as 0, and then OBS was already on 2.
+            const int track = o.value(QLatin1String("track")).toInt(0);
+            if (track <= 0) {
+                continue;
+            }
+            op.type = UndoOp::Type::RestoreProfile;
+            op.profile << ProfileParameter{QStringLiteral("AdvOut"), QStringLiteral("VodTrackIndex"),
+                                           QString::number(track)};
         } else {
             continue;
         }

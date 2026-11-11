@@ -91,7 +91,7 @@ public:
     QString state() const { return m_stateName; }
     QString summary() const;
     QString detail() const;
-    bool setUp() const { return m_havePlan && m_plan.isEmpty(); }
+    bool setUp() const { return m_havePlan && !m_plan.incomplete() && m_plan.isEmpty(); }
     bool onlyDoubling() const;
     bool canApply() const;
     bool canUndo() const;
@@ -161,8 +161,11 @@ private:
     void rebuildRecordings();
     void finish(bool ok, const QString &message);
     obs::Undo loadUndo() const;
-    void saveUndo(const obs::Undo &undo) const;
+    void saveUndo(const obs::Undo &undo) const; // an empty record removes the file
     void appendUndo(const QList<obs::UndoOp> &ops);
+    // The install, scene collection and (live) profile the shown state came from.
+    obs::UndoScope undoScope() const;
+    quint64 m_fetchGeneration = 0; // only the newest live read is used
     QList<obs::GoLiveProblem> currentProblems() const;
     void checkGoLive();
     void refreshWarnings();

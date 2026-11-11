@@ -2,6 +2,7 @@
 // It runs the same Engine as the app, without any UI.
 
 #include "core/Paths.h"
+#include "core/RuleExport.h"
 #include "core/Settings.h"
 #include "core/Volume.h"
 #include "engine/Engine.h"
@@ -59,6 +60,9 @@ int main(int argc, char **argv)
     QCommandLineOption unassignAfter(QStringLiteral("unassign-after"),
                                      QStringLiteral("Unassign every app after N seconds."), QStringLiteral("N"));
     QCommandLineOption listApps(QStringLiteral("list-apps"), QStringLiteral("Print app streams once ready."));
+    QCommandLineOption exportRules(
+        QStringLiteral("export-rules"),
+        QStringLiteral("Write the PipeWire rule fragments for the --rule rules under $XDG_CONFIG_HOME/pipewire."));
     QCommandLineOption dest(QStringLiteral("dest"), QStringLiteral("Set a bus destination, e.g. game=phones."),
                             QStringLiteral("bus=phones|stream|both"));
     QCommandLineOption destinationFile(QStringLiteral("destination-file"),
@@ -75,6 +79,9 @@ int main(int argc, char **argv)
         QStringLiteral("Load mic filters from this DSP library, using saved filter settings."), QStringLiteral("path"));
     QCommandLineOption micFilterDenoise(QStringLiteral("mic-filter-denoise"),
         QStringLiteral("Include the RNNoise stage (the supplied plugin must support it)."));
+    QCommandLineOption micFiltersUnavailable(
+        QStringLiteral("mic-filters-unavailable"),
+        QStringLiteral("Use saved filter settings with no DSP library, as when the plugin fails to load."));
     QCommandLineOption micFallback(QStringLiteral("mic-fallback"),
                                    QStringLiteral("Use another mic while the chosen one is missing."));
     QCommandLineOption sidetone(QStringLiteral("sidetone"), QStringLiteral("Sidetone volume 0..1 (turns it on)."),
@@ -86,12 +93,37 @@ int main(int argc, char **argv)
     QCommandLineOption tone(QStringLiteral("tone"),
                             QStringLiteral("Play the test chime on a sink (node.name) and exit."),
                             QStringLiteral("sink"));
+    QCommandLineOption reconnectFile(
+        QStringLiteral("reconnect-file"),
+        QStringLiteral("After losing PipeWire, reconnect once this test command file holds a new request id, "
+                       "as the app retries."),
+        QStringLiteral("path"));
     QCommandLineOption meter(QStringLiteral("meter"),
                              QStringLiteral("Print the peak level of a node (node.name) four times a second."),
                              QStringLiteral("node"));
-    parser.addOptions({seconds, teardown, rule, session, unassignAfter, listApps, dest, destinationFile,
-                       readinessFile, headphones, mic, micMuted, micFallback, sidetone, solo, config, tone,
-                       meter, micFilterPlugin, micFilterDenoise});
+    parser.addOptions({seconds,
+                       teardown,
+                       rule,
+                       session,
+                       unassignAfter,
+                       listApps,
+                       exportRules,
+                       dest,
+                       destinationFile,
+                       readinessFile,
+                       headphones,
+                       mic,
+                       micMuted,
+                       micFallback,
+                       sidetone,
+                       solo,
+                       config,
+                       tone,
+                       meter,
+                       micFilterPlugin,
+                       micFilterDenoise,
+                       micFiltersUnavailable,
+                       reconnectFile});
     parser.process(app);
 
     pw::PwContext pw;
@@ -121,6 +153,9 @@ int main(int argc, char **argv)
     }
     if (parser.isSet(micFilterPlugin)) {
         engine.setMicFilterPlugin(parser.value(micFilterPlugin), parser.isSet(micFilterDenoise), {});
+        engine.setMicFilters(loadSettings(paths::settingsFile()).micFilters);
+    } else if (parser.isSet(micFiltersUnavailable)) {
+        engine.setMicFilterPlugin({}, false, QStringLiteral("The mic filter library failed to load (test)."));
         engine.setMicFilters(loadSettings(paths::settingsFile()).micFilters);
     }
 
@@ -184,9 +219,28 @@ int main(int argc, char **argv)
         });
         destinationPoll.start(25); // Observe commands; tests wait for acknowledgement and the real graph.
     }
+    // The app retries on a timer; a test decides when, so it can restart PipeWire first.
+    QTimer reconnectPoll;
+    QString lastReconnectRequest;
+    QObject::connect(&reconnectPoll, &QTimer::timeout, &app, [&] {
+        QFile file(parser.value(reconnectFile));
+        const QString request =
+            file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()).trimmed() : QString();
+        if (request.isEmpty() || request == lastReconnectRequest) {
+            return;
+        }
+        lastReconnectRequest = request;
+        reconnectPoll.stop();
+        QTextStream(stdout) << "Reconnect request " << request << Qt::endl;
+        pw.start();
+    });
     QObject::connect(&pw, &pw::PwContext::stateChanged, &app, [&] {
         if (pw.state() == pw::PwContext::State::Failed) {
             QTextStream(stderr) << pw.errorString() << "\n";
+            if (parser.isSet(reconnectFile)) {
+                reconnectPoll.start(25);
+                return;
+            }
             QCoreApplication::exit(2);
             return;
         }
@@ -266,6 +320,16 @@ int main(int argc, char **argv)
         };
         apply(parser.values(rule), true);
         apply(parser.values(session), false);
+        if (parser.isSet(exportRules)) {
+            QString error;
+            if (!rule_export::apply(engine.scene(), paths::pipewirePulseFragment(), paths::pipewireClientFragment(),
+                                    &error)) {
+                QTextStream(stderr) << "Rule export failed: " << error << "\n";
+                QCoreApplication::exit(2);
+                return;
+            }
+            QTextStream(stdout) << "Rules exported." << Qt::endl;
+        }
         if (parser.isSet(unassignAfter)) {
             QTimer::singleShot(parser.value(unassignAfter).toInt() * 1000, &app, [&] {
                 QTextStream(stdout) << "Unassigning every app.\n";

@@ -375,12 +375,34 @@ QList<ReadinessResult> evaluateReadiness(const ReadinessInput &i)
                 add(QStringLiteral("obs-vod"), tr("OBS VOD Mix"), ReadinessStatus::Attention,
                     tr("No supported enabled input configured for Rostrum VOD Mix."));
             }
-            if (i.obsState->twitchVodTrack == 2) {
-                add(QStringLiteral("obs-twitch-vod"), tr("Twitch VOD Track"), ReadinessStatus::Verified,
-                    tr("Output → Streaming → Twitch VOD Track is set to track 2."));
+            const QString id = QStringLiteral("obs-twitch-vod");
+            const QString name = tr("Twitch VOD Track");
+            if (!i.obsState->vodKnown) {
+                add(id, name, ReadinessStatus::Unknown, tr("OBS's streaming output settings were not read."));
             } else {
-                add(QStringLiteral("obs-twitch-vod"), tr("Twitch VOD Track"), ReadinessStatus::Attention,
-                    tr("Output → Streaming → Twitch VOD Track is not set to track 2."));
+                switch (obs::twitchVod(i.obsState->vod)) {
+                case obs::TwitchVod::Track2:
+                    add(id, name, ReadinessStatus::Verified,
+                        tr("OBS sends track 2 to Twitch as the VOD track (Output → Streaming)."));
+                    break;
+                case obs::TwitchVod::Off:
+                    add(id, name, ReadinessStatus::Attention,
+                        tr("OBS does not send track 2 to Twitch as the VOD track. Set Up OBS can turn on "
+                           "Output → Streaming → Twitch VOD Track."));
+                    break;
+                case obs::TwitchVod::StreamsTrack2:
+                    add(id, name, ReadinessStatus::Attention,
+                        tr("OBS streams track 2, so it sends Twitch no VOD track. In Output → Streaming, set "
+                           "Audio Track to 1, then turn on Twitch VOD Track with track 2."));
+                    break;
+                case obs::TwitchVod::NeedsCustomEncoder:
+                    add(id, name, ReadinessStatus::Attention,
+                        tr("In Simple output mode OBS sends a Twitch VOD track only with custom encoder "
+                           "settings. "
+                           "In Output → Streaming, turn on Enable Custom Encoder Settings (Advanced), then "
+                           "Twitch VOD Track (Uses Track 2)."));
+                    break;
+                }
             }
         }
     }

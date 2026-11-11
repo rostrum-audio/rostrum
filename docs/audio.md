@@ -11,6 +11,12 @@ Audio Output Captures; no additional PipeWire nodes are created. The mic uses an
 Capture of `rostrum.mic` when filters are off or `rostrum.filtered` when filters are on. Changing
 filters invalidates the recording preview and requires another review/apply; reconnect only
 checks the saved assignment. Both mic paths follow mic mute from the existing engine.
+The two mic paths differ in level and in what silences them. `rostrum.mic` is the stream's mic:
+it carries the mic fader's gain and is silent while the mic's destination leaves out Stream.
+`rostrum.filtered` is the mic for apps: always at unity gain, and it carries the voice whatever the
+mic's destination. So a mic recording track made with filters on ignores the mic fader and records
+a Headphones-only mic, and one made with filters off does neither. Set the level of that track in
+OBS when filters are on.
 The recording planner manages explicitly chosen slots on tracks 3–6, reads all current input
 track masks and enabled scene/group nesting, and previews changes independently of stream
 setup. Omitted slots mean Keep OBS assignments; an explicit empty assignment means clear the
@@ -367,10 +373,17 @@ already carries, so Set Up OBS points it at `rostrum.mic` or mutes it.
 Like every Rostrum node, both nodes and their links linger. If Rostrum quits or crashes, apps keep
 the filtered mic with the last settings, and the next start adopts the nodes without moving an
 app. Turning the filters off moves apps back, links the hardware mic straight to `rostrum.mic` and
-`rostrum.sidetone` again, and removes both nodes. While the mix is off they are left alone, like
+`rostrum.sidetone` again, and removes both nodes. The same happens whenever the mix runs without
+filters: turned off in settings, failed, or unavailable (no filter library, an old PipeWire). The
+nodes are removed only after the apps have left: Rostrum clears each app's target first, including
+one WirePlumber remembered from an earlier run, and waits up to 3 s for WirePlumber to relink them.
+For that the first pass after connecting must see the targets, so Rostrum reports PipeWire ready
+only once the objects bound during the first registry listing (node info, the `default` metadata)
+have reported in. While the mix is off they are left alone, like
 the others.
 
-If PipeWire goes away twice within 10 s of a graph load, the graph is taken to be crashing the
+If PipeWire goes away twice within 10 s of the filter node starting to run with the graph (not of
+controls being sent again, and not while the node sits idle), the graph is taken to be crashing the
 daemon: Rostrum turns the filters off, saves that, and sends one notification ("Mic filters
 turned off"). They stay off until switched on again.
 
@@ -418,7 +431,9 @@ Rostrum quits. Turning on Always carries the current volume and mute into the ne
 fragments never carry either: they only set `target.object`.
 
 When Rostrum quits normally it unmutes every stream it muted and waits for PipeWire to confirm,
-so quitting never leaves an app silent (and WirePlumber does not remember the app as muted). A
+so quitting never leaves an app silent (and WirePlumber does not remember the app as muted).
+SIGTERM (logging out, `systemctl --user stop`, `kill`), SIGINT (Ctrl+C) and SIGHUP are a normal
+quit too; a second signal while it runs ends the process at once, like a crash. A
 saved mute applies again when Rostrum starts. After a crash, a stream Rostrum muted stays muted
 until it is unmuted in any mixer; WirePlumber may also restore that mute when the app restarts,
 exactly as it does for a mute set in Plasma's volume applet.
@@ -431,6 +446,12 @@ Apps are shown by `application.name`. Generic names that do not identify the app
 running). A new rule matches on whichever key the identity came from, and the app row shows that
 key. Name rules are checked before binary rules. Matching is case-insensitive.
 
+An app that reports neither a name nor a binary is known by its stream's `media.name`, or failing
+that its `node.name`, and its rule is a name rule holding that text. Rostrum matches such a rule
+against the same field, only for streams with no name and no binary. The rule fragments match
+`application.name` alone, so they cannot place such an app when it starts: Rostrum moves it once
+it plays.
+
 ### Rules for apps that start before Rostrum
 
 While Rostrum runs, the router above handles every stream. App rules from the default scene are
@@ -439,16 +460,21 @@ asks for its bus itself:
 
 | File | Array | Read by |
 | --- | --- | --- |
-| `~/.config/pipewire/pipewire-pulse.conf.d/50-rostrum.conf` | `pulse.rules` | `pipewire-pulse` when it starts (normally at login), applied to every PulseAudio client: Discord, browsers, most games |
+| `~/.config/pipewire/pipewire-pulse.conf.d/50-rostrum.conf` | `stream.rules` | `pipewire-pulse` when it starts (normally at login), applied to the streams it creates for PulseAudio clients: Discord, browsers, most games |
 | `~/.config/pipewire/client.conf.d/50-rostrum.conf` | `stream.rules` | every native PipeWire app when it starts |
 
-The array names are copied from `/usr/share/pipewire/pipewire-pulse.conf` and
-`/usr/share/pipewire/client.conf`, and a unit test checks them against the installed files. Fragment
-arrays are appended to the system ones, so the system rules (for example Firefox quirks) stay in
-effect.
+`stream.rules` match each stream's own properties, in native clients and in the streams
+`pipewire-pulse` creates (`pipewire-pulse.conf(5)`, STREAM RULES). The PulseAudio fragment does not
+use `pulse.rules`: those match the client, so a rule there also reaches the app's recording
+streams, and a client has no `media.class` to tell them apart. A unit test checks the array name
+against `/usr/share/pipewire/client.conf`; `tests/integration/rule-fragments.py` runs both fragments
+through a private `pipewire-pulse` and native clients. Fragment arrays are appended to the system
+ones, so the system rules (for example Firefox quirks) stay in effect.
 
-Each rule matches `application.name` or `application.process.binary` with an anchored,
-ASCII-case-insensitive regex. The only property it sets is `target.object = "rostrum.<bus>"`.
+Each rule matches `media.class = "Stream/Output/Audio"` together with `application.name` or
+`application.process.binary` (an anchored, ASCII-case-insensitive regex), so it reaches only the
+app's playback streams. Its recording streams, such as Discord's microphone, keep the microphone
+WirePlumber gives them. The only property a rule sets is `target.object = "rostrum.<bus>"`.
 Binary rules are written first, so a name rule for the same app wins, as it does in the app.
 WirePlumber's `find-defined-target.lua` honours the property when it first links the stream.
 
@@ -474,6 +500,18 @@ After a reboot or re-login, the order is as follows:
 3. The router sets `target.object` for Discord's stream, and it moves to Voice.
 
 If Discord stays on the default sink until it is restarted, that is a router bug.
+
+The router remembers each stream by its registry ID, and PipeWire gives a freed ID to the next
+object. A browser that replaces its playback stream (on a track or format change) gets the same ID
+back in one burst, before Rostrum reconciles. Rostrum therefore forgets everything about a node
+when PipeWire removes it, and again if a stream turns up under a known ID with a different
+`object.serial`, so the new stream is routed, and its volume and mute applied, like any new stream.
+
+If WirePlumber quits or restarts, its `default` metadata goes with it, and the new instance relinks
+every stream by its own properties. Rostrum drops its copy of the metadata when that object goes
+or is replaced, asks again for every stream it routed (app streams and filtered-mic recordings),
+and counts a request only once it reached a metadata object. While there is none, the next pass
+tries again.
 
 ### Automatic assignment
 
@@ -594,7 +632,7 @@ zero volume, sidetone starts at fader position 0.5 so it is audible.
 
 ## OBS
 
-OBS records `Rostrum Mic` (`rostrum.mic`) on Track 1 and Track 2, `Rostrum Stream Mix` (PulseAudio name `rostrum.stream.monitor`) on Track 1 only, and `Rostrum VOD Mix` (`rostrum.vod.monitor`) on Track 2 only (the Twitch VOD track, containing all playback buses with VOD enabled, excluding Music by default). When streaming to Twitch, Output → Streaming → Twitch VOD Track must be set to Track 2, and stream readiness stays "Needs attention" until that output setting is set. Any OBS audio source type works, PulseAudio or the
+OBS records `Rostrum Mic` (`rostrum.mic`) on Track 1 and Track 2, `Rostrum Stream Mix` (PulseAudio name `rostrum.stream.monitor`) on Track 1 only, and `Rostrum VOD Mix` (`rostrum.vod.monitor`) on Track 2 only (the Twitch VOD track, containing all playback buses with VOD enabled, excluding Music by default). When streaming to Twitch, OBS must send track 2 as the Twitch VOD track, and stream readiness stays "Needs attention" until it does. Rostrum reads the profile values OBS itself reads when a stream starts: in Advanced output mode `AdvOut/VodTrackEnabled` and `AdvOut/VodTrackIndex` (track 2, and the stream's own `AdvOut/TrackIndex` must be another track, or OBS sends no VOD track); in Simple output mode `SimpleOutput/VodTrackEnabled`, which OBS honours only with `SimpleOutput/UseAdvanced` (Enable Custom Encoder Settings) and always puts on track 2. With OBS running, Set Up OBS turns the VOD track on and sets it to track 2; it never changes the stream's track or turns on custom encoder settings, and readiness says what to change instead. OBS applies the setting the next time a stream starts. Any OBS audio source type works, PulseAudio or the
 PipeWire plugin, as long as it records one of those. The failures come from sources that record
 something else: "Default" or the headphones (everything you hear, including buses you keep off
 stream), the hardware mic or `Rostrum Filtered Mic` (a doubled voice), or one app (that app
@@ -614,13 +652,21 @@ The plan is the same whether OBS is running or not (`makePlan` in `src/obs/ObsPl
 
 1. Mic: if an unmuted source already records `rostrum.mic`, keep it. If only a muted one does,
    unmute it. Otherwise point the source that records the hardware mic at `rostrum.mic`, which
-   keeps its filters, tracks and scenes. Global Mic/Aux comes first. Failing that, add one. Configured for OBS Track 1 and Track 2.
+   keeps its filters and scenes. Global Mic/Aux comes first. Failing that, add one. Configured for OBS Track 1 and Track 2; Undo puts back the tracks it had, none included.
 2. Stream mix: the same, preferring the global Desktop Audio source, configured for OBS Track 1 only.
 3. VOD mix: add a named Audio Output Capture, "Rostrum VOD Mix" (device `rostrum.vod.monitor`), configured for OBS Track 2 only. Desktop Audio 2 is never assigned.
 4. Output setting: when the stream service is Twitch, Output → Streaming → Twitch VOD Track is set to 2.
 5. Every other unmuted source that records audio Rostrum handles (hardware mic, headphones,
    Default, one app, a Rostrum bus) is muted. These steps are optional in the preview. Nothing is
    ever deleted.
+
+The plan needs every audio source's device, mute state and tracks and, with OBS running, the stream
+service and the Twitch VOD track setting. If one of those reads fails or times out, the plan has no
+steps. The OBS page says Rostrum couldn't read all of OBS's audio settings and names what is
+missing, and Set Up OBS stays disabled until Check Again reads everything. An unread device would
+otherwise look like `default` (the hardware mic or output), and an unread mute like unmuted. If OBS
+disconnects partway through a read, the whole read fails. With OBS closed, a source whose
+`settings`, `muted` or `mixers` is missing from the scene collection counts as unread.
 
 With OBS running, Rostrum talks obs-websocket 5 on `127.0.0.1`. The port and password come from
 OBS's own config (`plugin_config/obs-websocket/config.json`). Native, Flatpak and Snap installs
@@ -633,8 +679,29 @@ It checks again that OBS is not running just before writing, because OBS overwri
 it quits.
 
 Each applied step records its inverse in `$XDG_STATE_HOME/rostrum/obs-undo.json`, so Undo restores
-the previous device, mute state, and removes what was added. That works live or offline,
-whichever OBS state applies at the time.
+the previous device, mute state and profile values, and removes what was added. That works live or
+offline, whichever OBS state applies at the time, except that profile values (the Twitch VOD
+track) are put back only with OBS running.
+
+Every recorded step carries the OBS install and the scene collection it was made in (the profile,
+for profile values). Undo puts back only the steps made in the collection and profile OBS is on
+now; the others stay recorded until OBS is back on theirs. Before the first write, both Set Up
+OBS and Undo ask OBS again for its current collection and profile and stop, changing nothing, if
+they differ from what was read. A live read asks for them before and after everything else, and a
+switch in between leaves the read incomplete. A step stays recorded when Undo did not reach it
+because OBS disconnected or switched; a step OBS refuses while connected is reported and dropped.
+A record written by Rostrum 0.2.0 has no collection: its steps are put back only where every
+input they name exists.
+
+Live, each step's inverse is saved as the step happens, so a crash part way leaves what was done
+undoable. Every request to OBS ends: reads after 5 s and writes after 15 s without an answer. A
+write that went unanswered may still have happened, so Set Up OBS records its inverse and stops,
+and Undo keeps the step and stops. Live reads overlap (refresh, OBS events, reconnects); only the
+newest is used, and none while Set Up OBS or Undo is changing OBS.
+
+With OBS closed, a source added to a scene is written as a visible scene item. OBS loads an item
+saved without `visible` hidden, which would leave the source silent in that scene; the item's
+`id` is left for OBS to assign from the scene's counter.
 
 Trade-off: OBS now gets a single stream mix, so per-scene audio in OBS (a source muted in one scene)
 moves to Rostrum scenes.
@@ -686,7 +753,11 @@ All configuration is TOML under `$XDG_CONFIG_HOME/rostrum/` (default `~/.config/
 - `settings.toml`: general options, mixer options, ducking, mic filters, default scene, saved headphone and
   mic `node.name`, shortcuts, window size, last page, OBS options and the OBS scene map
   (`[obs.scene_map]`).
-- `scenes/<slug>.toml`: one scene per file. The `name` inside the file wins over the file name.
+- `scenes/<slug>.toml`: one scene per file. The `name` inside the file wins over the file name: a
+  scene stays in whichever file holds it. A new scene whose `<slug>.toml` already exists (another
+  scene's, or a file Rostrum cannot read) gets `<slug>-2.toml` and so on, so "Live" and "Live!", or
+  two names without Latin letters (both `scene`), never share a file. Deleting a scene deletes only
+  the file that holds it.
   A scene holds master levels, sidetone level, the bus list (id, name, color, kind, volume, mute,
   balance, destination) and app rules (match, key, bus, per-app volume and mute, an optional label for apps
   that report no name, last seen).

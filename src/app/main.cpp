@@ -13,6 +13,7 @@
 #include "app/Obs.h"
 #include "app/OpenDeckSetup.h"
 #include "app/Preferences.h"
+#include "app/QuitSignals.h"
 #include "app/Scenes.h"
 #include "app/Updater.h"
 #include "core/Paths.h"
@@ -124,11 +125,14 @@ int main(int argc, char *argv[])
         controller.engine()->releaseHolds();
         controller.scenes()->flush();
         controller.saveSettingsNow();
-        const bool levels = controller.engine()->releaseTransientLevels();
-        if (controller.engine()->releaseAppMutes() || levels) {
-            controller.pw()->roundtrip(500);
-        }
+        controller.engine()->releaseTransientLevels();
+        controller.engine()->releaseAppMutes();
+        // Always wait for the daemon: releasing a hold (panic, push to talk) also sends volumes,
+        // and they must arrive before the connection closes. It returns at once with nothing queued.
+        controller.pw()->roundtrip(500);
     });
+    // Logout, `systemctl --user stop`, Ctrl+C: quit through the path above, not by dying.
+    rostrum::app::installQuitSignals(app.get());
     controller.start();
     control.registerOn(QDBusConnection::sessionBus());
     rostrum::app::cli::apply(request, control);

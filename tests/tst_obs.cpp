@@ -51,6 +51,32 @@ Facts facts()
     return f;
 }
 
+// What a complete live read adds to a scene collection's state: the profile and the streaming
+// settings, here not Twitch. The inputs keep the known flags stateFromCollection gave them.
+State liveRead(State s)
+{
+    if (s.collection.isEmpty()) {
+        s.collection = QStringLiteral("Test");
+    }
+    s.profile = QStringLiteral("Test profile");
+    s.collectionKnown = s.profileKnown = s.streamServiceKnown = s.vodKnown = true;
+    return s;
+}
+
+// An input as a complete read returns it.
+Input readInput(const QString &name, const char *kind, const QString &device, bool muted = false)
+{
+    Input in{name, QString::fromLatin1(kind), {{QStringLiteral("device_id"), device}}, muted};
+    in.settingsKnown = in.muteKnown = in.tracksKnown = true;
+    return in;
+}
+
+// Set up, rather than empty because something could not be read.
+bool setUp(const Plan &plan)
+{
+    return !plan.incomplete() && plan.isEmpty();
+}
+
 QStringList describe(const Plan &plan)
 {
     QStringList out;
@@ -73,9 +99,14 @@ QStringList describe(const Plan &plan)
         case Action::Type::CreateGlobal:
             out << QStringLiteral("global %1 %2 %3 %4 tracks %5").arg(a.channel, a.input, a.kind, a.device).arg(a.tracks);
             break;
-        case Action::Type::SetTwitchVodTrack:
-            out << QStringLiteral("twitch-vod-track %1").arg(a.tracks);
+        case Action::Type::SetTwitchVodTrack: {
+            QStringList values;
+            for (const auto &p : a.profile) {
+                values << p.key() + QLatin1Char('=') + p.value;
+            }
+            out << QStringLiteral("twitch-vod %1").arg(values.join(QLatin1Char(' ')));
             break;
+        }
         }
     }
     return out;
@@ -116,6 +147,7 @@ public:
     QMap<QString, QStringList> scenes;
     QHash<QString, QString> special;
     QStringList ignored, requests;
+    std::function<void(const QString &type)> onRequest; // before the request is handled
     bool nested = false;
     QStringList refuse; // request types to fail
     bool streaming = false;
@@ -124,7 +156,15 @@ public:
     qint64 outputDuration = 0;
     QString programScene;
     QString streamService;
-    int twitchVodTrack = 0;
+    // The profile by "Category/Name", as OBS keeps it: a key the profile never set reads as OBS's
+    // default, or null. Rostrum may write only keys OBS reads; every write is recorded.
+    QHash<QString, QString> profileValues{{QStringLiteral("Output/Mode"), QStringLiteral("Advanced")}};
+    const QHash<QString, QString> profileDefaults{
+        {QStringLiteral("Output/Mode"), QStringLiteral("Simple")},
+        {QStringLiteral("AdvOut/TrackIndex"), QStringLiteral("1")},
+        {QStringLiteral("AdvOut/VodTrackIndex"), QStringLiteral("2")},
+        {QStringLiteral("SimpleOutput/UseAdvanced"), QStringLiteral("false")}};
+    QStringList profileWrites; // "Category/Name=value"
     int recordingTracks = 3;
     QStringList trackNamesRead;
     QString gameTrackName = QStringLiteral("Game");
@@ -167,6 +207,8 @@ private:
         }
         const QString type = d.value(QLatin1String("requestType")).toString();
         requests << type;
+        if (onRequest)
+            onRequest(type);
         if (ignored.contains(type))
             return;
         const QJsonObject rd = d.value(QLatin1String("requestData")).toObject();
@@ -310,13 +352,19 @@ private:
                        QJsonObject{{QStringLiteral("service"), streamService}});
         } else if (type == QLatin1String("GetProfileParameter")) {
             const QString param = rd.value(QLatin1String("parameterName")).toString();
-            if (param == QLatin1String("VodTrackIndex")) {
-                out.insert(QStringLiteral("parameterValue"), QString::number(twitchVodTrack));
-            } else if (param == QLatin1String("TwitchVodTrack")) {
+            const QString key =
+                rd.value(QLatin1String("parameterCategory")).toString() + QLatin1Char('/') + param;
+            if (key == QLatin1String("Output/Mode") || key.contains(QLatin1String("Vod")) ||
+                key == QLatin1String("AdvOut/TrackIndex") ||
+                key == QLatin1String("SimpleOutput/UseAdvanced")) {
+                const auto value = [](const QHash<QString, QString> &values, const QString &key) {
+                    return values.contains(key) ? QJsonValue(values.value(key))
+                                                : QJsonValue(QJsonValue::Null);
+                };
+                const QJsonValue fallback = value(profileDefaults, key);
                 out.insert(QStringLiteral("parameterValue"),
-                           twitchVodTrack > 0 ? QStringLiteral("true") : QStringLiteral("false"));
-            } else if (param == QLatin1String("Mode")) {
-                out.insert(QStringLiteral("parameterValue"), QStringLiteral("Advanced"));
+                           profileValues.contains(key) ? value(profileValues, key) : fallback);
+                out.insert(QStringLiteral("defaultParameterValue"), fallback);
             } else if (param == QLatin1String("RecTracks")) {
                 out.insert(QStringLiteral("parameterValue"), QString::number(recordingTracks));
             } else if (param.startsWith(QLatin1String("Track")) && param.endsWith(QLatin1String("Name"))) {
@@ -328,11 +376,20 @@ private:
                 out.insert(QStringLiteral("parameterValue"), QStringLiteral("Standard"));
             }
         } else if (type == QLatin1String("SetProfileParameter")) {
-            const QString param = rd.value(QLatin1String("parameterName")).toString();
-            if (param == QLatin1String("VodTrackIndex")) {
-                twitchVodTrack = rd.value(QLatin1String("parameterValue")).toString().toInt();
-            } else if (param == QLatin1String("RecTracks")) {
-                recordingTracks = rd.value(QLatin1String("parameterValue")).toString().toInt();
+            const QString key = rd.value(QLatin1String("parameterCategory")).toString() + QLatin1Char('/') +
+                                rd.value(QLatin1String("parameterName")).toString();
+            const QJsonValue value = rd.value(QLatin1String("parameterValue"));
+            static const QSet<QString> writable{
+                QStringLiteral("AdvOut/RecTracks"), QStringLiteral("AdvOut/VodTrackEnabled"),
+                QStringLiteral("AdvOut/VodTrackIndex"), QStringLiteral("SimpleOutput/VodTrackEnabled")};
+            if (!writable.contains(key) || !value.isString()) {
+                return false;
+            }
+            profileWrites << key + QLatin1Char('=') + value.toString();
+            if (key == QLatin1String("AdvOut/RecTracks")) {
+                recordingTracks = value.toString().toInt();
+            } else {
+                profileValues.insert(key, value.toString());
             }
         } else {
             return false;
@@ -375,6 +432,23 @@ bool connectClient(Client &client, quint16 port, const QString &password)
     client.open(port, password);
     return QTest::qWaitFor([&] { return client.status() != Client::Status::Connecting; }, 5000) &&
            client.status() == Client::Status::Connected;
+}
+
+// A complete live read, or an empty state.
+State fetched(Client &client)
+{
+    State got;
+    bool done = false;
+    QString error;
+    fetchState(&client, [&](const State &s, const QString &e) {
+        got = s;
+        error = e;
+        done = true;
+    });
+    if (!QTest::qWaitFor([&] { return done; }, 5000) || !error.isEmpty()) {
+        return {};
+    }
+    return got;
 }
 
 } // namespace
@@ -604,7 +678,7 @@ private Q_SLOTS:
 
     void livePlanReusesMicAndAddsStreamMixEverywhere()
     {
-        const Plan plan = makePlan(stateFromCollection(fixture()), facts(), Mode::Live);
+        const Plan plan = makePlan(liveRead(stateFromCollection(fixture())), facts(), Mode::Live);
         QCOMPARE(describe(plan),
                  (QStringList{
                      QStringLiteral("set Mic/Aux rostrum.mic"),
@@ -653,8 +727,27 @@ private Q_SLOTS:
                  QString::fromLatin1(kMicDevice));
         QCOMPARE(s.input(QStringLiteral("Mic/Aux"))->tracks, 3u);
         QVERIFY(s.input(QStringLiteral("Game Audio"))->muted);
-        QVERIFY(makePlan(s, facts(), Mode::Offline).isEmpty());
-        QVERIFY(makePlan(s, facts(), Mode::Live).isEmpty());
+        QVERIFY(setUp(makePlan(s, facts(), Mode::Offline)));
+        QVERIFY(setUp(makePlan(liveRead(s), facts(), Mode::Live)));
+        // OBS loads a scene item without "visible" hidden, which silences an audio source there,
+        // and numbers one without an "id" itself.
+        int placed = 0;
+        for (const auto &v : after.value(QLatin1String("sources")).toArray()) {
+            const QJsonObject source = v.toObject();
+            if (source.value(QLatin1String("id")).toString() != QLatin1String("scene")) {
+                continue;
+            }
+            for (const auto &iv :
+                 source.value(QLatin1String("settings")).toObject().value(QLatin1String("items")).toArray()) {
+                const QJsonObject item = iv.toObject();
+                if (item.value(QLatin1String("name")).toString() == QLatin1String("Rostrum VOD Mix")) {
+                    ++placed;
+                    QCOMPARE(item.value(QLatin1String("visible")), QJsonValue(true));
+                    QVERIFY(!item.contains(QLatin1String("id")));
+                }
+            }
+        }
+        QCOMPARE(placed, 4);
 
         Undo undo;
         for (const auto &a : plan.actions) {
@@ -678,10 +771,8 @@ private Q_SLOTS:
 
     void mutedRostrumInputIsUnmutedNotDuplicated()
     {
-        State s = stateFromCollection(fixture());
-        Input stream{QStringLiteral("Rostrum Stream Mix"), QString::fromLatin1(kPulseOutput),
-                     {{QStringLiteral("device_id"), QString::fromLatin1(kStreamDevice)}}, true};
-        s.inputs << stream;
+        State s = liveRead(stateFromCollection(fixture()));
+        s.inputs << readInput(QStringLiteral("Rostrum Stream Mix"), kPulseOutput, QString::fromLatin1(kStreamDevice), true);
         const QStringList d = describe(makePlan(s, facts(), Mode::Live));
         QVERIFY(d.contains(QStringLiteral("unmute Rostrum Stream Mix")));
         QVERIFY(!d.join(QLatin1Char('\n')).contains(QLatin1String("create Rostrum Stream Mix")));
@@ -689,13 +780,99 @@ private Q_SLOTS:
 
     void secondCopyOfRostrumMicIsMuted()
     {
-        State s;
+        State s = liveRead({});
         s.scenes = {QStringLiteral("A")};
-        s.inputs << Input{QStringLiteral("One"), QString::fromLatin1(kPulseInput), {{QStringLiteral("device_id"), QString::fromLatin1(kMicDevice)}}}
-                 << Input{QStringLiteral("Two"), QString::fromLatin1(kPulseInput), {{QStringLiteral("device_id"), QString::fromLatin1(kMicDevice)}}}
-                 << Input{QStringLiteral("Mix"), QString::fromLatin1(kPulseOutput), {{QStringLiteral("device_id"), QString::fromLatin1(kStreamDevice)}}}
-                 << Input{QStringLiteral("Vod"), QString::fromLatin1(kPulseOutput), {{QStringLiteral("device_id"), QString::fromLatin1(kVodDevice)}}};
+        s.inputs << readInput(QStringLiteral("One"), kPulseInput, QString::fromLatin1(kMicDevice))
+                 << readInput(QStringLiteral("Two"), kPulseInput, QString::fromLatin1(kMicDevice))
+                 << readInput(QStringLiteral("Mix"), kPulseOutput, QString::fromLatin1(kStreamDevice))
+                 << readInput(QStringLiteral("Vod"), kPulseOutput, QString::fromLatin1(kVodDevice));
         QCOMPARE(describe(makePlan(s, facts(), Mode::Live)), QStringList{QStringLiteral("mute Two")});
+    }
+
+    void unreadAudioInputsBlockThePlan()
+    {
+        // Rostrum Mic is already in OBS, but one of its fields was not read. Its device would read
+        // as "default", so it would look like the hardware mic and be retargeted or doubled; its
+        // mute would read as unmuted, so a Mute's undo would unmute it later.
+        const State full = liveRead(stateFromCollection(fixture()));
+        for (int field = 0; field < 3; ++field) {
+            State s = full;
+            Input mic = readInput(QStringLiteral("Rostrum Mic"), kPulseInput, QString::fromLatin1(kMicDevice), true);
+            if (field == 0) {
+                mic.settingsKnown = false;
+                mic.settings = {};
+            } else if (field == 1) {
+                mic.muteKnown = false;
+                mic.muted = false;
+            } else {
+                mic.tracksKnown = false;
+            }
+            s.inputs << mic;
+            const Plan plan = makePlan(s, facts(), Mode::Live);
+            QVERIFY2(plan.incomplete(), qPrintable(QString::number(field)));
+            QCOMPARE(plan.unreadInputs, QStringList{QStringLiteral("Rostrum Mic")});
+            QVERIFY(!plan.streamSettingsUnread);
+            QCOMPARE(describe(plan), QStringList{});
+            QVERIFY(!setUp(plan));
+        }
+        // Sources that record no audio don't matter.
+        State s = full;
+        Input browser;
+        browser.name = QStringLiteral("Alerts");
+        browser.kind = QStringLiteral("browser_source");
+        s.inputs << browser;
+        QVERIFY(!makePlan(s, facts(), Mode::Live).incomplete());
+    }
+
+    void unreadStreamSettingsBlockLivePlans()
+    {
+        State s = stateFromCollection(fixture());
+        s.profile = QStringLiteral("Test profile"); // read; only the streaming settings were not
+        s.profileKnown = true;
+        const Plan unread = makePlan(s, facts(), Mode::Live);
+        QVERIFY(unread.streamSettingsUnread);
+        QVERIFY(unread.unreadInputs.isEmpty());
+        QVERIFY(unread.isEmpty());
+        // Offline Rostrum never reads them or sets the VOD track.
+        QVERIFY(!makePlan(s, facts(), Mode::Offline).incomplete());
+
+        s.streamServiceKnown = true;
+        s.streamService = QStringLiteral("Twitch");
+        QVERIFY(makePlan(s, facts(), Mode::Live).streamSettingsUnread); // VOD track unknown
+        s.vodKnown = true;
+        QVERIFY(!makePlan(s, facts(), Mode::Live).incomplete());
+        s.streamService = QStringLiteral("YouTube - RTMPS");
+        s.vodKnown = false; // irrelevant away from Twitch
+        QVERIFY(!makePlan(s, facts(), Mode::Live).incomplete());
+    }
+
+    void offlineSourcesWithMissingFieldsAreUnread()
+    {
+        for (const auto &in : stateFromCollection(fixture()).inputs) {
+            QVERIFY2(in.settingsKnown && in.muteKnown && in.tracksKnown, qPrintable(in.name));
+        }
+        for (const char *key : {"settings", "muted", "mixers"}) {
+            QJsonObject doc = fixture();
+            QJsonArray sources = doc.value(QLatin1String("sources")).toArray();
+            for (qsizetype n = 0; n < sources.size(); ++n) {
+                QJsonObject o = sources.at(n).toObject();
+                if (o.value(QLatin1String("name")).toString() == QLatin1String("Game Audio")) {
+                    o.insert(QLatin1String(key), QStringLiteral("unexpected"));
+                    sources.replace(n, o);
+                }
+            }
+            doc.insert(QStringLiteral("sources"), sources);
+            const Plan plan = makePlan(stateFromCollection(doc), facts(), Mode::Offline);
+            QCOMPARE(plan.unreadInputs, QStringList{QStringLiteral("Game Audio")});
+            QVERIFY2(plan.isEmpty(), key);
+
+            QJsonObject global = fixture();
+            QJsonObject mic = global.value(QLatin1String("AuxAudioDevice1")).toObject();
+            mic.remove(QLatin1String(key));
+            global.insert(QStringLiteral("AuxAudioDevice1"), mic);
+            QCOMPARE(makePlan(stateFromCollection(global), facts(), Mode::Offline).unreadInputs,
+                     QStringList{QStringLiteral("Mic/Aux")});
+        }
     }
 
     void findsConfigAndCollection()
@@ -758,6 +935,7 @@ private Q_SLOTS:
         QCOMPARE(before.scenes, (QStringList{QStringLiteral("BRB"), QStringLiteral("Game"), QStringLiteral("Overlays")}));
 
         const Plan plan = makePlan(before, facts(), Mode::Live);
+        QVERIFY(!plan.incomplete());
         Undo undo;
         bool applied = false;
         applyPlan(&client, plan.enabledActions(), before, [&](const QList<UndoOp> &ops, const QString &error) {
@@ -781,17 +959,21 @@ private Q_SLOTS:
 
         bool refetched = false;
         fetchState(&client, [&](const State &s, const QString &) {
-            QVERIFY(makePlan(s, facts(), Mode::Live).isEmpty());
+            QVERIFY(setUp(makePlan(s, facts(), Mode::Live)));
             refetched = true;
         });
         QTRY_VERIFY(refetched);
 
         bool undone = false;
-        applyUndo(&client, undo, [&](int failed, const QString &) {
-            QCOMPARE(failed, 0);
+        UndoResult result;
+        applyUndo(&client, undo, {QString(), obs.collection, obs.profile}, [&](const UndoResult &r) {
+            result = r;
             undone = true;
         });
         QTRY_VERIFY(undone);
+        QCOMPARE(result.failed, 0);
+        QVERIFY(result.stopped.isEmpty());
+        QCOMPARE(result.settled.size(), undo.ops.size());
         QCOMPARE(obs.inputs[QStringLiteral("Mic/Aux")].settings.value(QLatin1String("device_id")).toString(), kHwMic);
         QVERIFY(!obs.inputs.contains(QStringLiteral("Rostrum Stream Mix")));
         QVERIFY(!obs.inputs.contains(QStringLiteral("Rostrum VOD Mix")));
@@ -951,6 +1133,74 @@ private Q_SLOTS:
         QTRY_VERIFY(done);
         QVERIFY(!snapshot.scopeKnown);
         QVERIFY(!error.isEmpty());
+    }
+
+    void refusedReadsMakeTheLivePlanIncomplete()
+    {
+        FakeObs obs(QStringLiteral("pw"));
+        populate(obs);
+        Client client;
+        QVERIFY(connectClient(client, obs.port(), QStringLiteral("pw")));
+        auto plan = [&] {
+            Plan out;
+            bool done = false;
+            fetchState(&client, [&](const State &s, const QString &error) {
+                QVERIFY2(error.isEmpty(), qPrintable(error)); // OBS is still there
+                out = makePlan(s, facts(), Mode::Live);
+                done = true;
+            });
+            [&] { QTRY_VERIFY(done); }();
+            return out;
+        };
+        for (const QString &type : {QStringLiteral("GetInputSettings"), QStringLiteral("GetInputMute"),
+                                    QStringLiteral("GetInputAudioTracks")}) {
+            obs.refuse = {type};
+            const Plan p = plan();
+            QCOMPARE(QSet<QString>(p.unreadInputs.cbegin(), p.unreadInputs.cend()),
+                     (QSet<QString>{QStringLiteral("Mic/Aux"), QStringLiteral("Game Audio"),
+                                    QStringLiteral("Discord Audio")}));
+            QVERIFY2(p.isEmpty(), qPrintable(type));
+        }
+        obs.refuse = {QStringLiteral("GetStreamServiceSettings")};
+        QVERIFY(plan().streamSettingsUnread);
+        obs.streamService = QStringLiteral("Twitch");
+        obs.refuse = {QStringLiteral("GetProfileParameter")};
+        QVERIFY(plan().streamSettingsUnread);
+        obs.refuse.clear();
+        const Plan p = plan();
+        QVERIFY(!p.incomplete());
+        QVERIFY(!p.isEmpty());
+    }
+
+    void disconnectWhileReadingIsAnError()
+    {
+        for (const bool obsQuits : {false, true}) {
+            FakeObs obs(QStringLiteral("pw"));
+            populate(obs);
+            obs.ignored << QStringLiteral("GetInputMute");
+            Client client;
+            QVERIFY(connectClient(client, obs.port(), QStringLiteral("pw")));
+            int calls = 0;
+            QString error;
+            State got;
+            fetchState(&client, [&](const State &s, const QString &message) {
+                ++calls;
+                got = s;
+                error = message;
+            });
+            QTRY_VERIFY(obs.requests.contains(QStringLiteral("GetInputMute")));
+            QTRY_VERIFY(obs.requests.contains(QStringLiteral("GetInputAudioTracks")));
+            if (obsQuits) {
+                obs.dropClients();
+            } else {
+                client.close();
+            }
+            QTRY_COMPARE(calls, 1);
+            QVERIFY2(!error.isEmpty(), obsQuits ? "OBS quit" : "client closed");
+            QVERIFY(got.inputs.isEmpty());
+            QTest::qWait(200);
+            QCOMPARE(calls, 1);
+        }
     }
 
     void effectiveMuteWarnings()
@@ -1383,20 +1633,72 @@ private Q_SLOTS:
         QVERIFY(mappedScene(map, QString(), ours).isEmpty());
     }
 
+    void twitchVodTrackPlanAndReadiness_data()
+    {
+        QTest::addColumn<QString>("mode");
+        QTest::addColumn<QString>("advEnabled");
+        QTest::addColumn<QString>("advTrack");
+        QTest::addColumn<QString>("advStreamTrack");
+        QTest::addColumn<QString>("simpleEnabled");
+        QTest::addColumn<QString>("simpleAdvanced");
+        QTest::addColumn<QStringList>("writes");
+        QTest::addColumn<int>("status");
+        const int attention = int(ReadinessStatus::Attention), verified = int(ReadinessStatus::Verified);
+        // OBS's defaults read back as values: stream track 1, VOD track 2, custom encoder off.
+        QTest::newRow("advanced, off on the default track")
+            << "Advanced" << "" << "2" << "1" << "" << "false"
+            << QStringList{QStringLiteral("AdvOut/VodTrackEnabled=true")} << attention;
+        QTest::newRow("advanced, on track 3")
+            << "Advanced" << "true" << "3" << "1" << "" << "false"
+            << QStringList{QStringLiteral("AdvOut/VodTrackIndex=2")} << attention;
+        QTest::newRow("advanced, off on track 4")
+            << "Advanced" << "false" << "4" << "1" << "" << "false"
+            << QStringList{QStringLiteral("AdvOut/VodTrackEnabled=true"),
+                           QStringLiteral("AdvOut/VodTrackIndex=2")}
+            << attention;
+        QTest::newRow("advanced, sends track 2")
+            << "Advanced" << "true" << "2" << "1" << "" << "false" << QStringList{} << verified;
+        QTest::newRow("advanced, on written as a number")
+            << "Advanced" << "1" << "2" << "1" << "" << "false" << QStringList{} << verified;
+        // OBS sends no VOD track when it is the stream track; Rostrum leaves the stream track alone.
+        QTest::newRow("advanced, streams track 2")
+            << "Advanced" << "true" << "2" << "2" << "" << "false" << QStringList{} << attention;
+        // Simple output: always track 2, and only with custom encoder settings on.
+        QTest::newRow("simple, custom encoder, off")
+            << "Simple" << "true" << "2" << "1" << "false" << "true"
+            << QStringList{QStringLiteral("SimpleOutput/VodTrackEnabled=true")} << attention;
+        QTest::newRow("simple, custom encoder, on")
+            << "Simple" << "" << "" << "1" << "true" << "true" << QStringList{} << verified;
+        QTest::newRow("simple, no custom encoder")
+            << "Simple" << "true" << "2" << "1" << "true" << "false" << QStringList{} << attention;
+        QTest::newRow("mode unset") << "" << "true" << "2" << "1" << "true" << "" << QStringList{}
+                                    << attention;
+    }
+
     void twitchVodTrackPlanAndReadiness()
     {
-        State state = stateFromCollection(fixture());
+        QFETCH(QString, mode);
+        QFETCH(QString, advEnabled);
+        QFETCH(QString, advTrack);
+        QFETCH(QString, advStreamTrack);
+        QFETCH(QString, simpleEnabled);
+        QFETCH(QString, simpleAdvanced);
+        QFETCH(QStringList, writes);
+        QFETCH(int, status);
+        State state = liveRead(stateFromCollection(fixture()));
         state.streamService = QStringLiteral("Twitch");
-        state.twitchVodTrack = 1; // Not track 2
-        Plan plan = makePlan(state, facts(), Mode::Live);
-        bool hasTwitchVodAction = false;
-        for (const auto &a : plan.actions) {
-            if (a.type == Action::Type::SetTwitchVodTrack) {
-                hasTwitchVodAction = true;
-                QCOMPARE(a.tracks, 2u);
+        state.vod = {mode, advEnabled, advTrack, advStreamTrack, simpleEnabled, simpleAdvanced};
+        const Plan plan = makePlan(state, facts(), Mode::Live);
+        QVERIFY(!plan.incomplete());
+        QStringList planned;
+        for (const auto &d : describe(plan)) {
+            if (d.startsWith(QLatin1String("twitch-vod"))) {
+                planned << d;
             }
         }
-        QVERIFY(hasTwitchVodAction);
+        QCOMPARE(planned, writes.isEmpty()
+                              ? QStringList{}
+                              : QStringList{QStringLiteral("twitch-vod ") + writes.join(QLatin1Char(' '))});
 
         rostrum::pw::Graph g;
         ReadinessInput ri;
@@ -1404,46 +1706,435 @@ private Q_SLOTS:
         ri.obsFresh = true;
         state.scopeKnown = true;
         for (auto &in : state.inputs) {
-            in.gainKnown = true;
-            in.settingsKnown = true;
-            in.tracksKnown = true;
-            in.muteKnown = true;
+            in.gainKnown = in.settingsKnown = in.tracksKnown = in.muteKnown = true;
             in.gain = 1.0;
         }
         ri.obsState = &state;
         ri.facts = facts();
         ri.scene = rostrum::defaults::scene();
-        auto results = evaluateReadiness(ri);
-        bool hasAttention = false;
-        for (const auto &r : results) {
-            if (r.id == QLatin1String("obs-twitch-vod")) {
-                QCOMPARE(r.status, ReadinessStatus::Attention);
-                hasAttention = true;
+        const auto vodStatus = [&] {
+            int found = -1;
+            for (const auto &r : evaluateReadiness(ri)) {
+                if (r.id == QLatin1String("obs-twitch-vod")) {
+                    found = int(r.status);
+                }
+            }
+            return found;
+        };
+        QCOMPARE(vodStatus(), status);
+        state.vodKnown = false;
+        QCOMPARE(vodStatus(), int(ReadinessStatus::Unknown));
+    }
+
+    void twitchVodTrackLiveWritesOnlyKeysObsReads_data()
+    {
+        QTest::addColumn<QStringList>("profile"); // "Category/Name=value" set before
+        QTest::addColumn<QStringList>("writes");
+        QTest::addColumn<QStringList>("undoWrites");
+        QTest::newRow("advanced, never set") << QStringList{QStringLiteral("Output/Mode=Advanced")}
+                                             << QStringList{QStringLiteral("AdvOut/VodTrackEnabled=true")}
+                                             << QStringList{QStringLiteral("AdvOut/VodTrackEnabled=false")};
+        QTest::newRow("advanced, track 3") << QStringList{QStringLiteral("Output/Mode=Advanced"),
+                                                          QStringLiteral("AdvOut/VodTrackEnabled=true"),
+                                                          QStringLiteral("AdvOut/VodTrackIndex=3")}
+                                           << QStringList{QStringLiteral("AdvOut/VodTrackIndex=2")}
+                                           << QStringList{QStringLiteral("AdvOut/VodTrackIndex=3")};
+        QTest::newRow("simple with custom encoder settings")
+            << QStringList{QStringLiteral("Output/Mode=Simple"),
+                           QStringLiteral("SimpleOutput/UseAdvanced=true")}
+            << QStringList{QStringLiteral("SimpleOutput/VodTrackEnabled=true")}
+            << QStringList{QStringLiteral("SimpleOutput/VodTrackEnabled=false")};
+    }
+
+    void twitchVodTrackLiveWritesOnlyKeysObsReads()
+    {
+        QFETCH(QStringList, profile);
+        QFETCH(QStringList, writes);
+        QFETCH(QStringList, undoWrites);
+        FakeObs obs(QStringLiteral("pw"));
+        populate(obs);
+        obs.streamService = QStringLiteral("Twitch");
+        obs.profileValues.clear();
+        for (const QString &entry : profile) {
+            obs.profileValues.insert(entry.section(QLatin1Char('='), 0, 0),
+                                     entry.section(QLatin1Char('='), 1));
+        }
+        Client client;
+        QVERIFY(connectClient(client, obs.port(), QStringLiteral("pw")));
+        const State before = fetched(client);
+        QVERIFY(before.vodKnown);
+        QCOMPARE(twitchVod(before.vod), TwitchVod::Off);
+        QList<Action> vod;
+        for (const auto &a : makePlan(before, facts(), Mode::Live).actions) {
+            if (a.type == Action::Type::SetTwitchVodTrack) {
+                vod << a;
             }
         }
-        QVERIFY(hasAttention);
+        QCOMPARE(vod.size(), 1);
 
-        // When set to 2:
-        state.twitchVodTrack = 2;
-        Plan plan2 = makePlan(state, facts(), Mode::Live);
-        for (const auto &a : plan2.actions) {
+        bool done = false;
+        QList<UndoOp> applied;
+        QString error;
+        applyPlan(&client, vod, before, [&](const QList<UndoOp> &ops, const QString &e) {
+            applied = ops;
+            error = e;
+            done = true;
+        });
+        QTRY_VERIFY(done);
+        QVERIFY2(error.isEmpty(), qPrintable(error));
+        QCOMPARE(obs.profileWrites, writes);
+        const State after = fetched(client);
+        QCOMPARE(twitchVod(after.vod), TwitchVod::Track2);
+        for (const auto &a : makePlan(after, facts(), Mode::Live).actions) {
             QVERIFY(a.type != Action::Type::SetTwitchVodTrack);
         }
-        results = evaluateReadiness(ri);
-        bool hasVerified = false;
-        bool vodMissingAttention = false;
-        for (const auto &r : results) {
-            if (r.id == QLatin1String("obs-twitch-vod")) {
-                QCOMPARE(r.status, ReadinessStatus::Verified);
-                hasVerified = true;
+
+        // Undo goes through the journal, as after a restart.
+        obs.profileWrites.clear();
+        Undo undo;
+        undo.ops = applied;
+        undo = Undo::fromJson(undo.toJson());
+        done = false;
+        UndoResult result;
+        applyUndo(&client, undo, {QString(), obs.collection, obs.profile}, [&](const UndoResult &r) {
+            result = r;
+            done = true;
+        });
+        QTRY_VERIFY(done);
+        QCOMPARE(result.failed, 0);
+        QVERIFY(result.stopped.isEmpty());
+        QCOMPARE(obs.profileWrites, undoWrites);
+        QCOMPARE(twitchVod(fetched(client).vod), TwitchVod::Off);
+    }
+
+    void twitchVodUndoJournal()
+    {
+        const QString input = QStringLiteral("Twitch VOD Track");
+        const auto op = [&](const char *type) {
+            return QJsonObject{{QStringLiteral("type"), QLatin1String(type)},
+                               {QStringLiteral("input"), input}};
+        };
+        QJsonObject legacy = op("twitchVodTrack");
+        legacy.insert(QStringLiteral("track"), 3);
+        QJsonObject legacyUnset = op("twitchVodTrack");
+        legacyUnset.insert(QStringLiteral("track"), 0);
+        QJsonObject foreign = op("profile");
+        foreign.insert(QStringLiteral("parameters"),
+                       QJsonArray{QJsonObject{{QStringLiteral("category"), QStringLiteral("Output")},
+                                              {QStringLiteral("name"), QStringLiteral("Mode")},
+                                              {QStringLiteral("value"), QStringLiteral("Simple")}}});
+        const Undo undo = Undo::fromJson({{QStringLiteral("format"), 1},
+                                          {QStringLiteral("ops"), QJsonArray{legacy, legacyUnset, foreign}}});
+        // Rostrum 0.2.0's op puts back the index it changed; one that read no index has nothing to
+        // put back, and undo never writes keys Set Up OBS does not.
+        QCOMPARE(undo.ops.size(), 1);
+        QCOMPARE(undo.ops.first().type, UndoOp::Type::RestoreProfile);
+        QCOMPARE(undo.ops.first().profile,
+                 (QList<ProfileParameter>{
+                     {QStringLiteral("AdvOut"), QStringLiteral("VodTrackIndex"), QStringLiteral("3")}}));
+        QCOMPARE(Undo::fromJson(undo.toJson()).ops.first().profile, undo.ops.first().profile);
+    }
+
+    void undoRunsOnlyWhereItWasMade()
+    {
+        const auto op = [](UndoOp::Type type, const QString &input, const QString &dir,
+                           const QString &scope) {
+            UndoOp o;
+            o.type = type;
+            o.input = input;
+            o.configDir = dir;
+            o.scope = scope;
+            if (type == UndoOp::Type::RestoreProfile) {
+                o.profile = {
+                    {QStringLiteral("AdvOut"), QStringLiteral("VodTrackEnabled"), QStringLiteral("false")}};
             }
-            if (r.id == QLatin1String("obs-vod")) {
-                QCOMPARE(r.status, ReadinessStatus::Attention);
-                vodMissingAttention = true;
-            }
+            return o;
+        };
+        const QString dir = QStringLiteral("/obs"), flatpak = QStringLiteral("/flatpak/obs");
+        Undo undo;
+        undo.ops << op(UndoOp::Type::RestoreMute, QStringLiteral("Game Audio"), dir,
+                       QStringLiteral("Main")) // 0
+                 << op(UndoOp::Type::RemoveInput, QStringLiteral("Rostrum VOD Mix"), dir,
+                       QStringLiteral("Other")) // 1
+                 << op(UndoOp::Type::RestoreProfile, QStringLiteral("Twitch VOD Track"), dir,
+                       QStringLiteral("Live")) // 2
+                 << op(UndoOp::Type::RestoreMute, QStringLiteral("Game Audio"), flatpak,
+                       QStringLiteral("Main")); // 3
+        State now = stateFromCollection(fixture());
+        QCOMPARE(undo.runnable({dir, QStringLiteral("Main"), QStringLiteral("Live")}, now),
+                 (QList<qsizetype>{0, 2}));
+        QCOMPARE(undo.runnable({dir, QStringLiteral("Main"), QStringLiteral("Practice")}, now),
+                 (QList<qsizetype>{0}));
+        QCOMPARE(undo.runnable({dir, QStringLiteral("Other"), QStringLiteral("Live")}, now),
+                 (QList<qsizetype>{1, 2}));
+        // Offline: profile values wait for OBS to run.
+        QCOMPARE(undo.runnable({dir, QStringLiteral("Main"), QString()}, now), (QList<qsizetype>{0}));
+        QCOMPARE(undo.runnable({flatpak, QStringLiteral("Main"), QString()}, now), (QList<qsizetype>{3}));
+        // An unread collection runs nothing.
+        QVERIFY(undo.runnable({dir, QString(), QString()}, now).isEmpty());
+        QCOMPARE(undo.without({0, 2}).ops.size(), 2);
+        QCOMPARE(undo.only({1}).ops.first().scope, QStringLiteral("Other"));
+
+        // The record keeps install and scope; format 1 had one install and no scope.
+        const Undo back = Undo::fromJson(undo.toJson());
+        QCOMPARE(back.ops.size(), 4);
+        for (qsizetype n = 0; n < 4; ++n) {
+            QCOMPARE(back.ops.at(n).configDir, undo.ops.at(n).configDir);
+            QCOMPARE(back.ops.at(n).scope, undo.ops.at(n).scope);
         }
-        QVERIFY(hasVerified);
-        QVERIFY(vodMissingAttention);
+        QJsonObject v1{{QStringLiteral("format"), 1},
+                       {QStringLiteral("configDir"), dir},
+                       {QStringLiteral("ops"),
+                        QJsonArray{QJsonObject{{QStringLiteral("type"), QStringLiteral("mute")},
+                                               {QStringLiteral("input"), QStringLiteral("Game Audio")},
+                                               {QStringLiteral("muted"), false}},
+                                   QJsonObject{{QStringLiteral("type"), QStringLiteral("remove")},
+                                               {QStringLiteral("input"), QStringLiteral("Rostrum Mic")}}}}};
+        const Undo legacy = Undo::fromJson(v1);
+        QCOMPARE(legacy.ops.size(), 2);
+        QCOMPARE(legacy.ops.first().configDir, dir);
+        QVERIFY(legacy.ops.first().scope.isEmpty());
+        // Its inputs are put back only in a collection that has every one of them.
+        QVERIFY(legacy.runnable({dir, QStringLiteral("Test"), QString()}, now).isEmpty());
+        now.inputs << readInput(QStringLiteral("Rostrum Mic"), kPulseInput, QString::fromLatin1(kMicDevice));
+        QCOMPARE(legacy.runnable({dir, QStringLiteral("Test"), QString()}, now), (QList<qsizetype>{0, 1}));
+        QVERIFY(legacy.runnable({flatpak, QStringLiteral("Test"), QString()}, now).isEmpty());
+        QVERIFY(Undo::fromJson(
+                    {{QStringLiteral("format"), 3}, {QStringLiteral("ops"), v1.value(QLatin1String("ops"))}})
+                    .isEmpty());
+    }
+
+    void liveReadKnowsItsScope()
+    {
+        FakeObs obs(QStringLiteral("pw"));
+        populate(obs);
+        Client client;
+        QVERIFY(connectClient(client, obs.port(), QStringLiteral("pw")));
+        State s = fetched(client);
+        QVERIFY(s.collectionKnown && s.profileKnown);
+        QCOMPARE(s.collection, obs.collection);
+        QCOMPARE(s.profile, obs.profile);
+        QVERIFY(!makePlan(s, facts(), Mode::Live).incomplete());
+
+        // A switch while reading: the inputs may be either collection's.
+        int lists = 0;
+        obs.onRequest = [&](const QString &type) {
+            if (type == QLatin1String("GetSceneCollectionList") && ++lists == 2) {
+                obs.collection = QStringLiteral("Switched");
+            }
+        };
+        s = fetched(client);
+        QVERIFY(!s.collectionKnown);
+        QVERIFY(makePlan(s, facts(), Mode::Live).scopeUnread);
+        QVERIFY(makePlan(s, facts(), Mode::Live).isEmpty());
+        obs.onRequest = {};
+        obs.refuse = {QStringLiteral("GetProfileList")};
+        s = fetched(client);
+        QVERIFY(s.collectionKnown && !s.profileKnown);
+        QVERIFY(makePlan(s, facts(), Mode::Live).incomplete());
+        // Offline needs only the collection, which its file names.
+        s = stateFromCollection(fixture());
+        QVERIFY(s.collectionKnown && !s.profileKnown);
+        QCOMPARE(s.collection, QStringLiteral("Test"));
+        QVERIFY(!makePlan(s, facts(), Mode::Offline).incomplete());
+    }
+
+    void applyAndUndoStopWhenObsSwitched()
+    {
+        FakeObs obs(QStringLiteral("pw"));
+        populate(obs);
+        Client client;
+        QVERIFY(connectClient(client, obs.port(), QStringLiteral("pw")));
+        const State before = fetched(client);
+        const Plan plan = makePlan(before, facts(), Mode::Live);
+        QVERIFY(!plan.isEmpty());
+        const auto writes = [&] {
+            return std::count_if(obs.requests.cbegin(), obs.requests.cend(),
+                                 [](const QString &r) { return !r.startsWith(QLatin1String("Get")); });
+        };
+        for (const bool profile : {false, true}) {
+            (profile ? obs.profile : obs.collection) = QStringLiteral("Switched");
+            obs.requests.clear();
+            bool done = false;
+            QString error;
+            QList<UndoOp> ops{UndoOp{}};
+            applyPlan(&client, plan.enabledActions(), before,
+                      [&](const QList<UndoOp> &applied, const QString &e) {
+                          ops = applied;
+                          error = e;
+                          done = true;
+                      });
+            QTRY_VERIFY(done);
+            QVERIFY(error.contains(QLatin1String("switched")));
+            QVERIFY(ops.isEmpty());
+            QCOMPARE(writes(), 0);
+
+            Undo undo;
+            undo.ops << undoFor(plan.enabledActions().first(), before);
+            done = false;
+            UndoResult result;
+            applyUndo(&client, undo, {QString(), before.collection, before.profile},
+                      [&](const UndoResult &r) {
+                          result = r;
+                          done = true;
+                      });
+            QTRY_VERIFY(done);
+            QVERIFY(result.stopped.contains(QLatin1String("switched")));
+            QVERIFY(result.settled.isEmpty());
+            QCOMPARE(writes(), 0);
+            obs.collection = QStringLiteral("Test collection");
+            obs.profile = QStringLiteral("Test profile");
+        }
+    }
+
+    void undoKeepsWhatItDidNotTry()
+    {
+        FakeObs obs(QStringLiteral("pw"));
+        populate(obs);
+        Client client;
+        QVERIFY(connectClient(client, obs.port(), QStringLiteral("pw")));
+        Undo undo;
+        UndoOp unmute; // oldest: tried last
+        unmute.type = UndoOp::Type::RestoreMute;
+        unmute.input = QStringLiteral("Game Audio");
+        UndoOp remove;
+        remove.type = UndoOp::Type::RemoveInput;
+        remove.input = QStringLiteral("Discord Audio");
+        undo.ops << unmute << remove;
+        const UndoScope scope{QString(), obs.collection, obs.profile};
+
+        // A refusal while OBS is there is reported and done with.
+        obs.refuse = {QStringLiteral("RemoveInput")};
+        bool done = false;
+        UndoResult result;
+        applyUndo(&client, undo, scope, [&](const UndoResult &r) {
+            result = r;
+            done = true;
+        });
+        QTRY_VERIFY(done);
+        QVERIFY(result.stopped.isEmpty());
+        QCOMPARE(result.failed, 1);
+        QCOMPARE(result.settled, (QList<qsizetype>{0, 1}));
+
+        // OBS going away part way: the op it was on and the ones after stay.
+        obs.refuse.clear();
+        obs.ignored = {QStringLiteral("RemoveInput")};
+        obs.requests.clear();
+        done = false;
+        applyUndo(&client, undo, scope, [&](const UndoResult &r) {
+            result = r;
+            done = true;
+        });
+        QTRY_VERIFY(obs.requests.contains(QStringLiteral("RemoveInput")));
+        obs.dropClients();
+        QTRY_VERIFY(done);
+        QVERIFY(!result.stopped.isEmpty());
+        QVERIFY(result.settled.isEmpty());
+        QCOMPARE(result.failed, 0);
+        QVERIFY(obs.inputs.contains(QStringLiteral("Discord Audio")));
+    }
+
+    void unansweredWritesTimeOutAndStayUndoable()
+    {
+        FakeObs obs(QStringLiteral("pw"));
+        populate(obs);
+        Client client;
+        client.setWriteTimeoutMs(300);
+        QVERIFY(connectClient(client, obs.port(), QStringLiteral("pw")));
+        const State before = fetched(client);
+        const Plan plan = makePlan(before, facts(), Mode::Live);
+
+        // OBS stops answering at the first mute. Setup ends, and what it did, the unanswered
+        // mute included, was reported step by step for the undo record.
+        obs.ignored = {QStringLiteral("SetInputMute")};
+        bool done = false;
+        QString error;
+        QList<UndoOp> applied, asTheyHappened;
+        applyPlan(
+            &client, plan.enabledActions(), before,
+            [&](const QList<UndoOp> &ops, const QString &e) {
+                applied = ops;
+                error = e;
+                done = true;
+            },
+            [&](const UndoOp &op) {
+                QVERIFY(!done);
+                asTheyHappened << op;
+            });
+        QTRY_VERIFY(done);
+        QVERIFY2(Client::timedOut(error), qPrintable(error));
+        QVERIFY(!applied.isEmpty());
+        QCOMPARE(applied.last().type, UndoOp::Type::RestoreMute);
+        QCOMPARE(asTheyHappened.size(), applied.size());
+        QCOMPARE(obs.requests.count(QStringLiteral("SetInputMute")), 1);
+
+        // Undo is not settled by silence either: the unanswered op and the ones after it stay.
+        Undo undo;
+        undo.ops = applied;
+        done = false;
+        UndoResult result;
+        applyUndo(&client, undo, {QString(), obs.collection, obs.profile}, [&](const UndoResult &r) {
+            result = r;
+            done = true;
+        });
+        QTRY_VERIFY(done);
+        QVERIFY(Client::timedOut(result.stopped));
+        QVERIFY(result.settled.isEmpty()); // the mute is newest, so it was tried first
+        obs.ignored.clear();
+        done = false;
+        applyUndo(&client, undo, {QString(), obs.collection, obs.profile}, [&](const UndoResult &r) {
+            result = r;
+            done = true;
+        });
+        QTRY_VERIFY(done);
+        QVERIFY(result.stopped.isEmpty());
+        QCOMPARE(result.settled.size(), undo.ops.size());
+        QVERIFY(!obs.inputs.contains(QStringLiteral("Rostrum Stream Mix")));
+    }
+
+    void undoPutsBackAnInputWithNoTracks()
+    {
+        // The mic source Rostrum takes over is given tracks 1 and 2. One that was on no track
+        // (kept for monitoring, say) goes back to none, live and offline, through the record.
+        FakeObs obs(QStringLiteral("pw"));
+        populate(obs);
+        obs.inputs[QStringLiteral("Mic/Aux")].tracks = tracks({});
+        Client client;
+        QVERIFY(connectClient(client, obs.port(), QStringLiteral("pw")));
+        const State before = fetched(client);
+        QCOMPARE(before.input(QStringLiteral("Mic/Aux"))->tracks, 0u);
+        const Plan plan = makePlan(before, facts(), Mode::Live);
+        bool done = false;
+        Undo undo;
+        applyPlan(&client, plan.enabledActions(), before,
+                  [&](const QList<UndoOp> &ops, const QString &error) {
+                      QVERIFY2(error.isEmpty(), qPrintable(error));
+                      undo.ops = ops;
+                      done = true;
+                  });
+        QTRY_VERIFY(done);
+        QCOMPARE(obs.inputs[QStringLiteral("Mic/Aux")].tracks, tracks({1, 2}));
+        undo = Undo::fromJson(undo.toJson());
+        done = false;
+        applyUndo(&client, undo, {QString(), obs.collection, obs.profile},
+                  [&](const UndoResult &) { done = true; });
+        QTRY_VERIFY(done);
+        QCOMPARE(obs.inputs[QStringLiteral("Mic/Aux")].tracks, tracks({}));
+
+        QJsonObject doc = fixture();
+        QJsonObject mic = doc.value(QLatin1String("AuxAudioDevice1")).toObject();
+        QVERIFY(!mic.isEmpty());
+        mic.insert(QStringLiteral("mixers"), 0);
+        doc.insert(QStringLiteral("AuxAudioDevice1"), mic);
+        const State offline = stateFromCollection(doc);
+        const Plan offlinePlan = makePlan(offline, facts(), Mode::Offline);
+        Undo offlineUndo;
+        for (const auto &a : offlinePlan.actions) {
+            offlineUndo.ops << undoFor(a, offline);
+        }
+        const QJsonObject changed = applyToCollection(doc, offlinePlan.actions);
+        QCOMPARE(stateFromCollection(changed).input(QStringLiteral("Mic/Aux"))->tracks, 3u);
+        QCOMPARE(undoInCollection(changed, Undo::fromJson(offlineUndo.toJson())), doc);
     }
 };
 

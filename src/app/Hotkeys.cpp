@@ -1,5 +1,6 @@
 #include "app/Hotkeys.h"
 
+#include "app/Headless.h"
 #include "core/Settings.h"
 
 #include <KGlobalAccel>
@@ -106,9 +107,7 @@ namespace rostrum::app {
 Hotkeys::Hotkeys(QObject *parent) : QObject(parent)
 {
     // Offscreen runs (screenshots, tests) must not touch the user's desktop shortcuts.
-    if (QGuiApplication::platformName() == QLatin1String("offscreen") ||
-        qEnvironmentVariableIsSet("ROSTRUM_SCREENSHOT") ||
-        qEnvironmentVariableIsSet("ROSTRUM_NO_GLOBAL_SHORTCUTS")) {
+    if (headless() || qEnvironmentVariableIsSet("ROSTRUM_NO_GLOBAL_SHORTCUTS")) {
         m_disabled = true;
         return;
     }

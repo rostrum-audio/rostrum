@@ -2,12 +2,12 @@
 
 #include "app/AppController.h"
 #include "app/CrashCapture.h"
+#include "app/Headless.h"
 #include "app/Updater.h"
 #include "core/Paths.h"
 #include "core/UpdateFeed.h"
 
 #include <KCoreAddons>
-
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -20,7 +20,6 @@
 #include <QNetworkReply>
 #include <QSysInfo>
 #include <QUuid>
-
 #include <algorithm>
 
 Q_LOGGING_CATEGORY(lcCrash, "rostrum.crash", QtInfoMsg)
@@ -72,8 +71,7 @@ CrashReports::CrashReports(AppController *app, QObject *parent)
     m_dsn = crash::parseDsn(m_dsnText);
     m_available = crashcapture::compiledIn() && m_dsn.valid() && updates::trustedUrl(m_dsn.envelopeUrl);
     // Screenshot and test runs never send anything unless a test DSN is given.
-    const bool testRun = QGuiApplication::platformName() == QLatin1String("offscreen") ||
-                         !qEnvironmentVariableIsEmpty("ROSTRUM_SCREENSHOT");
+    const bool testRun = headless();
     m_networkAllowed = m_available && (!testRun || !override.isEmpty());
 
     connect(app, &AppController::statusChanged, this, [this] { crashcapture::setContext(contextFields()); });

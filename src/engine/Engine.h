@@ -371,6 +371,7 @@ protected:
     QString m_duckMicNode;   // hardware mic being metered, empty when the mic is not live
     QString m_duckVoiceNode; // voice bus being metered
     double m_duckGainSent = 1.0;
+    bool m_levelsReleased = false; // quitting: ducking and fades stay off
     micfx::Settings m_micFx;
     QString m_fxPlugin;
     QString m_fxPluginError;
@@ -387,6 +388,9 @@ protected:
     QElapsedTimer m_fxMissingClock;   // running without reporting the graph since
     bool m_fxVerified = false;        // the node reported the graph's controls since it was sent
     int m_fxStrikes = 0;              // PipeWire losses right after a graph load
+    // Since the filter node last began running with the graph sent, which is when PipeWire builds
+    // it and runs the plugin. Invalid while the node is idle: a resend then loads nothing.
+    QElapsedTimer m_fxBuildClock;
     struct SentControl
     {
         float value = 0.0f;
@@ -413,9 +417,23 @@ protected:
     bool linked(uint32_t outNode, uint32_t inNode) const;
     mutable QHash<uint32_t, MicRecognised> m_micRecognised;
     QHash<uint32_t, QElapsedTimer> m_micFirstSeen;
+    // Turning filters off points apps back at the mic before the filter nodes go, so no app
+    // records a node that is being removed. Streams pointed back, until the nodes are gone:
+    QSet<uint32_t> m_micReleased;
+    QElapsedTimer m_fxReleaseClock; // since removing the filter nodes was first held back
+    bool micStreamsOnFilter(const QList<const pw::Node *> &filterNodes) const;
 
     bool isOwnedNode(const pw::Node &n) const;
     void destroyOnce(uint32_t id);
+    // Everything remembered about a node is keyed by its registry ID, which PipeWire hands to the
+    // next object once the node goes (a browser replacing its stream gets the same ID back in one
+    // burst, before any reconciliation). Forget it all when the node is removed, and whenever a
+    // stream shows up under a known ID with a different object.serial.
+    void forgetNode(uint32_t id);
+    void checkNodeSerial(const pw::Node &n);
+    void metadataReset();
+    void connectionChanged();
+    QHash<uint32_t, QString> m_nodeSerial;
 
     pw::PwContext *m_pw = nullptr;
     Scene m_scene;
