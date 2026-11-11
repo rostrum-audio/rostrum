@@ -323,8 +323,15 @@ mic_fallback = {str(fallback).lower()}
                         str(node["info"]["props"]["object.serial"]), "-P", props, "-"], output)
         self.wait(f"real capture buffers from {name}", lambda: path.stat().st_size >= RATE * channels * 4 // 2)
         self.stop(p)
+        self.verify(name, path.read_bytes()[:RATE * channels * 4 // 2], frequency, channels)
+
+    @staticmethod
+    def verify(name, raw, frequency=None, channels=2):
+        """Check the last 300 ms of interleaved float32 audio for one tone, or silence."""
         data = array.array("f")
-        data.frombytes(path.read_bytes()[:RATE * channels * 4 // 2])
+        data.frombytes(raw[:len(raw) // (4 * channels) * 4 * channels])
+        if len(data) < RATE * channels * 3 // 10:
+            raise Failure(f"{name}: fewer than 300 ms of real buffers")
         for channel in range(channels):
             samples = list(data)[channel::channels][-RATE * 3 // 10:]
             rms = math.sqrt(sum(v * v for v in samples) / len(samples))

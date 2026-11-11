@@ -115,6 +115,12 @@ if(ROSTRUM_AUDIO_INTEGRATION_TESTS)
         $<TARGET_FILE:rostrum-graphtest> -v)
     add_test(NAME audio_readiness COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/integration/readiness-routing.py $<TARGET_FILE:rostrum-graphtest>)
+    # Exported rules read by native clients and by a private pipewire-pulse.
+    foreach(tool pipewire-pulse pacat)
+        find_program(AUDIO_${tool} NAMES ${tool} REQUIRED)
+    endforeach()
+    add_test(NAME audio_rule_fragments COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/integration/rule-fragments.py $<TARGET_FILE:rostrum-graphtest>)
     if(TARGET rostrum-dsp)
         set(mic_filter_test_options "")
         if(ROSTRUM_DSP_DENOISE)
@@ -127,6 +133,7 @@ if(ROSTRUM_AUDIO_INTEGRATION_TESTS)
             TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
     endif()
     # Lifecycle regressions deliberately interrupt private jobs; serialize audio tests.
-    set_tests_properties(audio_safety audio_safety_fixture audio_safety_lifecycle audio_readiness PROPERTIES
+    set_tests_properties(audio_safety audio_safety_fixture audio_safety_lifecycle audio_readiness
+        audio_rule_fragments PROPERTIES
         TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
 endif()

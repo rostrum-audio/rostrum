@@ -111,6 +111,26 @@ private Q_SLOTS:
         }
     }
 
+    void matchesPlaybackStreamsOnly()
+    {
+        // An app's recording streams (Discord's mic, a browser call) must keep their microphone:
+        // every match object also requires the playback media.class.
+        for (const QString &text : {rule_export::pulseFragment(goldenScene()), rule_export::clientFragment(goldenScene())}) {
+            QVERIFY(!text.contains(QStringLiteral("pulse.rules"))); // client-level rules cannot see media.class
+            static const QRegularExpression matches(QStringLiteral(R"(matches = \[ \{ ([^}]*) \} \])"));
+            auto it = matches.globalMatch(text);
+            int n = 0;
+            while (it.hasNext()) {
+                const QString match = it.next().captured(1);
+                QVERIFY2(match.startsWith(QStringLiteral("media.class = \"Stream/Output/Audio\" application.")),
+                         qPrintable(match));
+                QVERIFY(!match.contains(QStringLiteral("Stream/Input")));
+                ++n;
+            }
+            QCOMPARE(n, 4);
+        }
+    }
+
     void emptyWhenNoRules()
     {
         QVERIFY(rule_export::pulseFragment(defaults::scene()).isEmpty());
@@ -119,12 +139,16 @@ private Q_SLOTS:
 
     void arrayNamesMatchThisMachine()
     {
-        const QString pulse = QStringLiteral("/usr/share/pipewire/pipewire-pulse.conf");
+        // pipewire-pulse creates each PulseAudio stream as a pw_stream, which reads the same
+        // per-stream "stream.rules" as native clients (pipewire-pulse.conf(5), STREAM RULES). The
+        // system pipewire-pulse.conf carries no example of it, so the name is checked against
+        // client.conf here; tests/integration/rule-fragments.py proves a real pipewire-pulse
+        // applies the fragment to playback streams and not to recordings.
         const QString client = QStringLiteral("/usr/share/pipewire/client.conf");
-        if (!QFile::exists(pulse) || !QFile::exists(client)) {
+        if (!QFile::exists(client)) {
             QSKIP("PipeWire system config is not installed");
         }
-        QVERIFY(topLevelArrays(pulse).contains(QLatin1String(rule_export::kPulseRulesArray)));
+        QCOMPARE(QLatin1String(rule_export::kPulseRulesArray), QLatin1String(rule_export::kClientRulesArray));
         QVERIFY(topLevelArrays(client).contains(QLatin1String(rule_export::kClientRulesArray)));
     }
 

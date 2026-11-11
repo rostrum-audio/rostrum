@@ -439,16 +439,21 @@ asks for its bus itself:
 
 | File | Array | Read by |
 | --- | --- | --- |
-| `~/.config/pipewire/pipewire-pulse.conf.d/50-rostrum.conf` | `pulse.rules` | `pipewire-pulse` when it starts (normally at login), applied to every PulseAudio client: Discord, browsers, most games |
+| `~/.config/pipewire/pipewire-pulse.conf.d/50-rostrum.conf` | `stream.rules` | `pipewire-pulse` when it starts (normally at login), applied to the streams it creates for PulseAudio clients: Discord, browsers, most games |
 | `~/.config/pipewire/client.conf.d/50-rostrum.conf` | `stream.rules` | every native PipeWire app when it starts |
 
-The array names are copied from `/usr/share/pipewire/pipewire-pulse.conf` and
-`/usr/share/pipewire/client.conf`, and a unit test checks them against the installed files. Fragment
-arrays are appended to the system ones, so the system rules (for example Firefox quirks) stay in
-effect.
+`stream.rules` match each stream's own properties, in native clients and in the streams
+`pipewire-pulse` creates (`pipewire-pulse.conf(5)`, STREAM RULES). The PulseAudio fragment does not
+use `pulse.rules`: those match the client, so a rule there also reaches the app's recording
+streams, and a client has no `media.class` to tell them apart. A unit test checks the array name
+against `/usr/share/pipewire/client.conf`; `tests/integration/rule-fragments.py` runs both fragments
+through a private `pipewire-pulse` and native clients. Fragment arrays are appended to the system
+ones, so the system rules (for example Firefox quirks) stay in effect.
 
-Each rule matches `application.name` or `application.process.binary` with an anchored,
-ASCII-case-insensitive regex. The only property it sets is `target.object = "rostrum.<bus>"`.
+Each rule matches `media.class = "Stream/Output/Audio"` together with `application.name` or
+`application.process.binary` (an anchored, ASCII-case-insensitive regex), so it reaches only the
+app's playback streams. Its recording streams, such as Discord's microphone, keep the microphone
+WirePlumber gives them. The only property a rule sets is `target.object = "rostrum.<bus>"`.
 Binary rules are written first, so a name rule for the same app wins, as it does in the app.
 WirePlumber's `find-defined-target.lua` honours the property when it first links the stream.
 

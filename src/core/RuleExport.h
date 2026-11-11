@@ -6,13 +6,18 @@
 
 namespace rostrum::rule_export {
 
-// Array names copied from the files that read the fragments on this machine:
-// /usr/share/pipewire/pipewire-pulse.conf ("pulse.rules", PulseAudio clients) and
-// /usr/share/pipewire/client.conf ("stream.rules", native PipeWire streams).
+// Both fragments use "stream.rules": PipeWire matches them against each stream's own properties,
+// in native clients (/usr/share/pipewire/client.conf) and in the streams pipewire-pulse creates
+// for PulseAudio clients (pipewire-pulse.conf(5), STREAM RULES). "pulse.rules" match the client,
+// which has no media.class, so they would also move the app's recording streams.
 // WirePlumber 0.5 "stream.rules" only feed its restore logic and cannot route, so nothing
 // goes into ~/.config/wireplumber/.
-inline constexpr char kPulseRulesArray[] = "pulse.rules";
+inline constexpr char kPulseRulesArray[] = "stream.rules";
 inline constexpr char kClientRulesArray[] = "stream.rules";
+
+// Every rule also matches this media.class, so it reaches only playback streams. An app's
+// recording stream (Discord's mic, a browser call) must never be pointed at a bus.
+inline constexpr char kPlaybackStreamClass[] = "Stream/Output/Audio";
 
 // The only property Rostrum ever sets. node.dont-fallback, node.dont-move and
 // node.dont-reconnect must never be written: when the bus node is missing, WirePlumber has to

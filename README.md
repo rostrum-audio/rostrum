@@ -359,7 +359,8 @@ mixer's Mic strip matches its Mic live / Mic muted title.
 - Crash reports waiting to be sent or discarded: `~/.local/state/rostrum/crashes/` (at most 10,
   none older than 30 days), and sentry-native's own database in `~/.local/state/rostrum/sentry/`.
 - App rules for the next login: `~/.config/pipewire/pipewire-pulse.conf.d/50-rostrum.conf` and
-  `~/.config/pipewire/client.conf.d/50-rostrum.conf`. Nothing is written to `~/.config/wireplumber/`.
+  `~/.config/pipewire/client.conf.d/50-rostrum.conf`. They match apps' playback only, never their
+  mic. Nothing is written to `~/.config/wireplumber/`.
 - Autostart, when on: `~/.config/autostart/dev.getrostrum.Rostrum.desktop`.
 
 Rostrum's virtual devices live in PipeWire, not in the app, so audio keeps flowing if Rostrum quits

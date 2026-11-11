@@ -2,6 +2,7 @@
 // It runs the same Engine as the app, without any UI.
 
 #include "core/Paths.h"
+#include "core/RuleExport.h"
 #include "core/Settings.h"
 #include "core/Volume.h"
 #include "engine/Engine.h"
@@ -59,6 +60,9 @@ int main(int argc, char **argv)
     QCommandLineOption unassignAfter(QStringLiteral("unassign-after"),
                                      QStringLiteral("Unassign every app after N seconds."), QStringLiteral("N"));
     QCommandLineOption listApps(QStringLiteral("list-apps"), QStringLiteral("Print app streams once ready."));
+    QCommandLineOption exportRules(
+        QStringLiteral("export-rules"),
+        QStringLiteral("Write the PipeWire rule fragments for the --rule rules under $XDG_CONFIG_HOME/pipewire."));
     QCommandLineOption dest(QStringLiteral("dest"), QStringLiteral("Set a bus destination, e.g. game=phones."),
                             QStringLiteral("bus=phones|stream|both"));
     QCommandLineOption destinationFile(QStringLiteral("destination-file"),
@@ -89,7 +93,7 @@ int main(int argc, char **argv)
     QCommandLineOption meter(QStringLiteral("meter"),
                              QStringLiteral("Print the peak level of a node (node.name) four times a second."),
                              QStringLiteral("node"));
-    parser.addOptions({seconds, teardown, rule, session, unassignAfter, listApps, dest, destinationFile,
+    parser.addOptions({seconds, teardown, rule, session, unassignAfter, listApps, exportRules, dest, destinationFile,
                        readinessFile, headphones, mic, micMuted, micFallback, sidetone, solo, config, tone,
                        meter, micFilterPlugin, micFilterDenoise});
     parser.process(app);
@@ -266,6 +270,16 @@ int main(int argc, char **argv)
         };
         apply(parser.values(rule), true);
         apply(parser.values(session), false);
+        if (parser.isSet(exportRules)) {
+            QString error;
+            if (!rule_export::apply(engine.scene(), paths::pipewirePulseFragment(), paths::pipewireClientFragment(),
+                                    &error)) {
+                QTextStream(stderr) << "Rule export failed: " << error << "\n";
+                QCoreApplication::exit(2);
+                return;
+            }
+            QTextStream(stdout) << "Rules exported." << Qt::endl;
+        }
         if (parser.isSet(unassignAfter)) {
             QTimer::singleShot(parser.value(unassignAfter).toInt() * 1000, &app, [&] {
                 QTextStream(stdout) << "Unassigning every app.\n";

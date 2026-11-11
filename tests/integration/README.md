@@ -10,8 +10,9 @@ telemetry or audio delivery outside the private graph are introduced.
 Linux with readable `/proc`, child subreapers and pidfd support (kernel 5.3+
 with these syscalls allowed), Python 3.9+ (standard library), PipeWire 1.x with `pipewire`, `pw-cat`,
 `pw-cli`, `pw-dump`, `pw-link`, WirePlumber 0.5+ with its installed configuration
-and scripts in `/usr/share/wireplumber`, and `dbus-daemon`. On Ubuntu 26.04 the
-additional runtime packages are `pipewire-bin wireplumber dbus python3`.
+and scripts in `/usr/share/wireplumber`, `dbus-daemon`, and `pipewire-pulse` and `pacat` for the
+rule fragment test. On Ubuntu 26.04 the additional runtime packages are
+`pipewire-bin pipewire-pulse pulseaudio-utils wireplumber dbus python3`.
 Build dependencies remain those documented in the main README.
 
 ```sh
@@ -173,6 +174,19 @@ The original failure evidence and cleanup-phase diagnostic remain in
 `build-appimage-validation/out/hosted-97b5dd6-run37190536318/`. The exact phase of
 that historical CI signal was not observed; the new protocol proves the intended
 phase rather than assuming it from timing. No production audio behavior changed.
+
+## Rule fragments
+
+`audio_rule_fragments` (`rule-fragments.py`, needs `pipewire-pulse` and `pacat` from
+`pipewire-pulse` and `pulseaudio-utils`) has the real exporter write both fragments for a
+`name:SafetyPlayer=game` rule into the private configuration, then stops the driver so only the
+fragments and WirePlumber place streams; the Game bus lingers as it does after a quit. A native
+`pw-cat` and a PulseAudio `pacat` client (through a private `pipewire-pulse` identified by its
+process and config name) each play 440 Hz and record from the default source, a fake mic carrying
+330 Hz. Playback must carry the rule's `target.object` and reach Game with the tone. Each recording
+must carry no rule target, be linked only from the fake mic and record 330 Hz. WirePlumber 0.5 does
+not link a capture stream to a sink named by `target.object`, so the property check is what catches
+a rule reaching a recording; the audio check proves the app still hears its mic.
 
 ## Mic-filter scheduling regression
 

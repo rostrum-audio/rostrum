@@ -42,11 +42,13 @@ QString fragment(const char *array, const QString &readBy, const Scene &scene)
     out += QStringLiteral("# %1\n").arg(readBy);
     out += QStringLiteral("# While Rostrum runs it routes apps itself. If a bus is missing, WirePlumber uses the\n");
     out += QStringLiteral("# default sink.\n");
+    out += QStringLiteral("# Each rule matches playback streams only, so the app's recordings keep their microphone.\n");
     out += QLatin1String(array) + QStringLiteral(" = [\n");
     for (const auto &r : rules) {
         out += QStringLiteral("    {\n");
-        out += QStringLiteral("        matches = [ { %1 = %2 } ]\n")
-                   .arg(propertyFor(r.key), jsonString(QLatin1Char('~') + caseInsensitiveRegex(r.match)));
+        out += QStringLiteral("        matches = [ { media.class = %1 %2 = %3 } ]\n")
+                   .arg(jsonString(QLatin1String(kPlaybackStreamClass)), propertyFor(r.key),
+                        jsonString(QLatin1Char('~') + caseInsensitiveRegex(r.match)));
         out += QStringLiteral("        actions = { update-props = { %1 = %2 } }\n")
                    .arg(QLatin1String(kTargetProperty), jsonString(QStringLiteral("rostrum.") + r.busId));
         out += QStringLiteral("    }\n");
