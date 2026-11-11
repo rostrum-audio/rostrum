@@ -180,6 +180,72 @@ bus = "game"
         QVERIFY(!err.isEmpty());
     }
 
+    void namesThatSlugAlikeKeepTheirOwnFiles()
+    {
+        // "Live" and "Live!" share a slug; so do all names without Latin letters or digits.
+        const QStringList names{QStringLiteral("Live"), QStringLiteral("Live!"), QStringLiteral("Стрим"),
+                                QStringLiteral("Чат"), QStringLiteral("配信")};
+        QTemporaryDir dir;
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        engine::SceneManager scenes(&engine, dir.path());
+        scenes.load(QStringLiteral("Live"));
+        for (const auto &name : names.mid(1)) {
+            QVERIFY(scenes.create(name));
+        }
+        QSet<QString> files;
+        for (const auto &name : names) {
+            const QString file = SceneStore(dir.path()).fileFor(name);
+            QVERIFY2(QFile::exists(file), qPrintable(name));
+            files.insert(file);
+        }
+        QCOMPARE(files.size(), names.size());
+
+        engine::Engine engine2(&pw);
+        engine::SceneManager again(&engine2, dir.path());
+        again.load(QStringLiteral("Live"));
+        const QStringList reloaded = again.names();
+        QCOMPARE(QSet<QString>(reloaded.cbegin(), reloaded.cend()), QSet<QString>(names.cbegin(), names.cend()));
+
+        // Removing or renaming one never deletes or overwrites another's file.
+        QVERIFY(again.remove(QStringLiteral("Live!")));
+        QVERIFY(again.remove(QStringLiteral("Чат")));
+        QVERIFY(again.rename(QStringLiteral("Стрим"), QStringLiteral("Live?")));
+        engine::Engine engine3(&pw);
+        engine::SceneManager third(&engine3, dir.path());
+        third.load(QStringLiteral("Live"));
+        const QStringList left = third.names();
+        QCOMPARE(QSet<QString>(left.cbegin(), left.cend()),
+                 (QSet<QString>{QStringLiteral("Live"), QStringLiteral("Live?"), QStringLiteral("配信")}));
+    }
+
+    void storeUsesTheFileThatHoldsTheScene()
+    {
+        QTemporaryDir dir;
+        // A scene in a file not named after it (renamed by hand, or by an older Rostrum).
+        Scene live = defaults::scene(QStringLiteral("Live"));
+        QVERIFY(SceneStore::writeFile(dir.path() + QStringLiteral("/my-setup.toml"),
+                                      toml_io::serializeScene(live), nullptr));
+        // A file Rostrum cannot read is never overwritten, even when it has the slug's name.
+        QVERIFY(SceneStore::writeFile(dir.path() + QStringLiteral("/chat.toml"), QStringLiteral("x = ["), nullptr));
+
+        SceneStore store(dir.path());
+        QCOMPARE(QFileInfo(store.fileFor(QStringLiteral("live"))).fileName(), QStringLiteral("my-setup.toml"));
+        live.masterPhones = 0.5;
+        QVERIFY(store.save(live));
+        QVERIFY(!QFile::exists(dir.path() + QStringLiteral("/live.toml")));
+        QCOMPARE(SceneStore(dir.path()).loadAll().first().masterPhones, 0.5);
+
+        QVERIFY(store.save(defaults::scene(QStringLiteral("Chat"))));
+        QCOMPARE(SceneStore::readFile(dir.path() + QStringLiteral("/chat.toml"), nullptr), QStringLiteral("x = ["));
+        QCOMPARE(QFileInfo(store.fileFor(QStringLiteral("Chat"))).fileName(), QStringLiteral("chat-2.toml"));
+
+        QVERIFY(store.remove(QStringLiteral("Live")));
+        QVERIFY(!QFile::exists(dir.path() + QStringLiteral("/my-setup.toml")));
+        QVERIFY(QFile::exists(dir.path() + QStringLiteral("/chat.toml")));
+        QVERIFY(QFile::exists(dir.path() + QStringLiteral("/chat-2.toml")));
+    }
+
     void storeSkipsBadFiles()
     {
         QTemporaryDir dir;

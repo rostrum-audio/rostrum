@@ -705,7 +705,11 @@ All configuration is TOML under `$XDG_CONFIG_HOME/rostrum/` (default `~/.config/
 - `settings.toml`: general options, mixer options, ducking, mic filters, default scene, saved headphone and
   mic `node.name`, shortcuts, window size, last page, OBS options and the OBS scene map
   (`[obs.scene_map]`).
-- `scenes/<slug>.toml`: one scene per file. The `name` inside the file wins over the file name.
+- `scenes/<slug>.toml`: one scene per file. The `name` inside the file wins over the file name: a
+  scene stays in whichever file holds it. A new scene whose `<slug>.toml` already exists (another
+  scene's, or a file Rostrum cannot read) gets `<slug>-2.toml` and so on, so "Live" and "Live!", or
+  two names without Latin letters (both `scene`), never share a file. Deleting a scene deletes only
+  the file that holds it.
   A scene holds master levels, sidetone level, the bus list (id, name, color, kind, volume, mute,
   balance, destination) and app rules (match, key, bus, per-app volume and mute, an optional label for apps
   that report no name, last seen).
