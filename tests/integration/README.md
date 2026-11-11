@@ -224,10 +224,26 @@ state reset on disconnect, because the first pass after reconnecting already dro
 leaves a call app on `rostrum.filtered` with its `target.object` in the metadata, stops the
 driver, and starts it again without filters: once with `--mic-filters-unavailable` (settings
 still enabled, no filter library) and once with filters turned off in settings. Each time the
-app's target must be cleared, the app linked only from the mic and recording 440 Hz, both filter
-nodes gone, and the driver's log must show the app pointed back before the nodes were removed,
-without the 3 s wait running out. Before the fix the first start left the stale target for good,
-and both removed the nodes on the first pass, before the metadata had been read.
+app's target must be cleared, the app linked only from the mic and recording 440 Hz,
+`rostrum.micfx` gone while `rostrum.filtered` stays, and the driver's log must show the app pointed
+back before micfx was removed (and never `rostrum.filtered` removed), without the 3 s wait running
+out. Before the fix the first start left the stale target for good, and both removed the nodes on
+the first pass, before the metadata had been read.
+
+## Filtered mic stays one object
+
+`audio_mic_filter_filtered_stable` (`mic-filter-filtered-stable.py`, registered when the DSP plugin
+is built) has an app record `rostrum.filtered` by its `object.serial`, then drives one running
+driver (`--mic-filter-file`, the same engine calls as the settings page) through filters on, off,
+on, failed (library cannot load) and recovered. Each time the filtered mic must keep the same
+serial and be fed by exactly one source: `micfx` when processed, the raw mic when not, never both
+(sampled by polling the graph while each request is in flight and while settling, so an overlap
+shorter than one poll could be missed) and no leftover `micfx` link. The test was not run against
+pre-fix code; the filtered-removal detection rests on the earlier mic-filter-release RED run. The app must record 440 Hz after each change,
+and the recording may be silent only for one handoff (about 80 ms measured, limit 150 ms) starting
+within 400 ms of a request. "Failed" is the plugin-unavailable path; the crash breaker's real
+failure needs a PipeWire restart, which would change the serial. The 440 Hz tone passes the
+high-pass filter, so processed and raw audio are told apart by links, not by sound.
 
 ## Mic filter crash breaker
 

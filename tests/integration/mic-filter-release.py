@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Apps on the filtered mic go back to the mic before the filter nodes are removed.
+"""Apps on the filtered mic go back to the mic before micfx is removed; filtered stays.
 
 A call app records rostrum.filtered while the filters run, and WirePlumber remembers that target.
 When Rostrum next starts with the filters turned off, or with the filter library unable to load,
 it must clear the app's target and wait for WirePlumber to move it back to the mic before it
-removes the filter nodes, so the app never records a node that is going away and is not sent
-back to it later.
+removes rostrum.micfx. rostrum.filtered always stays while the mix runs (it just carries the raw
+mic), so the app never records a node that is going away.
 """
 import argparse
 import importlib.util
@@ -80,19 +80,22 @@ def filtering(s, args, path):
 
 
 def released(s, engine, label):
-    """The call app is back on the mic, its target is cleared, and the filter nodes are gone."""
+    """The call app is back on the mic, its target is cleared, micfx is gone and filtered stays."""
     log = next(log for child, log in s.processes if child is engine)
     s.wait(f"{label}: {APP} target cleared", lambda: target(s.graph(), s.node(s.graph(), APP)) is None)
-    s.wait(f"{label}: filter nodes removed",
-           lambda: (g := s.graph()) and not any(s.node(g, name) for name in FILTER_NODES))
+    s.wait(f"{label}: micfx removed", lambda: not s.node(s.graph(), "rostrum.micfx"))
     s.wait(f"{label}: {APP} records only the mic", lambda: sources_of(s.graph(), APP) == {"test.saved-mic"})
+    if not s.node(s.graph(), "rostrum.filtered"):
+        raise Failure(f"{label}: rostrum.filtered was removed; it must stay while the mix runs")
     text = log.read_text()
-    moved, removed = text.find(f"raw mic for \"{APP}\""), text.find("removing \"rostrum.filtered\"")
+    moved, removed = text.find(f"raw mic for \"{APP}\""), text.find("removing \"rostrum.micfx\"")
     if moved < 0 or removed < 0 or removed < moved:
-        raise Failure(f"{label}: the filter nodes were removed before {APP} was pointed back at the mic")
+        raise Failure(f"{label}: micfx was removed before {APP} was pointed back at the mic")
+    if "removing \"rostrum.filtered\"" in text:
+        raise Failure(f"{label}: the engine removed rostrum.filtered")
     if "apps still on them" in text:
         raise Failure(f"{label}: {APP} was still on the filtered mic when the release wait ran out")
-    print(f"  {label}: {APP} pointed back at the mic before the filter nodes were removed", flush=True)
+    print(f"  {label}: {APP} pointed back at the mic before micfx was removed; filtered kept", flush=True)
 
 
 def run(driver, plugin):
@@ -135,7 +138,7 @@ def run(driver, plugin):
             released(s, engine, label)
             recorded(s, path, 440)
             s.stop(engine)
-        print("PASS apps leave the filtered mic before its nodes are removed", flush=True)
+        print("PASS apps leave the filtered mic before micfx is removed; filtered stays", flush=True)
     except BaseException:
         safety.cleanup_preserving_failure(s.diagnostics)
         raise
