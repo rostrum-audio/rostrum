@@ -36,7 +36,17 @@ WebSocketConfig readWebSocketConfig(const QString &configDir);
 // The active scene collection file, from user.ini (OBS 31+) or global.ini. Empty if unknown.
 QString sceneCollectionFile(const QString &configDir);
 
-// Whether an OBS process runs for this user (native or sandboxed: the process is "obs").
+// A running OBS process, identified so a restart can be told apart from the same process.
+struct ObsProcess
+{
+    qint64 pid = 0;
+    qint64 startTime = 0; // /proc/<pid>/stat field 22 (starttime), comparable across calls
+};
+
+// The first OBS process owned by this user (native or sandboxed: the process is "obs").
+std::optional<ObsProcess> runningObs();
+
+// Whether an OBS process runs for this user.
 bool isObsRunning();
 
 } // namespace rostrum::obs

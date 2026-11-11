@@ -38,6 +38,8 @@ target_sources(tst_recordingtracks PRIVATE
 )
 target_include_directories(tst_recordingtracks PRIVATE ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(tst_recordingtracks PRIVATE rostrum_obs Qt6::Gui Qt6::Qml KF6::I18n)
+rostrum_add_test(tst_capturewatch)
+target_link_libraries(tst_capturewatch PRIVATE rostrum_obs)
 rostrum_add_test(tst_readiness)
 target_link_libraries(tst_readiness PRIVATE rostrum_obs)
 
