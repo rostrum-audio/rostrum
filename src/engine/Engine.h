@@ -267,6 +267,7 @@ protected:
     void micFxConnectionChanged();
     bool micFxWanted() const;
     bool micFxRunning() const;            // wanted, and this run sent the graph to the node
+    bool micFxReleaseHeld() const;        // filters off, apps still on filtered: keep the processed feed
     const pw::Node *micFxNode() const;    // processing node with both port sides, if usable
     const pw::Node *filteredNode() const; // owned rostrum.filtered, whether or not micfx DSP is running
     const pw::Node *appsMic() const;      // the mic apps record: saved mic if present, else the default
@@ -422,6 +423,7 @@ protected:
     QSet<uint32_t> m_micReleased;
     QElapsedTimer m_fxReleaseClock; // since removing the filter nodes was first held back
     bool micStreamsOnFilter(const QList<const pw::Node *> &filterNodes) const;
+    bool m_feedHandoffWait = false; // a backstop reconcile is queued while one feed into filtered is torn down
 
     bool isOwnedNode(const pw::Node &n) const;
     void destroyOnce(uint32_t id);

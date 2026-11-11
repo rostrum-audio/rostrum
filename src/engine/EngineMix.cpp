@@ -690,16 +690,55 @@ void Engine::reconcileLinks()
     // With filters running the stream mic and sidetone hear the filtered signal. hwSource, when
     // there is one, is the mic apps use too; without it the stream mic stays silent (no fallback)
     // while apps still get the filtered default mic.
-    const pw::Node *micFx = micFxRunning() ? micFxNode() : nullptr;
-    const pw::Node *filtered = micFx ? filteredNode() : nullptr;
-    const pw::Node *appsSource = micFx ? appsMic() : nullptr;
-    if (micFx && appsSource) {
-        nodePairs.append(qMakePair(appsSource, micFx));
-        if (filtered) {
-            nodePairs.append(qMakePair(micFx, filtered));
+    //
+    // rostrum.filtered is fed by exactly one path: processed (hw -> micfx -> filtered) or bypass
+    // (hw -> filtered). Destroying a link is asynchronous, so a switch is two-stage: this pass only
+    // drops the old feed from `wanted`; the new one is added once the old links are gone from the
+    // graph. Leaving processed waits for the release hold, so apps still on filtered keep sound.
+    enum class Feed { None, Bypass, Processed };
+    const pw::Node *micFxLive = micFxNode();
+    const pw::Node *filtered = filteredNode();
+    const pw::Node *appsSource = appsMic();
+    Feed desired = Feed::None;
+    if (filtered && appsSource) {
+        if (micFxLive && (micFxRunning() || micFxReleaseHeld())) {
+            desired = Feed::Processed;
+        } else {
+            desired = Feed::Bypass;
         }
     }
-    const pw::Node *voice = micFx && appsSource ? micFx : hwSource;
+    bool processedPresent = false;
+    bool bypassPresent = false;
+    const pw::Node *micFxAny = g.nodeByName(QString::fromLatin1(kMicFxNode));
+    const pw::Node *filteredAny = g.nodeByName(QString::fromLatin1(kFilteredNode));
+    const bool fxOwned = micFxAny && isOwnedNode(*micFxAny);
+    const bool filteredOwned = filteredAny && isOwnedNode(*filteredAny);
+    for (const auto &l : g.links) {
+        if (fxOwned && l.inNode == micFxAny->id) {
+            processedPresent = true; // hw -> micfx
+        } else if (filteredOwned && l.inNode == filteredAny->id) {
+            (fxOwned && l.outNode == micFxAny->id ? processedPresent : bypassPresent) = true;
+        }
+    }
+    const bool addProcessed = desired == Feed::Processed && !bypassPresent;
+    const bool addBypass = desired == Feed::Bypass && !processedPresent;
+    if (addProcessed) {
+        nodePairs.append(qMakePair(appsSource, micFxLive));
+        nodePairs.append(qMakePair(micFxLive, filtered));
+    } else if (addBypass) {
+        nodePairs.append(qMakePair(appsSource, filtered));
+    }
+    const bool handoffWait =
+        (desired == Feed::Processed && bypassPresent) || (desired == Feed::Bypass && processedPresent);
+    if (handoffWait && !m_feedHandoffWait) {
+        // Link removal normally raises graphChanged; this only covers a destroy that never lands.
+        m_feedHandoffWait = true;
+        QTimer::singleShot(250, this, [this] {
+            m_feedHandoffWait = false;
+            scheduleReconcile();
+        });
+    }
+    const pw::Node *voice = addProcessed ? micFxLive : hwSource;
     if (hwSource && mic) {
         nodePairs.append(qMakePair(voice, mic));
     }
@@ -738,7 +777,6 @@ void Engine::reconcileLinks()
     // A link is Rostrum's to manage if it starts at a Rostrum node and ends at a Rostrum node or a
     // hardware sink, or if it feeds the mic, sidetone or mic filter node. App streams into buses
     // and OBS capturing a Rostrum monitor are never touched.
-    const pw::Node *micFxAny = g.nodeByName(QString::fromLatin1(kMicFxNode));
     auto managed = [&](const pw::Link &l) {
         const pw::Node *out = g.node(l.outNode);
         const pw::Node *in = g.node(l.inNode);
@@ -750,6 +788,11 @@ void Engine::reconcileLinks()
             return false;
         }
         if (in == mic || in == sidetone || (in == micFxAny && isOwnedNode(*in))) {
+            return true;
+        }
+        // Bypass: hardware mic -> rostrum.filtered. The output is not Rostrum's, so without this
+        // the link would be created but never removed when filters take over again.
+        if (in == filteredAny && isOwnedNode(*in) && out->isSource() && !out->isRostrum()) {
             return true;
         }
         if (!isOwnedNode(*out)) {

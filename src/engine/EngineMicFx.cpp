@@ -165,6 +165,23 @@ bool Engine::micFxRunning() const
     return micFxWanted() && fx && filteredNode() && m_fxGraphNode == fx->id;
 }
 
+// Filters are off but apps are still recording the filtered mic: the processed path must stay
+// linked until they have moved to the raw mic (or kFxReleaseMs has passed), so reconcileLinks
+// agrees with reconcileMicFx about when the release is complete. An unstarted clock counts as
+// holding; reconcileMicFx starts it earlier in the same pass.
+bool Engine::micFxReleaseHeld() const
+{
+    if (!m_mixEnabled || micFxWanted()) {
+        return false;
+    }
+    const pw::Node *fx = micFxNode();
+    const pw::Node *filtered = filteredNode();
+    if (!fx || !filtered || !micStreamsOnFilter({fx, filtered})) {
+        return false;
+    }
+    return !m_fxReleaseClock.isValid() || m_fxReleaseClock.elapsed() < kFxReleaseMs;
+}
+
 const pw::Node *Engine::appsMic() const
 {
     return resolveDevice(m_pw->graph(), m_micDevice, m_pw->defaultSourceName(), false, true);
