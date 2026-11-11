@@ -136,8 +136,14 @@ QString sceneCollectionFile(const QString &configDir)
     if (name.isEmpty() || name.contains(QLatin1Char('/'))) {
         return {};
     }
-    const QString path = configDir + QLatin1String("/basic/scenes/") + name + QLatin1String(".json");
-    return QFileInfo::exists(path) ? path : QString();
+    // Older OBS wrote the file's base name; newer OBS (seen with 33.0) writes the file name,
+    // ".json" included. Take the value as a file name first, then as a base name.
+    const QString scenes = configDir + QLatin1String("/basic/scenes/");
+    if (name.endsWith(QLatin1String(".json"), Qt::CaseInsensitive) && QFileInfo(scenes + name).isFile()) {
+        return scenes + name;
+    }
+    const QString path = scenes + name + QLatin1String(".json");
+    return QFileInfo(path).isFile() ? path : QString();
 }
 
 bool isObsRunning()
