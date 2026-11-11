@@ -48,6 +48,23 @@ private Q_SLOTS:
         QCOMPARE(id.displayName, QStringLiteral("Game audio"));
     }
 
+    void unnamedStreamMatchesTheRuleMadeFromIt()
+    {
+        // No app name and no binary: the app is known by its stream name, and "Always" writes
+        // a rule with that name.
+        const StreamProps props{{}, {}, QStringLiteral("Game audio"), QStringLiteral("alsa_playback.x")};
+        const AppIdentity id = identify(props);
+        const AppRule rule{id.key.match, id.key.key, QStringLiteral("game")};
+        QVERIFY(ruleMatches(rule, props));
+        QCOMPARE(matchRule({rule}, props), 0);
+        const StreamProps nodeOnly{{}, {}, {}, QStringLiteral("alsa_playback.x")};
+        const AppIdentity byNode = identify(nodeOnly);
+        QVERIFY(ruleMatches({byNode.key.match, byNode.key.key, QStringLiteral("game")}, nodeOnly));
+        // A named app is never matched through its stream name.
+        QVERIFY(!ruleMatches(rule, {QStringLiteral("Firefox"), {}, QStringLiteral("Game audio"), {}}));
+        QVERIFY(!ruleMatches(rule, {{}, QStringLiteral("mpv"), QStringLiteral("Game audio"), {}}));
+    }
+
     void ruleMatching()
     {
         QList<AppRule> rules;

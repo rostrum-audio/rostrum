@@ -371,6 +371,7 @@ protected:
     QString m_duckMicNode;   // hardware mic being metered, empty when the mic is not live
     QString m_duckVoiceNode; // voice bus being metered
     double m_duckGainSent = 1.0;
+    bool m_levelsReleased = false; // quitting: ducking and fades stay off
     micfx::Settings m_micFx;
     QString m_fxPlugin;
     QString m_fxPluginError;
@@ -387,6 +388,9 @@ protected:
     QElapsedTimer m_fxMissingClock;   // running without reporting the graph since
     bool m_fxVerified = false;        // the node reported the graph's controls since it was sent
     int m_fxStrikes = 0;              // PipeWire losses right after a graph load
+    // Since the filter node last began running with the graph sent, which is when PipeWire builds
+    // it and runs the plugin. Invalid while the node is idle: a resend then loads nothing.
+    QElapsedTimer m_fxBuildClock;
     struct SentControl
     {
         float value = 0.0f;

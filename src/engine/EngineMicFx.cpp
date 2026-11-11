@@ -241,6 +241,7 @@ void Engine::reconcileMicFx()
         m_pendingCreate.remove(filteredName);
         m_fxConfigured = 0;
         m_fxGraphNode = 0;
+        m_fxBuildClock.invalidate();
         m_fxGraphControls.clear();
         m_fxMissingClock.invalidate();
         m_fxVerified = false;
@@ -350,9 +351,18 @@ void Engine::reconcileMicFx()
         }
         if (fx.running) {
             m_fxTimer.start(kFxRecheckMs);
+            m_fxBuildClock.start();
+        } else {
+            m_fxBuildClock.invalidate();
         }
         setMicFxState(MicFxState::Active);
         return;
+    }
+    // The crash breaker times from when the plugin starts running, not from resent controls.
+    if (!fx.running) {
+        m_fxBuildClock.invalidate();
+    } else if (!m_fxBuildClock.isValid()) {
+        m_fxBuildClock.start();
     }
     if (loaded) {
         if (!m_fxVerified) {
@@ -419,10 +429,10 @@ void Engine::applyMicFxControls(const pw::Node &fx)
 void Engine::micFxConnectionChanged()
 {
     const auto state = m_pw->state();
-    if (state == pw::PwContext::State::Failed && m_fxGraphNode != 0 && m_fxGraphClock.isValid()) {
-        if (m_fxGraphClock.elapsed() < kFxCrashWindowMs) {
+    if (state == pw::PwContext::State::Failed && m_fxGraphNode != 0 && m_fxBuildClock.isValid()) {
+        if (m_fxBuildClock.elapsed() < kFxCrashWindowMs) {
             ++m_fxStrikes;
-            qCWarning(lcEngine) << "PipeWire went away" << m_fxGraphClock.elapsed()
+            qCWarning(lcEngine) << "PipeWire went away" << m_fxBuildClock.elapsed()
                                 << "ms after the mic filters loaded, strike" << m_fxStrikes;
             if (m_fxStrikes >= kFxCrashStrikes && m_micFx.enabled) {
                 const QString reason = QStringLiteral("PipeWire stopped twice right after the mic filters started, "
@@ -441,6 +451,7 @@ void Engine::micFxConnectionChanged()
         m_fxConfigured = 0;
         m_fxGraphNode = 0;
         m_fxGraphClock.invalidate();
+        m_fxBuildClock.invalidate();
         m_fxGraphControls.clear();
         m_fxMissingClock.invalidate();
         m_fxVerified = false;

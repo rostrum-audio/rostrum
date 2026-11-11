@@ -156,6 +156,11 @@ if(ROSTRUM_AUDIO_INTEGRATION_TESTS)
             $<TARGET_FILE:rostrum-graphtest> $<TARGET_FILE:rostrum-dsp>)
         set_tests_properties(audio_mic_filter_release PROPERTIES
             TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
+        add_test(NAME audio_mic_filter_breaker COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/integration/mic-filter-breaker.py
+            $<TARGET_FILE:rostrum-graphtest> $<TARGET_FILE:rostrum-dsp>)
+        set_tests_properties(audio_mic_filter_breaker PROPERTIES
+            TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
     endif()
     # Lifecycle regressions deliberately interrupt private jobs; serialize audio tests.
     set_tests_properties(audio_safety audio_safety_fixture audio_safety_lifecycle audio_readiness

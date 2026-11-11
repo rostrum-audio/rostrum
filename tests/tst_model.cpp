@@ -251,6 +251,38 @@ private Q_SLOTS:
         QCOMPARE(scene->bus(QStringLiteral("game"))->vod, true);
         QCOMPARE(scene->bus(QStringLiteral("voice"))->vod, true);
     }
+
+    void nonFiniteLevelsNeverLoad()
+    {
+        // TOML allows nan and inf; neither may reach a PipeWire volume.
+        for (const double bad : {std::nan(""), std::numeric_limits<double>::infinity(),
+                                 -std::numeric_limits<double>::infinity()}) {
+            Scene s = defaults::scene();
+            s.masterPhones = s.masterStream = s.sidetoneVolume = bad;
+            for (auto &b : s.buses) {
+                b.volume = bad;
+            }
+            s.rules << AppRule{};
+            s.rules.last().match = QStringLiteral("firefox");
+            s.rules.last().busId = QStringLiteral("game");
+            s.rules.last().volume = bad;
+            QString err;
+            const auto loaded = toml_io::parseScene(toml_io::serializeScene(s), &err);
+            QVERIFY2(loaded.has_value(), qPrintable(err));
+            for (const Scene &scene : {*loaded, toml_io::sanitize(s)}) {
+                // Each falls back to its default.
+                QCOMPARE(scene.masterPhones, 1.0);
+                QCOMPARE(scene.masterStream, 1.0);
+                QCOMPARE(scene.sidetoneVolume, 0.0);
+                for (const auto &b : scene.buses) {
+                    QVERIFY2(std::isfinite(b.volume) && b.volume >= 0.0 && b.volume <= 1.5, qPrintable(b.id));
+                }
+                QCOMPARE(scene.rules.size(), 1);
+                QVERIFY(std::isfinite(scene.rules.first().volume));
+                QVERIFY(scene.rules.first().volume >= 0.0 && scene.rules.first().volume <= 1.0);
+            }
+        }
+    }
 };
 
 QTEST_GUILESS_MAIN(TestModel)

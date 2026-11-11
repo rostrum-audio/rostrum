@@ -570,7 +570,9 @@ bool Engine::isDucked(const QString &busId) const
 
 void Engine::reconcileDucking()
 {
-    const bool on = m_ducking.enabled && m_mixEnabled;
+    // Not once quit has released the levels: a later pass would duck buses again and leave them
+    // turned down after Rostrum is gone.
+    const bool on = m_ducking.enabled && m_mixEnabled && !m_levelsReleased;
     QString mic;
     QString voice;
     if (on && m_ducking.trigger != ducking::Trigger::Voice) {
@@ -632,6 +634,7 @@ void Engine::duckTick()
 
 bool Engine::releaseTransientLevels()
 {
+    m_levelsReleased = true;
     m_duckTimer.stop();
     m_duckMeters.setActive(false);
     m_fadeTimer.stop();
@@ -761,6 +764,13 @@ void Engine::reconcileLinks()
             destroyOnce(l.id);
         }
     }
+    // A pair no longer wanted would otherwise stay forever, and hold back a link asked for again
+    // when PipeWire reuses the port IDs.
+    QSet<QString> wantedKeys;
+    for (const auto &p : std::as_const(wanted)) {
+        wantedKeys.insert(QStringLiteral("%1:%2").arg(p.first).arg(p.second));
+    }
+    m_pendingLinks.removeIf([&](const auto &entry) { return !wantedKeys.contains(entry.key()); });
     for (const auto &p : std::as_const(wanted)) {
         const QString key = QStringLiteral("%1:%2").arg(p.first).arg(p.second);
         if (g.hasLink(p.first, p.second)) {
