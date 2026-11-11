@@ -156,7 +156,10 @@ Five minutes to a split stream:
    OBS is open (Settings → Integrations → OBS → "Follow OBS while it runs"). The header shows a red **LIVE** badge
    and a **REC** badge with the elapsed time, and the tray tooltip says the same. If a stream
    starts with your mic muted, nothing reaching the stream mix, or OBS not recording Rostrum, a
-   banner and a desktop notification say so. Under "When OBS switches scenes" on the OBS page,
+   banner and a desktop notification say so. The same warning switches also cover a full PipeWire
+   restart: OBS's audio clients do not reconnect, so Rostrum tells you to restart OBS after it
+   rebuilds the mix (name-based Set Up OBS sources are fine; the break is OBS's pulse/PipeWire
+   connection). Under "When OBS switches scenes" on the OBS page,
    pick a Rostrum scene for each OBS scene. When OBS puts that scene on program, Rostrum loads it
    at once, without asking, after saving the current scene if auto-save is on.
 
@@ -172,10 +175,13 @@ Five minutes to a split stream:
    stream; the Apps list below it switches single apps, and remembers apps that are not running.
    Discord and browsers get the filtered mic, audio tools such as Audacity keep the plain one. Your
    mic and the system's default input are never changed: apps are moved to "Rostrum Filtered Mic",
-   which you can also pick in an app's own settings. OBS keeps recording Rostrum Mic, which is
-   filtered too. Rostrum's mic mute also silences Rostrum Filtered Mic, so call apps using
-   it follow the mixer and OpenDeck mute. Apps recording the hardware mic directly keep
-   their own mute controls.
+   which you can also pick in an app's own settings. While the mix runs, `rostrum.filtered` stays
+   up: with filters on it is processed through micfx; with filters off, failed or unavailable it is
+   a unity-gain bypass from the hardware mic, so name-pinned captures (including OBS) do not go
+   silent when you toggle FX. OBS Set Up OBS still uses Rostrum Mic for the stream mic by default,
+   which is filtered when filters are on. Rostrum's mic mute also silences Rostrum Filtered Mic, so
+   call apps using it follow the mixer and OpenDeck mute. Apps recording the hardware mic directly
+   keep their own mute controls.
 
    ![The Mic Filters page: the on switch, preset and who gets the filtered mic, then Check Your Mic and the rumble filter](docs/screenshots/micfilters.png)
 
@@ -244,8 +250,9 @@ Playback captures use each bus's existing monitor, including Headphones-only bus
 does not change their stream destination or Include in Twitch VOD flag. A bus mute silences
 that bus capture, and its fader controls the capture volume. The mic track captures
 `rostrum.mic` with filters off and
-`rostrum.filtered` with filters on; mic mute silences both. After changing filters, review
-and apply the recording changes again. Reconnecting does not switch the OBS source automatically.
+`rostrum.filtered` with filters on (processed) or bypassed when filters are off; mic mute
+silences both. After changing filters, review and apply the recording changes again.
+Reconnecting does not switch the OBS source automatically.
 Panic mute and Stream master mute silence the combined stream and VOD mixes; isolated playback tracks continue recording.
 Assignments are saved by bus id for the OBS scene collection. Reconnecting checks them without
 overwriting OBS edits. A matching configuration does not prove that a recording sounds right.
@@ -347,8 +354,8 @@ mixer's Mic strip matches its Mic live / Mic muted title.
   on (setup recommends it).
 - Crash reports: ask after a crash. Update checks: once a day. Automatic install: on, for the
   AppImage only.
-- Follow OBS while it runs: on (localhost only, read-only). Go-live warnings: on. No OBS scenes
-  mapped.
+- Follow OBS while it runs: on (localhost only, read-only). Warn when a stream starts with a
+  problem (and when OBS loses Rostrum after a PipeWire restart): on. No OBS scenes mapped.
 
 ### 🗂️ Where things live
 
@@ -368,7 +375,8 @@ Rostrum's virtual devices live in PipeWire, not in the app, so audio keeps flowi
 or crashes. To remove Rostrum completely, quit it, delete the files above, and run
 `systemctl --user restart pipewire pipewire-pulse wireplumber` to drop its devices. If OBS was
 open, restart OBS too: a full PipeWire restart drops OBS's Rostrum audio clients, and Rostrum
-reconnecting does not bring them back.
+reconnecting does not bring them back (Rostrum shows a banner and notification when Follow OBS
+and the warning switch are on).
 
 
 ## ⬇️ Installation
