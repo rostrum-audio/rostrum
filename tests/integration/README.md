@@ -208,6 +208,14 @@ the Stream Mix and silence at the fake headphones. Before the fix Rostrum kept t
 `target.object` values in its cache, believed the app was still routed and left it on the default
 sink.
 
+## OBS capture lost after PipeWire restart
+
+`audio_obs_capture_lost` (`obs-capture-lost.py`) runs a stand-in `obs` process and an OBS-named
+`pw-cat` capture on `rostrum.mic`. After the baseline settles, a private PipeWire restart and
+Rostrum reconnect without restarting that capture must set capture-lost via `--capture-lost-file`
+on `rostrum-graphtest`. Killing the stand-in OBS during grace, or bringing the capture back
+during grace, must leave the alert clear.
+
 ## PipeWire restart
 
 `audio_pipewire_restart` (`pipewire-restart.py`) stops the private WirePlumber and PipeWire and

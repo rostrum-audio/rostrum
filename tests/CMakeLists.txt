@@ -135,6 +135,8 @@ if(ROSTRUM_AUDIO_INTEGRATION_TESTS)
     add_test(NAME audio_pipewire_restart COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/integration/pipewire-restart.py $<TARGET_FILE:rostrum-graphtest>
         $<TARGET_FILE:rostrum-test-stream>)
+    add_test(NAME audio_obs_capture_lost COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/integration/obs-capture-lost.py $<TARGET_FILE:rostrum-graphtest>)
     if(TARGET rostrum)
         # The real app's quit path; needs the app build.
         add_test(NAME audio_quit_signals COMMAND ${Python3_EXECUTABLE}
@@ -171,6 +173,7 @@ if(ROSTRUM_AUDIO_INTEGRATION_TESTS)
     endif()
     # Lifecycle regressions deliberately interrupt private jobs; serialize audio tests.
     set_tests_properties(audio_safety audio_safety_fixture audio_safety_lifecycle audio_readiness
-        audio_rule_fragments audio_stream_replacement audio_wireplumber_restart audio_pipewire_restart PROPERTIES
+        audio_rule_fragments audio_stream_replacement audio_wireplumber_restart audio_pipewire_restart
+        audio_obs_capture_lost PROPERTIES
         TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
 endif()
