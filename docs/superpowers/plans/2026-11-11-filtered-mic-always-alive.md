@@ -16,6 +16,7 @@
 - During transitions, hardware→filtered and hardware→micfx→filtered must not both feed filtered at once.
 - **Managed bypass ownership:** `EngineMix`’s `managed()` lambda must treat hardware→`rostrum.filtered` as a Rostrum-managed link (today it only special-cases feeds into mic / sidetone / micfx when the output is not owned). Without that, bypass links are created but never unlinked when filters return → dual feed.
 - **Async exclusive handoff:** PipeWire link deletion is asynchronous. Do not create the replacement feed in the same reconcile pass as the unlink request. Use a two-stage transition: (1) drop the old feed from `wanted` and destroy managed old links; (2) only after the old link is gone from the graph, add the new feed to `wanted` / create it.
+- **App-release before dropping processed feed:** `reconcile()` runs `reconcileLinks()` before `reconcileMicRoutes()` (`Engine.cpp` ~342–348). When filters turn off, do **not** tear down `micfx→filtered` (or other processed feeds apps still hear) until apps have been restored to the raw mic and the existing release hold is satisfied (or `kFxReleaseMs` times out). Only then start the exclusive async handoff to hardware bypass. Otherwise apps still targeted at filtered can briefly go silent even though `micfx` node destruction is delayed.
 - Do not auto-move OBS; do not change Set Up OBS default device choices; do not fix [#21](https://github.com/rostrum-audio/rostrum/issues/21) in this plan.
 - Prefer same filtered node id/serial across filter toggles (no destroy/recreate when the node already exists). When the same PipeWire daemon stays up, integration tests **must** assert identical `object.serial` (not only node name).
 - Work on a dedicated branch for issue #22; frequent small commits; TDD where tests already exist.
@@ -122,7 +123,7 @@ PipeWire `destroy` on a link is async. Same-pass “omit old from wanted + creat
 
 Required state machine (names illustrative; match local style):
 
-1. **Desired mode** = processed if `micFxRunning()`, else bypass if mix on && `filteredNode()`, else neither.
+1. **Desired mode** = processed if `micFxRunning()`, else bypass if mix on && `filteredNode()` && **app-release complete**, else neither (or hold processed — see Step 3).
 2. If graph still has the **other** mode’s feed into filtered (e.g. switching to processed while `hw→filtered` still exists, or switching to bypass while `micfx→filtered` / `hw→micfx` still exist):
    - Put only the teardown in this reconcile: old feed **absent** from `wanted`, so `managed` unlinks fire.
    - Do **not** add the new feed to `wanted` yet.
@@ -131,19 +132,30 @@ Required state machine (names illustrative; match local style):
 
 Optional helper: `bool filteredFedBy(const pw::Graph&, enum Feed { Bypass, Processed })` for the “old still present?” check.
 
-- [ ] **Step 3: Wire desired pairs for the steady states**
+- [ ] **Step 3: App-release ordering when leaving processed mode**
+
+When filters become unwanted (`!micFxWanted()` but mix still on):
+
+1. **Hold processed feed:** keep `hw→micfx→filtered` (and related processed links) in `wanted` while the existing release hold is active — i.e. while `micStreamsOnFilter` / apps still need filtered audio, or until `kFxReleaseMs` elapses (same clock/`m_fxReleaseClock` pattern as today’s destroy hold in `reconcileMicFx`).
+2. **Routes first in effect:** `reconcileMicRoutes` (later in the same or subsequent passes) restores apps to the raw mic; release hold tracks that.
+3. **Only after release (or timeout):** stop wanting the processed feed, run the async exclusive handoff to `hw→filtered` bypass, then destroy `micfx` (Task 3).
+
+Do **not** drop `micfx→filtered` in `reconcileLinks` on the first filters-off pass while apps are still targeted at filtered. Coordinate with Task 3’s hold so link teardown and node destroy agree on “release complete.”
+
+- [ ] **Step 4: Wire desired pairs for the steady states**
 
 ```cpp
 // Steady processed: hw→micFx, micFx→filtered (+ mic/sidetone from voice as today).
 // Steady bypass: hw→filtered only; no micFx→filtered; mic/sidetone from hw as today’s filters-off path.
+// Leaving processed: keep processed pairs until app-release complete, then hand off (Step 2–3).
 // Never append both bypass and processed pairs into nodePairs/wanted in one pass.
 ```
 
-- [ ] **Step 4: “Carries sound” for app moves**
+- [ ] **Step 5: “Carries sound” for app moves**
 
 In `reconcileMicRoutes` (`EngineMicFx.cpp` ~517+), keep moving apps onto filtered only when `micFxRunning()`. Bypass is for name-pinned capturers (OBS), not auto-move.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add src/engine/EngineMix.cpp src/engine/Engine.h src/engine/EngineMicFx.cpp
@@ -182,8 +194,8 @@ Expected: FAIL until Task 2–3 production changes land (or FAIL on missing filt
 
 When `m_mixEnabled`:
 
-1. Run the existing release hold based on apps still linked to **micfx** (and filtered only insofar as needed for moving apps)—do not wait to destroy filtered.
-2. Destroy `micfx` nodes only after hold.
+1. Run the existing release hold based on apps still on the filtered path (same `micStreamsOnFilter` / `m_fxReleaseClock` idea as today). During the hold, **processed links must remain** (Task 2 Step 3)—do not signal mix to drop `micfx→filtered` yet.
+2. After hold (apps restored or timeout): allow the exclusive handoff to bypass, then destroy **`micfx` nodes only**.
 3. If `filteredNodes` empty, create `rostrum.filtered` (same create helper as the wanted path).
 4. Do not call `destroyOnce` on filtered.
 
@@ -292,6 +304,7 @@ gh issue comment 22 --body "Implementation on <branch>: filtered kept with hw by
 - [ ] `filteredNode()` works without micfx
 - [ ] `managed()` owns hardware→filtered bypass links (unlink works when leaving bypass)
 - [ ] Transitions are two-stage: old feed gone before new feed created
+- [ ] When filters turn off, processed feed stays until app-release hold completes (or timeout), then handoff to bypass
 - [ ] Mix never dual-feeds filtered
 - [ ] Filters off/fail keep filtered + bypass audio
 - [ ] Filters on restore processed path without recreating filtered when avoidable

@@ -89,7 +89,8 @@ Plan review follow-ups (required before / during implementation):
 
 1. **`managed()` must own hardware→filtered** so bypass links are torn down when leaving bypass (`EngineMix.cpp` today only special-cases feeds into mic / sidetone / micfx for non-owned outputs).
 2. **Two-stage async handoff:** do not create the replacement feed until the old managed link has disappeared from the graph; same-pass unlink+create can overlap because PipeWire deletions are asynchronous.
-3. Integration tests: when the same PipeWire daemon stays up, assert identical `object.serial` across toggles (not only node name).
+3. **App-release before dropping processed feed:** `reconcileLinks` runs before `reconcileMicRoutes`. When filters turn off, keep `micfx→filtered` until apps are restored to the raw mic (existing release hold / timeout), then hand off to bypass. Prevents a brief silence for apps still targeted at filtered.
+4. Integration tests: when the same PipeWire daemon stays up, assert identical `object.serial` across toggles (not only node name).
 
 ## Success criteria
 
