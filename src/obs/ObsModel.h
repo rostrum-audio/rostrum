@@ -52,6 +52,7 @@ struct State
 
     QString streamService;       // e.g. "Twitch"
     int twitchVodTrack = 0;      // 0 = unset/disabled, 2 = track 2
+    bool streamServiceKnown = false, twitchVodTrackKnown = false; // live only: read from OBS
 
     const Input *input(const QString &name) const;
     const Input *channel(const QString &channel) const;

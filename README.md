@@ -131,7 +131,8 @@ Five minutes to a split stream:
    every scene, and sources that would double audio (desktop audio, single-app captures) are
    muted, never deleted. With OBS running this goes through obs-websocket (included in
    OBS 28+; enable its server in OBS if needed; Rostrum reads the local port/password settings). With OBS closed, Rostrum edits the
-   scene collection after backing it up. **Undo OBS Changes** puts everything back. The page also
+   scene collection after backing it up. If Rostrum can't read every OBS audio source, the page says
+   so and changes nothing. **Undo OBS Changes** puts everything back. The page also
    shows observed OBS capture targets from the PipeWire graph. "Set it up by hand" has the manual steps.
 
    For manual setup, add **Audio Output Capture** (or the PipeWire audio capture plugin)

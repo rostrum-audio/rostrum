@@ -436,6 +436,9 @@ QString Obs::summary() const
         return s == QLatin1String("closed") ? i18n("OBS is closed, and Rostrum can't read its scene collection.")
                                             : i18n("Reading OBS…");
     }
+    if (m_plan.incomplete()) {
+        return i18n("Rostrum couldn't read all of OBS's audio settings.");
+    }
     if (m_plan.isEmpty()) {
         return i18n("OBS is set up: it records Rostrum Mic, Rostrum Stream Mix and Rostrum VOD Mix.");
     }
@@ -469,6 +472,14 @@ QString Obs::detail() const
     if (s == QLatin1String("failed")) {
         return m_client.errorString();
     }
+    if (m_havePlan && m_plan.incomplete()) {
+        QStringList unread = m_plan.unreadInputs;
+        if (m_plan.streamSettingsUnread) {
+            unread << i18n("the streaming settings");
+        }
+        return i18n("It won't change anything in OBS until it can. Not read: %1. Press Check Again to retry.",
+                    unread.join(QStringLiteral(", ")));
+    }
     if (onlyDoubling()) {
         return i18n("Rostrum Mic, Rostrum Stream Mix and Rostrum VOD Mix are in place, but the sources marked below play on top of them. Fix OBS mutes them.");
     }
@@ -483,7 +494,7 @@ QString Obs::detail() const
 
 bool Obs::canApply() const
 {
-    if (m_busy || !m_havePlan || m_plan.isEmpty()) {
+    if (m_busy || !m_havePlan || m_plan.incomplete() || m_plan.isEmpty()) {
         return false;
     }
     return m_stateName == QLatin1String("connected") || m_stateName == QLatin1String("closed");

@@ -21,6 +21,10 @@ Input inputFrom(const QJsonObject &o, const QString &channel)
     in.muted = o.value(QLatin1String("muted")).toBool();
     in.tracks = quint32(o.value(QLatin1String("mixers")).toInt(0));
     in.channel = channel;
+    // OBS saves all three for every source; anything else is a file Rostrum doesn't understand.
+    in.settingsKnown = o.value(QLatin1String("settings")).isObject();
+    in.muteKnown = o.value(QLatin1String("muted")).isBool();
+    in.tracksKnown = o.value(QLatin1String("mixers")).isDouble();
     return in;
 }
 

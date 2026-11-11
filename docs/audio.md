@@ -641,6 +641,14 @@ The plan is the same whether OBS is running or not (`makePlan` in `src/obs/ObsPl
    Default, one app, a Rostrum bus) is muted. These steps are optional in the preview. Nothing is
    ever deleted.
 
+The plan needs every audio source's device, mute state and tracks and, with OBS running, the stream
+service and the Twitch VOD track setting. If one of those reads fails or times out, the plan has no
+steps. The OBS page says Rostrum couldn't read all of OBS's audio settings and names what is
+missing, and Set Up OBS stays disabled until Check Again reads everything. An unread device would
+otherwise look like `default` (the hardware mic or output), and an unread mute like unmuted. If OBS
+disconnects partway through a read, the whole read fails. With OBS closed, a source whose
+`settings`, `muted` or `mixers` is missing from the scene collection counts as unread.
+
 With OBS running, Rostrum talks obs-websocket 5 on `127.0.0.1`. The port and password come from
 OBS's own config (`plugin_config/obs-websocket/config.json`). Native, Flatpak and Snap installs
 are found, newest first. A new source is added to every scene, because OBS has no API to turn on a

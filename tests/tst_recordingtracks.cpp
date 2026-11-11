@@ -43,6 +43,7 @@ class TestRecordingTracks : public QObject
         s.recordingTracks = 3;
         s.known = true;
         s.state.scenes = {QStringLiteral("Game"), QStringLiteral("BRB")};
+        s.state.streamServiceKnown = true; // not streaming to Twitch
         for (const auto &name : s.state.scenes)
             s.sceneItems.insert(name, {});
         Input mic;
@@ -212,6 +213,7 @@ private Q_SLOTS:
             const auto devices = recordingDevices(scene, a, filters);
             QVERIFY(intendedRecording(*mic, devices));
             const auto stream = makePlan(after.state, {}, Mode::Live, devices);
+            QVERIFY(!stream.incomplete());
             for (const auto &action : stream.actions)
                 QVERIFY(action.type != Action::Type::Mute || action.input != mic->name);
         }
@@ -241,6 +243,7 @@ private Q_SLOTS:
         QCOMPARE(p.inputTracks.value(QStringLiteral("Rostrum Mic (Recording)")), 4u);
         const auto after = recordingResult(s, p);
         const auto stream = makePlan(after.state, {}, Mode::Live, recordingDevices(scene, a));
+        QVERIFY(!stream.incomplete());
         bool createsStreamMic = false;
         for (const auto &action : stream.actions) {
             if (action.role == Action::Role::Mic && action.type == Action::Type::CreateInput) {
@@ -282,6 +285,7 @@ private Q_SLOTS:
         scene.buses.removeIf([](const Bus &bus) { return bus.id == QLatin1String("game"); });
         QVERIFY(!recordingPlan(after, scene, a).problems.isEmpty());
         const auto stream = makePlan(after.state, {}, Mode::Live, recordingDevices(scene, a));
+        QVERIFY(!stream.incomplete());
         for (const auto &action : stream.actions)
             QVERIFY(action.type != Action::Type::Mute ||
                     action.input != QStringLiteral("Rostrum Game (Recording)"));
@@ -293,10 +297,12 @@ private Q_SLOTS:
         const RecordingAssignments a{{4, QStringLiteral("game")}};
         const auto after = recordingResult(snapshot(), recordingPlan(snapshot(), scene, a));
         const auto stream = makePlan(after.state, {}, Mode::Live, recordingDevices(scene, a));
+        QVERIFY(!stream.incomplete());
         for (const auto &action : stream.actions)
             QVERIFY(action.type != Action::Type::Mute ||
                     action.input != QStringLiteral("Rostrum Game (Recording)"));
         const auto unassigned = makePlan(after.state, {}, Mode::Live);
+        QVERIFY(!unassigned.incomplete());
         bool muted = false;
         for (const auto &action : unassigned.actions)
             muted |= action.type == Action::Type::Mute &&
@@ -993,6 +999,7 @@ private Q_SLOTS:
 
         app::AppController app(nullptr);
         const auto plan = makePlan(stateFromCollection(original), factsFrom(*app.pw()), Mode::Offline);
+        QVERIFY(!plan.incomplete());
         const QJsonObject configured = applyToCollection(original, plan.actions);
         write(configDir + QStringLiteral("/basic/scenes/config.json"), QJsonDocument(configured).toJson());
 

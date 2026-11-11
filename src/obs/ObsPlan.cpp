@@ -49,6 +49,21 @@ Plan makePlan(const State &state, const Facts &facts, Mode mode, const QSet<QStr
     Plan plan;
     plan.mode = mode;
 
+    // An unread device reads as "default", so it would look like the hardware mic or output and
+    // be retargeted, duplicated or muted; an unread mute reads as unmuted, so a Mute's undo would
+    // unmute it. Plan nothing until everything was read.
+    for (const auto &i : state.inputs) {
+        if (isAudioCaptureKind(i.kind) && !(i.settingsKnown && i.muteKnown && i.tracksKnown)) {
+            plan.unreadInputs << i.name;
+        }
+    }
+    const bool twitch = state.streamService.compare(QLatin1String("Twitch"), Qt::CaseInsensitive) == 0;
+    plan.streamSettingsUnread =
+        mode == Mode::Live && (!state.streamServiceKnown || (twitch && !state.twitchVodTrackKnown));
+    if (plan.incomplete()) {
+        return plan;
+    }
+
     QHash<QString, Capture> caps;
     for (const auto &i : state.inputs) {
         caps.insert(i.name, classify(i, facts));
@@ -185,7 +200,7 @@ Plan makePlan(const State &state, const Facts &facts, Mode mode, const QSet<QStr
         plan.actions << mute;
     }
 
-    if (state.streamService.compare(QLatin1String("Twitch"), Qt::CaseInsensitive) == 0 && state.twitchVodTrack != 2) {
+    if (mode == Mode::Live && twitch && state.twitchVodTrack != 2) {
         Action setTwitchVod;
         setTwitchVod.type = Action::Type::SetTwitchVodTrack;
         setTwitchVod.role = Action::Role::Vod;

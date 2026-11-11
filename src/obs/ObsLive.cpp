@@ -5,6 +5,7 @@
 
 #include <memory>
 #include <optional>
+#include <utility>
 
 namespace rostrum::obs {
 
@@ -81,28 +82,57 @@ void fetchState(Client *client, std::function<void(const State &, const QString 
         State state;
         QHash<QString, QString> channelOf; // input name -> channel
         int pending = 0;
+        bool finished = false;
         std::function<void(const State &, const QString &)> done;
+
+        // Reports once. A failure always carries a message, so callers never mistake it for
+        // a complete read.
+        void finish(const State &result, const QString &error)
+        {
+            if (!std::exchange(finished, true)) {
+                done(result, error);
+            }
+        }
+        void fail(const QString &error, const QString &fallback)
+        {
+            finish({}, error.isEmpty() ? fallback : error);
+        }
     };
     auto f = std::make_shared<Fetch>();
     f->done = std::move(done);
     QPointer<Client> c(client);
 
+    // True when the fetch is over: already reported, or OBS went away. A reply that failed
+    // while OBS is still connected (refused or timed out) leaves its field unknown instead.
+    auto stopped = [f, c](const QString &err) {
+        if (f->finished) {
+            return true;
+        }
+        if (!c || c->status() != Client::Status::Connected) {
+            f->fail(err, QStringLiteral("Disconnected from OBS."));
+            return true;
+        }
+        return false;
+    };
     auto finishOne = [f] {
         if (--f->pending == 0) {
-            f->done(f->state, QString());
+            f->finish(f->state, QString());
         }
     };
 
     client->request(QStringLiteral("GetSpecialInputs"), {}, [=](bool ok, const QJsonObject &special, const QString &err) {
-        if (!ok || !c) {
-            f->done({}, err);
+        if (stopped(err)) {
+            return;
+        }
+        if (!ok) {
+            f->fail(err, QStringLiteral("OBS did not list its global audio devices."));
             return;
         }
         if (includeUnsupported) {
             for (const char *key : {"desktop1", "desktop2", "mic1", "mic2", "mic3", "mic4"}) {
                 const auto v = special.value(QLatin1String(key));
                 if (!v.isString() && !v.isNull()) {
-                    f->done({}, QStringLiteral("Global audio channels not verified."));
+                    f->finish({}, QStringLiteral("Global audio channels not verified."));
                     return;
                 }
             }
@@ -113,12 +143,15 @@ void fetchState(Client *client, std::function<void(const State &, const QString 
             }
         }
         c->request(QStringLiteral("GetSceneList"), {}, [=](bool ok, const QJsonObject &scenes, const QString &err) {
-            if (!ok || !c) {
-                f->done({}, err);
+            if (stopped(err)) {
+                return;
+            }
+            if (!ok) {
+                f->fail(err, QStringLiteral("OBS did not list its scenes."));
                 return;
             }
             if (!scenes.value(QLatin1String("scenes")).isArray()) {
-                f->done({}, QStringLiteral("Scene list not verified."));
+                f->finish({}, QStringLiteral("Scene list not verified."));
                 return;
             }
             const QJsonArray list = scenes.value(QLatin1String("scenes")).toArray();
@@ -127,12 +160,15 @@ void fetchState(Client *client, std::function<void(const State &, const QString 
                 f->state.scenes << list.at(n).toObject().value(QLatin1String("sceneName")).toString();
             }
             c->request(QStringLiteral("GetInputList"), {}, [=](bool ok, const QJsonObject &inputs, const QString &err) {
-                if (!ok || !c) {
-                    f->done({}, err);
+                if (stopped(err)) {
+                    return;
+                }
+                if (!ok) {
+                    f->fail(err, QStringLiteral("OBS did not list its inputs."));
                     return;
                 }
                 if (!inputs.value(QLatin1String("inputs")).isArray()) {
-                    f->done({}, QStringLiteral("Input list not verified."));
+                    f->finish({}, QStringLiteral("Input list not verified."));
                     return;
                 }
                 for (const auto &v : inputs.value(QLatin1String("inputs")).toArray()) {
@@ -144,7 +180,7 @@ void fetchState(Client *client, std::function<void(const State &, const QString 
                         in.kind = o.value(QLatin1String("inputKind")).toString();
                     }
                     if (includeUnsupported && (in.name.isEmpty() || in.kind.isEmpty())) {
-                        f->done({}, QStringLiteral("An OBS input identity is incomplete."));
+                        f->finish({}, QStringLiteral("An OBS input identity is incomplete."));
                         return;
                     }
                     if (includeUnsupported || isAudioCaptureKind(in.kind)) {
@@ -153,25 +189,40 @@ void fetchState(Client *client, std::function<void(const State &, const QString 
                     }
                 }
                 f->pending = int(f->state.inputs.size()) * 3 + 2;
-                c->request(QStringLiteral("GetStreamServiceSettings"), {}, [=](bool ok, const QJsonObject &d, const QString &) {
-                    if (ok) {
+                c->request(QStringLiteral("GetStreamServiceSettings"), {}, [=](bool ok, const QJsonObject &d, const QString &err) {
+                    if (stopped(err)) {
+                        return;
+                    }
+                    if (ok && d.value(QLatin1String("streamServiceSettings")).isObject()) {
                         const QJsonObject settings = d.value(QLatin1String("streamServiceSettings")).toObject();
-                        f->state.streamService = settings.value(QLatin1String("service")).toString();
+                        const QJsonValue service = settings.value(QLatin1String("service"));
+                        // Custom RTMP servers have no service name.
+                        f->state.streamServiceKnown = service.isString() || service.isUndefined();
+                        f->state.streamService = service.toString();
                     }
                     finishOne();
                 });
                 c->request(QStringLiteral("GetProfileParameter"),
                            {{QStringLiteral("parameterCategory"), QStringLiteral("AdvOut")},
                             {QStringLiteral("parameterName"), QStringLiteral("VodTrackIndex")}},
-                           [=](bool ok, const QJsonObject &d, const QString &) {
-                    if (ok) {
-                        f->state.twitchVodTrack = d.value(QLatin1String("parameterValue")).toString().toInt();
+                           [=](bool ok, const QJsonObject &d, const QString &err) {
+                    if (stopped(err)) {
+                        return;
+                    }
+                    // obs-websocket answers null for a parameter the profile has never set.
+                    const QJsonValue value = d.value(QLatin1String("parameterValue"));
+                    if (ok && (value.isString() || value.isNull())) {
+                        f->state.twitchVodTrackKnown = true;
+                        f->state.twitchVodTrack = value.toString().toInt();
                     }
                     finishOne();
                 });
                 for (qsizetype n = 0; n < f->state.inputs.size(); ++n) {
                     const QJsonObject who{{QStringLiteral("inputName"), f->state.inputs.at(n).name}};
-                    c->request(QStringLiteral("GetInputSettings"), who, [=](bool ok, const QJsonObject &d, const QString &) {
+                    c->request(QStringLiteral("GetInputSettings"), who, [=](bool ok, const QJsonObject &d, const QString &err) {
+                        if (stopped(err)) {
+                            return;
+                        }
                         if (ok) {
                             f->state.inputs[n].settingsKnown =
                                 d.value(QLatin1String("inputSettings")).isObject();
@@ -179,14 +230,20 @@ void fetchState(Client *client, std::function<void(const State &, const QString 
                         }
                         finishOne();
                     });
-                    c->request(QStringLiteral("GetInputMute"), who, [=](bool ok, const QJsonObject &d, const QString &) {
+                    c->request(QStringLiteral("GetInputMute"), who, [=](bool ok, const QJsonObject &d, const QString &err) {
+                        if (stopped(err)) {
+                            return;
+                        }
                         if (ok) {
                             f->state.inputs[n].muteKnown = d.value(QLatin1String("inputMuted")).isBool();
                             f->state.inputs[n].muted = d.value(QLatin1String("inputMuted")).toBool();
                         }
                         finishOne();
                     });
-                    c->request(QStringLiteral("GetInputAudioTracks"), who, [=](bool ok, const QJsonObject &d, const QString &) {
+                    c->request(QStringLiteral("GetInputAudioTracks"), who, [=](bool ok, const QJsonObject &d, const QString &err) {
+                        if (stopped(err)) {
+                            return;
+                        }
                         if (ok) {
                             const auto tracks = d.value(QLatin1String("inputAudioTracks")).toObject();
                             bool complete = true;

@@ -42,7 +42,13 @@ struct Plan
 {
     Mode mode = Mode::Live;
     QList<Action> actions;
+    // What Rostrum could not read: audio inputs missing their settings, mute or tracks, and
+    // (live) the streaming settings. What a plan would change depends on all of them, so an
+    // incomplete plan has no actions and does not mean OBS is set up.
+    QStringList unreadInputs;
+    bool streamSettingsUnread = false;
 
+    bool incomplete() const { return !unreadInputs.isEmpty() || streamSettingsUnread; }
     bool isEmpty() const { return actions.isEmpty(); }
     QList<Action> enabledActions() const;
 };

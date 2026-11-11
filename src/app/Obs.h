@@ -91,7 +91,7 @@ public:
     QString state() const { return m_stateName; }
     QString summary() const;
     QString detail() const;
-    bool setUp() const { return m_havePlan && m_plan.isEmpty(); }
+    bool setUp() const { return m_havePlan && !m_plan.incomplete() && m_plan.isEmpty(); }
     bool onlyDoubling() const;
     bool canApply() const;
     bool canUndo() const;

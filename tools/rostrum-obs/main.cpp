@@ -37,6 +37,16 @@ void printPlan(const obs::Plan &plan)
 {
     QTextStream out(stdout);
     out << "Plan (" << (plan.mode == obs::Mode::Live ? "live" : "offline") << "):\n";
+    if (plan.incomplete()) {
+        out << "  none: Rostrum could not read all of OBS's audio settings\n";
+        for (const auto &name : plan.unreadInputs) {
+            out << "  not read: \"" << name << "\"\n";
+        }
+        if (plan.streamSettingsUnread) {
+            out << "  not read: the streaming settings\n";
+        }
+        return;
+    }
     if (plan.isEmpty()) {
         out << "  nothing to do, OBS is set up\n";
     }
@@ -52,6 +62,7 @@ void printPlan(const obs::Plan &plan)
         case obs::Action::Type::CreateGlobal:
             out << "  global " << a.channel << " \"" << a.input << "\" = " << a.device << ", tracks mask " << a.tracks << "\n";
             break;
+        case obs::Action::Type::SetTwitchVodTrack: out << "  set the Twitch VOD track to " << a.tracks << "\n"; break;
         }
     }
 }
