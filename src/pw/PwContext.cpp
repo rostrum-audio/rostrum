@@ -484,6 +484,13 @@ void onGlobal(void *data, uint32_t id, uint32_t, const char *type, uint32_t, con
                 pw_registry_bind(impl->registry, id, type, PW_VERSION_METADATA, 0));
             impl->metadataId = id;
             if (impl->metadata) {
+                // A replacement "default" metadata (WirePlumber restarted) starts empty and then
+                // reports its entries. Drop what the old one said first: those events come later.
+                impl->post([impl] {
+                    impl->metadataValues.clear();
+                    Q_EMIT impl->q->metadataReset();
+                    impl->q->scheduleChanged();
+                });
                 pw_metadata_add_listener(impl->metadata, &impl->metadataListener, &kMetadataEvents, impl);
             }
         }
@@ -503,14 +510,22 @@ void onGlobalRemove(void *data, uint32_t id)
         pw_proxy_destroy(reinterpret_cast<pw_proxy *>(it->second->proxy));
         impl->boundLinks.erase(it);
     }
-    if (id == impl->metadataId && impl->metadata) {
+    const bool metadataGone = id == impl->metadataId && impl->metadata;
+    if (metadataGone) {
         spa_hook_remove(&impl->metadataListener);
         pw_proxy_destroy(reinterpret_cast<pw_proxy *>(impl->metadata));
         impl->metadata = nullptr;
         impl->metadataId = SPA_ID_INVALID;
     }
-    impl->post([impl, id] {
+    impl->post([impl, id, metadataGone] {
         auto &g = impl->graph;
+        if (metadataGone) {
+            // WirePlumber quit or restarted. Every target.object it held is gone with it, and it
+            // relinks streams by their own properties. A stale cache would make routed streams
+            // look routed. The default device names are kept: they still name real devices.
+            impl->metadataValues.clear();
+            Q_EMIT impl->q->metadataReset();
+        }
         if (auto it = g.nodes.find(id); it != g.nodes.end()) {
             const QString name = it->name;
             g.nodes.erase(it);
@@ -959,29 +974,33 @@ void PwContext::sendProps(uint32_t nodeId, const QList<float> &volumes, int mute
     pw_thread_loop_unlock(d->loop);
 }
 
-void PwContext::setMetadata(uint32_t subject, const QString &key, const QString &type, const QString &value)
+bool PwContext::setMetadata(uint32_t subject, const QString &key, const QString &type, const QString &value)
 {
     if (!d->loop) {
-        return;
+        return false;
     }
     pw_thread_loop_lock(d->loop);
-    if (d->metadata) {
+    const bool sent = d->metadata;
+    if (sent) {
         pw_metadata_set_property(d->metadata, subject, key.toUtf8().constData(), type.toUtf8().constData(),
                                  value.toUtf8().constData());
     }
     pw_thread_loop_unlock(d->loop);
+    return sent;
 }
 
-void PwContext::clearMetadata(uint32_t subject, const QString &key)
+bool PwContext::clearMetadata(uint32_t subject, const QString &key)
 {
     if (!d->loop) {
-        return;
+        return false;
     }
     pw_thread_loop_lock(d->loop);
-    if (d->metadata) {
+    const bool sent = d->metadata;
+    if (sent) {
         pw_metadata_set_property(d->metadata, subject, key.toUtf8().constData(), nullptr, nullptr);
     }
     pw_thread_loop_unlock(d->loop);
+    return sent;
 }
 
 } // namespace rostrum::pw

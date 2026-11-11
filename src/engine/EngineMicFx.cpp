@@ -515,17 +515,18 @@ void Engine::reconcileMicRoutes()
                 // Re-sent after the filtered mic is recreated; left alone if the user moved it.
                 if (current != filtered->serial && routed->requested != filtered->serial &&
                     (current == routed->requested || current.isEmpty())) {
-                    routed->requested = filtered->serial;
-                    routed->since.start();
-                    routed->reclaims = 0;
-                    m_pw->setMetadata(n.id, targetKey, QStringLiteral("Spa:Id"), filtered->serial);
+                    if (m_pw->setMetadata(n.id, targetKey, QStringLiteral("Spa:Id"), filtered->serial)) {
+                        routed->requested = filtered->serial;
+                        routed->since.start();
+                        routed->reclaims = 0;
+                    }
                 } else if (current != filtered->serial && !current.isEmpty() && routed->requested == filtered->serial &&
                            routed->since.isValid() && routed->since.elapsed() < kReclaimWindowMs &&
-                           routed->reclaims < kMaxReclaims) {
+                           routed->reclaims < kMaxReclaims &&
+                           m_pw->setMetadata(n.id, targetKey, QStringLiteral("Spa:Id"), filtered->serial)) {
                     ++routed->reclaims;
                     qCInfo(lcEngine) << "reclaim" << r.identity.displayName << n.id << "from" << describeTarget(current)
                                      << "-> filtered mic (moved by another program as it started)";
-                    m_pw->setMetadata(n.id, targetKey, QStringLiteral("Spa:Id"), filtered->serial);
                 }
                 continue;
             }
@@ -540,11 +541,13 @@ void Engine::reconcileMicRoutes()
             if (!takenByEffects && (!linked(mic->id, n.id) || (!current.isEmpty() && !names(mic, current)))) {
                 continue;
             }
+            if (!m_pw->setMetadata(n.id, targetKey, QStringLiteral("Spa:Id"), filtered->serial)) {
+                continue; // no metadata yet: the next pass asks again
+            }
             qCInfo(lcEngine) << "filter mic for" << r.identity.displayName << n.id;
             MicRouted moved{current, filtered->serial, {}, 0};
             moved.since.start();
             m_micRouted.insert(n.id, moved);
-            m_pw->setMetadata(n.id, targetKey, QStringLiteral("Spa:Id"), filtered->serial);
         } else if (routed != m_micRouted.end()) {
             const MicRouted was = m_micRouted.take(n.id);
             if (!current.isEmpty() && current != was.requested) {

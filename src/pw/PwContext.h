@@ -58,8 +58,10 @@ public:
     void setNodeMute(uint32_t nodeId, bool mute);      // leaves volume alone
     // Blocks until the daemon has handled every request sent so far, or the timeout passes.
     bool roundtrip(int timeoutMs);
-    void setMetadata(uint32_t subject, const QString &key, const QString &type, const QString &value);
-    void clearMetadata(uint32_t subject, const QString &key);
+    // Both return false, and send nothing, while there is no "default" metadata (WirePlumber is
+    // not running or is restarting).
+    bool setMetadata(uint32_t subject, const QString &key, const QString &type, const QString &value);
+    bool clearMetadata(uint32_t subject, const QString &key);
 
     pw_thread_loop *threadLoop() const;
     pw_core *core() const;
@@ -72,6 +74,9 @@ Q_SIGNALS:
     void nodeRemoved(uint32_t id, const QString &name);
     void objectRemoved(uint32_t id); // registry removal boundary, before the ID can be reused in the mirror
     void metadataChanged(uint32_t subject, const QString &key);
+    // The "default" metadata went away or was replaced: every cached entry was dropped, and
+    // anything Rostrum set there has to be set again.
+    void metadataReset();
     void defaultsChanged();
     // nodeName: the node.name of a node that could not be created, empty for links.
     void createFailed(const QString &message, const QString &nodeName);

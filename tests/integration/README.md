@@ -199,6 +199,15 @@ new `object.serial` (otherwise the run fails: it could not exercise ID reuse), b
 Game, deliver 440 Hz there, and leave the fake headphones silent. Before the fix the router kept
 the old stream's "already requested" state and left the replacement on the default sink.
 
+## WirePlumber restart
+
+`audio_wireplumber_restart` (`wireplumber-restart.py`) routes the same no-restore test app to
+Game, then twice stops the private WirePlumber, waits until its `default` metadata is gone and
+starts a new instance. Each time the app must be linked only to Game again, with 440 Hz at Game and
+the Stream Mix and silence at the fake headphones. Before the fix Rostrum kept the old metadata's
+`target.object` values in its cache, believed the app was still routed and left it on the default
+sink.
+
 ## Mic-filter scheduling regression
 
 `audio_mic_filter_scheduling` is registered when the DSP plugin is built and audio

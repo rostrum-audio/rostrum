@@ -32,6 +32,7 @@ Engine::Engine(pw::PwContext *pw, QObject *parent)
     // Nodes and links reuse registry IDs. Clear at removal, not in a later reconciliation where
     // the same ID may already name a replacement that still needs to be managed.
     connect(m_pw, &pw::PwContext::objectRemoved, this, &Engine::forgetNode);
+    connect(m_pw, &pw::PwContext::metadataReset, this, &Engine::metadataReset);
     connect(m_pw, &pw::PwContext::createFailed, this, [this](const QString &msg, const QString &nodeName) {
         // The mix works without mic filters, so their failure is theirs alone.
         if (nodeName == QLatin1String(kMicFxNode) || nodeName == QLatin1String(kFilteredNode)) {
@@ -231,6 +232,24 @@ void Engine::forgetNode(uint32_t id)
     m_micRecognised.remove(id);
     m_micFirstSeen.remove(id);
     m_nodeSerial.remove(id);
+}
+
+void Engine::metadataReset()
+{
+    // The targets Rostrum set went with the old metadata, and WirePlumber relinks streams by their
+    // own properties. Ask again for every stream on the next pass; where each stream was before
+    // Rostrum moved it is kept, for unassigning it later.
+    for (auto &r : m_routed) {
+        r.requested.clear();
+        r.since.invalidate();
+        r.reclaims = 0;
+    }
+    for (auto &r : m_micRouted) {
+        r.requested.clear();
+        r.since.invalidate();
+        r.reclaims = 0;
+    }
+    scheduleReconcile();
 }
 
 void Engine::checkNodeSerial(const pw::Node &n)
@@ -884,19 +903,24 @@ void Engine::reconcileRoutes()
                     routed = m_routed.insert(n.id, {busId, currentIsOurs ? QString() : current, QString()});
                 }
                 routed->busId = busId;
-                routed->requested = busNode->serial;
-                routed->since.start();
-                routed->reclaims = 0;
-                qCInfo(lcEngine) << "route" << id.displayName << n.id << "->" << bus->nodeName()
-                                 << (placement.automatic ? "(automatic)" : "");
-                m_pw->setMetadata(n.id, QStringLiteral("target.object"), QStringLiteral("Spa:Id"), busNode->serial);
+                // Only a request that reached the metadata counts: while WirePlumber is away,
+                // the next pass asks again.
+                if (m_pw->setMetadata(n.id, QStringLiteral("target.object"), QStringLiteral("Spa:Id"),
+                                      busNode->serial)) {
+                    routed->requested = busNode->serial;
+                    routed->since.start();
+                    routed->reclaims = 0;
+                    qCInfo(lcEngine) << "route" << id.displayName << n.id << "->" << bus->nodeName()
+                                     << (placement.automatic ? "(automatic)" : "");
+                }
             } else if (current != busNode->serial && !current.isEmpty() && routed != m_routed.end() &&
                        routed->since.isValid() && routed->since.elapsed() < kReclaimWindowMs &&
-                       routed->reclaims < kMaxReclaims) {
+                       routed->reclaims < kMaxReclaims &&
+                       m_pw->setMetadata(n.id, QStringLiteral("target.object"), QStringLiteral("Spa:Id"),
+                                         busNode->serial)) {
                 ++routed->reclaims;
                 qCInfo(lcEngine) << "reclaim" << id.displayName << n.id << "from" << describeTarget(current)
                                  << "->" << bus->nodeName() << "(moved by another program as it started)";
-                m_pw->setMetadata(n.id, QStringLiteral("target.object"), QStringLiteral("Spa:Id"), busNode->serial);
             }
         } else if (busId.isEmpty() && m_routed.contains(n.id)) {
             const Routed r = m_routed.take(n.id);

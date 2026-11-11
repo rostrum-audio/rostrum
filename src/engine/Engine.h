@@ -422,6 +422,7 @@ protected:
     // stream shows up under a known ID with a different object.serial.
     void forgetNode(uint32_t id);
     void checkNodeSerial(const pw::Node &n);
+    void metadataReset();
     QHash<uint32_t, QString> m_nodeSerial;
 
     pw::PwContext *m_pw = nullptr;

@@ -486,6 +486,12 @@ back in one burst, before Rostrum reconciles. Rostrum therefore forgets everythi
 when PipeWire removes it, and again if a stream turns up under a known ID with a different
 `object.serial`, so the new stream is routed, and its volume and mute applied, like any new stream.
 
+If WirePlumber quits or restarts, its `default` metadata goes with it, and the new instance relinks
+every stream by its own properties. Rostrum drops its copy of the metadata when that object goes
+or is replaced, asks again for every stream it routed (app streams and filtered-mic recordings),
+and counts a request only once it reached a metadata object. While there is none, the next pass
+tries again.
+
 ### Automatic assignment
 
 With **Assign apps automatically** on (the default), a stream that matches no rule is sorted by

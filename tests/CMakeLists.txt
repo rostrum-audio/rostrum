@@ -127,6 +127,9 @@ if(ROSTRUM_AUDIO_INTEGRATION_TESTS)
     add_test(NAME audio_stream_replacement COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/integration/stream-replacement.py $<TARGET_FILE:rostrum-graphtest>
         $<TARGET_FILE:rostrum-test-stream>)
+    add_test(NAME audio_wireplumber_restart COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/integration/wireplumber-restart.py $<TARGET_FILE:rostrum-graphtest>
+        $<TARGET_FILE:rostrum-test-stream>)
     if(TARGET rostrum-dsp)
         set(mic_filter_test_options "")
         if(ROSTRUM_DSP_DENOISE)
@@ -140,6 +143,6 @@ if(ROSTRUM_AUDIO_INTEGRATION_TESTS)
     endif()
     # Lifecycle regressions deliberately interrupt private jobs; serialize audio tests.
     set_tests_properties(audio_safety audio_safety_fixture audio_safety_lifecycle audio_readiness
-        audio_rule_fragments audio_stream_replacement PROPERTIES
+        audio_rule_fragments audio_stream_replacement audio_wireplumber_restart PROPERTIES
         TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
 endif()
