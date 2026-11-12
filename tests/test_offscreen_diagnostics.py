@@ -121,7 +121,9 @@ time.sleep(100)
     def test_interruption_reclaims_owned_session_and_preserves_evidence(self):
         app = self.executable('''import os, time
 from pathlib import Path
-Path(os.environ['ROSTRUM_SCREENSHOT']).with_name('live.pid').write_text(str(os.getpid()))
+live = Path(os.environ['ROSTRUM_SCREENSHOT']).with_name('live.pid')
+live.with_name('live.pid.tmp').write_text(str(os.getpid()))
+os.replace(live.with_name('live.pid.tmp'), live)  # atomic: the test never reads a partial pid
 time.sleep(100)
 ''')
         process = subprocess.Popen([sys.executable, '-B', str(HELPER), str(app), str(self.output)],
