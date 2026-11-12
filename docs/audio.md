@@ -254,27 +254,33 @@ scene. Devices → "Use another mic while mine is unplugged" (`[devices] mic_fal
 default) brings back the fallback to the default source, the way headphones work. Either way the
 saved mic is never rewritten.
 
-## Mic filters
+## Mic filters (Studio Voice)
 
-The Mic Filters page ("Clean up my mic", `[mic_filters] enabled`, off by default), the FX button on
+The Mic Filters page ("Studio Voice", `[mic_filters] enabled`, off by default), the FX button on
 the mic strip, the `toggle_mic_filters` action and D-Bus `SetMicFilters` switch one filter chain
 on the mic. It is a setting, not part of a scene, so a scene switch never changes how the voice
 sounds. The hardware mic and the system default source are never changed.
 
+The page leads with Studio Voice and a Sound intensity (Natural / Studio / Noisy desk). Fine DSP
+controls and Broadcast sit under Advanced. Studio Voice reduces fans, keyboards and room noise; it
+does not claim to erase loud mechanical switches.
+
 The chain, in signal order (`micfx::kModules`):
 
-| Module | Default | What it does |
+| Module | Default (Studio) | What it does |
 | --- | --- | --- |
 | Rumble filter (`highpass`) | on, 80 Hz | High-pass, 12 dB/octave or 24 with "steep" |
-| Noise removal (`denoise`) | on, 100 % | RNNoise, mixed with the dry signal by strength; optional voice threshold |
+| Noise removal (`denoise`) | on, 80 % | RNNoise, mixed with the dry signal by strength; optional voice threshold |
 | Noise gate (`gate`) | off | Threshold, range, attack, hold, release |
 | Tone (`eq`) | on | Low and high shelves (low, air), peaking mud cut and presence lift |
-| Compressor (`compressor`) | on, 3:1 at −20 dB | Soft knee, makeup gain |
+| De-esser (`deesser`) | on | Dynamic high shelf driven by a sibilance band detector |
+| Compressor (`compressor`) | on, 3:1 at −20 dB | Soft knee, makeup gain, sidechain high-pass (~120 Hz) |
 | Limiter (`limiter`) | on, −1 dBFS | Peak limiter with 1.5 ms lookahead |
 
-Presets (Light, Streaming, Noisy room, Broadcast) set every module value and keep the scope, the app
-choices and the master switch. The defaults are the Streaming preset; any other value shows as
-Custom. Values are clamped and snapped to the page's steps when loaded (`micfx::sanitize`).
+Presets (Natural, Studio, Noisy desk, Broadcast — TOML ids `light` / `streaming` / `noisy` /
+`broadcast`) set every module value and keep the scope, the app choices and the master switch. The
+defaults are the Studio (`streaming`) preset; any other value shows as Custom. Values are clamped
+and snapped to the page's steps when loaded (`micfx::sanitize`).
 
 ### The plugin
 

@@ -168,13 +168,17 @@ private Q_SLOTS:
         QVERIFY(json.contains(QStringLiteral("inputs = [ \"rostrum_highpass:In\" ]")));
         QVERIFY(json.contains(QStringLiteral("outputs = [ \"rostrum_limiter:Out\" ]")));
         QVERIFY(json.contains(QStringLiteral("{ output = \"rostrum_highpass:Out\" input = \"rostrum_denoise:In\" }")));
+        QVERIFY(json.contains(QStringLiteral("{ output = \"rostrum_eq:Out\" input = \"rostrum_deesser:In\" }")));
+        QVERIFY(json.contains(QStringLiteral("{ output = \"rostrum_deesser:Out\" input = \"rostrum_compressor:In\" }")));
         QVERIFY(json.contains(QStringLiteral("{ output = \"rostrum_compressor:Out\" input = \"rostrum_limiter:In\" }")));
         QVERIFY(json.contains(QStringLiteral("\"Voice threshold\" = 0")));
+        QVERIFY(json.contains(QStringLiteral("\"Sidechain HPF\" = 120")));
         QVERIFY(json.contains(QStringLiteral("\"Ceiling\" = -1")));
 
         const QString noDenoise = graphJson(Settings{}, path, false);
         QVERIFY(!noDenoise.contains(QStringLiteral("rostrum_denoise")));
         QVERIFY(noDenoise.contains(QStringLiteral("{ output = \"rostrum_highpass:Out\" input = \"rostrum_gate:In\" }")));
+        QVERIFY(noDenoise.contains(QStringLiteral("{ output = \"rostrum_eq:Out\" input = \"rostrum_deesser:In\" }")));
     }
 
     void toggleActionIsAMicShortcut()

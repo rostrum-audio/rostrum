@@ -396,9 +396,9 @@ void Desktop::notifyMicLost(const QString &description)
 
 void Desktop::notifyMicFiltersTripped()
 {
-    notify(i18n("Mic filters turned off"),
-           i18n("PipeWire stopped twice right after they started. Your mic works without them; you can "
-                "turn them on again on the Mic Filters page."),
+    notify(i18n("Studio Voice turned off"),
+           i18n("PipeWire stopped twice right after it started. Your mic works without filters; you can "
+                "turn Studio Voice on again on its page."),
            1, &m_micFiltersNotificationId);
 }
 

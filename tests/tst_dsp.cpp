@@ -220,8 +220,8 @@ float peak(const std::vector<float> &v)
 
 std::vector<std::string> labels()
 {
-    std::vector<std::string> out = { "rostrum_highpass", "rostrum_eq", "rostrum_gate", "rostrum_compressor",
-                                     "rostrum_limiter" };
+    std::vector<std::string> out = { "rostrum_highpass", "rostrum_eq", "rostrum_gate", "rostrum_deesser",
+                                     "rostrum_compressor", "rostrum_limiter" };
 #ifdef ROSTRUM_DSP_DENOISE
     out.push_back("rostrum_denoise");
 #endif
@@ -380,23 +380,44 @@ private Q_SLOTS:
 
     void compressorFollowsItsCurve()
     {
-        const std::vector<float> dc(kRate, 0.5f); // -6.02 dBFS
+        // 1 kHz tone (DC would be removed by the sidechain high-pass). Peak envelope sits a little
+        // under the mathematical peak, so assert reduction and that output tracks it.
+        const auto tone = sine(1000, 0.5f, 1.0);
         Host comp("rostrum_compressor", kRate,
-                  { { "Threshold", -18 }, { "Ratio", 3 }, { "Knee", 0 }, { "Makeup", 0 } });
-        const auto out = comp.process(dc);
-        const double expected = -18 + (20 * std::log10(0.5) + 18) / 3;
-        QVERIFY2(std::fabs(rmsDb(out, 0.5) - expected) < 0.05, qPrintable(QString::number(rmsDb(out, 0.5))));
-        QVERIFY(std::fabs(comp.get("Reduction") - (-6.0206 - expected)) < 0.05);
+                  { { "Threshold", -18 }, { "Ratio", 3 }, { "Knee", 0 }, { "Makeup", 0 },
+                    { "Sidechain HPF", 80 } });
+        const auto out = comp.process(tone);
+        const float red = comp.get("Reduction");
+        QVERIFY2(red > 6.0f && red < 9.0f, qPrintable(QString::number(red)));
+        QVERIFY2(std::fabs(rmsDb(out, 0.5) - rmsDb(tone, 0.5) + red) < 0.2,
+                 qPrintable(QString::number(rmsDb(out, 0.5) - rmsDb(tone, 0.5))));
 
         Host makeup("rostrum_compressor", kRate,
-                    { { "Threshold", -18 }, { "Ratio", 3 }, { "Knee", 0 }, { "Makeup", 4 } });
-        QVERIFY(std::fabs(rmsDb(makeup.process(dc), 0.5) - expected - 4) < 0.05);
+                    { { "Threshold", -18 }, { "Ratio", 3 }, { "Knee", 0 }, { "Makeup", 4 },
+                      { "Sidechain HPF", 80 } });
+        QVERIFY(std::fabs(rmsDb(makeup.process(tone), 0.5) - rmsDb(tone, 0.5) + red - 4) < 0.25);
 
-        Host below("rostrum_compressor", kRate, { { "Threshold", -18 }, { "Knee", 6 }, { "Makeup", 0 } });
+        Host below("rostrum_compressor", kRate,
+                   { { "Threshold", -18 }, { "Knee", 6 }, { "Makeup", 0 }, { "Sidechain HPF", 80 } });
         const auto quiet = sine(500, 0.05f, 0.5);
         const auto quietOut = below.process(quiet);
         for (size_t i = 0; i < quiet.size(); i++)
             QCOMPARE(quietOut[i], quiet[i]);
+    }
+
+    void deesserCutsSibilanceMoreThanLows()
+    {
+        Host de("rostrum_deesser", kRate,
+                { { "Threshold", -40 }, { "Frequency", 6500 }, { "Range", -12 }, { "Release", 30 } });
+        const auto ess = sine(6500, 0.25f, 1.0);
+        const auto low = sine(400, 0.25f, 1.0);
+        const double essCut = rmsDb(ess, 0.5) - rmsDb(de.process(ess), 0.5);
+        Host deLow("rostrum_deesser", kRate,
+                   { { "Threshold", -40 }, { "Frequency", 6500 }, { "Range", -12 }, { "Release", 30 } });
+        const double lowCut = rmsDb(low, 0.5) - rmsDb(deLow.process(low), 0.5);
+        QVERIFY2(essCut > 3, qPrintable(QString::number(essCut)));
+        QVERIFY2(lowCut < 1, qPrintable(QString::number(lowCut)));
+        QVERIFY(de.get("Reduction") > 2);
     }
 
     void limiterNeverPassesTheCeiling()

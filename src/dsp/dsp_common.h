@@ -152,6 +152,7 @@ static inline void rd_delay_free(rd_delay *d)
 /* Linear trapezoidal state variable filter (Simper), stable under modulation. */
 typedef enum {
     RD_SVF_HIGHPASS,
+    RD_SVF_BANDPASS,
     RD_SVF_LOWSHELF,
     RD_SVF_HIGHSHELF,
     RD_SVF_BELL,
@@ -180,6 +181,11 @@ static inline void rd_svf_set(rd_svf *f, rd_svf_type type, float freq, float q, 
         f->m0 = 1.0f;
         f->m1 = -k;
         f->m2 = -1.0f;
+        break;
+    case RD_SVF_BANDPASS:
+        f->m0 = 0.0f;
+        f->m1 = 1.0f;
+        f->m2 = 0.0f;
         break;
     case RD_SVF_LOWSHELF:
         g /= sqrtf(A);
@@ -224,6 +230,7 @@ static inline void rd_svf_flush(rd_svf *f)
 extern const LADSPA_Descriptor rd_highpass_descriptor;
 extern const LADSPA_Descriptor rd_eq_descriptor;
 extern const LADSPA_Descriptor rd_gate_descriptor;
+extern const LADSPA_Descriptor rd_deesser_descriptor;
 extern const LADSPA_Descriptor rd_compressor_descriptor;
 extern const LADSPA_Descriptor rd_limiter_descriptor;
 #ifdef ROSTRUM_DSP_DENOISE

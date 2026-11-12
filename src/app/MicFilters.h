@@ -78,7 +78,7 @@ public:
     // A value as shown next to its slider: "80 Hz", "4.0 kHz", "-20 dB", "3.0:1", "Off".
     Q_INVOKABLE QString format(const QString &module, const QString &key, double value) const;
     Q_INVOKABLE void applyPreset(const QString &id);
-    // One module's switches and values back to the Streaming preset's.
+    // One module's switches and values back to the Studio (streaming) preset's.
     Q_INVOKABLE void resetModule(const QString &module);
     // filtered: the app gets the filtered mic. Matching what it would get anyway clears the choice.
     Q_INVOKABLE void setAppFiltered(const QString &appKey, bool filtered);

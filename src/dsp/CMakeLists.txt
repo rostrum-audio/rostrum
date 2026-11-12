@@ -76,6 +76,7 @@ add_library(rostrum-dsp MODULE
     highpass.c
     eq.c
     gate.c
+    deesser.c
     compressor.c
     limiter.c)
 if(rnnoise_library)

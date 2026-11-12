@@ -173,7 +173,7 @@ QString Preferences::actionLabel(const QString &id, const QString &busName)
         {QString::fromLatin1(actions::kToggleSidetone),
          ki18nc("@label shortcut action", "Sidetone on or off")},
         {QString::fromLatin1(actions::kToggleMicFilters),
-         ki18nc("@label shortcut action", "Mic filters on or off")},
+         ki18nc("@label shortcut action", "Studio Voice on or off")},
         {QString::fromLatin1(actions::kMicCheck), ki18nc("@label shortcut action", "Check mic")},
         {QString::fromLatin1(actions::kMuteHeadphones), ki18nc("@label shortcut action", "Mute headphones")},
         {QString::fromLatin1(actions::kStreamVolumeUp), ki18nc("@label shortcut action", "Stream volume up")},

@@ -169,11 +169,11 @@ Five minutes to a split stream:
    rules. Switch with Meta+Alt+PgDown or the scene menu in the header. Move Up and Move Down set
    the order that the header, the tray and the scene hotkeys follow; the badge shows each scene's
    hotkey number.
-7. **Clean up your mic (optional).** Open Mic Filters and turn on "Clean up my mic", or press FX
-   on the mic strip. Pick a preset (Light, Streaming, Noisy room, Broadcast) and adjust each
-   filter if you like. "Filter the mic for" chooses between the stream and every app, or only the
+7. **Studio Voice (optional).** Open Mic Filters and turn on Studio Voice, or press FX on the mic
+   strip. Pick a sound (Natural, Studio, Noisy desk) — Broadcast is under Advanced — and adjust
+   fine controls if you like. "Filter the mic for" chooses between the stream and every app, or only the
    stream; the Apps list below it switches single apps, and remembers apps that are not running.
-   Discord and browsers get the filtered mic, audio tools such as Audacity keep the plain one. Your
+   Discord and browsers get Studio Voice, audio tools such as Audacity keep the plain one. Your
    mic and the system's default input are never changed: apps are moved to "Rostrum Filtered Mic",
    which you can also pick in an app's own settings. While the mix runs, `rostrum.filtered` stays
    up: with filters on it is processed through micfx; with filters off, failed or unavailable it is
@@ -344,7 +344,7 @@ mixer's Mic strip matches its Mic live / Mic muted title.
 - Solo is not saved in the scene.
 - Scene fade: off (scenes switch at once). Auto-ducking: off; when on, your mic turns Music down by
   12 dB while you speak. Neither is saved in scenes.
-- Mic filters: off. When on: the Streaming preset, for the stream and every app except audio tools.
+- Mic filters (Studio Voice): off. When on: the Studio sound, for the stream and every app except audio tools.
   A setting, not part of a scene.
 - If your saved mic is unplugged, the stream mic stays silent until it comes back. No other mic
   goes live unless you turn on "Use another mic while mine is unplugged" on the Devices page.

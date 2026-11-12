@@ -18,10 +18,10 @@ std::optional<Scope> scopeFromString(const QString &s);
 enum class AppChoice { Default, Filtered, Raw };
 
 // The processing chain, in signal order. Each is one plugin in librostrum-dsp.
-enum class Module { Highpass, Denoise, Gate, Eq, Compressor, Limiter };
+enum class Module { Highpass, Denoise, Gate, Eq, Deesser, Compressor, Limiter };
 
-inline constexpr Module kModules[] = {Module::Highpass, Module::Denoise, Module::Gate,
-                                      Module::Eq,       Module::Compressor, Module::Limiter};
+inline constexpr Module kModules[] = {Module::Highpass, Module::Denoise, Module::Gate, Module::Eq,
+                                      Module::Deesser,  Module::Compressor, Module::Limiter};
 
 QString moduleName(Module m);              // "highpass": TOML table and UI id
 QString moduleNode(Module m);              // "rostrum_highpass": graph node and plugin label
@@ -38,8 +38,8 @@ struct Settings
     bool highpassSteep = false;
 
     bool denoise = true;
-    double denoiseStrength = 100; // percent
-    double voiceThreshold = 0;    // percent of RNNoise voice probability; 0 = off
+    double denoiseStrength = 80; // percent; Studio default (naturalness + cleanup)
+    double voiceThreshold = 0;   // percent of RNNoise voice probability; 0 = off
 
     bool gate = false;
     double gateThresholdDb = -50;
@@ -51,12 +51,19 @@ struct Settings
     bool eq = true;
     double lowGainDb = 0;
     double lowHz = 120;
-    double mudGainDb = -2;
-    double mudHz = 300;
-    double presenceGainDb = 2;
-    double presenceHz = 4000;
-    double airGainDb = 1.5;
-    double airHz = 10000;
+    double mudGainDb = -2.5;
+    double mudHz = 280;
+    double presenceGainDb = 1.5;
+    double presenceHz = 3500;
+    double airGainDb = 1.0;
+    double airHz = 12000;
+
+    bool deesser = true;
+    double deesserThresholdDb = -28;
+    double deesserHz = 6500;
+    double deesserRangeDb = -10;
+    double deesserAttackMs = 1;
+    double deesserReleaseMs = 50;
 
     bool compressor = true;
     double compThresholdDb = -20;
@@ -65,6 +72,7 @@ struct Settings
     double compAttackMs = 8;
     double compReleaseMs = 150;
     double compMakeupDb = 4;
+    double compSidechainHz = 120;
 
     bool limiter = true;
     double limiterCeilingDb = -1;
@@ -104,7 +112,8 @@ const Switch *findSwitch(const QString &module, const QString &key);
 Settings sanitize(Settings s);
 
 // Presets set every module value; the scope, app choices and the master switch are kept.
-QStringList presetIds(); // "light", "streaming", "noisy", "broadcast"
+// Ids stay light/streaming/noisy/broadcast; the UI may label streaming as Studio.
+QStringList presetIds();
 QString presetLabel(const QString &id);
 Settings applyPreset(Settings s, const QString &id);
 // The preset the module values match, or "custom".

@@ -47,8 +47,8 @@ ColumnLayout {
                             case "playing":
                                 return i18n("Playing it back in your headphones.")
                             }
-                            return i18np("Records %1 second of your stream mic, with its gain and filters, and plays it back in your headphones only. Viewers do not hear the playback.",
-                                         "Records %1 seconds of your stream mic, with its gain and filters, and plays it back in your headphones only. Viewers do not hear the playback.",
+                            return i18np("Records %1 second of your stream mic with Studio Voice (gain and filters), and plays it back in your headphones only. Viewers do not hear the playback. Toggle Studio Voice off and check again to compare.",
+                                         "Records %1 seconds of your stream mic with Studio Voice (gain and filters), and plays it back in your headphones only. Viewers do not hear the playback. Toggle Studio Voice off and check again to compare.",
                                          MicCheck.seconds)
                         }
                         font: Kirigami.Theme.smallFont

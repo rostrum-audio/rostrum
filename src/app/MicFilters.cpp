@@ -27,12 +27,14 @@ const QList<ModuleText> &moduleTexts()
         {Module::Highpass, ki18nc("@title mic filter", "Rumble filter"),
          ki18n("Cuts hum, desk thumps and handling noise below your voice.")},
         {Module::Denoise, ki18nc("@title mic filter", "Noise removal"),
-         ki18n("Removes fans, keyboards, traffic and room noise while you talk. Adds 10 ms of delay.")},
+         ki18n("Reduces fans, keyboards, traffic and room noise while you talk. Adds 10 ms of delay.")},
         {Module::Gate, ki18nc("@title mic filter", "Noise gate"),
          ki18n("Turns the mic down between phrases. Noise removal usually does this better; the gate "
                "helps with noise it cannot remove.")},
         {Module::Eq, ki18nc("@title mic filter", "Tone"),
          ki18n("A gentle EQ: less boom and mud, more clarity and air.")},
+        {Module::Deesser, ki18nc("@title mic filter", "De-esser"),
+         ki18n("Tames harsh s and sh sounds so clarity does not turn sharp.")},
         {Module::Compressor, ki18nc("@title mic filter", "Compressor"),
          ki18n("Evens out loud and quiet speech, so your voice sits at a steady level.")},
         {Module::Limiter, ki18nc("@title mic filter", "Limiter"),
@@ -75,10 +77,20 @@ const QList<ControlText> &controlTexts()
         {"eq", "presence_frequency", ki18nc("@label:slider tone", "Presence frequency"), KLocalizedString(), true},
         {"eq", "air_gain", ki18nc("@label:slider tone", "Air"), ki18n("Brightness and breath.")},
         {"eq", "air_frequency", ki18nc("@label:slider tone", "Air frequency"), KLocalizedString(), true},
+        {"deesser", "threshold", ki18nc("@label:slider de-esser", "Starts at"),
+         ki18n("Sibilance louder than this is turned down.")},
+        {"deesser", "range", ki18nc("@label:slider de-esser", "Turn down by"),
+         ki18n("How far harsh consonants can be cut."), true},
+        {"deesser", "frequency", ki18nc("@label:slider de-esser", "Frequency"), KLocalizedString(), true},
+        {"deesser", "attack", ki18nc("@label:slider de-esser", "Attack"), KLocalizedString(), true},
+        {"deesser", "release", ki18nc("@label:slider de-esser", "Release"), KLocalizedString(), true},
         {"compressor", "threshold", ki18nc("@label:slider compressor", "Starts at"),
          ki18n("Speech louder than this is turned down.")},
         {"compressor", "makeup", ki18nc("@label:slider compressor", "Makeup gain"),
          ki18n("Raises the evened-out voice again.")},
+        {"compressor", "sidechain_hpf", ki18nc("@label:slider compressor", "Ignore below"),
+         ki18n("Bass and plosives below this do not drive the compressor, so they do not pump your voice."),
+         true},
         {"compressor", "ratio", ki18nc("@label:slider compressor", "Ratio"), KLocalizedString(), true},
         {"compressor", "knee", ki18nc("@label:slider compressor", "Knee"), KLocalizedString(), true},
         {"compressor", "attack", ki18nc("@label:slider compressor", "Attack"), KLocalizedString(), true},
@@ -237,15 +249,18 @@ QString MicFilters::preset() const
 QVariantList MicFilters::presets() const
 {
     static const QHash<QString, KLocalizedString> labels = {
-        {QStringLiteral("light"), ki18nc("@item mic filter preset", "Light")},
-        {QStringLiteral("streaming"), ki18nc("@item mic filter preset", "Streaming")},
-        {QStringLiteral("noisy"), ki18nc("@item mic filter preset", "Noisy room")},
+        {QStringLiteral("light"), ki18nc("@item mic filter preset", "Natural")},
+        {QStringLiteral("streaming"), ki18nc("@item mic filter preset", "Studio")},
+        {QStringLiteral("noisy"), ki18nc("@item mic filter preset", "Noisy desk")},
         {QStringLiteral("broadcast"), ki18nc("@item mic filter preset", "Broadcast")},
     };
     static const QHash<QString, KLocalizedString> descriptions = {
-        {QStringLiteral("light"), ki18n("Removes noise and rumble, and catches peaks. Your voice stays as it is.")},
-        {QStringLiteral("streaming"), ki18n("Clean, clear and even. A good start for most mics.")},
-        {QStringLiteral("noisy"), ki18n("Stronger cleanup for fans, keyboards and busy rooms.")},
+        {QStringLiteral("light"),
+         ki18n("Lighter cleanup. Reduces rumble and noise, keeps your voice close to the mic.")},
+        {QStringLiteral("streaming"),
+         ki18n("Clean, clear and even — studio voice for most mics and desks.")},
+        {QStringLiteral("noisy"),
+         ki18n("Stronger cleanup for fans, keyboards, AC and busy rooms.")},
         {QStringLiteral("broadcast"), ki18n("Close, dense radio sound with heavier compression.")},
     };
     QVariantList rows;
@@ -341,7 +356,8 @@ QString MicFilters::format(const QString &module, const QString &key, double val
     const int decimals = p && p->step < 1.0 ? 1 : 0;
     const QLocale locale;
     const auto num = [&](double v, int d) { return locale.toString(v, 'f', d); };
-    if (key.endsWith(QLatin1String("frequency"))) {
+    if (key.endsWith(QLatin1String("frequency")) || key == QLatin1String("sidechain_hpf") ||
+        (module == QLatin1String("deesser") && key == QLatin1String("frequency"))) {
         return value >= 1000 ? i18nc("@item value in kilohertz", "%1 kHz", num(value / 1000.0, 1))
                              : i18nc("@item value in hertz", "%1 Hz", num(value, 0));
     }

@@ -4,6 +4,7 @@ static const LADSPA_Descriptor *const descriptors[] = {
     &rd_highpass_descriptor,
     &rd_eq_descriptor,
     &rd_gate_descriptor,
+    &rd_deesser_descriptor,
     &rd_compressor_descriptor,
     &rd_limiter_descriptor,
 #ifdef ROSTRUM_DSP_DENOISE

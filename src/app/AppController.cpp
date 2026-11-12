@@ -444,7 +444,7 @@ void AppController::reportChange(const Snapshot &before)
                                  now.streamMuted ? i18n("Stream muted") : i18n("Stream unmuted"));
     } else if (now.micFilters != before.micFilters) {
         Q_EMIT feedbackRequested(QStringLiteral("audio-input-microphone"),
-                                 now.micFilters ? i18n("Mic filters on") : i18n("Mic filters off"));
+                                 now.micFilters ? i18n("Studio Voice on") : i18n("Studio Voice off"));
     }
 }
 

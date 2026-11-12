@@ -34,6 +34,8 @@ QString moduleName(Module m)
         return QStringLiteral("gate");
     case Module::Eq:
         return QStringLiteral("eq");
+    case Module::Deesser:
+        return QStringLiteral("deesser");
     case Module::Compressor:
         return QStringLiteral("compressor");
     case Module::Limiter:
@@ -67,12 +69,18 @@ const QList<Param> &params()
         {Module::Eq, "presence_frequency", "Presence frequency", &S::presenceHz, 1500, 8000, 100},
         {Module::Eq, "air_gain", "Air gain", &S::airGainDb, -6, 12, 0.5},
         {Module::Eq, "air_frequency", "Air frequency", &S::airHz, 5000, 16000, 250},
+        {Module::Deesser, "threshold", "Threshold", &S::deesserThresholdDb, -60, 0, 1},
+        {Module::Deesser, "frequency", "Frequency", &S::deesserHz, 4000, 12000, 100},
+        {Module::Deesser, "range", "Range", &S::deesserRangeDb, -24, 0, 1},
+        {Module::Deesser, "attack", "Attack", &S::deesserAttackMs, 0.5, 50, 0.5},
+        {Module::Deesser, "release", "Release", &S::deesserReleaseMs, 10, 500, 5},
         {Module::Compressor, "threshold", "Threshold", &S::compThresholdDb, -60, 0, 1},
         {Module::Compressor, "ratio", "Ratio", &S::compRatio, 1, 20, 0.1},
         {Module::Compressor, "knee", "Knee", &S::compKneeDb, 0, 24, 1},
         {Module::Compressor, "attack", "Attack", &S::compAttackMs, 0.5, 200, 0.5},
         {Module::Compressor, "release", "Release", &S::compReleaseMs, 10, 2000, 10},
         {Module::Compressor, "makeup", "Makeup", &S::compMakeupDb, 0, 24, 0.5},
+        {Module::Compressor, "sidechain_hpf", "Sidechain HPF", &S::compSidechainHz, 20, 400, 5},
         {Module::Limiter, "ceiling", "Ceiling", &S::limiterCeilingDb, -12, 0, 0.1},
         {Module::Limiter, "release", "Release", &S::limiterReleaseMs, 10, 1000, 5},
     };
@@ -88,6 +96,7 @@ const QList<Switch> &switches()
         {Module::Denoise, "enabled", "Enabled", &S::denoise},
         {Module::Gate, "enabled", "Enabled", &S::gate},
         {Module::Eq, "enabled", "Enabled", &S::eq},
+        {Module::Deesser, "enabled", "Enabled", &S::deesser},
         {Module::Compressor, "enabled", "Enabled", &S::compressor},
         {Module::Limiter, "enabled", "Enabled", &S::limiter},
     };
@@ -140,28 +149,39 @@ QStringList tidy(const QStringList &keys)
 
 Settings presetValues(const QString &id)
 {
-    Settings s; // the defaults are the streaming preset
+    Settings s; // the defaults are the Studio (streaming) preset
     if (id == QLatin1String("light")) {
         s.denoiseStrength = 70;
         s.eq = false;
         s.lowGainDb = 0;
         s.mudGainDb = 0;
+        s.mudHz = 280;
         s.presenceGainDb = 0;
+        s.presenceHz = 3500;
         s.airGainDb = 0;
+        s.airHz = 12000;
+        s.deesser = false;
         s.compThresholdDb = -18;
         s.compRatio = 2;
         s.compAttackMs = 10;
         s.compMakeupDb = 2;
+        s.compSidechainHz = 100;
     } else if (id == QLatin1String("noisy")) {
         s.highpassHz = 100;
         s.highpassSteep = true;
-        s.voiceThreshold = 50;
+        s.denoiseStrength = 90;
+        s.voiceThreshold = 35;
         s.gate = true;
-        s.gateThresholdDb = -45;
-        s.gateRangeDb = -30;
+        s.gateThresholdDb = -48;
+        s.gateRangeDb = -18;
+        s.gateHoldMs = 250;
+        s.deesserThresholdDb = -26;
+        s.deesserRangeDb = -12;
+        s.compSidechainHz = 140;
     } else if (id == QLatin1String("broadcast")) {
         s.highpassHz = 90;
         s.highpassSteep = true;
+        s.denoiseStrength = 85;
         s.gate = true;
         s.gateRangeDb = -15;
         s.lowGainDb = 2;
@@ -171,11 +191,14 @@ Settings presetValues(const QString &id)
         s.presenceHz = 4500;
         s.airGainDb = 2;
         s.airHz = 11000;
+        s.deesserThresholdDb = -30;
+        s.deesserRangeDb = -12;
         s.compThresholdDb = -24;
         s.compRatio = 4;
         s.compAttackMs = 5;
         s.compReleaseMs = 120;
-        s.compMakeupDb = 7;
+        s.compMakeupDb = 6;
+        s.compSidechainHz = 100;
     }
     return s;
 }
@@ -233,9 +256,9 @@ QStringList presetIds()
 QString presetLabel(const QString &id)
 {
     static const QMap<QString, QString> labels = {
-        {QStringLiteral("light"), QStringLiteral("Light")},
-        {QStringLiteral("streaming"), QStringLiteral("Streaming")},
-        {QStringLiteral("noisy"), QStringLiteral("Noisy room")},
+        {QStringLiteral("light"), QStringLiteral("Natural")},
+        {QStringLiteral("streaming"), QStringLiteral("Studio")},
+        {QStringLiteral("noisy"), QStringLiteral("Noisy desk")},
         {QStringLiteral("broadcast"), QStringLiteral("Broadcast")},
         {QStringLiteral("custom"), QStringLiteral("Custom")},
     };

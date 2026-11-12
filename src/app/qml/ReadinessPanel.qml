@@ -87,7 +87,7 @@ ColumnLayout {
         if (id === "mic-filters")
             return {
                 page: "filters",
-                label: qsTr("Open mic filters")
+                label: qsTr("Open Studio Voice")
             };
         return {
             page: "mixer",

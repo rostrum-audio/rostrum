@@ -265,10 +265,10 @@ QQC2.Control {
                 text: i18nc("@action:button short for mic filters (effects)", "FX")
                 on: MicFilters.enabled
                 activeColor: MicFilters.state === "failed" ? Kirigami.Theme.neutralTextColor : Kirigami.Theme.positiveTextColor
-                Accessible.name: i18nc("@action:button accessible", "Mic filters")
+                Accessible.name: i18nc("@action:button accessible", "Studio Voice")
                 QQC2.ToolTip.text: MicFilters.state === "failed" ? MicFilters.error
-                                 : MicFilters.enabled ? i18nc("@info:tooltip", "Mic filters on (FX). Right-click to set them up.")
-                                                      : i18nc("@info:tooltip", "Mic filters off (FX). Right-click to set them up.")
+                                 : MicFilters.enabled ? i18nc("@info:tooltip", "Studio Voice on (FX). Right-click to set it up.")
+                                                      : i18nc("@info:tooltip", "Studio Voice off (FX). Right-click to set it up.")
                 onClicked: MicFilters.enabled = !MicFilters.enabled
                 TapHandler {
                     acceptedButtons: Qt.RightButton
