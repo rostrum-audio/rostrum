@@ -1,5 +1,9 @@
 #include "pw/Graph.h"
 
+#include <pipewire/keys.h>
+
+#include <QMap>
+
 #include <algorithm>
 
 namespace rostrum::pw {
@@ -140,6 +144,30 @@ QList<QPair<uint32_t, uint32_t>> monoPorts(const QList<Port> &out, const QList<P
         }
     }
     return pairs;
+}
+
+QMap<QString, QString> linkCreateProps(const Graph &g, uint32_t outPort, uint32_t inPort)
+{
+    QMap<QString, QString> props;
+    props.insert(QStringLiteral(PW_KEY_OBJECT_LINGER), QStringLiteral("true"));
+    const Port out = g.ports.value(outPort);
+    const Port in = g.ports.value(inPort);
+    const Node *outNode = out.id != 0 ? g.node(out.nodeId) : nullptr;
+    const Node *inNode = in.id != 0 ? g.node(in.nodeId) : nullptr;
+    // Registry IDs are reused after WirePlumber restarts. A reconcile can still hold a
+    // pre-removal port ID that already names a different port on the daemon. Node + port
+    // names stay with the role we meant to link; the daemon resolves them to the live IDs.
+    if (outNode && !outNode->name.isEmpty() && !out.name.isEmpty() && inNode &&
+        !inNode->name.isEmpty() && !in.name.isEmpty()) {
+        props.insert(QStringLiteral(PW_KEY_LINK_OUTPUT_NODE), outNode->name);
+        props.insert(QStringLiteral(PW_KEY_LINK_OUTPUT_PORT), out.name);
+        props.insert(QStringLiteral(PW_KEY_LINK_INPUT_NODE), inNode->name);
+        props.insert(QStringLiteral(PW_KEY_LINK_INPUT_PORT), in.name);
+        return props;
+    }
+    props.insert(QStringLiteral(PW_KEY_LINK_OUTPUT_PORT), QString::number(outPort));
+    props.insert(QStringLiteral(PW_KEY_LINK_INPUT_PORT), QString::number(inPort));
+    return props;
 }
 
 } // namespace rostrum::pw

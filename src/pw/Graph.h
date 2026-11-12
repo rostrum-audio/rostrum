@@ -50,6 +50,7 @@ struct Port
     bool monitor = false;
     QString channel;
     QString name;
+    QString serial; // object.serial; not reused when the registry ID is
 };
 
 struct Link
@@ -95,5 +96,9 @@ QList<QPair<uint32_t, uint32_t>> matchPorts(const QList<Port> &out, const QList<
 // Mono downmix by links: every output into both front inputs (FL and FR), which PipeWire sums.
 // Anything without two outputs and both front inputs gets matchPorts.
 QList<QPair<uint32_t, uint32_t>> monoPorts(const QList<Port> &out, const QList<Port> &in);
+
+// Properties for link-factory. Prefers node.name + port.name so a reused port ID cannot redirect
+// the link; falls back to numeric port IDs when names are missing.
+QMap<QString, QString> linkCreateProps(const Graph &g, uint32_t outPort, uint32_t inPort);
 
 } // namespace rostrum::pw

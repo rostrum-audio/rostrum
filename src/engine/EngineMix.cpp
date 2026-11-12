@@ -771,6 +771,12 @@ void Engine::reconcileLinks()
         if (!complete(out, outPorts) || !complete(in, inPorts)) {
             continue;
         }
+        for (const auto &p : outPorts) {
+            checkPortSerial(p);
+        }
+        for (const auto &p : inPorts) {
+            checkPortSerial(p);
+        }
         const bool mono = m_monoHeadphones && out == phones && in == hwSink;
         const auto pairs = mono ? pw::monoPorts(outPorts, inPorts) : pw::matchPorts(outPorts, inPorts);
         if (mono) {
