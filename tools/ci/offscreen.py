@@ -112,8 +112,17 @@ def run(application, output, timeout_seconds=60, diagnostic_at=50):
         old_handlers[sig] = signal.signal(sig, interrupt)
     try:
         with (output / 'app.log').open('wb') as log:
-            job = Job(['timeout', str(timeout_seconds), 'dbus-run-session', '--', str(application)],
-                      env, log, log, output / 'job-status.json')
+            # An interrupt raised inside Job() would reclaim the job there but never
+            # hand run() its handle, so cleanup could not be confirmed. Hold the
+            # interrupts until job is assigned; pending ones deliver on restore.
+            # The supervisor clears its own mask before it launches the app.
+            mask = signal.pthread_sigmask(
+                signal.SIG_BLOCK, (signal.SIGINT, signal.SIGTERM, signal.SIGHUP))
+            try:
+                job = Job(['timeout', str(timeout_seconds), 'dbus-run-session', '--', str(application)],
+                          env, log, log, output / 'job-status.json')
+            finally:
+                signal.pthread_sigmask(signal.SIG_SETMASK, mask)
             captured = False
             while job.poll() is None:
                 if not captured and time.monotonic() - started >= diagnostic_at:
