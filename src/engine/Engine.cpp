@@ -240,6 +240,10 @@ void Engine::forgetNode(uint32_t id)
     m_micRecognised.remove(id);
     m_micFirstSeen.remove(id);
     m_nodeSerial.remove(id);
+    m_portSerial.remove(id);
+    // objectRemoved also fires for ports and links. Drop pending creates that still name this ID
+    // so a reused port cannot satisfy an old out:in pair.
+    dropPendingLinksFor(id);
 }
 
 void Engine::connectionChanged()
@@ -261,6 +265,7 @@ void Engine::connectionChanged()
     m_pendingDestroy.clear();
     m_pendingCreate.clear();
     m_pendingLinks.clear();
+    m_portSerial.clear();
 }
 
 void Engine::metadataReset()
@@ -295,6 +300,30 @@ void Engine::checkNodeSerial(const pw::Node &n)
         forgetNode(n.id);
     }
     m_nodeSerial.insert(n.id, n.serial);
+}
+
+void Engine::dropPendingLinksFor(uint32_t portId)
+{
+    m_pendingLinks.removeIf([&](const auto &entry) {
+        const auto parts = entry.key().split(QLatin1Char(':'));
+        return parts.size() == 2 && (parts[0].toUInt() == portId || parts[1].toUInt() == portId);
+    });
+}
+
+void Engine::checkPortSerial(const pw::Port &p)
+{
+    if (p.serial.isEmpty()) {
+        return;
+    }
+    const auto it = m_portSerial.constFind(p.id);
+    if (it != m_portSerial.cend() && *it == p.serial) {
+        return;
+    }
+    if (it != m_portSerial.cend()) {
+        qCInfo(lcEngine) << "port" << p.id << "is a new object, serial" << *it << "->" << p.serial;
+        dropPendingLinksFor(p.id);
+    }
+    m_portSerial.insert(p.id, p.serial);
 }
 
 void Engine::destroyOnce(uint32_t id)

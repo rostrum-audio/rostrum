@@ -432,6 +432,7 @@ void onGlobal(void *data, uint32_t id, uint32_t, const char *type, uint32_t, con
         p.monitor = props.value(QStringLiteral(PW_KEY_PORT_MONITOR)) == QLatin1String("true");
         p.channel = props.value(QStringLiteral(PW_KEY_AUDIO_CHANNEL));
         p.name = props.value(QStringLiteral(PW_KEY_PORT_NAME));
+        p.serial = props.value(QStringLiteral(PW_KEY_OBJECT_SERIAL));
         impl->post([impl, p] {
             impl->graph.ports.insert(p.id, p);
             impl->q->scheduleChanged();
@@ -917,9 +918,7 @@ void PwContext::destroyObject(uint32_t id)
 void PwContext::createLink(uint32_t outPort, uint32_t inPort)
 {
     createObject("link-factory", PW_TYPE_INTERFACE_Link, PW_VERSION_LINK,
-                 {{QStringLiteral(PW_KEY_OBJECT_LINGER), QStringLiteral("true")},
-                  {QStringLiteral(PW_KEY_LINK_OUTPUT_PORT), QString::number(outPort)},
-                  {QStringLiteral(PW_KEY_LINK_INPUT_PORT), QString::number(inPort)}});
+                 linkCreateProps(d->graph, outPort, inPort));
 }
 
 void PwContext::setNodeVolume(uint32_t nodeId, float linear, bool mute)

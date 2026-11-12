@@ -168,6 +168,53 @@ private Q_SLOTS:
                  (QList<QPair<uint32_t, uint32_t>>{{1, 10}, {2, 11}}));
     }
 
+    void linkCreatePropsPreferNamesOverIds()
+    {
+        pw::Graph g;
+        pw::Node outNode;
+        outNode.id = 10;
+        outNode.name = QStringLiteral("rostrum.micfx");
+        outNode.serial = QStringLiteral("100");
+        g.nodes.insert(outNode.id, outNode);
+        pw::Node inNode;
+        inNode.id = 20;
+        inNode.name = QStringLiteral("rostrum.filtered");
+        inNode.serial = QStringLiteral("200");
+        g.nodes.insert(inNode.id, inNode);
+
+        pw::Port out;
+        out.id = 94;
+        out.nodeId = outNode.id;
+        out.output = true;
+        out.name = QStringLiteral("output_MONO");
+        out.serial = QStringLiteral("1001");
+        g.ports.insert(out.id, out);
+
+        // Stale cache: ID 142 still looks like filtered's input, the R1a(ii) reuse window.
+        pw::Port in;
+        in.id = 142;
+        in.nodeId = inNode.id;
+        in.output = false;
+        in.name = QStringLiteral("input_MONO");
+        in.serial = QStringLiteral("1002");
+        g.ports.insert(in.id, in);
+
+        const auto props = pw::linkCreateProps(g, 94, 142);
+        QCOMPARE(props.value(QStringLiteral("link.output.node")), QStringLiteral("rostrum.micfx"));
+        QCOMPARE(props.value(QStringLiteral("link.output.port")), QStringLiteral("output_MONO"));
+        QCOMPARE(props.value(QStringLiteral("link.input.node")), QStringLiteral("rostrum.filtered"));
+        QCOMPARE(props.value(QStringLiteral("link.input.port")), QStringLiteral("input_MONO"));
+        // Must not ask the daemon for the numeric IDs that PipeWire may already have reused.
+        QVERIFY(props.value(QStringLiteral("link.output.port")) != QStringLiteral("94"));
+        QVERIFY(props.value(QStringLiteral("link.input.port")) != QStringLiteral("142"));
+
+        // Nameless ports keep the old numeric fallback.
+        g.ports[142].name.clear();
+        const auto fallback = pw::linkCreateProps(g, 94, 142);
+        QCOMPARE(fallback.value(QStringLiteral("link.output.port")), QStringLiteral("94"));
+        QCOMPARE(fallback.value(QStringLiteral("link.input.port")), QStringLiteral("142"));
+    }
+
     void balance()
     {
         QCOMPARE(volume::clampBalance(0.0), 0.0);
