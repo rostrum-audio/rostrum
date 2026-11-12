@@ -589,6 +589,21 @@ private Q_SLOTS:
         engine.setSidetoneEnabled(true);
         QCOMPARE(engine.scene().sidetoneVolume, 0.8);
     }
+
+    void linkErrorNotClearedWithoutAReconcile()
+    {
+        // Never connected: no pass can see the link resolved, so the error must stay, and
+        // Try Again (createMix) still clears it.
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        engine.createMix();
+        const QString msg = QStringLiteral("Invalid argument link-factory: can't link ports 94 and 108");
+        Q_EMIT pw.createFailed(msg, QString());
+        QCoreApplication::processEvents(); // the reconcile the failure schedules
+        QCOMPARE(engine.mixError(), msg);
+        engine.createMix();
+        QVERIFY(engine.mixError().isEmpty());
+    }
 };
 
 QTEST_GUILESS_MAIN(TestEngine)

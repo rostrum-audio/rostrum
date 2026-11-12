@@ -442,6 +442,7 @@ protected:
     bool m_mixEnabled = false;
     bool m_reportedReady = false;
     QString m_mixError;
+    bool m_mixErrorFromLink = false; // m_mixError came from a failed link create
     bool m_reconcilePending = false;
     QHash<QString, QElapsedTimer> m_pendingCreate;
     QSet<uint32_t> m_pendingDestroy;
