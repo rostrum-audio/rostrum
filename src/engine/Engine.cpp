@@ -45,7 +45,13 @@ Engine::Engine(pw::PwContext *pw, QObject *parent)
             return;
         }
         m_mixError = msg;
+        // Only links are created without a node name. Such an error clears once no wanted link is
+        // still missing; reconcile again in case it arrived after the link it was about resolved.
+        m_mixErrorFromLink = nodeName.isEmpty();
         Q_EMIT mixStateChanged();
+        if (m_mixErrorFromLink) {
+            scheduleReconcile();
+        }
     });
     m_fxTimer.setSingleShot(true);
     connect(&m_fxTimer, &QTimer::timeout, this, &Engine::scheduleReconcile);
@@ -187,6 +193,7 @@ void Engine::createMix()
         if (m_mixEnabled && !mixReady() && m_mixError.isEmpty()) {
             m_mixError = QStringLiteral("PipeWire did not create the virtual devices. Check that the "
                                         "PipeWire service is running, then try again.");
+            m_mixErrorFromLink = false;
             Q_EMIT mixStateChanged();
         }
     });
@@ -348,6 +355,13 @@ void Engine::reconcile()
     reconcileMicRoutes();
     // Compare with the last reported state: the graph changes before this pass runs.
     const bool ready = mixReady();
+    // reconcileLinks keeps a pending entry for every wanted link that does not exist yet, so none
+    // left means the failed link now exists or is no longer wanted.
+    if (m_mixErrorFromLink && ready && m_mixEnabled && !m_mixError.isEmpty() && m_pendingLinks.isEmpty()) {
+        qCInfo(lcEngine) << "link error resolved:" << m_mixError;
+        m_mixError.clear();
+        Q_EMIT mixStateChanged();
+    }
     if (ready != m_reportedReady) {
         m_reportedReady = ready;
         if (ready) {
