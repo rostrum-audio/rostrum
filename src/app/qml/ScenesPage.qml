@@ -17,6 +17,12 @@ QQC2.Pane {
     property string selectedName: App.currentScene
     readonly property var selected: Scenes.rows.find(r => r.name === selectedName) ?? null
     readonly property int selectedIndex: Scenes.rows.findIndex(r => r.name === selectedName)
+    readonly property string loadLabel: {
+        if (page.selected !== null && !page.selected.isCurrent) {
+            return i18nc("@action:button %1 is a scene name", "Load %1", page.selectedName)
+        }
+        return i18nc("@action:button", "Load")
+    }
 
     Component {
         id: presetActionComponent
@@ -46,14 +52,27 @@ QQC2.Pane {
         anchors.fill: parent
         spacing: Kirigami.Units.largeSpacing
 
+        // Load primary · New (incl. presets) / Rename / Duplicate / ↑↓ · Set as Default ·
+        // Delete separated · overflow (More) for import/export/trash.
         Kirigami.ActionToolBar {
             Layout.fillWidth: true
             actions: [
                 Kirigami.Action {
-                    text: i18nc("@action:button", "Load")
+                    id: loadAction
+                    text: page.loadLabel
                     icon.name: "media-playback-start"
                     enabled: page.selected !== null && !page.selected.isCurrent
                     onTriggered: applicationWindow().requestSceneSwitch(page.selectedName)
+                    // Visible primary when enabled (theme highlight); flat when disabled.
+                    displayComponent: Component {
+                        QQC2.Button {
+                            text: loadAction.text
+                            icon.name: loadAction.icon.name
+                            enabled: loadAction.enabled
+                            highlighted: enabled
+                            onClicked: loadAction.trigger()
+                        }
+                    }
                 },
                 Kirigami.Action {
                     id: newAction
@@ -76,6 +95,15 @@ QQC2.Pane {
                     }
                 },
                 Kirigami.Action {
+                    text: i18nc("@action:button", "Rename")
+                    icon.name: "edit-rename"
+                    enabled: page.selected !== null
+                    onTriggered: {
+                        renameDialog.except = page.selectedName
+                        renameDialog.openWith(page.selectedName)
+                    }
+                },
+                Kirigami.Action {
                     text: i18nc("@action:button", "Duplicate")
                     icon.name: "edit-copy"
                     enabled: page.selected !== null
@@ -84,15 +112,6 @@ QQC2.Pane {
                         if (name) {
                             page.selectedName = name
                         }
-                    }
-                },
-                Kirigami.Action {
-                    text: i18nc("@action:button", "Rename")
-                    icon.name: "edit-rename"
-                    enabled: page.selected !== null
-                    onTriggered: {
-                        renameDialog.except = page.selectedName
-                        renameDialog.openWith(page.selectedName)
                     }
                 },
                 Kirigami.Action {
@@ -118,13 +137,13 @@ QQC2.Pane {
                     onTriggered: Scenes.setDefault(page.selectedName)
                 },
                 Kirigami.Action {
+                    separator: true
+                },
+                Kirigami.Action {
                     text: i18nc("@action:button", "Delete")
                     icon.name: "edit-delete"
                     enabled: page.selected !== null && Scenes.rows.length > 1
                     onTriggered: deleteDialog.open()
-                },
-                Kirigami.Action {
-                    separator: true
                 },
                 Kirigami.Action {
                     text: i18nc("@action:button", "Export…")
@@ -154,6 +173,7 @@ QQC2.Pane {
                 id: list
                 model: Scenes.rows
                 clip: true
+                spacing: Kirigami.Units.smallSpacing
                 keyNavigationEnabled: true
                 currentIndex: Scenes.rows.findIndex(r => r.name === page.selectedName)
                 Accessible.name: i18nc("@title", "Scenes")
@@ -165,6 +185,15 @@ QQC2.Pane {
                     readonly property color textColor: highlighted ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
                     width: ListView.view.width
                     highlighted: ListView.isCurrentItem
+                    // Card chrome so rows read as bordered scene tiles (Penpot).
+                    background: Rectangle {
+                        radius: Kirigami.Units.cornerRadius
+                        color: row.highlighted ? Kirigami.Theme.highlightColor : Kirigami.Theme.backgroundColor
+                        border.width: 1
+                        border.color: row.highlighted
+                                     ? Kirigami.Theme.highlightColor
+                                     : Qt.alpha(Kirigami.Theme.textColor, 0.15)
+                    }
                     onClicked: {
                         page.selectedName = modelData.name
                         list.forceActiveFocus()
@@ -192,6 +221,7 @@ QQC2.Pane {
                             Layout.fillWidth: true
                             spacing: 0
                             RowLayout {
+                                spacing: Kirigami.Units.smallSpacing
                                 Rectangle {
                                     opacity: row.modelData.slot > 0 ? 1 : 0
                                     implicitWidth: Math.max(implicitHeight, slotLabel.implicitWidth + Kirigami.Units.smallSpacing * 2)
@@ -221,21 +251,43 @@ QQC2.Pane {
                                     elide: Text.ElideRight
                                     Layout.fillWidth: true
                                 }
-                                QQC2.Label {
+                                // Active badge (pill); unsaved wording unchanged.
+                                Rectangle {
+                                    id: activeBadge
                                     visible: row.modelData.isCurrent
-                                    text: App.sceneDirty && !Preferences.autoSaveScenes
-                                          ? i18nc("@info scene state", "Active, unsaved fader moves")
-                                          : i18nc("@info scene state", "Active")
-                                    font.pointSize: Kirigami.Theme.smallFont.pointSize
-                                    font.weight: Font.DemiBold
-                                    color: row.highlighted ? row.textColor : Kirigami.Theme.positiveTextColor
+                                    radius: height / 2
+                                    color: row.highlighted ? Kirigami.Theme.backgroundColor
+                                                           : Qt.alpha(Kirigami.Theme.positiveTextColor, 0.18)
+                                    implicitWidth: activeLabel.implicitWidth + Kirigami.Units.smallSpacing * 2
+                                    implicitHeight: activeLabel.implicitHeight + Kirigami.Units.smallSpacing
+                                    QQC2.Label {
+                                        id: activeLabel
+                                        anchors.centerIn: parent
+                                        text: App.sceneDirty && !Preferences.autoSaveScenes
+                                              ? i18nc("@info scene state", "Active, unsaved fader moves")
+                                              : i18nc("@info scene state", "Active")
+                                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                                        font.weight: Font.DemiBold
+                                        color: row.highlighted ? Kirigami.Theme.highlightColor
+                                                              : Kirigami.Theme.positiveTextColor
+                                    }
                                 }
-                                QQC2.Label {
+                                // Default badge (subtle pill).
+                                Rectangle {
                                     visible: row.modelData.isDefault
-                                    text: i18nc("@info scene state", "Default")
-                                    color: row.textColor
-                                    font: Kirigami.Theme.smallFont
-                                    opacity: 0.7
+                                    radius: height / 2
+                                    color: row.highlighted ? Qt.alpha(Kirigami.Theme.highlightedTextColor, 0.2)
+                                                           : Qt.alpha(Kirigami.Theme.textColor, 0.08)
+                                    implicitWidth: defaultLabel.implicitWidth + Kirigami.Units.smallSpacing * 2
+                                    implicitHeight: defaultLabel.implicitHeight + Kirigami.Units.smallSpacing
+                                    QQC2.Label {
+                                        id: defaultLabel
+                                        anchors.centerIn: parent
+                                        text: i18nc("@info scene state", "Default")
+                                        color: row.textColor
+                                        font: Kirigami.Theme.smallFont
+                                        opacity: row.highlighted ? 1 : 0.8
+                                    }
                                 }
                             }
                             QQC2.Label {
@@ -248,6 +300,14 @@ QQC2.Pane {
                             }
                         }
                     }
+                }
+
+                Kirigami.PlaceholderMessage {
+                    anchors.centerIn: parent
+                    width: parent.width - Kirigami.Units.gridUnit * 2
+                    visible: list.count === 0
+                    icon.name: "view-media-playlist"
+                    text: i18n("No scenes yet")
                 }
 
                 Keys.onReturnPressed: applicationWindow().requestSceneSwitch(page.selectedName)
