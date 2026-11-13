@@ -39,7 +39,7 @@ Engine::Engine(pw::PwContext *pw, QObject *parent)
         if (nodeName == QLatin1String(kMicFxNode) || nodeName == QLatin1String(kFilteredNode)) {
             qCWarning(lcEngine) << "could not create" << nodeName << msg;
             m_fxFailed = true;
-            setMicFxState(MicFxState::Failed, QStringLiteral("PipeWire could not create the mic filters (%1). "
+            setMicFxState(MicFxState::Failed, QStringLiteral("PipeWire could not create Studio Voice (%1). "
                                                              "Your mic is used without filters.").arg(msg));
             scheduleReconcile();
             return;

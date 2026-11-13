@@ -23,7 +23,7 @@ QQC2.ScrollView {
         width: parent.width - Kirigami.Units.gridUnit * 4
         visible: !MicFilters.available
         icon.name: "audio-input-microphone"
-        text: i18nc("@info:placeholder", "Mic filters are not available")
+        text: i18nc("@info:placeholder", "Studio Voice is not available")
         explanation: MicFilters.unavailableReason
     }
 

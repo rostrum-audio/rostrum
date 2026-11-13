@@ -417,7 +417,7 @@ ColumnLayout {
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
             font: Kirigami.Theme.smallFont
-            text: qsTr("Recording and audience audio are not verified. This check does not play or record sound, or change settings. Confirm the final result with a short recording.")
+            text: qsTr("Recording and audio for viewers are not verified. This check does not play or record sound, or change settings. Confirm the final result with a short recording.")
         }
     }
     QQC2.Button {
@@ -430,7 +430,7 @@ ColumnLayout {
     QQC2.Label {
         Layout.fillWidth: true
         visible: panel.scopeOpen
-        text: panel.results.find(r => r.id === "output-proof")?.detail ?? qsTr("Recording contents, output track selection and audience audio are not verified.")
+        text: panel.results.find(r => r.id === "output-proof")?.detail ?? qsTr("Recording contents, output track selection and audio for viewers are not verified.")
         textFormat: Text.PlainText
         wrapMode: Text.Wrap
     }

@@ -171,7 +171,7 @@ QQC2.Pane {
                     }
                     onDoubleClicked: applicationWindow().requestSceneSwitch(modelData.name)
                     Accessible.name: modelData.name
-                    Accessible.description: [modelData.isCurrent ? i18n("Live now") : "",
+                    Accessible.description: [modelData.isCurrent ? i18n("Active now") : "",
                                              modelData.isDefault ? i18n("Default on launch") : "",
                                              row.slotText,
                                              modelData.summary].filter(s => s).join(", ")
@@ -224,8 +224,8 @@ QQC2.Pane {
                                 QQC2.Label {
                                     visible: row.modelData.isCurrent
                                     text: App.sceneDirty && !Preferences.autoSaveScenes
-                                          ? i18nc("@info scene state", "Live, unsaved fader moves")
-                                          : i18nc("@info scene state", "Live")
+                                          ? i18nc("@info scene state", "Active, unsaved fader moves")
+                                          : i18nc("@info scene state", "Active")
                                     font.pointSize: Kirigami.Theme.smallFont.pointSize
                                     font.weight: Font.DemiBold
                                     color: row.highlighted ? row.textColor : Kirigami.Theme.positiveTextColor

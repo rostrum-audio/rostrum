@@ -78,8 +78,8 @@ QString pluginPath(QString *error)
     const QString path = located();
     if (path.isEmpty()) {
         if (error) {
-            *error = built() ? QStringLiteral("The mic filter plugin (%1) is not installed.").arg(QLatin1String(kFileName))
-                             : QStringLiteral("This build of Rostrum has no mic filters.");
+            *error = built() ? QStringLiteral("The Studio Voice plugin (%1) is not installed.").arg(QLatin1String(kFileName))
+                             : QStringLiteral("This build of Rostrum has no Studio Voice.");
         }
         return {};
     }

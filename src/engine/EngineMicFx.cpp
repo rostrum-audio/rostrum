@@ -99,18 +99,18 @@ void Engine::setMicFilterPlugin(const QString &path, bool denoise, const QString
 QString Engine::micFiltersUnavailable() const
 {
     if (m_fxPlugin.isEmpty()) {
-        return m_fxPluginError.isEmpty() ? QStringLiteral("This build of Rostrum has no mic filters.") : m_fxPluginError;
+        return m_fxPluginError.isEmpty() ? QStringLiteral("This build of Rostrum has no Studio Voice.") : m_fxPluginError;
     }
     if (m_pw->state() != pw::PwContext::State::Ready) {
         return {};
     }
     const QVersionNumber version = QVersionNumber::fromString(m_pw->serverVersion());
     if (!version.isNull() && version < QVersionNumber(1, 4, 0)) {
-        return QStringLiteral("Mic filters need PipeWire 1.4 or newer. This system runs PipeWire %1.")
+        return QStringLiteral("Studio Voice needs PipeWire 1.4 or newer. This system runs PipeWire %1.")
             .arg(m_pw->serverVersion());
     }
     if (!m_pw->graph().hasFactory(QStringLiteral("spa-node-factory"))) {
-        return QStringLiteral("Mic filters need PipeWire's spa-node-factory module, which is not loaded.");
+        return QStringLiteral("Studio Voice needs PipeWire's spa-node-factory module, which is not loaded.");
     }
     return {};
 }
@@ -340,7 +340,7 @@ void Engine::reconcileMicFx()
         } else if (m_fxGraphClock.isValid() && m_fxGraphClock.elapsed() > kFxLoadTimeoutMs) {
             qCWarning(lcEngine) << "mic filter node" << fx.id << "has no ports";
             m_fxFailed = true;
-            setMicFxState(MicFxState::Failed, QStringLiteral("PipeWire did not set up the mic filter node. "
+            setMicFxState(MicFxState::Failed, QStringLiteral("PipeWire did not set up the Studio Voice node. "
                                                              "Your mic is used without filters."));
             scheduleReconcile();
             return;
@@ -421,7 +421,7 @@ void Engine::reconcileMicFx()
         if (since > kFxLoadTimeoutMs) {
             qCWarning(lcEngine) << "mic filter graph did not load into" << fx.id << m_fxPlugin;
             m_fxFailed = true;
-            setMicFxState(MicFxState::Failed, QStringLiteral("PipeWire could not load the mic filters. "
+            setMicFxState(MicFxState::Failed, QStringLiteral("PipeWire could not load Studio Voice. "
                                                              "Your mic is used without filters."));
             scheduleReconcile();
             return;
@@ -469,8 +469,8 @@ void Engine::micFxConnectionChanged()
             qCWarning(lcEngine) << "PipeWire went away" << m_fxBuildClock.elapsed()
                                 << "ms after the mic filters loaded, strike" << m_fxStrikes;
             if (m_fxStrikes >= kFxCrashStrikes && m_micFx.enabled) {
-                const QString reason = QStringLiteral("PipeWire stopped twice right after the mic filters started, "
-                                                      "so Rostrum turned them off.");
+                const QString reason = QStringLiteral("PipeWire stopped twice right after Studio Voice started, "
+                                                      "so Rostrum turned it off.");
                 m_micFx.enabled = false;
                 m_fxStrikes = 0;
                 m_fxError = reason;

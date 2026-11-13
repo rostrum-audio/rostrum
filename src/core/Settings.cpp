@@ -46,7 +46,7 @@ QString label(const QString &id)
         {QString::fromLatin1(kMuteHeadphones), QStringLiteral("Mute headphones")},
         {QString::fromLatin1(kStreamVolumeUp), QStringLiteral("Stream volume up")},
         {QString::fromLatin1(kStreamVolumeDown), QStringLiteral("Stream volume down")},
-        {QString::fromLatin1(kToggleMicFilters), QStringLiteral("Mic filters on or off")},
+        {QString::fromLatin1(kToggleMicFilters), QStringLiteral("Studio Voice on or off")},
         {QString::fromLatin1(kMicCheck), QStringLiteral("Check mic")},
     };
     if (labels.contains(id)) {

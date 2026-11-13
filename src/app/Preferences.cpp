@@ -211,7 +211,7 @@ QString Preferences::actionDescription(const QString &id)
          ki18nc("@info shortcut action", "Turns hearing your own mic in the headphones on or off.")},
         {QString::fromLatin1(actions::kToggleMicFilters),
          ki18nc("@info shortcut action",
-                "Turns noise removal and the other mic filters on or off, for the stream and for apps.")},
+                "Turns Studio Voice (noise removal and related processing) on or off, for the stream and for apps.")},
         {QString::fromLatin1(actions::kMicCheck),
          ki18nc("@info shortcut action",
                 "Records a few seconds of your stream mic and plays them back in your headphones. Press "

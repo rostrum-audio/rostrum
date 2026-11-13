@@ -406,8 +406,8 @@ QList<ReadinessResult> evaluateReadiness(const ReadinessInput &i)
             }
         }
     }
-    add(QStringLiteral("output-proof"), tr("Recording and audience audio"), ReadinessStatus::Unknown,
-        tr("No sound was played or recorded. Output track selection, recording contents and audience audio "
+    add(QStringLiteral("output-proof"), tr("Recording and audio for viewers"), ReadinessStatus::Unknown,
+        tr("No sound was played or recorded. Output track selection, recording contents and audio for viewers "
            "were not verified."));
     return out;
 }

@@ -75,7 +75,7 @@ QQC2.Pane {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 label: i18nc("@label master", "Stream")
-                caption: i18nc("@label master caption", "What your audience hears")
+                caption: i18nc("@label master caption", "What viewers hear")
                 value: Mixer.masterStream
                 muted: Mixer.masterStreamMuted
                 peak: Mixer.streamPeak
