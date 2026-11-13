@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""Apps-page screenshots with a private PipeWire session (integration fixture).
+"""Page screenshots with a private PipeWire session (integration fixture).
 
 Uses tests/integration/audio-safety.Session — the same isolated HOME /
 XDG_RUNTIME_DIR / PipeWire / WirePlumber / D-Bus setup as the audio suite.
 Never connects to the user's session PipeWire socket or D-Bus, never calls
 systemctl, and only writes under the session temp tree and reports/.
 
+Any Rostrum page id (mixer, apps, scenes, …) can be shot via --page.
+
 Example:
-  tools/ci/apps-screenshot.py build/src/app/rostrum reports/step2/after \\
-      --width 1280 --theme dark
+  tools/ci/apps-screenshot.py build/src/app/rostrum reports/step3a/after/scenes-1280-dark.png \\
+      --page scenes --width 1280 --theme dark
 """
 from __future__ import annotations
 
@@ -31,12 +33,82 @@ SCHEMES = {
     "light": Path("/usr/share/color-schemes/BreezeLight.colors"),
 }
 
-# Realistic media-player names so row truncation is visible at 1280 / 960.
+PAGES = ("mixer", "apps", "scenes", "devices", "filters", "obs", "settings")
+
+# Realistic media-player names so Apps-row truncation is visible.
 TONES = (
     ("Firefox Developer Edition", 440),
     ("Discord", 554),
     ("Spotify", 659),
     ("Chromium Web Browser — Very Long Window Title For Truncation", 880),
+)
+
+# Minimal extra scenes for the Scenes page (Live is created as the default).
+SCENE_SEED = (
+    ("streaming.toml", '''format = 1
+name = "Streaming"
+
+[master]
+phones = 1.0
+phones_muted = false
+stream = 1.0
+stream_muted = false
+
+[mic]
+sidetone = 1.0
+
+[[bus]]
+auto = "none"
+color = "#da4453"
+destination = "stream"
+id = "mic"
+kind = "input"
+muted = false
+name = "Mic"
+volume = 0.8
+
+[[bus]]
+auto = "game"
+color = "#27ae60"
+destination = "stream"
+id = "game"
+kind = "playback"
+muted = false
+name = "Game"
+volume = 1.0
+'''),
+    ("desktop-only.toml", '''format = 1
+name = "Desktop only"
+
+[master]
+phones = 1.0
+phones_muted = false
+stream = 1.0
+stream_muted = false
+
+[mic]
+sidetone = 1.0
+
+[[bus]]
+auto = "none"
+color = "#da4453"
+destination = "stream"
+id = "mic"
+kind = "input"
+muted = false
+name = "Mic"
+volume = 0.8
+
+[[bus]]
+auto = "desktop"
+color = "#f67400"
+destination = "phones"
+id = "desktop"
+kind = "playback"
+muted = false
+name = "Desktop"
+volume = 1.0
+'''),
 )
 
 
@@ -59,7 +131,7 @@ def write_kdeglobals(config_home: Path, theme: str) -> Path:
     return out
 
 
-def write_settings(config_home: Path, width: int, height: int) -> Path:
+def write_settings(config_home: Path, width: int, height: int, page: str) -> Path:
     rostrum = config_home / "rostrum"
     rostrum.mkdir(parents=True, exist_ok=True)
     settings = rostrum / "settings.toml"
@@ -81,9 +153,16 @@ crash_reports = "never"
 [window]
 width = {width}
 height = {height}
-page = "apps"
+page = "{page}"
 ''')
     return settings
+
+
+def seed_scenes(config_home: Path) -> None:
+    scenes = config_home / "rostrum" / "scenes"
+    scenes.mkdir(parents=True, exist_ok=True)
+    for name, body in SCENE_SEED:
+        (scenes / name).write_text(body)
 
 
 def print_isolation(env: dict, root: Path) -> None:
@@ -108,7 +187,8 @@ def print_isolation(env: dict, root: Path) -> None:
     print("isolation_ok=true", flush=True)
 
 
-def capture(application: Path, output: Path, width: int, height: int, theme: str) -> None:
+def capture(application: Path, output: Path, width: int, height: int, theme: str, page: str,
+            with_tones: bool) -> None:
     application = application.resolve(strict=True)
     output = report_dir(output)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -123,9 +203,10 @@ def capture(application: Path, output: Path, width: int, height: int, theme: str
         session.device("test.saved-mic", source=True)
 
         config_home = Path(session.env["XDG_CONFIG_HOME"])
-        write_settings(config_home, width, height)
+        write_settings(config_home, width, height, page)
+        if page == "scenes":
+            seed_scenes(config_home)
         kde = write_kdeglobals(config_home, theme)
-        # Optional lookup path if something still resolves ColorScheme= by name.
         schemes = Path(session.env["XDG_DATA_HOME"]) / "color-schemes"
         schemes.mkdir(parents=True, exist_ok=True)
         target = schemes / SCHEMES[theme].name
@@ -136,16 +217,16 @@ def capture(application: Path, output: Path, width: int, height: int, theme: str
             QT_QPA_PLATFORMTHEME="kde",
             ROSTRUM_SCREENSHOT=str(session.root / "shot.png"),
         )
-        # QT_QPA_PLATFORM=offscreen is already set by Session.prepare_environment.
         print_isolation(session.env, session.root)
         print(f"kdeglobals={kde}", flush=True)
-        print(f"theme={theme} scheme={SCHEMES[theme]}", flush=True)
+        print(f"theme={theme} scheme={SCHEMES[theme]} page={page}", flush=True)
 
-        for name, frequency in TONES:
-            session.tone(name, "test.headphones", frequency=frequency)
-        for name, _ in TONES:
-            session.wait(f"tone still present {name}",
-                         lambda n=name: session.node(session.graph(), n) is not None)
+        if with_tones:
+            for name, frequency in TONES:
+                session.tone(name, "test.headphones", frequency=frequency)
+            for name, _ in TONES:
+                session.wait(f"tone still present {name}",
+                             lambda n=name: session.node(session.graph(), n) is not None)
 
         shot = Path(session.env["ROSTRUM_SCREENSHOT"])
         app = session.spawn([str(application)])
@@ -154,7 +235,6 @@ def capture(application: Path, output: Path, width: int, height: int, theme: str
             if app.poll() is not None:
                 break
             if shot.is_file() and shot.stat().st_size > 0:
-                # App quits itself shortly after writing; give it a moment.
                 time.sleep(0.2)
                 if app.poll() is not None:
                     break
@@ -169,7 +249,7 @@ def capture(application: Path, output: Path, width: int, height: int, theme: str
             raise safety.Failure(f"Missing or empty screenshot (app rc={getattr(app, 'returncode', None)})")
         output.write_bytes(shot.read_bytes())
         print(json.dumps({"ok": True, "output": str(output), "bytes": output.stat().st_size,
-                          "width": width, "height": height, "theme": theme}), flush=True)
+                          "width": width, "height": height, "theme": theme, "page": page}), flush=True)
     except BaseException:
         safety.cleanup_preserving_failure(session.diagnostics)
         raise
@@ -191,10 +271,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("application", type=Path)
     parser.add_argument("output", type=Path, help="PNG path under reports/")
+    parser.add_argument("--page", choices=PAGES, default="apps",
+                        help="Rostrum window.page id to open (default: apps)")
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=800)
     parser.add_argument("--theme", choices=sorted(SCHEMES), required=True)
+    parser.add_argument("--tones", choices=("auto", "always", "never"), default="auto",
+                        help="Play named tone streams (auto: only for --page apps)")
     args = parser.parse_args()
+    with_tones = args.tones == "always" or (args.tones == "auto" and args.page == "apps")
 
     interrupted = None
 
@@ -206,7 +291,8 @@ def main() -> int:
     old = {sig: signal.signal(sig, on_signal) for sig in safety.INTERRUPTS}
     code = 1
     try:
-        capture(args.application, args.output, args.width, args.height, args.theme)
+        capture(args.application, args.output, args.width, args.height, args.theme, args.page,
+                with_tones)
         code = 0
     except KeyboardInterrupt as error:
         safety.report(str(error))
