@@ -9,6 +9,8 @@
 #include "pw/MicCheck.h"
 #include "pw/PwContext.h"
 
+#include <QCoreApplication>
+#include <QEvent>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -514,7 +516,63 @@ private Q_SLOTS:
         // Not connected: nothing is reported missing, and the saved choice is kept as given.
         QVERIFY(!engine.micSilenced());
         QCOMPARE(engine.micDevice(), QStringLiteral("alsa_input.usb-headset"));
-        QCOMPARE(engine.missingMicLabel(), QStringLiteral("alsa_input.usb-headset"));
+        // Labels are empty unless the chosen device is actually missing.
+        QVERIFY(engine.missingMicLabel().isEmpty());
+        QVERIFY(engine.missingHeadphonesLabel().isEmpty());
+    }
+
+    void missingDeviceLabelsTrackPresence()
+    {
+        pw::PwContext pw; // never started: stand-in graph only
+        engine::Engine engine(&pw);
+        QSignalSpy micSpy(&engine, &engine::Engine::missingMicLabelChanged);
+        QSignalSpy phonesSpy(&engine, &engine::Engine::missingHeadphonesLabelChanged);
+
+        auto flush = [] {
+            QCoreApplication::processEvents();
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::Timer);
+            QCoreApplication::processEvents();
+        };
+
+        pw::Graph present = devices();
+        present.nodes[1].description = QStringLiteral("USB Headset Mic");
+        present.nodes[5].description = QStringLiteral("USB Headset");
+        pw.testingInstallGraph(present);
+        engine.setMicDevice(QStringLiteral("alsa_input.usb-headset"));
+        engine.setHeadphoneDevice(QStringLiteral("alsa_output.usb-headset"));
+        flush();
+
+        QVERIFY(!engine.micMissing());
+        QVERIFY(!engine.headphonesMissing());
+        QVERIFY(engine.missingMicLabel().isEmpty());
+        QVERIFY(engine.missingHeadphonesLabel().isEmpty());
+        const int micAfterPresent = micSpy.count();
+        const int phonesAfterPresent = phonesSpy.count();
+
+        pw::Graph gone = present;
+        gone.nodes.remove(1); // mic
+        gone.nodes.remove(5); // headphones
+        pw.testingInstallGraph(gone);
+        flush();
+
+        QVERIFY(engine.micMissing());
+        QVERIFY(engine.headphonesMissing());
+        QCOMPARE(engine.missingMicLabel(), QStringLiteral("USB Headset Mic"));
+        QCOMPARE(engine.missingHeadphonesLabel(), QStringLiteral("USB Headset"));
+        QVERIFY(micSpy.count() > micAfterPresent);
+        QVERIFY(phonesSpy.count() > phonesAfterPresent);
+        const int micAfterGone = micSpy.count();
+        const int phonesAfterGone = phonesSpy.count();
+
+        pw.testingInstallGraph(present);
+        flush();
+
+        QVERIFY(!engine.micMissing());
+        QVERIFY(!engine.headphonesMissing());
+        QVERIFY(engine.missingMicLabel().isEmpty());
+        QVERIFY(engine.missingHeadphonesLabel().isEmpty());
+        QVERIFY(micSpy.count() > micAfterGone);
+        QVERIFY(phonesSpy.count() > phonesAfterGone);
     }
 
     void micFilterSettingsAndAppChoices()

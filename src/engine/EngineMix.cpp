@@ -365,7 +365,9 @@ void Engine::setHeadphoneDevice(const QString &nodeName)
     }
     m_headphones = nodeName;
     m_headphonesWereMissing = false;
+    m_lastSinkDescription.clear();
     Q_EMIT devicesChanged();
+    publishMissingLabels();
     scheduleReconcile();
 }
 
@@ -378,6 +380,7 @@ void Engine::setMicDevice(const QString &nodeName)
     m_micWasMissing = false;
     m_lastSourceDescription.clear();
     Q_EMIT devicesChanged();
+    publishMissingLabels();
     scheduleReconcile();
 }
 
@@ -487,7 +490,32 @@ void Engine::setMonoHeadphones(bool on)
 
 QString Engine::missingMicLabel() const
 {
+    if (!micMissing()) {
+        return {};
+    }
     return m_lastSourceDescription.isEmpty() ? m_micDevice : m_lastSourceDescription;
+}
+
+QString Engine::missingHeadphonesLabel() const
+{
+    if (!headphonesMissing()) {
+        return {};
+    }
+    return m_lastSinkDescription.isEmpty() ? m_headphones : m_lastSinkDescription;
+}
+
+void Engine::publishMissingLabels()
+{
+    const QString mic = missingMicLabel();
+    if (mic != m_publishedMissingMicLabel) {
+        m_publishedMissingMicLabel = mic;
+        Q_EMIT missingMicLabelChanged();
+    }
+    const QString phones = missingHeadphonesLabel();
+    if (phones != m_publishedMissingHeadphonesLabel) {
+        m_publishedMissingHeadphonesLabel = phones;
+        Q_EMIT missingHeadphonesLabelChanged();
+    }
 }
 
 void Engine::reconcileDevices()
@@ -522,6 +550,7 @@ void Engine::reconcileDevices()
         qCInfo(lcEngine) << "mic back:" << m_micDevice;
         Q_EMIT micRestored();
     }
+    publishMissingLabels();
     const QString sig = QStringList{resolvedSinkName(), resolvedSourceName(), missing ? QStringLiteral("1") : QString(),
                                     micGone ? QStringLiteral("1") : QString(), micMeterNode()}
                             .join(QLatin1Char('|'));

@@ -66,6 +66,9 @@ public:
     pw_thread_loop *threadLoop() const;
     pw_core *core() const;
 
+    // Unit tests only: install a stand-in graph without a daemon. Refuses if connected.
+    void testingInstallGraph(const Graph &graph, State state = State::Ready);
+
 Q_SIGNALS:
     void stateChanged();
     void aboutToStop(); // the loop and core are still valid; drop streams created on them

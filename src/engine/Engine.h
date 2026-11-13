@@ -156,8 +156,10 @@ public:
     // On: another mic stands in, the way headphones fall back. Never rewrites the saved mic.
     void setMicFallback(bool on);
     bool micFallback() const { return m_micFallback; }
-    bool micSilenced() const;        // the saved mic is missing and nothing stands in for it
-    QString missingMicLabel() const; // its description from when it was last seen, or its node.name
+    bool micSilenced() const; // the saved mic is missing and nothing stands in for it
+    // Friendly label for the saved device while it is unplugged; empty when nothing is missing.
+    QString missingMicLabel() const;
+    QString missingHeadphonesLabel() const;
     // Both headphone channels carry L+R at half level, by linking each side into both. Off by default.
     void setMonoHeadphones(bool on);
     bool monoHeadphones() const { return m_monoHeadphones; }
@@ -231,6 +233,8 @@ Q_SIGNALS:
     void levelsChanged();
     void soloChanged();
     void devicesChanged();
+    void missingMicLabelChanged();
+    void missingHeadphonesLabelChanged();
     void headphonesLost(const QString &description);
     void headphonesRestored();
     void micLost(const QString &description);
@@ -250,6 +254,7 @@ protected:
     void reconcileLinks();
     void reconcileVolumes();
     void reconcileDevices();
+    void publishMissingLabels(); // emit missing*LabelChanged when the QML-facing strings change
     bool phonesCrossLinked() const; // headphone links that carry one side into the other
     struct Level
     {
@@ -343,6 +348,8 @@ protected:
     bool m_headphonesWereMissing = false;
     QString m_lastSourceDescription;
     bool m_micWasMissing = false;
+    QString m_publishedMissingMicLabel;
+    QString m_publishedMissingHeadphonesLabel;
     bool m_micFallback = false;
     bool m_monoHeadphones = false;
     bool m_phonesCrossLinkWanted = false;

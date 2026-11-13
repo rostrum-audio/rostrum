@@ -41,6 +41,9 @@ class AppController : public QObject
     Q_PROPERTY(QString micText READ micText NOTIFY devicesChanged)
     Q_PROPERTY(bool headphonesMissing READ headphonesMissing NOTIFY devicesChanged)
     Q_PROPERTY(bool micMissing READ micMissing NOTIFY devicesChanged)
+    // Friendly labels while the saved device is unplugged; empty when nothing is missing.
+    Q_PROPERTY(QString missingHeadphonesLabel READ missingHeadphonesLabel NOTIFY missingHeadphonesLabelChanged)
+    Q_PROPERTY(QString missingMicLabel READ missingMicLabel NOTIFY missingMicLabelChanged)
     Q_PROPERTY(bool hasMic READ hasMic NOTIFY devicesChanged)
 
     Q_PROPERTY(bool micMuted READ micMuted WRITE setMicMuted NOTIFY levelsChanged)
@@ -136,6 +139,8 @@ public:
     QString micText() const;
     bool headphonesMissing() const;
     bool micMissing() const;
+    QString missingHeadphonesLabel() const;
+    QString missingMicLabel() const;
     bool hasMic() const;
 
     bool micMuted() const;
@@ -225,6 +230,8 @@ Q_SIGNALS:
     void restartRequested(bool hidden);
     void statusChanged();
     void devicesChanged();
+    void missingHeadphonesLabelChanged();
+    void missingMicLabelChanged();
     void levelsChanged();
     void scenesChanged();
     void mixChanged();

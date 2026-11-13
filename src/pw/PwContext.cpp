@@ -744,6 +744,34 @@ const Graph &PwContext::graph() const { return d->graph; }
 QString PwContext::defaultSinkName() const { return d->defaultSink; }
 QString PwContext::defaultSourceName() const { return d->defaultSource; }
 
+void PwContext::testingInstallGraph(const Graph &graph, State state)
+{
+    if (d->loop) {
+        qCWarning(lcPw) << "testingInstallGraph refused: a real PipeWire connection is up";
+        return;
+    }
+    d->graph = graph;
+    d->defaultSink.clear();
+    d->defaultSource.clear();
+    for (const auto &n : d->graph.nodes) {
+        if (d->defaultSink.isEmpty() && n.isSink() && !n.isRostrum()) {
+            d->defaultSink = n.name;
+        }
+        if (d->defaultSource.isEmpty() && n.isSource() && !n.isRostrum()) {
+            d->defaultSource = n.name;
+        }
+    }
+    const bool stateChanged = d->state != state;
+    d->state = state;
+    d->error.clear();
+    d->errorCode = 0;
+    if (stateChanged) {
+        Q_EMIT this->stateChanged();
+    }
+    Q_EMIT graphChanged();
+    Q_EMIT defaultsChanged();
+}
+
 QString PwContext::metadataValue(uint32_t subject, const QString &key) const
 {
     return d->metadataValues.value(subject).value(key);

@@ -59,6 +59,9 @@ AppController::AppController(QObject *parent)
     connect(&m_engine, &engine::Engine::sceneChanged, this, &AppController::levelsChanged);
     connect(&m_engine, &engine::Engine::headphonesLost, this, &AppController::headphonesLost);
     connect(&m_engine, &engine::Engine::micLost, this, &AppController::micLost);
+    connect(&m_engine, &engine::Engine::missingHeadphonesLabelChanged, this,
+            &AppController::missingHeadphonesLabelChanged);
+    connect(&m_engine, &engine::Engine::missingMicLabelChanged, this, &AppController::missingMicLabelChanged);
     // App choices, the hotkey and the crash breaker change mic filter settings inside the engine.
     connect(&m_engine, &engine::Engine::micFiltersChanged, this, [this] {
         if (m_settings.micFilters != m_engine.micFilters()) {
@@ -301,6 +304,14 @@ QString AppController::micText() const
 
 bool AppController::headphonesMissing() const { return connected() && m_engine.headphonesMissing(); }
 bool AppController::micMissing() const { return connected() && m_engine.micMissing(); }
+QString AppController::missingHeadphonesLabel() const
+{
+    return connected() ? m_engine.missingHeadphonesLabel() : QString();
+}
+QString AppController::missingMicLabel() const
+{
+    return connected() ? m_engine.missingMicLabel() : QString();
+}
 bool AppController::hasMic() const { return connected() && m_engine.hasMic(); }
 
 bool AppController::micMuted() const { return m_engine.effectiveMicMuted(); }

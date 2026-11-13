@@ -6,9 +6,8 @@ import Rostrum
 
 // Radio list of outputs or inputs, shared by the Devices page and the wizard. The first row
 // follows the system default. Outputs get a test tone button, inputs a live meter.
-// Rows are selectable cards (Penpot). A device that is in use only as temporary fallback is
-// marked; a chosen device that is unplugged needs a missing-device label from the engine (not
-// yet exposed here — see Step 3b notes).
+// Rows are selectable cards (Penpot). A chosen device that is unplugged stays selected and is
+// marked Disconnected; a temporary fallback is marked on the stand-in row.
 ColumnLayout {
     id: list
 
@@ -27,6 +26,8 @@ ColumnLayout {
     signal picked(string name)
 
     readonly property var defaultRow: devices.find(d => d.isDefault)
+    readonly property string missingLabel: list.isInput ? App.missingMicLabel
+                                                        : App.missingHeadphonesLabel
     readonly property bool usingTemporary: {
         if (!list.savedMissing || list.inUse === "") {
             return false
@@ -38,6 +39,34 @@ ColumnLayout {
         // System default selected: temporary when in-use is not the current default node.
         return !list.defaultRow || list.inUse !== list.defaultRow.name
     }
+    // System default, then a Disconnected card for the saved choice when unplugged, then live devices.
+    readonly property var rows: {
+        const head = [{
+            name: "",
+            description: list.defaultRow
+                         ? i18nc("@option:radio %1 is a device", "System default (%1)", list.defaultRow.description)
+                         : i18nc("@option:radio", "System default"),
+            subtitle: i18nc("@info", "Follows the default device in System Settings"),
+            isDefault: false,
+            headsetProfile: false,
+            id: 0,
+            disconnected: false
+        }]
+        const missing = []
+        if (list.savedMissing && list.selected !== "") {
+            const label = list.missingLabel.length > 0 ? list.missingLabel : list.selected
+            missing.push({
+                name: list.selected,
+                description: label,
+                subtitle: "",
+                isDefault: false,
+                headsetProfile: false,
+                id: 0,
+                disconnected: true
+            })
+        }
+        return head.concat(missing).concat(list.devices)
+    }
 
     spacing: Kirigami.Units.smallSpacing
     Accessible.role: Accessible.List
@@ -48,21 +77,18 @@ ColumnLayout {
     }
 
     Repeater {
-        model: [{ name: "", description: list.defaultRow
-                      ? i18nc("@option:radio %1 is a device", "System default (%1)", list.defaultRow.description)
-                      : i18nc("@option:radio", "System default"),
-                  subtitle: i18nc("@info", "Follows the default device in System Settings"),
-                  isDefault: false, headsetProfile: false, id: 0 }].concat(list.devices)
+        model: list.rows
 
         delegate: QQC2.ItemDelegate {
             id: row
             required property var modelData
             required property int index
             readonly property bool chosen: list.selected === modelData.name
+            readonly property bool isDisconnected: modelData.disconnected === true
             // True when this row is what Rostrum is actually routed to. System default owns
             // the pill when that radio is selected; otherwise the named node does.
             readonly property bool isInUse: {
-                if (list.inUse === "") {
+                if (row.isDisconnected || list.inUse === "") {
                     return false
                 }
                 if (modelData.name === "") {
@@ -81,23 +107,36 @@ ColumnLayout {
                 return true
             }
             readonly property bool isTemporaryStandIn: {
-                if (!list.usingTemporary || list.inUse === "") {
+                if (row.isDisconnected || !list.usingTemporary || list.inUse === "") {
                     return false
                 }
-                if (modelData.name !== "") {
-                    return modelData.name === list.inUse
+                if (modelData.name === "") {
+                    // System default owns the pill only when that radio is selected.
+                    return list.selected === ""
+                           && list.defaultRow
+                           && list.defaultRow.name === list.inUse
                 }
-                // System-default row: stand-in when in-use matches the default node.
-                return list.defaultRow && list.defaultRow.name === list.inUse
+                if (modelData.name !== list.inUse) {
+                    return false
+                }
+                if (list.selected === "" && list.defaultRow
+                        && list.defaultRow.name === list.inUse) {
+                    return false
+                }
+                return true
             }
             readonly property bool availableFallbackOff: list.isInput && list.savedMissing
                                                          && !list.allowFallback
                                                          && modelData.name !== ""
                                                          && modelData.name !== list.selected
+                                                         && !row.isDisconnected
             readonly property string toneTarget: modelData.name !== "" ? modelData.name
                                                   : (list.defaultRow ? list.defaultRow.name : "")
-            // Fallback pills first; plain "In use" when routed here and not temporary.
+            // Disconnected / fallback pills first; plain "In use" when routed here.
             readonly property string statusText: {
+                if (row.isDisconnected) {
+                    return i18nc("@info chosen device unplugged", "Disconnected")
+                }
                 if (row.isTemporaryStandIn) {
                     return i18nc("@info device is temporary fallback", "In use until yours returns")
                 }
@@ -111,6 +150,7 @@ ColumnLayout {
             }
             readonly property bool isPlainInUse: row.isInUse && !row.isTemporaryStandIn
                                                  && !row.availableFallbackOff
+                                                 && !row.isDisconnected
 
             Layout.fillWidth: true
             focusPolicy: Qt.StrongFocus
@@ -160,14 +200,16 @@ ColumnLayout {
                             Layout.fillWidth: true
                             font.weight: row.chosen ? Font.DemiBold : Font.Normal
                         }
-                        // In-use / temporary / fallback-off pill (replaces the old star).
+                        // In-use / disconnected / temporary / fallback-off pill.
                         Rectangle {
                             id: statusPill
                             visible: row.statusText.length > 0
                             radius: height / 2
-                            color: row.isTemporaryStandIn
-                                   ? Qt.alpha(Kirigami.Theme.neutralTextColor, 0.2)
-                                   : Qt.alpha(Kirigami.Theme.textColor, 0.08)
+                            color: row.isDisconnected
+                                   ? Qt.alpha(Kirigami.Theme.negativeTextColor, 0.2)
+                                   : row.isTemporaryStandIn
+                                     ? Qt.alpha(Kirigami.Theme.neutralTextColor, 0.2)
+                                     : Qt.alpha(Kirigami.Theme.textColor, 0.08)
                             implicitWidth: statusLabel.implicitWidth + Kirigami.Units.smallSpacing * 2
                             implicitHeight: statusLabel.implicitHeight + Kirigami.Units.smallSpacing
                             Accessible.name: row.isPlainInUse
@@ -179,8 +221,10 @@ ColumnLayout {
                                 anchors.centerIn: parent
                                 text: row.statusText
                                 font: Kirigami.Theme.smallFont
-                                color: row.isTemporaryStandIn ? Kirigami.Theme.neutralTextColor
-                                                              : Kirigami.Theme.textColor
+                                color: row.isDisconnected ? Kirigami.Theme.negativeTextColor
+                                                          : row.isTemporaryStandIn
+                                                            ? Kirigami.Theme.neutralTextColor
+                                                            : Kirigami.Theme.textColor
                                 opacity: 0.9
                             }
                             HoverHandler {
@@ -212,7 +256,7 @@ ColumnLayout {
                         opacity: 0.7
                     }
                     PeakMeter {
-                        visible: list.isInput && row.modelData.name !== ""
+                        visible: list.isInput && row.modelData.name !== "" && !row.isDisconnected
                         orientation: Qt.Horizontal
                         Layout.fillWidth: true
                         Layout.topMargin: Kirigami.Units.smallSpacing
@@ -222,7 +266,7 @@ ColumnLayout {
                 }
 
                 QQC2.Button {
-                    visible: !list.isInput && row.toneTarget !== ""
+                    visible: !list.isInput && row.toneTarget !== "" && !row.isDisconnected
                     icon.name: Devices.toneTarget === row.toneTarget ? "media-playback-playing" : "media-playback-start"
                     text: i18nc("@action:button", "Test")
                     display: QQC2.AbstractButton.TextBesideIcon
