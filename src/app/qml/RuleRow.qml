@@ -55,6 +55,7 @@ QQC2.Control {
             }
             ColumnLayout {
                 Layout.fillWidth: true
+                Layout.minimumWidth: Kirigami.Units.gridUnit * 6
                 spacing: 0
                 QQC2.Label {
                     text: i18nc("@info rule: app → bus", "%1 → %2", row.rule.label || row.rule.match, row.rule.busName)
@@ -71,7 +72,7 @@ QQC2.Control {
                     }
                     font: Kirigami.Theme.smallFont
                     opacity: 0.7
-                    elide: Text.ElideRight
+                    wrapMode: Text.WordWrap
                     Layout.fillWidth: true
                 }
             }

@@ -47,6 +47,10 @@ QQC2.Pane {
     onWantMetersChanged: Apps.metersActive = wantMeters
     onVisibleChanged: if (!visible) App.appsFilter = ""
 
+    // Two columns only when Playing can keep row minimums (name ≥8gu, meter ≥5gu, controls)
+    // beside Saved rules capped at ~18gu. Otherwise stack (Penpot narrow ~960).
+    readonly property bool wide: page.width > Kirigami.Units.gridUnit * 52
+
     ColumnLayout {
         anchors.fill: parent
         spacing: Kirigami.Units.largeSpacing
@@ -57,7 +61,7 @@ QQC2.Pane {
             Kirigami.SearchField {
                 id: search
                 Layout.fillWidth: true
-                Layout.maximumWidth: Kirigami.Units.gridUnit * 20
+                Layout.maximumWidth: page.wide ? Kirigami.Units.gridUnit * 20 : Kirigami.Units.gridUnit * 14
                 placeholderText: i18nc("@info:placeholder", "Search apps and rules…")
             }
             QQC2.Button {
@@ -99,14 +103,15 @@ QQC2.Pane {
         GridLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            columns: page.width > Kirigami.Units.gridUnit * 44 ? 2 : 1
+            columns: page.wide ? 2 : 1
             columnSpacing: Kirigami.Units.largeSpacing * 2
-            rowSpacing: Kirigami.Units.largeSpacing
+            rowSpacing: Kirigami.Units.largeSpacing * 2
 
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.preferredWidth: 3
+                Layout.preferredWidth: page.wide ? 1 : 1
+                Layout.minimumWidth: page.wide ? Kirigami.Units.gridUnit * 28 : Kirigami.Units.gridUnit * 12
                 spacing: Kirigami.Units.smallSpacing
                 Kirigami.Heading {
                     level: 2
@@ -116,6 +121,8 @@ QQC2.Pane {
                     id: playingApps
                     Layout.fillWidth: true
                     Layout.fillHeight: true
+                    Layout.minimumHeight: page.wide ? Kirigami.Units.gridUnit * 8
+                                                    : Kirigami.Units.gridUnit * 12
                     sourceModel: Apps.runningModel
                     query: page.query
                     busFilter: page.busFilter
@@ -131,9 +138,11 @@ QQC2.Pane {
             }
 
             ColumnLayout {
-                Layout.fillWidth: true
+                Layout.fillWidth: !page.wide
                 Layout.fillHeight: true
-                Layout.preferredWidth: 2
+                Layout.preferredWidth: page.wide ? Kirigami.Units.gridUnit * 18 : 1
+                Layout.maximumWidth: page.wide ? Kirigami.Units.gridUnit * 18 : -1
+                Layout.minimumWidth: page.wide ? Kirigami.Units.gridUnit * 14 : Kirigami.Units.gridUnit * 10
                 spacing: Kirigami.Units.smallSpacing
                 Kirigami.Heading {
                     level: 2
@@ -150,6 +159,8 @@ QQC2.Pane {
                 QQC2.ScrollView {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
+                    Layout.minimumHeight: page.wide ? Kirigami.Units.gridUnit * 8
+                                                    : Kirigami.Units.gridUnit * 10
                     ListView {
                         id: rulesList
                         model: rulesShown

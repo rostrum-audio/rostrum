@@ -63,17 +63,21 @@ QQC2.ScrollView {
         spacing: Kirigami.Units.smallSpacing
         clip: true
         delegate: view.appDelegate
-        header: QQC2.Label {
+        header: Item {
             width: playing.width
-            height: playing.count === 0 ? implicitHeight + Kirigami.Units.largeSpacing * 2 : 0
+            height: visible ? placeholder.implicitHeight + Kirigami.Units.largeSpacing * 4 : 0
             visible: playing.count === 0
-            wrapMode: Text.WordWrap
-            text: view.normalizedQuery !== "" || view.busFilter !== ""
-                ? i18nc("@info", "No playing apps match")
-                : view.toolsCount > 0
-                    ? i18nc("@info", "No other apps are playing")
-                    : i18nc("@info", "No apps are playing. Launch Discord or a game to see it here.")
-            Accessible.name: text
+            Kirigami.PlaceholderMessage {
+                id: placeholder
+                anchors.centerIn: parent
+                width: parent.width - Kirigami.Units.gridUnit * 2
+                icon.name: view.normalizedQuery !== "" || view.busFilter !== "" ? "edit-find" : "applications-multimedia"
+                text: view.normalizedQuery !== "" || view.busFilter !== ""
+                    ? i18nc("@info", "No playing apps match")
+                    : view.toolsCount > 0
+                        ? i18nc("@info", "No other apps are playing")
+                        : i18nc("@info", "No apps are playing. Launch Discord or a game to see it here.")
+            }
         }
         footer: ColumnLayout {
             width: playing.width
