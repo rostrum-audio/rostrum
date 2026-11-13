@@ -35,17 +35,19 @@ QQC2.ScrollView {
             ]
         }
 
+        // Headphones | Mic side by side; stack when the page is narrow (Penpot ~960).
         GridLayout {
             Layout.fillWidth: true
             Layout.margins: Kirigami.Units.largeSpacing
             columns: page.availableWidth > Kirigami.Units.gridUnit * 40 ? 2 : 1
             columnSpacing: Kirigami.Units.largeSpacing * 2
-            rowSpacing: Kirigami.Units.largeSpacing
+            rowSpacing: Kirigami.Units.largeSpacing * 2
 
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 Layout.alignment: Qt.AlignTop
+                spacing: Kirigami.Units.smallSpacing
                 Kirigami.Heading {
                     level: 2
                     text: i18nc("@title", "Headphones")
@@ -58,10 +60,12 @@ QQC2.ScrollView {
                 }
                 DeviceList {
                     Layout.fillWidth: true
+                    Layout.topMargin: Kirigami.Units.smallSpacing
                     groupName: i18nc("@title", "Headphones")
                     devices: Devices.outputs
                     selected: Devices.headphones
                     inUse: Devices.headphonesInUse
+                    savedMissing: App.headphonesMissing
                     onPicked: name => Devices.headphones = name
                 }
                 QQC2.Switch {
@@ -86,6 +90,7 @@ QQC2.ScrollView {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 Layout.alignment: Qt.AlignTop
+                spacing: Kirigami.Units.smallSpacing
                 Kirigami.Heading {
                     level: 2
                     text: i18nc("@title", "Mic")
@@ -98,12 +103,15 @@ QQC2.ScrollView {
                 }
                 DeviceList {
                     Layout.fillWidth: true
+                    Layout.topMargin: Kirigami.Units.smallSpacing
                     groupName: i18nc("@title", "Mic")
                     isInput: true
                     devices: Devices.inputs
                     selected: Devices.mic
                     inUse: Devices.micInUse
                     levels: Devices.inputLevels
+                    savedMissing: App.micMissing
+                    allowFallback: Devices.micFallback
                     onPicked: name => Devices.mic = name
                 }
                 QQC2.Switch {

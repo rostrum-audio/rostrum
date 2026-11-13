@@ -6,6 +6,9 @@ import Rostrum
 
 // Radio list of outputs or inputs, shared by the Devices page and the wizard. The first row
 // follows the system default. Outputs get a test tone button, inputs a live meter.
+// Rows are selectable cards (Penpot). A device that is in use only as temporary fallback is
+// marked; a chosen device that is unplugged needs a missing-device label from the engine (not
+// yet exposed here — see Step 3b notes).
 ColumnLayout {
     id: list
 
@@ -15,12 +18,28 @@ ColumnLayout {
     property string inUse      // node actually used after fallback
     property var levels: ({})
     property string groupName
+    // True when the saved device is unplugged (App.headphonesMissing / App.micMissing).
+    property bool savedMissing: false
+    // Mic list only: Devices.micFallback. When false and saved is missing, other mics are
+    // available but not standing in.
+    property bool allowFallback: true
 
     signal picked(string name)
 
     readonly property var defaultRow: devices.find(d => d.isDefault)
+    readonly property bool usingTemporary: {
+        if (!list.savedMissing || list.inUse === "") {
+            return false
+        }
+        // Saved explicit device: temporary when a different node is actually routed.
+        if (list.selected !== "") {
+            return list.inUse !== list.selected
+        }
+        // System default selected: temporary when in-use is not the current default node.
+        return !list.defaultRow || list.inUse !== list.defaultRow.name
+    }
 
-    spacing: 0
+    spacing: Kirigami.Units.smallSpacing
     Accessible.role: Accessible.List
     Accessible.name: groupName
 
@@ -40,12 +59,73 @@ ColumnLayout {
             required property var modelData
             required property int index
             readonly property bool chosen: list.selected === modelData.name
-            readonly property bool active: modelData.name !== "" && modelData.name === list.inUse
+            // True when this row is what Rostrum is actually routed to. System default owns
+            // the pill when that radio is selected; otherwise the named node does.
+            readonly property bool isInUse: {
+                if (list.inUse === "") {
+                    return false
+                }
+                if (modelData.name === "") {
+                    return list.selected === ""
+                           && list.defaultRow
+                           && list.defaultRow.name === list.inUse
+                }
+                if (modelData.name !== list.inUse) {
+                    return false
+                }
+                // Named default node: hide when System default radio owns the indicator.
+                if (list.selected === "" && list.defaultRow
+                        && list.defaultRow.name === list.inUse) {
+                    return false
+                }
+                return true
+            }
+            readonly property bool isTemporaryStandIn: {
+                if (!list.usingTemporary || list.inUse === "") {
+                    return false
+                }
+                if (modelData.name !== "") {
+                    return modelData.name === list.inUse
+                }
+                // System-default row: stand-in when in-use matches the default node.
+                return list.defaultRow && list.defaultRow.name === list.inUse
+            }
+            readonly property bool availableFallbackOff: list.isInput && list.savedMissing
+                                                         && !list.allowFallback
+                                                         && modelData.name !== ""
+                                                         && modelData.name !== list.selected
             readonly property string toneTarget: modelData.name !== "" ? modelData.name
                                                   : (list.defaultRow ? list.defaultRow.name : "")
+            // Fallback pills first; plain "In use" when routed here and not temporary.
+            readonly property string statusText: {
+                if (row.isTemporaryStandIn) {
+                    return i18nc("@info device is temporary fallback", "In use until yours returns")
+                }
+                if (row.availableFallbackOff) {
+                    return i18nc("@info other mic while fallback off", "Available (fallback off)")
+                }
+                if (row.isInUse) {
+                    return i18nc("@info device Rostrum is using", "In use")
+                }
+                return ""
+            }
+            readonly property bool isPlainInUse: row.isInUse && !row.isTemporaryStandIn
+                                                 && !row.availableFallbackOff
 
             Layout.fillWidth: true
             focusPolicy: Qt.StrongFocus
+            // Card chrome (Penpot device tiles).
+            background: Rectangle {
+                radius: Kirigami.Units.cornerRadius
+                color: row.highlighted || row.chosen
+                       ? Qt.alpha(Kirigami.Theme.highlightColor, row.highlighted ? 1 : 0.12)
+                       : Kirigami.Theme.backgroundColor
+                border.width: 1
+                border.color: row.chosen || row.highlighted
+                              ? Kirigami.Theme.highlightColor
+                              : Qt.alpha(Kirigami.Theme.textColor, 0.15)
+            }
+            highlighted: false
             onClicked: list.picked(modelData.name)
             Keys.onSpacePressed: list.picked(modelData.name)
 
@@ -53,7 +133,10 @@ ColumnLayout {
             Accessible.checkable: true
             Accessible.checked: chosen
             Accessible.name: modelData.description
-            Accessible.description: modelData.subtitle
+            Accessible.description: {
+                const parts = [modelData.subtitle, row.statusText].filter(s => s)
+                return parts.join(", ")
+            }
 
             contentItem: RowLayout {
                 spacing: Kirigami.Units.largeSpacing
@@ -77,18 +160,38 @@ ColumnLayout {
                             Layout.fillWidth: true
                             font.weight: row.chosen ? Font.DemiBold : Font.Normal
                         }
-                        Kirigami.Icon {
-                            visible: row.active
-                            source: "rating"
-                            implicitWidth: Kirigami.Units.iconSizes.small
-                            implicitHeight: implicitWidth
-                            Accessible.name: list.isInput ? i18nc("@info", "Rostrum mic") : i18nc("@info", "Rostrum headphones")
-                            QQC2.ToolTip.visible: starHover.hovered
-                            QQC2.ToolTip.text: list.isInput ? i18nc("@info:tooltip", "Rostrum uses this mic")
-                                                            : i18nc("@info:tooltip", "Rostrum plays your headphone mix here")
-                            HoverHandler {
-                                id: starHover
+                        // In-use / temporary / fallback-off pill (replaces the old star).
+                        Rectangle {
+                            id: statusPill
+                            visible: row.statusText.length > 0
+                            radius: height / 2
+                            color: row.isTemporaryStandIn
+                                   ? Qt.alpha(Kirigami.Theme.neutralTextColor, 0.2)
+                                   : Qt.alpha(Kirigami.Theme.textColor, 0.08)
+                            implicitWidth: statusLabel.implicitWidth + Kirigami.Units.smallSpacing * 2
+                            implicitHeight: statusLabel.implicitHeight + Kirigami.Units.smallSpacing
+                            Accessible.name: row.isPlainInUse
+                                             ? (list.isInput ? i18nc("@info", "Rostrum mic")
+                                                             : i18nc("@info", "Rostrum headphones"))
+                                             : ""
+                            QQC2.Label {
+                                id: statusLabel
+                                anchors.centerIn: parent
+                                text: row.statusText
+                                font: Kirigami.Theme.smallFont
+                                color: row.isTemporaryStandIn ? Kirigami.Theme.neutralTextColor
+                                                              : Kirigami.Theme.textColor
+                                opacity: 0.9
                             }
+                            HoverHandler {
+                                id: inUseHover
+                                enabled: row.isPlainInUse
+                            }
+                            QQC2.ToolTip.visible: inUseHover.hovered
+                            QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                            QQC2.ToolTip.text: list.isInput
+                                               ? i18nc("@info:tooltip", "Rostrum uses this mic")
+                                               : i18nc("@info:tooltip", "Rostrum plays your headphone mix here")
                         }
                     }
                     QQC2.Label {
