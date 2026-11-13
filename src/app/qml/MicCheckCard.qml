@@ -10,6 +10,9 @@ import Rostrum
 ColumnLayout {
     id: card
 
+    // When true, stretch to the parent column instead of FormCard's narrow centered max width.
+    property bool fullWidth: false
+
     readonly property bool busy: MicCheck.phase !== "idle"
     readonly property string peakText: MicCheck.peakDb > -100
                                        ? i18nc("@info level in decibels full scale", "%1 dBFS", MicCheck.peakDb.toFixed(1))
@@ -19,9 +22,16 @@ ColumnLayout {
     spacing: 0
 
     FormCard.FormHeader {
+        id: checkHeader
         title: i18nc("@title:group", "Check Your Mic")
+        Layout.fillWidth: true
+        maximumWidth: card.fullWidth ? Number.POSITIVE_INFINITY : Kirigami.Units.gridUnit * 30
     }
     FormCard.FormCard {
+        id: checkBody
+        Layout.fillWidth: true
+        maximumWidth: card.fullWidth ? Number.POSITIVE_INFINITY : Kirigami.Units.gridUnit * 30
+
         FormCard.AbstractFormDelegate {
             id: checkRow
             Layout.fillWidth: true
