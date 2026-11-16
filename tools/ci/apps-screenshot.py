@@ -132,7 +132,7 @@ def write_kdeglobals(config_home: Path, theme: str) -> Path:
     return out
 
 
-def write_settings(config_home: Path, width: int, height: int, page: str) -> Path:
+def write_settings(config_home: Path, width: int, height: int, page: str, compact: bool = False) -> Path:
     rostrum = config_home / "rostrum"
     rostrum.mkdir(parents=True, exist_ok=True)
     settings = rostrum / "settings.toml"
@@ -155,6 +155,9 @@ crash_reports = "never"
 width = {width}
 height = {height}
 page = "{page}"
+compact = {"true" if compact else "false"}
+compact_width = {width}
+compact_height = {height}
 ''')
     return settings
 
@@ -200,7 +203,7 @@ def print_isolation(env: dict, root: Path) -> None:
 
 
 def capture(application: Path, output: Path, width: int, height: int, theme: str, page: str,
-            with_tones: bool, obs: str = "none", settings_tab: str = "") -> None:
+            with_tones: bool, obs: str = "none", settings_tab: str = "", compact: bool = False) -> None:
     application = application.resolve(strict=True)
     output = report_dir(output)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -215,7 +218,7 @@ def capture(application: Path, output: Path, width: int, height: int, theme: str
         session.device("test.saved-mic", source=True)
 
         config_home = Path(session.env["XDG_CONFIG_HOME"])
-        write_settings(config_home, width, height, page)
+        write_settings(config_home, width, height, page, compact)
         if page == "scenes":
             seed_scenes(config_home)
         if obs != "none":
@@ -299,6 +302,8 @@ def main() -> int:
                              "collection Rostrum can read, unreadable = settings without one")
     parser.add_argument("--settings-tab", choices=SETTINGS_TABS, default="",
                         help="With --page settings: the tab to open before the shot")
+    parser.add_argument("--compact", action="store_true",
+                        help="Shoot the compact window at --width x --height")
     args = parser.parse_args()
     with_tones = args.tones == "always" or (args.tones == "auto" and args.page == "apps")
 
@@ -313,7 +318,7 @@ def main() -> int:
     code = 1
     try:
         capture(args.application, args.output, args.width, args.height, args.theme, args.page,
-                with_tones, args.obs, args.settings_tab)
+                with_tones, args.obs, args.settings_tab, args.compact)
         code = 0
     except KeyboardInterrupt as error:
         safety.report(str(error))
