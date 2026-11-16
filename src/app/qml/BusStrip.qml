@@ -4,7 +4,7 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import Rostrum
 
-// One bus: color band and name, meter and fader, M/S, destination, app chips. The mic strip
+// One bus: color dot and name, meter and fader, M/S, destination, app chips. The mic strip
 // shows gain instead, takes no app drops and hides sidetone behind an expander.
 QQC2.Control {
     id: strip
@@ -31,7 +31,6 @@ QQC2.Control {
     property bool expanded: false
     readonly property bool dropHover: dropArea.containsDrag
     readonly property int maxChips: 3
-    readonly property real bandHeight: Math.round(Kirigami.Units.smallSpacing * 0.75)
     readonly property var autoLabels: ({
         game: i18nc("@info bus receives automatically", "Auto: games"),
         voice: i18nc("@info bus receives automatically", "Auto: voice chat"),
@@ -54,7 +53,7 @@ QQC2.Control {
     implicitWidth: Kirigami.Units.gridUnit * 8
     leftPadding: Kirigami.Units.smallSpacing * 2
     rightPadding: Kirigami.Units.smallSpacing * 2
-    topPadding: Kirigami.Units.smallSpacing * 2 + bandHeight
+    topPadding: Kirigami.Units.smallSpacing * 2
     bottomPadding: Kirigami.Units.smallSpacing * 2
 
     Kirigami.Theme.colorSet: Kirigami.Theme.View
@@ -66,17 +65,6 @@ QQC2.Control {
                              : Kirigami.Theme.backgroundColor
         border.width: strip.dropHover ? 2 : 1
         border.color: strip.dropHover ? Kirigami.Theme.highlightColor : Qt.alpha(Kirigami.Theme.textColor, 0.12)
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.margins: 1
-            height: strip.bandHeight
-            topLeftRadius: Kirigami.Units.cornerRadius * 1.5 - 1
-            topRightRadius: Kirigami.Units.cornerRadius * 1.5 - 1
-            color: strip.busColor
-        }
     }
 
     contentItem: ColumnLayout {
@@ -86,6 +74,13 @@ QQC2.Control {
         RowLayout {
             Layout.fillWidth: true
             spacing: Kirigami.Units.smallSpacing
+            // The bus color lives here only; meters use the theme's level colors.
+            Rectangle {
+                implicitWidth: Math.round(Kirigami.Units.iconSizes.small * 0.6)
+                implicitHeight: implicitWidth
+                radius: width / 2
+                color: strip.busColor
+            }
             Kirigami.Icon {
                 visible: strip.isInput
                 source: "audio-input-microphone"
@@ -170,7 +165,6 @@ QQC2.Control {
                 Layout.bottomMargin: fader.bottomPadding + fader.capHeight / 2
                 value: strip.peak
                 clip: strip.clip
-                color: strip.busColor
                 accessibleName: i18nc("@label accessible", "%1 level", strip.name)
             }
             Fader {

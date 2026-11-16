@@ -1,8 +1,8 @@
 import QtQuick
 import org.kde.kirigami as Kirigami
 
-// Peak meter. The bus color runs to −12 dB, amber to −6 dB, red above. A clip mark holds for
-// 1.5 s (timed by the Mixer). The level is also spoken, at most twice a second.
+// Peak meter. The theme's positive color runs to −12 dB, amber to −6 dB, red above. A clip mark
+// holds for 1.5 s (timed by the Mixer). The level is also spoken, at most twice a second.
 Item {
     id: meter
 
