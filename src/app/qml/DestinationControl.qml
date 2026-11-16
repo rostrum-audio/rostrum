@@ -11,6 +11,8 @@ ColumnLayout {
 
     property int current: 2
     property string busName
+    // Off where there is no room for the caption; tooltips and accessible names still name the choice.
+    property bool showCaption: true
 
     signal picked(int index)
 
@@ -103,6 +105,7 @@ ColumnLayout {
 
     QQC2.Label {
         Layout.fillWidth: true
+        visible: control.showCaption
         text: control.captions[control.current] ?? ""
         font: Kirigami.Theme.smallFont
         opacity: 0.65

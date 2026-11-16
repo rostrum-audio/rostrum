@@ -5,7 +5,8 @@ import org.kde.kirigami as Kirigami
 import Rostrum
 
 // The compact window: mic, scene, both masters and a slim row per bus, for keeping beside a game
-// or OBS. Everything else is one click away in the full window.
+// or OBS. Each row has its name and state, a fader over its meter, the level, mute and, for a
+// bus, where it goes. Everything else is one click away in the full window.
 QQC2.Pane {
     id: compact
 
@@ -13,6 +14,21 @@ QQC2.Pane {
 
     padding: Kirigami.Units.smallSpacing * 1.5
     Kirigami.Theme.colorSet: Kirigami.Theme.Window
+
+    // Column widths shared by the header and every row.
+    readonly property real nameWidth: Kirigami.Units.gridUnit * 6.5
+    readonly property real levelWidth: Kirigami.Units.gridUnit * 3
+    readonly property real routingWidth: Kirigami.Units.gridUnit * 6
+    // Routing gives way first when the window is at its narrowest.
+    readonly property bool showRouting: width >= Kirigami.Units.gridUnit * 26
+
+    // Meters only run while something shows them.
+    Binding {
+        target: Mixer
+        property: "metersActive"
+        when: compact.visible
+        value: App.mixReady && compact.Window.window !== null && compact.Window.window.visible
+    }
 
     component SlimRow: RowLayout {
         id: slimRow
@@ -24,58 +40,112 @@ QQC2.Pane {
         property real maximum: 1
         property bool muted: false
         property bool dimmed: false
+        property bool soloed: false
+        property real peak: 0
+        property bool clip: false
+        // -1 for a master, which has no destination.
+        property int destination: -1
 
         signal edited(real value)
         signal muteToggled()
+        signal destinationPicked(int index)
+
+        readonly property string stateText: muted ? i18nc("@info:status", "Muted")
+                                          : dimmed ? i18nc("@info:status", "Dimmed by solo")
+                                          : soloed ? i18nc("@info:status", "Solo")
+                                          : ""
 
         spacing: Kirigami.Units.smallSpacing
-        opacity: slimRow.dimmed ? 0.5 : 1
 
-        Item {
-            implicitWidth: Kirigami.Units.iconSizes.small
-            implicitHeight: implicitWidth
-            Kirigami.Icon {
-                anchors.fill: parent
-                visible: slimRow.iconName.length > 0
-                source: slimRow.iconName
-                isMask: true
-                color: Kirigami.Theme.textColor
+        RowLayout {
+            Layout.preferredWidth: compact.nameWidth
+            Layout.maximumWidth: compact.nameWidth
+            spacing: Kirigami.Units.smallSpacing
+            opacity: slimRow.dimmed ? 0.5 : 1
+            Item {
+                implicitWidth: Kirigami.Units.iconSizes.small
+                implicitHeight: implicitWidth
+                Kirigami.Icon {
+                    anchors.fill: parent
+                    visible: slimRow.iconName.length > 0
+                    source: slimRow.iconName
+                    isMask: true
+                    color: Kirigami.Theme.textColor
+                }
+                Rectangle {
+                    anchors.centerIn: parent
+                    visible: slimRow.iconName.length === 0
+                    width: parent.width * 0.6
+                    height: width
+                    radius: width / 2
+                    color: slimRow.swatch
+                }
             }
-            Rectangle {
-                anchors.centerIn: parent
-                visible: slimRow.iconName.length === 0
-                width: parent.width * 0.6
-                height: width
-                radius: width / 2
-                color: slimRow.swatch
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 0
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    text: slimRow.label
+                    elide: Text.ElideRight
+                }
+                // The state in words, so mute, solo and dimming never rest on colour or opacity alone.
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    visible: text.length > 0
+                    text: slimRow.stateText
+                    font: Kirigami.Theme.smallFont
+                    elide: Text.ElideRight
+                    color: slimRow.muted ? Kirigami.Theme.negativeTextColor
+                         : slimRow.soloed ? Kirigami.Theme.neutralTextColor
+                         : Kirigami.Theme.textColor
+                }
+            }
+        }
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 0
+            opacity: slimRow.dimmed ? 0.5 : 1
+            PlainSlider {
+                id: slider
+                Layout.fillWidth: true
+                from: 0
+                to: slimRow.maximum
+                value: slimRow.value
+                wheelEnabled: Mixer.scrollToAdjust
+                opacity: slimRow.muted ? 0.45 : 1
+                focusPolicy: Qt.StrongFocus
+                Accessible.name: i18nc("@label accessible", "%1 volume", slimRow.label)
+                onMoved: slimRow.edited(value)
+                Keys.onPressed: event => {
+                    if (event.key === Qt.Key_M) {
+                        slimRow.muteToggled()
+                        event.accepted = true
+                    }
+                }
+                SliderReset {
+                    target: slider
+                    onTriggered: slimRow.edited(1.0)
+                }
+            }
+            PeakMeter {
+                Layout.fillWidth: true
+                Layout.leftMargin: Kirigami.Units.smallSpacing
+                Layout.rightMargin: Kirigami.Units.smallSpacing
+                orientation: Qt.Horizontal
+                value: slimRow.peak
+                clip: slimRow.clip
+                opacity: slimRow.muted ? 0.45 : 1
+                accessibleName: i18nc("@label accessible", "%1 level", slimRow.label)
             }
         }
         QQC2.Label {
-            text: slimRow.label
+            Layout.preferredWidth: compact.levelWidth
+            horizontalAlignment: Text.AlignRight
+            text: Mixer.formatDb(slimRow.value)
+            font.features: { "tnum": 1 }
+            opacity: slimRow.dimmed || slimRow.muted ? 0.5 : 0.8
             elide: Text.ElideRight
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 6
-        }
-        PlainSlider {
-            id: slider
-            Layout.fillWidth: true
-            from: 0
-            to: slimRow.maximum
-            value: slimRow.value
-            wheelEnabled: Mixer.scrollToAdjust
-            opacity: slimRow.muted ? 0.45 : 1
-            focusPolicy: Qt.StrongFocus
-            Accessible.name: i18nc("@label accessible", "%1 volume", slimRow.label)
-            onMoved: slimRow.edited(value)
-            Keys.onPressed: event => {
-                if (event.key === Qt.Key_M) {
-                    slimRow.muteToggled()
-                    event.accepted = true
-                }
-            }
-            SliderReset {
-                target: slider
-                onTriggered: slimRow.edited(1.0)
-            }
         }
         QQC2.ToolButton {
             icon.name: slimRow.muted ? "audio-volume-muted" : "audio-volume-high"
@@ -93,6 +163,29 @@ QQC2.Pane {
                 slimRow.muteToggled()
             }
         }
+        Item {
+            visible: compact.showRouting
+            Layout.preferredWidth: compact.routingWidth
+            implicitHeight: routing.implicitHeight
+            DestinationControl {
+                id: routing
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                visible: slimRow.destination >= 0
+                showCaption: false
+                current: slimRow.destination
+                busName: slimRow.label
+                opacity: slimRow.dimmed ? 0.5 : 1
+                onPicked: index => slimRow.destinationPicked(index)
+            }
+        }
+    }
+
+    component ColumnTitle: QQC2.Label {
+        font: Kirigami.Theme.smallFont
+        opacity: 0.7
+        elide: Text.ElideRight
     }
 
     contentItem: ColumnLayout {
@@ -124,14 +217,11 @@ QQC2.Pane {
                 QQC2.ToolTip.visible: hovered
                 QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
             }
-            QQC2.ToolButton {
+            QQC2.Button {
                 icon.name: "window-restore-pip"
                 text: i18nc("@action:button", "Full View")
-                display: QQC2.AbstractButton.IconOnly
+                highlighted: true
                 onClicked: compact.fullViewRequested("")
-                QQC2.ToolTip.text: text
-                QQC2.ToolTip.visible: hovered
-                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
             }
         }
 
@@ -166,7 +256,28 @@ QQC2.Pane {
 
             ColumnLayout {
                 width: scroll.availableWidth
-                spacing: 0
+                spacing: Kirigami.Units.smallSpacing
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Kirigami.Units.smallSpacing
+                    ColumnTitle {
+                        Layout.preferredWidth: compact.nameWidth
+                        text: i18nc("@title:column compact view", "Name")
+                    }
+                    ColumnTitle {
+                        Layout.fillWidth: true
+                        text: i18nc("@title:column compact view", "Level")
+                    }
+                    ColumnTitle {
+                        text: i18nc("@title:column compact view", "Mute")
+                    }
+                    ColumnTitle {
+                        visible: compact.showRouting
+                        Layout.preferredWidth: compact.routingWidth
+                        text: i18nc("@title:column compact view", "Routing")
+                    }
+                }
 
                 SlimRow {
                     Layout.fillWidth: true
@@ -174,6 +285,8 @@ QQC2.Pane {
                     iconName: "audio-headphones"
                     value: Mixer.masterPhones
                     muted: Mixer.masterPhonesMuted
+                    peak: Mixer.phonesPeak
+                    clip: Mixer.phonesClip
                     onEdited: v => Mixer.masterPhones = v
                     onMuteToggled: Mixer.masterPhonesMuted = !Mixer.masterPhonesMuted
                 }
@@ -183,13 +296,13 @@ QQC2.Pane {
                     iconName: "media-record"
                     value: Mixer.masterStream
                     muted: Mixer.masterStreamMuted
+                    peak: Mixer.streamPeak
+                    clip: Mixer.streamClip
                     onEdited: v => Mixer.masterStream = v
                     onMuteToggled: Mixer.masterStreamMuted = !Mixer.masterStreamMuted
                 }
                 Kirigami.Separator {
                     Layout.fillWidth: true
-                    Layout.topMargin: Kirigami.Units.smallSpacing
-                    Layout.bottomMargin: Kirigami.Units.smallSpacing
                 }
                 Repeater {
                     model: Mixer.buses
@@ -202,6 +315,11 @@ QQC2.Pane {
                         maximum: model.isInput ? 1.5 : 1.0
                         muted: model.muted
                         dimmed: model.dimmed
+                        soloed: model.soloed
+                        peak: model.peak
+                        clip: model.clip
+                        destination: model.destination
+                        onDestinationPicked: index => Mixer.setDestination(model.busId, index)
                         onEdited: v => Mixer.setVolume(model.busId, v)
                         onMuteToggled: Mixer.toggleMuted(model.busId)
                     }
