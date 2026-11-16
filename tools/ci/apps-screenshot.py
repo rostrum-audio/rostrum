@@ -34,6 +34,7 @@ SCHEMES = {
 }
 
 SETTINGS_TABS = ("general", "audio", "hotkeys", "integrations", "application")
+WIZARD_STEPS = ("welcome", "headphones", "mic", "apps", "startup", "privacy", "obs", "ready")
 PAGES = ("mixer", "apps", "scenes", "devices", "filters", "obs", "settings")
 
 # Realistic media-player names so Apps-row truncation is visible.
@@ -132,13 +133,14 @@ def write_kdeglobals(config_home: Path, theme: str) -> Path:
     return out
 
 
-def write_settings(config_home: Path, width: int, height: int, page: str, compact: bool = False) -> Path:
+def write_settings(config_home: Path, width: int, height: int, page: str, compact: bool = False,
+                   wizard: bool = False) -> Path:
     rostrum = config_home / "rostrum"
     rostrum.mkdir(parents=True, exist_ok=True)
     settings = rostrum / "settings.toml"
     settings.write_text(f'''format = 1
 [general]
-wizard_done = true
+wizard_done = {"false" if wizard else "true"}
 setup_version = 3
 auto_save_scenes = false
 scene_fade_ms = 0
@@ -203,7 +205,8 @@ def print_isolation(env: dict, root: Path) -> None:
 
 
 def capture(application: Path, output: Path, width: int, height: int, theme: str, page: str,
-            with_tones: bool, obs: str = "none", settings_tab: str = "", compact: bool = False) -> None:
+            with_tones: bool, obs: str = "none", settings_tab: str = "", compact: bool = False,
+            wizard: str = "") -> None:
     application = application.resolve(strict=True)
     output = report_dir(output)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -218,7 +221,7 @@ def capture(application: Path, output: Path, width: int, height: int, theme: str
         session.device("test.saved-mic", source=True)
 
         config_home = Path(session.env["XDG_CONFIG_HOME"])
-        write_settings(config_home, width, height, page, compact)
+        write_settings(config_home, width, height, page, compact, bool(wizard))
         if page == "scenes":
             seed_scenes(config_home)
         if obs != "none":
@@ -236,6 +239,8 @@ def capture(application: Path, output: Path, width: int, height: int, theme: str
         )
         if settings_tab:
             session.env["ROSTRUM_SCREENSHOT_SETTINGS_TAB"] = settings_tab
+        if wizard:
+            session.env["ROSTRUM_SCREENSHOT_WIZARD_STEP"] = wizard
         print_isolation(session.env, session.root)
         print(f"kdeglobals={kde}", flush=True)
         print(f"theme={theme} scheme={SCHEMES[theme]} page={page}", flush=True)
@@ -302,6 +307,8 @@ def main() -> int:
                              "collection Rostrum can read, unreadable = settings without one")
     parser.add_argument("--settings-tab", choices=SETTINGS_TABS, default="",
                         help="With --page settings: the tab to open before the shot")
+    parser.add_argument("--wizard", choices=WIZARD_STEPS, default="",
+                        help="Shoot the first-run wizard on this step instead of a page")
     parser.add_argument("--compact", action="store_true",
                         help="Shoot the compact window at --width x --height")
     args = parser.parse_args()
@@ -318,7 +325,7 @@ def main() -> int:
     code = 1
     try:
         capture(args.application, args.output, args.width, args.height, args.theme, args.page,
-                with_tones, args.obs, args.settings_tab, args.compact)
+                with_tones, args.obs, args.settings_tab, args.compact, args.wizard)
         code = 0
     except KeyboardInterrupt as error:
         safety.report(str(error))

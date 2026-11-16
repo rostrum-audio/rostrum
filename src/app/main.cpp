@@ -191,6 +191,18 @@ int main(int argc, char *argv[])
                 }
             });
         }
+        // ROSTRUM_SCREENSHOT_WIZARD_STEP=mic opens that first-run wizard step first. Screenshot runs only.
+        static const QStringList wizardSteps{QStringLiteral("welcome"), QStringLiteral("headphones"),
+                                             QStringLiteral("mic"),     QStringLiteral("apps"),
+                                             QStringLiteral("startup"), QStringLiteral("privacy"),
+                                             QStringLiteral("obs"),     QStringLiteral("ready")};
+        if (const int step = wizardSteps.indexOf(qEnvironmentVariable("ROSTRUM_SCREENSHOT_WIZARD_STEP")); step >= 0) {
+            QTimer::singleShot(1000, app.get(), [window, step] {
+                if (auto *wizard = window ? window->findChild<QObject *>(QStringLiteral("wizard")) : nullptr) {
+                    wizard->setProperty("step", step);
+                }
+            });
+        }
         QTimer::singleShot(3000, app.get(), [window, shot] {
             if (window && !window->grabWindow().save(shot)) {
                 qWarning("Could not write %s", qPrintable(shot));
