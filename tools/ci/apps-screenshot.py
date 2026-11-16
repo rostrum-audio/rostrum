@@ -165,6 +165,17 @@ def seed_scenes(config_home: Path) -> None:
         (scenes / name).write_text(body)
 
 
+def seed_obs(config_home: Path, kind: str) -> None:
+    """Fake OBS settings inside the private config home. Screenshot runs never look for a
+    running OBS, so this reaches only the "OBS is closed" states and no real OBS."""
+    obs = config_home / "obs-studio"
+    (obs / "basic" / "scenes").mkdir(parents=True, exist_ok=True)
+    (obs / "user.ini").write_text("[Basic]\nProfile=Test\nSceneCollectionFile=config\n")
+    if kind == "closed":
+        fixture = HERE / "tests/data/obs-collection.json"
+        (obs / "basic" / "scenes" / "config.json").write_bytes(fixture.read_bytes())
+
+
 def print_isolation(env: dict, root: Path) -> None:
     print("=== apps-screenshot isolation ===", flush=True)
     print(f"session_root={root}", flush=True)
@@ -188,7 +199,7 @@ def print_isolation(env: dict, root: Path) -> None:
 
 
 def capture(application: Path, output: Path, width: int, height: int, theme: str, page: str,
-            with_tones: bool) -> None:
+            with_tones: bool, obs: str = "none") -> None:
     application = application.resolve(strict=True)
     output = report_dir(output)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -206,6 +217,8 @@ def capture(application: Path, output: Path, width: int, height: int, theme: str
         write_settings(config_home, width, height, page)
         if page == "scenes":
             seed_scenes(config_home)
+        if obs != "none":
+            seed_obs(config_home, obs)
         kde = write_kdeglobals(config_home, theme)
         schemes = Path(session.env["XDG_DATA_HOME"]) / "color-schemes"
         schemes.mkdir(parents=True, exist_ok=True)
@@ -278,6 +291,9 @@ def main() -> int:
     parser.add_argument("--theme", choices=sorted(SCHEMES), required=True)
     parser.add_argument("--tones", choices=("auto", "always", "never"), default="auto",
                         help="Play named tone streams (auto: only for --page apps)")
+    parser.add_argument("--obs", choices=("none", "closed", "unreadable"), default="none",
+                        help="Seed fake OBS settings in the private session: closed = a scene "
+                             "collection Rostrum can read, unreadable = settings without one")
     args = parser.parse_args()
     with_tones = args.tones == "always" or (args.tones == "auto" and args.page == "apps")
 
@@ -292,7 +308,7 @@ def main() -> int:
     code = 1
     try:
         capture(args.application, args.output, args.width, args.height, args.theme, args.page,
-                with_tones)
+                with_tones, args.obs)
         code = 0
     except KeyboardInterrupt as error:
         safety.report(str(error))
