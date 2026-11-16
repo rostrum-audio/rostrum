@@ -203,6 +203,17 @@ int main(int argc, char *argv[])
                 }
             });
         }
+        // ROSTRUM_SCREENSHOT_OPEN=removeBusDialog opens the dialog with that objectName first. Screenshot
+        // runs only.
+        if (const QString name = qEnvironmentVariable("ROSTRUM_SCREENSHOT_OPEN"); !name.isEmpty()) {
+            QTimer::singleShot(1500, app.get(), [window, name] {
+                if (auto *dialog = window ? window->findChild<QObject *>(name) : nullptr) {
+                    QMetaObject::invokeMethod(dialog, "open");
+                } else {
+                    qWarning("No object named %s to open", qPrintable(name));
+                }
+            });
+        }
         QTimer::singleShot(3000, app.get(), [window, shot] {
             if (window && !window->grabWindow().save(shot)) {
                 qWarning("Could not write %s", qPrintable(shot));

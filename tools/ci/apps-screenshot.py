@@ -206,7 +206,7 @@ def print_isolation(env: dict, root: Path) -> None:
 
 def capture(application: Path, output: Path, width: int, height: int, theme: str, page: str,
             with_tones: bool, obs: str = "none", settings_tab: str = "", compact: bool = False,
-            wizard: str = "") -> None:
+            wizard: str = "", open_dialog: str = "") -> None:
     application = application.resolve(strict=True)
     output = report_dir(output)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -241,6 +241,8 @@ def capture(application: Path, output: Path, width: int, height: int, theme: str
             session.env["ROSTRUM_SCREENSHOT_SETTINGS_TAB"] = settings_tab
         if wizard:
             session.env["ROSTRUM_SCREENSHOT_WIZARD_STEP"] = wizard
+        if open_dialog:
+            session.env["ROSTRUM_SCREENSHOT_OPEN"] = open_dialog
         print_isolation(session.env, session.root)
         print(f"kdeglobals={kde}", flush=True)
         print(f"theme={theme} scheme={SCHEMES[theme]} page={page}", flush=True)
@@ -309,6 +311,8 @@ def main() -> int:
                         help="With --page settings: the tab to open before the shot")
     parser.add_argument("--wizard", choices=WIZARD_STEPS, default="",
                         help="Shoot the first-run wizard on this step instead of a page")
+    parser.add_argument("--open", default="", metavar="OBJECT_NAME",
+                        help="Open the dialog with this objectName on the page before the shot")
     parser.add_argument("--compact", action="store_true",
                         help="Shoot the compact window at --width x --height")
     args = parser.parse_args()
@@ -325,7 +329,7 @@ def main() -> int:
     code = 1
     try:
         capture(args.application, args.output, args.width, args.height, args.theme, args.page,
-                with_tones, args.obs, args.settings_tab, args.compact, args.wizard)
+                with_tones, args.obs, args.settings_tab, args.compact, args.wizard, args.open)
         code = 0
     except KeyboardInterrupt as error:
         safety.report(str(error))
