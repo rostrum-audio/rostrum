@@ -9,7 +9,9 @@ ColumnLayout {
     property bool checking: false
     property var openEvidence: ({})
     property bool scopeOpen: false
-    signal checkRequested
+    // The card shows the summary line and the failing rows; every other check, the counts and
+    // the limits of the check sit behind "Show checks".
+    property bool detailsOpen: false
     signal navigateRequested(string page)
     signal reviewObsRequested
     spacing: Kirigami.Units.largeSpacing
@@ -19,6 +21,8 @@ ColumnLayout {
     readonly property int unknownCount: checks.filter(r => r.status === "unknown").length
     readonly property int verifiedCount: checks.filter(r => r.status === "verified").length
     readonly property int excludedCount: checks.filter(r => r.status === "excluded").length
+    readonly property string summaryStatus: attentionCount > 0 ? "attention" : unknownCount > 0 ? "unknown" : "verified"
+    readonly property bool showDetails: results.length > 0 && detailsOpen
     readonly property var definitions: [
         {
             key: "controls",
@@ -116,6 +120,89 @@ ColumnLayout {
         openEvidence = next;
     }
 
+    // A failing check: the problem in words, and a link to the page that fixes it.
+    component FailingRow: ColumnLayout {
+        required property var modelData
+        Layout.fillWidth: true
+        spacing: 0
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Kirigami.Units.smallSpacing
+            QQC2.ItemDelegate {
+                id: failingRow
+                focusPolicy: Qt.StrongFocus
+                objectName: "row-" + modelData.id
+                readonly property bool detailsOpen: panel.openEvidence[modelData.id] === true
+                Layout.fillWidth: true
+                onClicked: panel.toggleEvidence(modelData.id, false)
+                Accessible.name: modelData.title + ", " + modelData.label
+                Accessible.description: detailsOpen ? qsTr("Collapse observed evidence") : qsTr("Expand observed evidence")
+                Accessible.checkable: true
+                Accessible.checked: detailsOpen
+                contentItem: RowLayout {
+                    spacing: Kirigami.Units.smallSpacing
+                    Kirigami.Icon {
+                        Layout.alignment: Qt.AlignTop
+                        source: panel.statusIcon(modelData.status)
+                        color: panel.statusColor(modelData.status)
+                        implicitWidth: Kirigami.Units.iconSizes.small
+                        implicitHeight: implicitWidth
+                        Accessible.ignored: true
+                    }
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 0
+                        QQC2.Label {
+                            Layout.fillWidth: true
+                            text: modelData.title
+                            textFormat: Text.PlainText
+                            wrapMode: Text.WordWrap
+                        }
+                        QQC2.Label {
+                            Layout.fillWidth: true
+                            text: modelData.detail.length <= 180 ? modelData.detail : panel.explanation(modelData.id)
+                            textFormat: Text.PlainText
+                            wrapMode: Text.WordWrap
+                            font: Kirigami.Theme.smallFont
+                            opacity: 0.8
+                        }
+                    }
+                    Kirigami.Icon {
+                        source: failingRow.detailsOpen ? "arrow-down" : "arrow-right"
+                        implicitWidth: Kirigami.Units.iconSizes.small
+                        implicitHeight: implicitWidth
+                        Accessible.ignored: true
+                    }
+                }
+            }
+            QQC2.Button {
+                objectName: "correct-" + modelData.id
+                flat: true
+                text: panel.correction(modelData.id).label
+                icon.name: "go-next"
+                Accessible.name: text + ": " + modelData.title
+                onClicked: {
+                    const action = panel.correction(modelData.id);
+                    if (action.page === "obs")
+                        panel.reviewObsRequested();
+                    else
+                        panel.navigateRequested(action.page);
+                }
+            }
+        }
+        QQC2.Label {
+            objectName: "detail-" + modelData.id
+            Layout.fillWidth: true
+            Layout.margins: Kirigami.Units.largeSpacing
+            Layout.topMargin: 0
+            visible: failingRow.detailsOpen
+            text: modelData.detail
+            wrapMode: Text.Wrap
+            textFormat: Text.PlainText
+            color: Kirigami.Theme.textColor
+        }
+    }
+
     component ResultEvidence: ColumnLayout {
         required property var modelData
         Layout.fillWidth: true
@@ -168,30 +255,6 @@ ColumnLayout {
             }
         }
         QQC2.Label {
-            Layout.fillWidth: true
-            Layout.leftMargin: Kirigami.Units.largeSpacing
-            Layout.rightMargin: Kirigami.Units.largeSpacing
-            visible: modelData.status === "attention"
-            text: modelData.detail.length <= 180 ? modelData.detail : panel.explanation(modelData.id)
-            wrapMode: Text.WordWrap
-        }
-        QQC2.Button {
-            objectName: "correct-" + modelData.id
-            Layout.margins: Kirigami.Units.largeSpacing
-            Layout.topMargin: Kirigami.Units.smallSpacing
-            visible: modelData.status === "attention"
-            text: panel.correction(modelData.id).label
-            icon.name: "go-next"
-            Accessible.name: text + ": " + modelData.title
-            onClicked: {
-                const action = panel.correction(modelData.id);
-                if (action.page === "obs")
-                    panel.reviewObsRequested();
-                else
-                    panel.navigateRequested(action.page);
-            }
-        }
-        QQC2.Label {
             objectName: "detail-" + modelData.id
             Layout.fillWidth: true
             Layout.margins: Kirigami.Units.largeSpacing
@@ -222,119 +285,111 @@ ColumnLayout {
         }
     }
 
-    QQC2.Frame {
+    // One-line summary: icon and words, never colour alone.
+    RowLayout {
         Layout.fillWidth: true
-        ColumnLayout {
-            anchors.fill: parent
-            spacing: Kirigami.Units.largeSpacing
-            RowLayout {
-                Layout.fillWidth: true
-                Kirigami.Heading {
-                    Layout.fillWidth: true
-                    level: 2
-                    text: qsTr("Stream readiness")
-                }
-                QQC2.BusyIndicator {
-                    implicitWidth: Kirigami.Units.iconSizes.smallMedium
-                    implicitHeight: implicitWidth
-                    running: panel.checking
-                    visible: running
-                }
-            }
-            Kirigami.Heading {
-                Layout.fillWidth: true
-                visible: panel.results.length > 0
-                level: 3
-                wrapMode: Text.WordWrap
-                text: panel.checking ? qsTr("Checking live observations…") : panel.attentionCount === 1 ? qsTr("1 check needs attention") : panel.attentionCount > 1 ? qsTr("%1 checks need attention").arg(panel.attentionCount) : panel.unknownCount > 0 ? qsTr("Some checks could not be verified") : qsTr("Controls and routing checked")
-            }
-            QQC2.Label {
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                text: panel.results.length ? qsTr("Review the groups below. Verified applies only to the stated check.") : qsTr("Inspect your current controls, devices, routing and OBS captures.")
-                color: Kirigami.Theme.textColor
-            }
-            GridLayout {
-                Layout.fillWidth: true
-                visible: panel.results.length > 0
-                columns: panel.width < Kirigami.Units.gridUnit * 32 ? 2 : 4
-                columnSpacing: Kirigami.Units.largeSpacing * 2
-                rowSpacing: Kirigami.Units.smallSpacing
-                Repeater {
-                    model: [
-                        {
-                            count: panel.attentionCount,
-                            status: "attention",
-                            label: qsTr("Needs attention")
-                        },
-                        {
-                            count: panel.unknownCount,
-                            status: "unknown",
-                            label: qsTr("Not verified")
-                        },
-                        {
-                            count: panel.verifiedCount,
-                            status: "verified",
-                            label: qsTr("Verified")
-                        },
-                        {
-                            count: panel.excludedCount,
-                            status: "excluded",
-                            label: qsTr("Excluded / idle")
-                        }
-                    ]
-                    delegate: RowLayout {
-                        required property var modelData
-                        Layout.fillWidth: true
-                        Kirigami.Icon {
-                            source: panel.statusIcon(modelData.status)
-                            color: panel.statusColor(modelData.status)
-                            implicitWidth: Kirigami.Units.iconSizes.small
-                            implicitHeight: implicitWidth
-                            Accessible.ignored: true
-                        }
-                        QQC2.Label {
-                            Layout.fillWidth: true
-                            text: modelData.count + " " + modelData.label
-                            wrapMode: Text.WordWrap
-                        }
-                    }
-                }
-            }
-            QQC2.Button {
-                objectName: "checkReadiness"
-                text: panel.results.length ? qsTr("Check again") : qsTr("Check stream readiness")
-                icon.name: "view-refresh"
-                enabled: !panel.checking
-                onClicked: panel.checkRequested()
-            }
+        visible: panel.results.length > 0
+        spacing: Kirigami.Units.smallSpacing
+        Kirigami.Icon {
+            source: panel.statusIcon(panel.summaryStatus)
+            color: panel.statusColor(panel.summaryStatus)
+            implicitWidth: Kirigami.Units.iconSizes.small
+            implicitHeight: implicitWidth
+            visible: !panel.checking
+            Accessible.ignored: true
+        }
+        QQC2.BusyIndicator {
+            implicitWidth: Kirigami.Units.iconSizes.small
+            implicitHeight: implicitWidth
+            running: panel.checking
+            visible: running
+        }
+        QQC2.Label {
+            objectName: "readinessSummary"
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            font.weight: Font.DemiBold
+            text: panel.checking ? qsTr("Checking live observations…") : panel.attentionCount === 1 ? qsTr("1 check needs attention") : panel.attentionCount > 1 ? qsTr("%1 checks need attention").arg(panel.attentionCount) : panel.unknownCount > 0 ? qsTr("Some checks could not be verified") : qsTr("Controls and routing checked")
+        }
+        QQC2.ToolButton {
+            objectName: "showChecks"
+            text: panel.detailsOpen ? qsTr("Hide checks") : qsTr("Show checks")
+            icon.name: panel.detailsOpen ? "arrow-up" : "arrow-down"
+            onClicked: panel.detailsOpen = !panel.detailsOpen
+            Accessible.name: qsTr("Show checks")
+            Accessible.description: panel.detailsOpen ? qsTr("Expanded") : qsTr("Collapsed")
         }
     }
 
-    QQC2.Frame {
+    ColumnLayout {
         Layout.fillWidth: true
         visible: panel.attentionRows.length > 0
-        padding: 0
-        ColumnLayout {
-            anchors.fill: parent
-            spacing: 0
-            Kirigami.Heading {
+        spacing: 0
+        Repeater {
+            objectName: "attentionRows"
+            model: panel.attentionRows
+            delegate: FailingRow {}
+        }
+    }
+
+    QQC2.Label {
+        Layout.fillWidth: true
+        visible: panel.showDetails
+        wrapMode: Text.WordWrap
+        text: qsTr("Review the groups below. Verified applies only to the stated check.")
+        color: Kirigami.Theme.textColor
+    }
+    GridLayout {
+        Layout.fillWidth: true
+        visible: panel.showDetails
+        columns: panel.width < Kirigami.Units.gridUnit * 32 ? 2 : 4
+        columnSpacing: Kirigami.Units.largeSpacing * 2
+        rowSpacing: Kirigami.Units.smallSpacing
+        Repeater {
+            model: [
+                {
+                    count: panel.attentionCount,
+                    status: "attention",
+                    label: qsTr("Needs attention")
+                },
+                {
+                    count: panel.unknownCount,
+                    status: "unknown",
+                    label: qsTr("Not verified")
+                },
+                {
+                    count: panel.verifiedCount,
+                    status: "verified",
+                    label: qsTr("Verified")
+                },
+                {
+                    count: panel.excludedCount,
+                    status: "excluded",
+                    label: qsTr("Excluded / idle")
+                }
+            ]
+            delegate: RowLayout {
+                required property var modelData
                 Layout.fillWidth: true
-                Layout.margins: Kirigami.Units.largeSpacing
-                level: 3
-                text: qsTr("Needs attention")
-            }
-            Repeater {
-                objectName: "attentionRows"
-                model: panel.attentionRows
-                delegate: ResultEvidence {}
+                Kirigami.Icon {
+                    source: panel.statusIcon(modelData.status)
+                    color: panel.statusColor(modelData.status)
+                    implicitWidth: Kirigami.Units.iconSizes.small
+                    implicitHeight: implicitWidth
+                    Accessible.ignored: true
+                }
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    text: modelData.count + " " + modelData.label
+                    wrapMode: Text.WordWrap
+                }
             }
         }
     }
 
     Repeater {
         model: panel.definitions
-        delegate: QQC2.Frame {
+        delegate: ColumnLayout {
             id: section
             required property var modelData
             required property int index
@@ -349,63 +404,66 @@ ColumnLayout {
             }
             objectName: "group-" + modelData.key
             Layout.fillWidth: true
-            visible: rows.length > 0
-            padding: 0
-            ColumnLayout {
-                anchors.fill: parent
-                spacing: 0
-                QQC2.ItemDelegate {
-                    focusPolicy: Qt.StrongFocus
-                    objectName: "toggle-" + section.modelData.key
-                    Layout.fillWidth: true
-                    onClicked: section.expanded = !section.expanded
-                    Accessible.name: section.modelData.title
-                    Accessible.checkable: true
-                    Accessible.checked: section.expanded
-                    Accessible.description: section.hasIssues ? qsTr("Contains checks needing review") : qsTr("No checks need attention")
-                    contentItem: RowLayout {
-                        spacing: Kirigami.Units.largeSpacing
-                        Kirigami.Icon {
-                            source: section.modelData.icon
-                            implicitWidth: Kirigami.Units.iconSizes.smallMedium
-                            implicitHeight: implicitWidth
-                            Accessible.ignored: true
+            visible: panel.showDetails && rows.length > 0
+            spacing: 0
+            Kirigami.Separator {
+                Layout.fillWidth: true
+            }
+            QQC2.ItemDelegate {
+                focusPolicy: Qt.StrongFocus
+                objectName: "toggle-" + section.modelData.key
+                Layout.fillWidth: true
+                onClicked: section.expanded = !section.expanded
+                Accessible.name: section.modelData.title
+                Accessible.checkable: true
+                Accessible.checked: section.expanded
+                Accessible.description: section.hasIssues ? qsTr("Contains checks needing review") : qsTr("No checks need attention")
+                contentItem: RowLayout {
+                    spacing: Kirigami.Units.largeSpacing
+                    Kirigami.Icon {
+                        source: section.modelData.icon
+                        implicitWidth: Kirigami.Units.iconSizes.smallMedium
+                        implicitHeight: implicitWidth
+                        Accessible.ignored: true
+                    }
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 0
+                        QQC2.Label {
+                            text: section.modelData.title
+                            font.weight: Font.DemiBold
                         }
-                        ColumnLayout {
+                        QQC2.Label {
                             Layout.fillWidth: true
-                            spacing: 2
-                            QQC2.Label {
-                                text: section.modelData.title
-                                font.weight: Font.DemiBold
-                            }
-                            QQC2.Label {
-                                Layout.fillWidth: true
-                                font: Kirigami.Theme.smallFont
-                                color: Kirigami.Theme.textColor
-                                wrapMode: Text.WordWrap
-                                text: section.problems > 0 ? qsTr("Needs attention: %1 · Checks: %2").arg(section.problems).arg(section.rows.length) : section.unknowns > 0 ? qsTr("%1 not verified · %2 checks").arg(section.unknowns).arg(section.rows.length) : qsTr("%1 checks · verified or intentionally excluded/idle").arg(section.rows.length)
-                            }
-                        }
-                        Kirigami.Icon {
-                            source: section.expanded ? "arrow-down" : "arrow-right"
-                            implicitWidth: Kirigami.Units.iconSizes.small
-                            implicitHeight: implicitWidth
-                            Accessible.ignored: true
+                            font: Kirigami.Theme.smallFont
+                            color: Kirigami.Theme.textColor
+                            wrapMode: Text.WordWrap
+                            text: section.problems > 0 ? qsTr("Needs attention: %1 · Checks: %2").arg(section.problems).arg(section.rows.length) : section.unknowns > 0 ? qsTr("%1 not verified · %2 checks").arg(section.unknowns).arg(section.rows.length) : qsTr("%1 checks · verified or intentionally excluded/idle").arg(section.rows.length)
                         }
                     }
+                    Kirigami.Icon {
+                        source: section.expanded ? "arrow-down" : "arrow-right"
+                        implicitWidth: Kirigami.Units.iconSizes.small
+                        implicitHeight: implicitWidth
+                        Accessible.ignored: true
+                    }
                 }
-                Repeater {
-                    model: section.expanded ? section.rows : []
-                    delegate: ResultEvidence {}
-                }
+            }
+            Repeater {
+                model: section.expanded ? section.rows : []
+                delegate: ResultEvidence {}
             }
         }
     }
+
+    Kirigami.Separator {
+        Layout.fillWidth: true
+        visible: panel.showDetails
+    }
     RowLayout {
         Layout.fillWidth: true
-        Layout.leftMargin: Kirigami.Units.smallSpacing
-        Layout.rightMargin: Kirigami.Units.smallSpacing
-        spacing: Kirigami.Units.largeSpacing
+        visible: panel.showDetails
+        spacing: Kirigami.Units.smallSpacing
         Kirigami.Icon {
             Layout.alignment: Qt.AlignTop
             source: "dialog-information"
@@ -420,7 +478,8 @@ ColumnLayout {
             text: qsTr("Recording and audio for viewers are not verified. This check does not play or record sound, or change settings. Confirm the final result with a short recording.")
         }
     }
-    QQC2.Button {
+    QQC2.ToolButton {
+        visible: panel.showDetails
         text: qsTr("Limits of this check")
         icon.name: panel.scopeOpen ? "arrow-down" : "arrow-right"
         onClicked: panel.scopeOpen = !panel.scopeOpen
@@ -429,7 +488,7 @@ ColumnLayout {
     }
     QQC2.Label {
         Layout.fillWidth: true
-        visible: panel.scopeOpen
+        visible: panel.showDetails && panel.scopeOpen
         text: panel.results.find(r => r.id === "output-proof")?.detail ?? qsTr("Recording contents, output track selection and audio for viewers are not verified.")
         textFormat: Text.PlainText
         wrapMode: Text.Wrap

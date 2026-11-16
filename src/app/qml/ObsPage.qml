@@ -4,8 +4,9 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import Rostrum
 
-// One button sets OBS up; the rest shows what OBS actually records. The manual steps stay
-// for people without obs-websocket or with another recorder.
+// A status card (a state pill, what OBS is doing, then the readiness checklist), one row of
+// setup actions, then the recording tracks, collapsed. The manual steps stay for people without obs-websocket
+// or with another recorder.
 QQC2.ScrollView {
     id: page
 
@@ -17,6 +18,19 @@ QQC2.ScrollView {
     readonly property var vodNode: Devices.virtualNodes.find(n => n.name === "rostrum.vod") ?? null
     readonly property bool nodesPresent: streamNode !== null && micNode !== null && vodNode !== null
     readonly property bool obsRunning: ["noWebSocket", "connecting", "connected", "authFailed", "failed"].includes(Obs.state)
+    // OBS is running but Rostrum cannot talk to it, which is also what losing OBS mid-stream
+    // looks like. Nothing can be set up until that is fixed, so Check Again leads.
+    readonly property bool unreachable: ["failed", "authFailed", "noWebSocket"].includes(Obs.state)
+    readonly property bool notInstalled: Obs.state === "notInstalled"
+    // OBS lost its Rostrum captures while it kept running, mid-stream included.
+    readonly property bool captureLost: Obs.captureLost && obsRunning
+    readonly property bool working: Obs.state === "connecting" || Obs.busy
+    // The pill in the status card: "notFound", "disconnected", "ready" or "needsSetup".
+    readonly property string pill: notInstalled ? "notFound"
+                                 : captureLost || Obs.state === "failed" || Obs.state === "authFailed" ? "disconnected"
+                                 : Obs.setUp ? "ready"
+                                 : "needsSetup"
+    readonly property real columnMaxWidth: Kirigami.Units.gridUnit * 54
     property bool manualOpen: false
 
     Binding {
@@ -44,7 +58,7 @@ QQC2.ScrollView {
         }
         QQC2.Label {
             text: i18nc("@info node name in parentheses", "(%1)", nodeRow.nodeName)
-            font.family: "monospace"
+            font: Kirigami.Theme.fixedWidthFont
             opacity: 0.7
         }
         QQC2.Button {
@@ -84,7 +98,7 @@ QQC2.ScrollView {
     }
 
     ColumnLayout {
-        width: Math.min(page.availableWidth - Kirigami.Units.largeSpacing * 2, Kirigami.Units.gridUnit * 54)
+        width: Math.min(page.availableWidth - Kirigami.Units.largeSpacing * 2, page.columnMaxWidth)
         x: Kirigami.Units.largeSpacing
         spacing: Kirigami.Units.largeSpacing * 2
 
@@ -113,99 +127,167 @@ QQC2.ScrollView {
             ]
         }
 
-        ReadinessPanel {
-            Layout.fillWidth: true
-            results: Obs.readiness
-            checking: Obs.readinessChecking
-            enabled: !Obs.busy
-            onCheckRequested: Obs.checkReadiness()
-            onNavigateRequested: targetPage => App.lastPage = targetPage
-            onReviewObsRequested: {
-                const maximum = Math.max(0, page.contentItem.contentHeight - page.contentItem.height)
-                page.contentItem.contentY = Math.min(maximum, Math.max(0, obsSetupSection.y - Kirigami.Units.largeSpacing))
-                obsRefreshButton.forceActiveFocus(Qt.TabFocusReason)
-            }
-        }
-
-        // Status and the one-click setup
-        RowLayout {
+        // Status card: title and state pill, what OBS is doing, then the readiness checklist.
+        QQC2.Frame {
             id: obsSetupSection
             Layout.fillWidth: true
-            spacing: Kirigami.Units.largeSpacing
-
-            Item {
-                Layout.alignment: Qt.AlignTop
-                implicitWidth: Kirigami.Units.iconSizes.medium
-                implicitHeight: implicitWidth
-                QQC2.BusyIndicator {
-                    anchors.fill: parent
-                    running: Obs.state === "connecting" || Obs.busy
-                    visible: running
-                }
-                Kirigami.Icon {
-                    anchors.fill: parent
-                    visible: !(Obs.state === "connecting" || Obs.busy)
-                    source: Obs.setUp ? "checkmark"
-                          : Obs.state === "notInstalled" ? "help-about"
-                          : "dialog-warning"
-                    color: Obs.setUp ? Kirigami.Theme.positiveTextColor
-                         : Obs.state === "notInstalled" ? Kirigami.Theme.textColor
-                         : Kirigami.Theme.neutralTextColor
-                }
-            }
-
+            padding: Kirigami.Units.largeSpacing
             ColumnLayout {
-                Layout.fillWidth: true
-                spacing: Kirigami.Units.smallSpacing
-                Kirigami.Heading {
-                    Layout.fillWidth: true
-                    level: 3
-                    wrapMode: Text.WordWrap
-                    text: Obs.summary
-                }
-                QQC2.Label {
-                    Layout.fillWidth: true
-                    visible: text.length > 0
-                    wrapMode: Text.WordWrap
-                    opacity: 0.8
-                    text: Obs.detail
-                }
+                anchors.fill: parent
+                spacing: Kirigami.Units.largeSpacing
+
                 RowLayout {
-                    Layout.topMargin: Kirigami.Units.smallSpacing
+                    Layout.fillWidth: true
                     spacing: Kirigami.Units.largeSpacing
-                    QQC2.Button {
-                        visible: !Obs.setUp && Obs.state !== "notInstalled" && Obs.state !== "neverRun"
-                        enabled: Obs.canApply && page.nodesPresent
-                        highlighted: true
-                        icon.name: "configure"
-                        text: Obs.onlyDoubling ? i18nc("@action:button", "Fix OBS…")
-                                               : i18nc("@action:button", "Set Up OBS…")
-                        onClicked: previewDialog.open()
+                    Kirigami.Heading {
+                        Layout.fillWidth: true
+                        level: 2
+                        wrapMode: Text.WordWrap
+                        text: i18nc("@title", "Stream readiness")
                     }
-                    QQC2.Button {
-                        visible: Obs.canUndo
-                        icon.name: "edit-undo"
-                        text: i18nc("@action:button", "Undo OBS Changes")
-                        enabled: !Obs.busy
-                        onClicked: Obs.undo()
+                    QQC2.BusyIndicator {
+                        implicitWidth: Kirigami.Units.iconSizes.smallMedium
+                        implicitHeight: implicitWidth
+                        running: page.working
+                        visible: running
                     }
-                    QQC2.Button {
-                        id: obsRefreshButton
-                        icon.name: "view-refresh"
-                        text: i18nc("@action:button", "Check Again")
-                        enabled: !Obs.busy
-                        onClicked: {
-                            Devices.refresh()
-                            Obs.refresh()
+                    // The state in words on a tinted pill, never colour alone.
+                    Rectangle {
+                        visible: !page.working
+                        readonly property color ink: page.pill === "ready" ? Kirigami.Theme.positiveTextColor
+                                                   : page.pill === "disconnected" ? Kirigami.Theme.negativeTextColor
+                                                   : page.pill === "needsSetup" ? Kirigami.Theme.neutralTextColor
+                                                   : Kirigami.Theme.textColor
+                        implicitWidth: pillRow.implicitWidth + Kirigami.Units.largeSpacing * 2
+                        implicitHeight: pillRow.implicitHeight + Kirigami.Units.smallSpacing * 2
+                        radius: height / 2
+                        color: Qt.alpha(ink, 0.2)
+                        RowLayout {
+                            id: pillRow
+                            anchors.centerIn: parent
+                            spacing: Kirigami.Units.smallSpacing
+                            Kirigami.Icon {
+                                implicitWidth: Kirigami.Units.iconSizes.small
+                                implicitHeight: implicitWidth
+                                source: page.pill === "ready" ? "checkmark"
+                                      : page.pill === "notFound" ? "help-about"
+                                      : "dialog-warning"
+                                color: parent.parent.ink
+                                Accessible.ignored: true
+                            }
+                            QQC2.Label {
+                                objectName: "obsStatePill"
+                                text: page.pill === "ready" ? i18nc("@info OBS state", "Ready")
+                                    : page.pill === "disconnected" ? i18nc("@info OBS state", "Disconnected")
+                                    : page.pill === "notFound" ? i18nc("@info OBS state", "OBS not found")
+                                    : i18nc("@info OBS state", "Needs setup")
+                                font.weight: Font.DemiBold
+                            }
                         }
                     }
                 }
+
+                Kirigami.InlineMessage {
+                    Layout.fillWidth: true
+                    type: Obs.captureLostLive ? Kirigami.MessageType.Error : Kirigami.MessageType.Warning
+                    visible: page.captureLost
+                    text: Obs.captureLostText
+                    actions: [
+                        Kirigami.Action {
+                            text: i18nc("@action:button", "Dismiss")
+                            icon.name: "dialog-close"
+                            onTriggered: Obs.dismissCaptureLost()
+                        }
+                    ]
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Kirigami.Units.smallSpacing
+                    QQC2.Label {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        font.weight: Font.DemiBold
+                        text: Obs.summary
+                    }
+                    QQC2.Label {
+                        Layout.fillWidth: true
+                        visible: text.length > 0
+                        wrapMode: Text.WordWrap
+                        opacity: 0.8
+                        text: Obs.detail
+                    }
+                }
+
+                ReadinessPanel {
+                    Layout.fillWidth: true
+                    visible: Obs.readiness.length > 0
+                    results: Obs.readiness
+                    checking: Obs.readinessChecking
+                    enabled: !Obs.busy
+                    onNavigateRequested: targetPage => App.lastPage = targetPage
+                    onReviewObsRequested: {
+                        const maximum = Math.max(0, page.contentItem.contentHeight - page.contentItem.height)
+                        page.contentItem.contentY = Math.min(maximum, Math.max(0, setupActions.y - Kirigami.Units.largeSpacing))
+                        obsRefreshButton.forceActiveFocus(Qt.TabFocusReason)
+                    }
+                }
             }
         }
 
-        RecordingTracks {
+        // One row of setup actions; the status card above carries the words.
+        QQC2.Frame {
+            id: setupActions
             Layout.fillWidth: true
-            setup: Obs.recordingTracks
+            padding: Kirigami.Units.largeSpacing
+            RowLayout {
+                anchors.fill: parent
+                spacing: Kirigami.Units.largeSpacing
+
+                QQC2.Button {
+                    visible: !Obs.setUp && !page.notInstalled && Obs.state !== "neverRun"
+                    enabled: Obs.canApply && page.nodesPresent
+                    highlighted: !page.unreachable && !page.captureLost
+                    icon.name: "configure"
+                    text: Obs.onlyDoubling ? i18nc("@action:button", "Fix OBS…")
+                                           : i18nc("@action:button", "Set Up OBS…")
+                    onClicked: previewDialog.open()
+                }
+                QQC2.Button {
+                    visible: Obs.canUndo
+                    icon.name: "edit-undo"
+                    text: i18nc("@action:button", "Undo OBS Changes")
+                    enabled: !Obs.busy
+                    onClicked: Obs.undo()
+                }
+                // The one check: OBS and devices are read again, then stream readiness.
+                QQC2.Button {
+                    id: obsRefreshButton
+                    objectName: "obsCheckAgain"
+                    icon.name: "view-refresh"
+                    text: i18nc("@action:button", "Check Again")
+                    enabled: !Obs.busy && !Obs.readinessChecking
+                    highlighted: page.unreachable || page.captureLost
+                    onClicked: {
+                        Devices.refresh()
+                        Obs.refresh()
+                        Obs.checkReadiness()
+                    }
+                }
+                Item {
+                    Layout.fillWidth: true
+                }
+            }
+        }
+
+        QQC2.Frame {
+            Layout.fillWidth: true
+            visible: !page.notInstalled
+            padding: Kirigami.Units.largeSpacing
+            RecordingTracks {
+                anchors.fill: parent
+                setup: Obs.recordingTracks
+            }
         }
 
         // What OBS records, straight from the PipeWire graph
@@ -213,20 +295,6 @@ QQC2.ScrollView {
             Layout.fillWidth: true
             visible: page.obsRunning
             spacing: Kirigami.Units.smallSpacing
-
-            Kirigami.InlineMessage {
-                Layout.fillWidth: true
-                type: Obs.captureLostLive ? Kirigami.MessageType.Error : Kirigami.MessageType.Warning
-                visible: Obs.captureLost
-                text: Obs.captureLostText
-                actions: [
-                    Kirigami.Action {
-                        text: i18nc("@action:button", "Dismiss")
-                        icon.name: "dialog-close"
-                        onTriggered: Obs.dismissCaptureLost()
-                    }
-                ]
-            }
 
             Kirigami.Heading {
                 level: 3

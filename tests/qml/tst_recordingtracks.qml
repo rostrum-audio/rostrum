@@ -3,6 +3,7 @@ import QtTest
 import "../../src/app/qml"
 
 Item {
+    id: root
     width: 900
     height: 1100
     QtObject {
@@ -35,6 +36,7 @@ Item {
         function undo() { undone() }
     }
     RecordingTracks { id: panel; width: 800; setup: controller }
+    Component { id: freshPanel; RecordingTracks { width: 800; setup: controller } }
     SignalSpy { id: choiceSpy; target: controller; signalName: "chosen" }
     SignalSpy { id: reviewed; target: controller; signalName: "reviewed" }
     TestCase {
@@ -42,11 +44,27 @@ Item {
         when: windowShown
         function init() {
             panel.width = 800
+            // The section starts collapsed; these tests exercise the expanded body.
+            panel.open = true
             findChild(panel, "recordingBus4").currentIndex = 0
             controller.canPreview = true
             controller.canUndo = false
             reviewed.clear()
             choiceSpy.clear()
+        }
+        function test_collapsedByDefault() {
+            const fresh = createTemporaryObject(freshPanel, root)
+            verify(fresh)
+            compare(fresh.open, false)
+            const toggle = findChild(fresh, "recordingTracksToggle")
+            compare(toggle.Accessible.name, "Recording tracks")
+            compare(findChild(fresh, "reviewRecording").visible, false)
+            mouseClick(toggle)
+            compare(fresh.open, true)
+            tryCompare(findChild(fresh, "reviewRecording"), "visible", true)
+            mouseClick(toggle)
+            compare(fresh.open, false)
+            compare(findChild(fresh, "reviewRecording").visible, false)
         }
         function test_reviewIsExplicit() {
             const button = findChild(panel, "reviewRecording")
