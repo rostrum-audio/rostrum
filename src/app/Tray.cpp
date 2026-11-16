@@ -45,7 +45,10 @@ Tray::Tray(AppController *app, QObject *parent) : QObject(parent), m_app(app)
         }
     });
     m_menu->addSeparator();
-    m_mute = m_menu->addAction(QString());
+    // Both mutes keep their label and carry a check mark while muted.
+    m_mute = m_menu->addAction(QIcon::fromTheme(QStringLiteral("microphone-sensitivity-muted")),
+                               i18nc("@action:inmenu", "Mute Mic"));
+    m_mute->setCheckable(true);
     connect(m_mute, &QAction::triggered, m_app, &AppController::toggleMicMute);
     m_muteStream = m_menu->addAction(QIcon::fromTheme(QStringLiteral("audio-volume-muted")),
                                      i18nc("@action:inmenu", "Mute Stream"));
@@ -153,9 +156,7 @@ void Tray::updateState()
 
     m_show->setText(m_window && m_window->isVisible() ? i18nc("@action:inmenu", "Hide Rostrum")
                                                       : i18nc("@action:inmenu", "Show Rostrum"));
-    m_mute->setText(muted ? i18nc("@action:inmenu", "Unmute Mic") : i18nc("@action:inmenu", "Mute Mic"));
-    m_mute->setIcon(QIcon::fromTheme(muted ? QStringLiteral("microphone-sensitivity-high")
-                                           : QStringLiteral("microphone-sensitivity-muted")));
+    m_mute->setChecked(muted);
     m_mute->setEnabled(m_app->hasMic());
     m_muteStream->setChecked(streamMuted);
     m_muteStream->setEnabled(m_app->connected());
