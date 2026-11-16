@@ -31,6 +31,7 @@ QQC2.Control {
     property bool expanded: false
     readonly property bool dropHover: dropArea.containsDrag
     readonly property int maxChips: 3
+    readonly property real bandHeight: Math.round(Kirigami.Units.smallSpacing * 0.75)
     readonly property var autoLabels: ({
         game: i18nc("@info bus receives automatically", "Auto: games"),
         voice: i18nc("@info bus receives automatically", "Auto: voice chat"),
@@ -53,7 +54,7 @@ QQC2.Control {
     implicitWidth: Kirigami.Units.gridUnit * 8
     leftPadding: Kirigami.Units.smallSpacing * 2
     rightPadding: Kirigami.Units.smallSpacing * 2
-    topPadding: Kirigami.Units.smallSpacing * 2 + 3
+    topPadding: Kirigami.Units.smallSpacing * 2 + bandHeight
     bottomPadding: Kirigami.Units.smallSpacing * 2
 
     Kirigami.Theme.colorSet: Kirigami.Theme.View
@@ -71,7 +72,7 @@ QQC2.Control {
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.margins: 1
-            height: 3
+            height: strip.bandHeight
             topLeftRadius: Kirigami.Units.cornerRadius * 1.5 - 1
             topRightRadius: Kirigami.Units.cornerRadius * 1.5 - 1
             color: strip.busColor
@@ -285,16 +286,27 @@ QQC2.Control {
             onPicked: i => Mixer.setDestination(strip.busId, i)
         }
 
-        QQC2.CheckBox {
-            visible: !strip.isInput
-            Layout.alignment: Qt.AlignHCenter
-            text: i18nc("@option:check", "Include in Twitch VOD")
-            Accessible.name: i18nc("@label:accessible", "%1: Include in Twitch VOD", strip.name)
-            font: Kirigami.Theme.smallFont
-            checked: strip.vod
-            enabled: strip.destination !== Mixer.PhonesIndex
-            opacity: enabled ? 1.0 : 0.4
-            onToggled: Mixer.setVod(strip.busId, checked)
+        // The mic strip keeps the row empty so mute, destination and the rows below line up
+        // across every strip. The label never pushes the strip wider than it is.
+        Item {
+            Layout.fillWidth: true
+            implicitHeight: vodCheck.implicitHeight
+            QQC2.CheckBox {
+                id: vodCheck
+                anchors.left: parent.left
+                anchors.right: parent.right
+                visible: !strip.isInput
+                text: i18nc("@option:check", "Include in Twitch VOD")
+                Accessible.name: i18nc("@label:accessible", "%1: Include in Twitch VOD", strip.name)
+                font: Kirigami.Theme.smallFont
+                checked: strip.vod
+                enabled: strip.destination !== Mixer.PhonesIndex
+                opacity: enabled ? 1.0 : 0.4
+                onToggled: Mixer.setVod(strip.busId, checked)
+                QQC2.ToolTip.text: text
+                QQC2.ToolTip.visible: hovered && implicitWidth > width
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+            }
         }
 
         // Playback: up to three chips, then "+N".
@@ -302,7 +314,7 @@ QQC2.Control {
             visible: !strip.isInput
             Layout.fillWidth: true
             Layout.preferredHeight: Kirigami.Units.gridUnit * 4.6
-            spacing: 2
+            spacing: Kirigami.Units.smallSpacing / 2
 
             Repeater {
                 model: strip.apps.slice(0, strip.maxChips)
@@ -356,7 +368,7 @@ QQC2.Control {
             visible: strip.isInput
             Layout.fillWidth: true
             Layout.preferredHeight: Kirigami.Units.gridUnit * 4.6
-            spacing: 2
+            spacing: Kirigami.Units.smallSpacing / 2
 
             QQC2.AbstractButton {
                 id: sidetoneToggle
