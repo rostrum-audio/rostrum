@@ -43,6 +43,8 @@ qt_add_qml_module(rostrum
         qml/Shell.qml
         qml/HeaderBar.qml
         qml/HotkeyList.qml
+        qml/ConfirmDialog.qml
+        qml/DestructiveButton.qml
         qml/SceneSwitcher.qml
         qml/MicButton.qml
         qml/CompactView.qml

@@ -165,8 +165,9 @@ QQC2.Pane {
         }
     }
 
-    Kirigami.PromptDialog {
+    ConfirmDialog {
         id: removeDialog
+        objectName: "removeBusDialog"
         property string busId
         property string busName
         property int assigned: 0
@@ -175,21 +176,11 @@ QQC2.Pane {
                   ? i18ncp("@info", "One app assigned to %2 goes back to the default output.",
                            "%1 apps assigned to %2 go back to the default output.", assigned, busName)
                   : i18n("The %1 bus is removed from this scene.", busName)
-        standardButtons: Kirigami.Dialog.NoButton
-        customFooterActions: [
-            Kirigami.Action {
-                text: i18nc("@action:button", "Remove")
-                icon.name: "edit-delete"
-                onTriggered: {
-                    Mixer.remove(removeDialog.busId)
-                    removeDialog.close()
-                }
-            },
-            Kirigami.Action {
-                text: i18nc("@action:button", "Cancel")
-                icon.name: "dialog-cancel"
-                onTriggered: removeDialog.close()
-            }
-        ]
+        confirmText: i18nc("@action:button", "Remove")
+        confirmIconName: "edit-delete"
+        onConfirmed: {
+            Mixer.remove(removeDialog.busId)
+            removeDialog.close()
+        }
     }
 }

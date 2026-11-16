@@ -380,37 +380,28 @@ QQC2.Pane {
         }
     }
 
-    Kirigami.PromptDialog {
+    ConfirmDialog {
         id: deleteDialog
+        objectName: "deleteSceneDialog"
         title: i18nc("@title:dialog", "Delete “%1”?", page.selectedName)
         subtitle: page.selected && page.selected.isCurrent
                   ? i18n("This is the live scene. Rostrum switches to the default scene after deleting it.")
                   : i18np("It stays in Recently Deleted for %1 day.", "It stays in Recently Deleted for %1 days.", Scenes.trashKeepDays)
-        standardButtons: Kirigami.Dialog.NoButton
-        customFooterActions: [
-            Kirigami.Action {
-                text: i18nc("@action:button", "Delete")
-                icon.name: "edit-delete"
-                onTriggered: {
-                    const name = page.selectedName
-                    deleteDialog.close()
-                    if (Scenes.remove(name)) {
-                        applicationWindow().showPassiveNotification(
-                            i18n("Deleted “%1”", name), "long", i18nc("@action:button", "Undo"), () => {
-                                const restored = Scenes.restoreLast()
-                                if (restored) {
-                                    page.selectedName = restored
-                                }
-                            })
-                    }
-                }
-            },
-            Kirigami.Action {
-                text: i18nc("@action:button", "Cancel")
-                icon.name: "dialog-cancel"
-                onTriggered: deleteDialog.close()
+        confirmText: i18nc("@action:button", "Delete")
+        confirmIconName: "edit-delete"
+        onConfirmed: {
+            const name = page.selectedName
+            deleteDialog.close()
+            if (Scenes.remove(name)) {
+                applicationWindow().showPassiveNotification(
+                    i18n("Deleted “%1”", name), "long", i18nc("@action:button", "Undo"), () => {
+                        const restored = Scenes.restoreLast()
+                        if (restored) {
+                            page.selectedName = restored
+                        }
+                    })
             }
-        ]
+        }
     }
 
     Kirigami.Dialog {

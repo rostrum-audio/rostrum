@@ -654,49 +654,33 @@ QQC2.Pane {
         }
     }
 
-    Kirigami.PromptDialog {
+    ConfirmDialog {
         id: restoreDialog
+        objectName: "restoreSettingsDialog"
         property url file
         title: i18nc("@title:dialog", "Restore Settings?")
         subtitle: i18n("Settings, hotkeys and devices are replaced, and scenes with the same name are overwritten (the old versions go to Recently Deleted). Other scenes stay. Your current setup is saved in %1 first.",
                        Preferences.configFolder + "/backups")
-        standardButtons: Kirigami.Dialog.NoButton
-        customFooterActions: [
-            Kirigami.Action {
-                text: i18nc("@action:button", "Restore")
-                icon.name: "document-revert"
-                onTriggered: {
-                    restoreDialog.close()
-                    Preferences.restoreFrom(restoreDialog.file)
-                }
-            },
-            Kirigami.Action {
-                text: i18nc("@action:button", "Cancel")
-                icon.name: "dialog-cancel"
-                onTriggered: restoreDialog.close()
-            }
-        ]
+        confirmText: i18nc("@action:button", "Restore")
+        confirmIconName: "document-revert"
+        onConfirmed: {
+            restoreDialog.close()
+            Preferences.restoreFrom(restoreDialog.file)
+        }
     }
 
-    Kirigami.PromptDialog {
+    ConfirmDialog {
         id: rebuildDialog
+        objectName: "rebuildDialog"
         title: i18nc("@title:dialog", "Rebuild Virtual Devices?")
         subtitle: i18n("Audio through Rostrum stops for a moment while its nodes are recreated. OBS reconnects on its own.")
-        standardButtons: Kirigami.Dialog.NoButton
-        customFooterActions: [
-            Kirigami.Action {
-                text: i18nc("@action:button", "Rebuild")
-                icon.name: "view-refresh"
-                onTriggered: {
-                    Preferences.rebuildMix()
-                    rebuildDialog.close()
-                }
-            },
-            Kirigami.Action {
-                text: i18nc("@action:button", "Cancel")
-                icon.name: "dialog-cancel"
-                onTriggered: rebuildDialog.close()
-            }
-        ]
+        // Audio stops for a moment but nothing is lost, so Rebuild is a plain button.
+        destructive: false
+        confirmText: i18nc("@action:button", "Rebuild")
+        confirmIconName: "view-refresh"
+        onConfirmed: {
+            Preferences.rebuildMix()
+            rebuildDialog.close()
+        }
     }
 }

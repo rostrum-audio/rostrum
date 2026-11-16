@@ -218,14 +218,16 @@ Kirigami.ApplicationWindow {
         id: exampleDialog
     }
 
-    Kirigami.PromptDialog {
+    ConfirmDialog {
         id: switchDialog
+        objectName: "switchSceneDialog"
         property string target
         title: i18nc("@title:dialog", "Discard fader moves?")
         subtitle: i18n("Faders in “%1” have moved since the last save. Switching to “%2” discards those moves.",
                        App.currentScene, target)
-        standardButtons: Kirigami.Dialog.NoButton
-        customFooterActions: [
+        // Fader moves can be made again, so Switch is a plain button; Cancel is still the default.
+        destructive: false
+        extraActions: [
             Kirigami.Action {
                 text: i18nc("@action:button", "Save and Switch")
                 icon.name: "document-save"
@@ -235,19 +237,12 @@ Kirigami.ApplicationWindow {
                     }
                     switchDialog.close()
                 }
-            },
-            Kirigami.Action {
-                text: i18nc("@action:button", "Switch")
-                onTriggered: {
-                    App.switchScene(switchDialog.target)
-                    switchDialog.close()
-                }
-            },
-            Kirigami.Action {
-                text: i18nc("@action:button", "Cancel")
-                icon.name: "dialog-cancel"
-                onTriggered: switchDialog.close()
             }
         ]
+        confirmText: i18nc("@action:button", "Switch")
+        onConfirmed: {
+            App.switchScene(switchDialog.target)
+            switchDialog.close()
+        }
     }
 }
