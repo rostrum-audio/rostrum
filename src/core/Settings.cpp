@@ -125,6 +125,22 @@ bool isKnown(const QString &id)
     return all().contains(id) || !busOfAction(id).isEmpty();
 }
 
+QStringList takeShortcut(QMap<QString, QString> &keys, const QStringList &ids, const QString &id,
+                         const QString &portable)
+{
+    QStringList cleared;
+    if (!portable.isEmpty()) {
+        for (const QString &other : ids) {
+            if (other != id && keys.value(other, defaultShortcut(other)) == portable) {
+                keys.insert(other, QString());
+                cleared << other;
+            }
+        }
+    }
+    keys.insert(id, portable);
+    return cleared;
+}
+
 QString defaultShortcut(const QString &id)
 {
     static const QMap<QString, QString> keys = {

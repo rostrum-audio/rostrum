@@ -17,8 +17,14 @@ Item {
         ]
         property var conflicts: ({})
         property var resets: []
+        // Clashes a newly pressed shortcut would have, by row id.
+        property var pendingConflicts: ({})
+        property var sets: []
+        property var replaced: []
         function hotkeyConflict(id, shortcut) { return conflicts[id] ?? "" }
-        function setHotkeySequence(id, sequence) {}
+        function hotkeySequenceConflict(id, sequence) { return pendingConflicts[id] ?? "" }
+        function setHotkeySequence(id, sequence) { sets = sets.concat([id]) }
+        function replaceHotkeySequence(id, sequence) { replaced = replaced.concat([id]) }
         function setHotkey(id, shortcut) {}
         function resetHotkey(id) { resets = resets.concat([id]) }
     }
@@ -30,7 +36,10 @@ Item {
         property var list: null
         function init() {
             prefs.conflicts = ({})
+            prefs.pendingConflicts = ({})
             prefs.resets = []
+            prefs.sets = []
+            prefs.replaced = []
             list = createTemporaryObject(fresh, root)
             verify(list)
         }
@@ -78,6 +87,60 @@ Item {
             const other = createTemporaryObject(fresh, root)
             tryVerify(() => findChild(other, "hotkeyRow-bus-game-mute") !== null)
             compare(findChild(other, "hotkeyRow-scene-next"), null)
+            // A clash that is already saved offers Replace, and has nothing to cancel back to.
+            const replace = findChild(other, "hotkeyReplace-bus-game-mute")
+            verify(replace.visible)
+            compare(findChild(other, "hotkeyCancel-bus-game-mute").visible, false)
+            mouseClick(replace)
+            compare(prefs.replaced, ["bus-game-mute"])
+        }
+        function press(id, sequence) {
+            const keys = findChild(list, "hotkeyKeys-" + id)
+            keys.keySequence = sequence
+            keys.keySequenceModified()
+            return keys
+        }
+        function test_freeShortcutIsSetAtOnce() {
+            press("mic-mute", "Meta+Alt+K")
+            compare(prefs.sets, ["mic-mute"])
+            compare(findChild(list, "hotkeyReplace-mic-mute").visible, false)
+            compare(findChild(list, "hotkeyCancel-mic-mute").visible, false)
+        }
+        function test_clashWaitsForReplace() {
+            prefs.pendingConflicts = {"mic-mute": "Mute all playback to stream"}
+            press("mic-mute", "Meta+Alt+S")
+            // Nothing is saved until the person chooses.
+            compare(prefs.sets.length, 0)
+            compare(prefs.replaced.length, 0)
+            const replace = findChild(list, "hotkeyReplace-mic-mute")
+            tryCompare(replace, "visible", true)
+            compare(replace.text, "Replace")
+            compare(replace.Accessible.name, "Replace: remove the shortcut from Mute all playback to stream and use it for Mute mic")
+            const cancel = findChild(list, "hotkeyCancel-mic-mute")
+            compare(cancel.visible, true)
+            compare(cancel.Accessible.name, "Cancel: keep the old shortcut for Mute mic")
+            waitForRendering(list) // the row grows to fit the buttons
+            mouseClick(replace)
+            compare(prefs.replaced, ["mic-mute"])
+            compare(prefs.sets.length, 0)
+            compare(findChild(list, "hotkeyRow-mic-mute").pending, false)
+        }
+        function test_clashCancelKeepsTheOldShortcut() {
+            prefs.pendingConflicts = {"mic-mute": "Mute all playback to stream"}
+            const keys = press("mic-mute", "Meta+Alt+S")
+            const cancel = findChild(list, "hotkeyCancel-mic-mute")
+            tryCompare(cancel, "visible", true)
+            waitForRendering(list)
+            mouseClick(cancel)
+            prefs.pendingConflicts = ({})
+            compare(prefs.sets.length, 0)
+            compare(prefs.replaced.length, 0)
+            compare(findChild(list, "hotkeyRow-mic-mute").pending, false)
+            tryCompare(findChild(list, "hotkeyReplace-mic-mute"), "visible", false)
+            // The field shows the saved shortcut again; pressing it once more sets nothing new.
+            press("mic-mute", "Meta+Alt+M")
+            compare(prefs.sets, ["mic-mute"])
+            verify(keys)
         }
     }
 }

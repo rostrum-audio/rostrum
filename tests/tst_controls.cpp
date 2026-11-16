@@ -119,6 +119,55 @@ private Q_SLOTS:
         QCOMPARE(parsed.hotkeys, d.hotkeys);
     }
 
+    void takeShortcutClearsTheOtherAction()
+    {
+        using namespace actions;
+        const QString mic = QString::fromLatin1(kMuteMic), stream = QString::fromLatin1(kMuteStream),
+                      talk = QString::fromLatin1(kPushToTalk), game = QStringLiteral("mute_bus_game");
+        const QStringList ids = all() + QStringList{game};
+        QMap<QString, QString> keys = defaultSettings().hotkeys;
+        keys.insert(game, QStringLiteral("Meta+Alt+G"));
+
+        // A free shortcut: only the action itself changes.
+        auto free = keys;
+        QCOMPARE(takeShortcut(free, ids, talk, QStringLiteral("Meta+Alt+T")), QStringList{});
+        QCOMPARE(free.value(talk), QStringLiteral("Meta+Alt+T"));
+        QCOMPARE(free.value(mic), QStringLiteral("Meta+Alt+M"));
+
+        // Replace: the action gets the shortcut, the one that had it is unbound, the rest stay.
+        auto taken = keys;
+        QCOMPARE(takeShortcut(taken, ids, talk, QStringLiteral("Meta+Alt+M")), QStringList{mic});
+        QCOMPARE(taken.value(talk), QStringLiteral("Meta+Alt+M"));
+        QVERIFY(taken.contains(mic));
+        QVERIFY(taken.value(mic).isEmpty());
+        QCOMPARE(taken.value(stream), QStringLiteral("Meta+Alt+S"));
+        QCOMPARE(taken.value(game), QStringLiteral("Meta+Alt+G"));
+        int holders = 0;
+        for (const QString &id : ids) {
+            holders += taken.value(id, defaultShortcut(id)) == QStringLiteral("Meta+Alt+M");
+        }
+        QCOMPARE(holders, 1);
+
+        // A bus action loses it too, and so does an action still on its default with no entry.
+        auto bus = keys;
+        QCOMPARE(takeShortcut(bus, ids, mic, QStringLiteral("Meta+Alt+G")), QStringList{game});
+        QVERIFY(bus.value(game).isEmpty());
+        auto implicit = keys;
+        implicit.remove(stream);
+        QCOMPARE(takeShortcut(implicit, ids, talk, QStringLiteral("Meta+Alt+S")), QStringList{stream});
+        QVERIFY(implicit.contains(stream));
+        QVERIFY(implicit.value(stream).isEmpty());
+
+        // Unbinding never touches the other unbound actions, and the result survives a save.
+        auto none = taken;
+        QCOMPARE(takeShortcut(none, ids, talk, QString()), QStringList{});
+        QVERIFY(none.value(talk).isEmpty());
+        QVERIFY(none.value(mic).isEmpty());
+        Settings s = defaultSettings();
+        s.hotkeys = taken;
+        QCOMPARE(parseSettings(serializeSettings(s)).hotkeys, taken);
+    }
+
     void micAndStreamToggles()
     {
         Rig r;

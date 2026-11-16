@@ -300,6 +300,27 @@ void Preferences::resetHotkey(const QString &actionId)
     setHotkey(actionId, actions::defaultShortcut(actionId));
 }
 
+void Preferences::replaceHotkeySequence(const QString &actionId, const QKeySequence &sequence)
+{
+    if (!actions::isKnown(actionId)) {
+        return;
+    }
+    auto &keys = m_app->settings().hotkeys;
+    const auto before = keys;
+    actions::takeShortcut(keys, m_app->actionIds(), actionId, sequence.toString(QKeySequence::PortableText));
+    if (keys == before) {
+        return;
+    }
+    // One change, so the desktop never sees the shortcut on two actions.
+    m_app->saveSettingsSoon();
+    Q_EMIT m_app->settingsChanged();
+}
+
+QString Preferences::hotkeySequenceConflict(const QString &actionId, const QKeySequence &sequence) const
+{
+    return hotkeyConflict(actionId, sequence.toString(QKeySequence::PortableText));
+}
+
 QString Preferences::hotkeyConflict(const QString &actionId, const QString &sequence) const
 {
     const QKeySequence wanted(sequence, QKeySequence::PortableText);

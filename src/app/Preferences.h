@@ -102,6 +102,9 @@ public:
     Q_INVOKABLE void setHotkey(const QString &actionId, const QString &sequence);
     Q_INVOKABLE void setHotkeySequence(const QString &actionId, const QKeySequence &sequence);
     Q_INVOKABLE void resetHotkey(const QString &actionId);
+    // Sets the shortcut and removes it from any other action that had it, in one change.
+    Q_INVOKABLE void replaceHotkeySequence(const QString &actionId, const QKeySequence &sequence);
+    Q_INVOKABLE QString hotkeySequenceConflict(const QString &actionId, const QKeySequence &sequence) const;
     // The action already using this sequence, or empty.
     Q_INVOKABLE QString hotkeyConflict(const QString &actionId, const QString &sequence) const;
     Q_INVOKABLE void openConfigFolder();

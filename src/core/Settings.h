@@ -50,6 +50,10 @@ enum class Group
 QStringList all();
 QString label(const QString &id);
 QString defaultShortcut(const QString &id);
+// Gives `id` the portable key sequence and unbinds every other action in `ids` that had it, so a
+// shortcut never belongs to two actions. Returns the actions that lost it.
+QStringList takeShortcut(QMap<QString, QString> &keys, const QStringList &ids, const QString &id,
+                         const QString &portable);
 // Acts while the key is held (push to talk, push to mute) instead of on each press.
 bool isHold(const QString &id);
 Group group(const QString &id);

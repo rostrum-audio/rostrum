@@ -12,7 +12,8 @@ ColumnLayout {
     id: list
 
     // Preferences in the app: hotkeys (rows of {id, group, label, description, shortcut,
-    // defaultShortcut, problem}), hotkeyConflict(), setHotkeySequence(), setHotkey(), resetHotkey().
+    // defaultShortcut, problem}), hotkeyConflict(), hotkeySequenceConflict(), setHotkeySequence(),
+    // replaceHotkeySequence(), setHotkey(), resetHotkey().
     required property var preferences
     // "kglobalaccel", "portal" or anything else for shortcuts that only work in the window.
     property string backend
@@ -126,7 +127,11 @@ ColumnLayout {
                 delegate: FormCard.AbstractFormDelegate {
                     id: hotkeyRow
                     required property var modelData
-                    readonly property string conflict: list.preferences.hotkeyConflict(modelData.id, modelData.shortcut)
+                    // A new shortcut another action already has waits here until Replace or Cancel.
+                    property bool pending: false
+                    readonly property string conflict: pending
+                        ? list.preferences.hotkeySequenceConflict(modelData.id, keys.keySequence)
+                        : list.preferences.hotkeyConflict(modelData.id, modelData.shortcut)
                     objectName: "hotkeyRow-" + modelData.id
                     Layout.fillWidth: true
                     background: null
@@ -157,6 +162,36 @@ ColumnLayout {
                                 Layout.fillWidth: true
                                 wrapMode: Text.WordWrap
                             }
+                            // Replace takes the shortcut away from the other action; Cancel keeps things as
+                            // they were. A clash that is already saved has nothing to go back to, so it
+                            // only offers Replace.
+                            RowLayout {
+                                visible: hotkeyRow.conflict !== ""
+                                Layout.topMargin: Kirigami.Units.smallSpacing
+                                spacing: Kirigami.Units.smallSpacing
+                                QQC2.Button {
+                                    objectName: "hotkeyReplace-" + hotkeyRow.modelData.id
+                                    text: i18nc("@action:button take the shortcut from the other action", "Replace")
+                                    Accessible.name: i18nc("@action:button accessible; %1 is the action that loses the shortcut, %2 the one that gets it",
+                                                           "Replace: remove the shortcut from %1 and use it for %2",
+                                                           hotkeyRow.conflict, hotkeyRow.modelData.label)
+                                    onClicked: {
+                                        hotkeyRow.pending = false
+                                        list.preferences.replaceHotkeySequence(hotkeyRow.modelData.id, keys.keySequence)
+                                    }
+                                }
+                                QQC2.Button {
+                                    objectName: "hotkeyCancel-" + hotkeyRow.modelData.id
+                                    visible: hotkeyRow.pending
+                                    text: i18nc("@action:button keep the old shortcut", "Cancel")
+                                    Accessible.name: i18nc("@action:button accessible", "Cancel: keep the old shortcut for %1",
+                                                           hotkeyRow.modelData.label)
+                                    onClicked: {
+                                        hotkeyRow.pending = false
+                                        keys.keySequence = hotkeyRow.modelData.shortcut
+                                    }
+                                }
+                            }
                             QQC2.Label {
                                 visible: hotkeyRow.conflict === "" && hotkeyRow.modelData.problem !== ""
                                 text: hotkeyRow.modelData.problem
@@ -167,12 +202,22 @@ ColumnLayout {
                             }
                         }
                         KQuickControls.KeySequenceItem {
+                            id: keys
+                            objectName: "hotkeyKeys-" + hotkeyRow.modelData.id
                             keySequence: hotkeyRow.modelData.shortcut
                             modifierlessAllowed: false
                             multiKeyShortcutsAllowed: false
-                            onKeySequenceModified: list.preferences.setHotkeySequence(hotkeyRow.modelData.id, keySequence)
+                            onKeySequenceModified: {
+                                if (list.preferences.hotkeySequenceConflict(hotkeyRow.modelData.id, keySequence) !== "") {
+                                    hotkeyRow.pending = true
+                                    return
+                                }
+                                hotkeyRow.pending = false
+                                list.preferences.setHotkeySequence(hotkeyRow.modelData.id, keySequence)
+                            }
                             Keys.onPressed: event => {
                                 if (event.key === Qt.Key_Backspace && event.modifiers === Qt.NoModifier) {
+                                    hotkeyRow.pending = false
                                     list.preferences.setHotkey(hotkeyRow.modelData.id, "")
                                     event.accepted = true
                                 }
