@@ -181,6 +181,16 @@ int main(int argc, char *argv[])
     // (works with QT_QPA_PLATFORM=offscreen) and quits.
     if (const QString shot = qEnvironmentVariable("ROSTRUM_SCREENSHOT"); !shot.isEmpty()) {
         auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+        // ROSTRUM_SCREENSHOT_SETTINGS_TAB=hotkeys opens that Settings tab first. Screenshot runs only.
+        static const QStringList tabs{QStringLiteral("general"), QStringLiteral("audio"), QStringLiteral("hotkeys"),
+                                      QStringLiteral("integrations"), QStringLiteral("application")};
+        if (const int tab = tabs.indexOf(qEnvironmentVariable("ROSTRUM_SCREENSHOT_SETTINGS_TAB")); tab >= 0) {
+            QTimer::singleShot(1000, app.get(), [window, tab] {
+                if (auto *bar = window ? window->findChild<QObject *>(QStringLiteral("settingsCategories")) : nullptr) {
+                    bar->setProperty("currentIndex", tab);
+                }
+            });
+        }
         QTimer::singleShot(3000, app.get(), [window, shot] {
             if (window && !window->grabWindow().save(shot)) {
                 qWarning("Could not write %s", qPrintable(shot));

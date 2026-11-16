@@ -33,6 +33,7 @@ SCHEMES = {
     "light": Path("/usr/share/color-schemes/BreezeLight.colors"),
 }
 
+SETTINGS_TABS = ("general", "audio", "hotkeys", "integrations", "application")
 PAGES = ("mixer", "apps", "scenes", "devices", "filters", "obs", "settings")
 
 # Realistic media-player names so Apps-row truncation is visible.
@@ -199,7 +200,7 @@ def print_isolation(env: dict, root: Path) -> None:
 
 
 def capture(application: Path, output: Path, width: int, height: int, theme: str, page: str,
-            with_tones: bool, obs: str = "none") -> None:
+            with_tones: bool, obs: str = "none", settings_tab: str = "") -> None:
     application = application.resolve(strict=True)
     output = report_dir(output)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -230,6 +231,8 @@ def capture(application: Path, output: Path, width: int, height: int, theme: str
             QT_QPA_PLATFORMTHEME="kde",
             ROSTRUM_SCREENSHOT=str(session.root / "shot.png"),
         )
+        if settings_tab:
+            session.env["ROSTRUM_SCREENSHOT_SETTINGS_TAB"] = settings_tab
         print_isolation(session.env, session.root)
         print(f"kdeglobals={kde}", flush=True)
         print(f"theme={theme} scheme={SCHEMES[theme]} page={page}", flush=True)
@@ -294,6 +297,8 @@ def main() -> int:
     parser.add_argument("--obs", choices=("none", "closed", "unreadable"), default="none",
                         help="Seed fake OBS settings in the private session: closed = a scene "
                              "collection Rostrum can read, unreadable = settings without one")
+    parser.add_argument("--settings-tab", choices=SETTINGS_TABS, default="",
+                        help="With --page settings: the tab to open before the shot")
     args = parser.parse_args()
     with_tones = args.tones == "always" or (args.tones == "auto" and args.page == "apps")
 
@@ -308,7 +313,7 @@ def main() -> int:
     code = 1
     try:
         capture(args.application, args.output, args.width, args.height, args.theme, args.page,
-                with_tones, args.obs)
+                with_tones, args.obs, args.settings_tab)
         code = 0
     except KeyboardInterrupt as error:
         safety.report(str(error))
