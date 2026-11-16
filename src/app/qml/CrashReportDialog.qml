@@ -92,7 +92,7 @@ Kirigami.Dialog {
             QQC2.TextArea {
                 readOnly: true
                 text: dialog.reportText
-                font.family: "monospace"
+                font.family: Kirigami.Theme.fixedWidthFont.family
                 font.pointSize: Kirigami.Theme.smallFont.pointSize
                 wrapMode: Text.NoWrap
                 selectByMouse: true

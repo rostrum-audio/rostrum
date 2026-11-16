@@ -6,10 +6,11 @@ import org.kde.kirigamiaddons.formcard as FormCard
 import Rostrum
 
 // First run: welcome, devices, apps, startup, privacy and updates, OBS, then a summary that creates
-// the mix. Every choice applies as soon as it is made, so Skip keeps them and uses defaults for the
-// rest. "Create Mix" stays on the last step and shows the PipeWire error if node creation fails.
+// the mix. Every choice applies as soon as it is made, so skipping keeps them and uses defaults for
+// the rest. "Create Mix" stays on the last step and shows the PipeWire error if node creation fails.
 QQC2.Pane {
     id: wizard
+    objectName: "wizard"
 
     property int step: 0
     property bool creating: false
@@ -47,6 +48,7 @@ QQC2.Pane {
     ]
     readonly property string stepId: steps[step].id
     readonly property bool lastStep: step === steps.length - 1
+    readonly property real hairline: Math.max(1, Math.round(Kirigami.Units.smallSpacing / 2))
 
     readonly property bool wantMeters: visible && stepId === "mic"
     onWantMetersChanged: Devices.metersActive = wantMeters
@@ -148,7 +150,7 @@ QQC2.Pane {
                     text: i18nc("@title", "Setup")
                     font.weight: Font.DemiBold
                     font.capitalization: Font.AllUppercase
-                    font.letterSpacing: 1
+                    font.letterSpacing: Kirigami.Units.smallSpacing / 4
                     opacity: 0.6
                 }
 
@@ -165,7 +167,7 @@ QQC2.Pane {
                         readonly property bool reachable: done && !wizard.creating
 
                         Layout.fillWidth: true
-                        implicitHeight: Kirigami.Units.gridUnit * 2.4
+                        implicitHeight: Kirigami.Units.gridUnit * 2.8
                         hoverEnabled: reachable
                         focusPolicy: reachable ? Qt.TabFocus : Qt.NoFocus
                         onClicked: if (reachable) wizard.step = index
@@ -174,9 +176,14 @@ QQC2.Pane {
 
                         background: Rectangle {
                             radius: Kirigami.Units.cornerRadius
-                            color: railItem.hovered || railItem.visualFocus ? Qt.alpha(Kirigami.Theme.highlightColor, 0.12) : "transparent"
+                            color: railItem.hovered || railItem.visualFocus ? Qt.alpha(Kirigami.Theme.highlightColor, 0.2)
+                                 : railItem.current ? Qt.alpha(Kirigami.Theme.highlightColor, 0.12) : "transparent"
+                            border.width: railItem.current ? 1 : 0
+                            border.color: Qt.alpha(Kirigami.Theme.highlightColor, 0.6)
                         }
 
+                        leftPadding: Kirigami.Units.smallSpacing
+                        rightPadding: Kirigami.Units.smallSpacing
                         contentItem: RowLayout {
                             spacing: Kirigami.Units.largeSpacing
 
@@ -189,7 +196,7 @@ QQC2.Pane {
                                     anchors.horizontalCenter: parent.horizontalCenter
                                     anchors.top: parent.top
                                     anchors.bottom: dot.top
-                                    width: 2
+                                    width: wizard.hairline
                                     color: railItem.done || railItem.current ? Kirigami.Theme.highlightColor : railItem.lineColor
                                 }
                                 Rectangle {
@@ -197,7 +204,7 @@ QQC2.Pane {
                                     anchors.horizontalCenter: parent.horizontalCenter
                                     anchors.top: dot.bottom
                                     anchors.bottom: parent.bottom
-                                    width: 2
+                                    width: wizard.hairline
                                     color: railItem.done ? Kirigami.Theme.highlightColor : railItem.lineColor
                                 }
                                 Rectangle {
@@ -207,7 +214,7 @@ QQC2.Pane {
                                     height: width
                                     radius: width / 2
                                     color: railItem.done || railItem.current ? Kirigami.Theme.highlightColor : Kirigami.Theme.backgroundColor
-                                    border.width: railItem.done || railItem.current ? 0 : 1.5
+                                    border.width: railItem.done || railItem.current ? 0 : 1
                                     border.color: railItem.lineColor
 
                                     Kirigami.Icon {
@@ -229,12 +236,25 @@ QQC2.Pane {
                                     }
                                 }
                             }
-                            QQC2.Label {
+                            ColumnLayout {
                                 Layout.fillWidth: true
-                                text: railItem.modelData.title
-                                elide: Text.ElideRight
-                                font.weight: railItem.current ? Font.DemiBold : Font.Normal
-                                opacity: railItem.current || railItem.done ? 1 : 0.6
+                                spacing: 0
+                                QQC2.Label {
+                                    Layout.fillWidth: true
+                                    text: railItem.modelData.title
+                                    elide: Text.ElideRight
+                                    font.weight: railItem.current ? Font.DemiBold : Font.Normal
+                                    opacity: railItem.current || railItem.done ? 1 : 0.6
+                                }
+                                // The state in words, so it never rests on the dot's colour alone.
+                                QQC2.Label {
+                                    Layout.fillWidth: true
+                                    visible: text.length > 0
+                                    text: railItem.Accessible.description
+                                    font: Kirigami.Theme.smallFont
+                                    elide: Text.ElideRight
+                                    opacity: 0.7
+                                }
                             }
                         }
                     }
@@ -428,9 +448,9 @@ QQC2.Pane {
                                             contentItem: RowLayout {
                                                 spacing: Kirigami.Units.largeSpacing
                                                 Rectangle {
-                                                    implicitWidth: 4
+                                                    implicitWidth: Kirigami.Units.smallSpacing
                                                     implicitHeight: Kirigami.Units.gridUnit * 1.6
-                                                    radius: 2
+                                                    radius: width / 2
                                                     color: busRow.busColor
                                                 }
                                                 ColumnLayout {
@@ -497,7 +517,7 @@ QQC2.Pane {
                                             text: modelData.label
                                             trailing: QQC2.Label {
                                                 text: modelData.shortcut.length > 0 ? modelData.shortcut : i18nc("@info no shortcut", "None")
-                                                font.family: "monospace"
+                                                font: Kirigami.Theme.fixedWidthFont
                                                 opacity: 0.8
                                             }
                                         }
@@ -637,14 +657,24 @@ QQC2.Pane {
                 Layout.margins: Kirigami.Units.largeSpacing
                 spacing: Kirigami.Units.largeSpacing
 
+                // Welcome spells out what skipping does; later steps keep a short Skip that does the same.
                 QQC2.Button {
+                    id: skipButton
+                    readonly property string longText: i18nc("@action:button skip the whole setup", "Skip setup, just create the mix")
                     visible: !wizard.lastStep
-                    flat: true
-                    text: i18nc("@action:button", "Skip Setup")
+                    text: wizard.step === 0 ? longText : i18nc("@action:button skip the rest of the setup", "Skip")
+                    Accessible.name: longText
                     onClicked: App.skipWizard()
                     QQC2.ToolTip.visible: hovered
                     QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                     QQC2.ToolTip.text: i18nc("@info:tooltip", "Keep the choices made so far, use the defaults for the rest, and go to the Mixer")
+                }
+                QQC2.Button {
+                    visible: wizard.step > 0
+                    enabled: !wizard.creating
+                    text: i18nc("@action:button", "Back")
+                    icon.name: "go-previous"
+                    onClicked: wizard.step -= 1
                 }
                 Item {
                     Layout.fillWidth: true
@@ -663,20 +693,12 @@ QQC2.Pane {
                     Accessible.name: i18n("Creating the mix")
                 }
                 QQC2.Button {
-                    visible: wizard.step > 0
-                    enabled: !wizard.creating
-                    text: i18nc("@action:button", "Back")
-                    icon.name: "go-previous"
-                    onClicked: wizard.step -= 1
-                }
-                QQC2.Button {
                     id: nextButton
+                    // On the OBS step the highlight stays with Set Up OBS until that is done.
                     readonly property bool skipsObs: wizard.stepId === "obs" && !Obs.setUp
                     visible: !wizard.lastStep
                     highlighted: !skipsObs
-                    text: wizard.step === 0 ? i18nc("@action:button", "Get Started")
-                                            : skipsObs ? i18nc("@action:button skip the OBS setup step", "Skip")
-                                                       : i18nc("@action:button", "Next")
+                    text: wizard.step === 0 ? i18nc("@action:button", "Get Started") : i18nc("@action:button", "Next")
                     icon.name: "go-next"
                     onClicked: wizard.step += 1
                 }
