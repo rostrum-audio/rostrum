@@ -175,7 +175,7 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
 10. Go to Ready and press Create Mix: a spinner shows, then the Mixer opens.
     `~/.config/rostrum/scenes/live.toml` exists, and `settings.toml` has `wizard_done = true`,
     `setup_version = 3` and `crash_reports = 'never'`.
-11. Repeat from step 1, but press Skip Setup on Welcome: the Mixer opens and the nodes exist
+11. Repeat from step 1, but press "Skip setup, just create the mix" on Welcome (or Skip on a later step): the Mixer opens and the nodes exist
     anyway. Crash reports stay on Ask.
 12. People who set Rostrum up before 0.1.0 got these choices: in `settings.toml`, delete the
     `setup_version` line and the `[privacy]`, `[updates]` and `[obs]` tables, and start Rostrum.
@@ -240,7 +240,8 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
 1. Install (`cmake --install build --prefix ~/.local`) and start Rostrum from the app menu. The
    launcher shows the Rostrum icon, and so does the tray.
 2. The tray tooltip reads "Mic live · Scene: Live". Press the header mic button: the tray icon
-   gains the red slashed-mic badge and the tooltip says "Mic muted". Unmute from the tray menu:
+   gains the red slashed-mic badge and the tooltip says "Mic muted". The tray menu's Mute Mic is
+   checked and still reads Mute Mic; choose it:
    the header button turns back too. The tray, the header and the hotkey drive the same state.
 3. Close the window with the title bar button. Rostrum stays in the tray (`pgrep rostrum`), and
    audio keeps flowing. Left-click the tray icon: the window comes back. Tray menu → Quit exits.
@@ -252,7 +253,10 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
    lists Rostrum with the same eight actions. Press Meta+Alt+M with another app focused: the mic
    mutes. Rebind "Mute mic" to Meta+D (Peek at Desktop): the row warns that KWin already uses it,
    and Meta+D still works inside Rostrum's window only. Press Backspace on a focused shortcut
-   button: the binding clears.
+   button: the binding clears. Give "Mute mic" the shortcut of "Mute all playback to stream"
+   (Meta+Alt+S): the row says it is also used there and offers Replace and Cancel, and nothing is
+   saved yet. Cancel: both rows are as before. Do it again and press Replace: "Mute mic" has
+   Meta+Alt+S, the other row is empty, and System Settings → Shortcuts shows the same.
 5. Make a second scene. Meta+Alt+PgDown switches to it from any app; the tray's Scenes submenu
    checks it. With "Save scene changes automatically" off, "Confirm before switching scenes" on
    and a fader moved, the hotkey raises the window and asks first.
@@ -665,7 +669,7 @@ makes noise removal easy to hear.
 
 1. **Off by default.** `wpctl status` lists no Rostrum Filtered Mic and `pw-dump | grep
    rostrum.micfx` finds nothing. The FX button on the mic strip is not lit.
-2. **On.** Press FX. Within a second the Mic Filters page shows the filters as on (not
+2. **On.** Press FX. Within a second the Studio Voice page shows the filters as on (not
    "starting"), and the log says `mic filter graph running in <id>` once. Sources now include
    "Rostrum Filtered Mic". The hardware mic and `wpctl inspect @DEFAULT_SOURCE@` are unchanged.
 3. **Sound.** Record `pw-record --target rostrum.mic on.wav` with the fan running, then turn the
@@ -707,7 +711,7 @@ makes noise removal easy to hear.
 
 ## 29. Mic check
 
-1. **Record and play back.** On Mic Filters, press Check Mic and talk for 5 seconds. The progress
+1. **Record and play back.** On Studio Voice, press Check Mic and talk for 5 seconds. The progress
    bar counts down, then the recording plays once in the headphones only: OBS's audio meter for
    Rostrum Stream Mix stays still during playback apart from your live mic. It sounds filtered
    when the filters are on and plain when they are off.
@@ -738,7 +742,7 @@ Needs Easy Effects 7 or 8 with "Process all output streams" and "Process all inp
 3. **Move Back.** Chip menu → Move Back to This Bus (or Move Back on the Apps row): the app is on
    Music again and the warning goes away.
 4. **Mic apps.** With the filters on, join a Discord voice channel: Discord records Rostrum
-   Filtered Mic, not Easy Effects Source, and the Mic Filters page says "Hears the filtered mic".
+   Filtered Mic, not Easy Effects Source, and the Studio Voice page says "Hears the filtered mic".
 5. **Own streams.** The Devices page test chime and the mic check play in the headphones, never
    through Easy Effects.
 

@@ -32,7 +32,7 @@ Custom controls set an accessible name and, where Qt cannot work it out, a role:
 - **Meters** are exposed as progress bars. Their description gives the level in words: "Silent",
   a peak level in dB such as "-12 dB", or "Clipping". It updates at most twice a second so it does
   not flood the screen reader.
-- **Mic filters:** the FX button on the Mic strip is named "Mic filters". On the Mic Filters page,
+- **Studio Voice:** the FX button on the Mic strip is named "Studio Voice". On the Studio Voice page,
   each filter's switch and slider is named, and a slider's description gives its value with the
   unit, such as "-40 dB". Each app's switch is named "Filtered mic for" and the app.
 - **Mic check:** the progress bar is named "Recording progress" or "Playback progress", and the
@@ -42,7 +42,15 @@ Custom controls set an accessible name and, where Qt cannot work it out, a role:
   give the reason when Rostrum placed an app automatically.
 - **Navigation:** the sidebar is a list of page tabs, and the scene switcher says the current scene
   and whether it has unsaved changes.
-- **First-time setup:** each step says whether it is done or current. The mix diagram has a text
+- **First-time setup:** each step says whether it is done or current, on screen and to a screen
+  reader. The skip button is named "Skip setup, just create the mix" on every step.
+- **Confirmations:** dialogs that remove, overwrite or interrupt something open with Cancel focused,
+  so Enter and Escape both leave things as they are. The removing button is marked by its wording
+  and icon as well as its colour.
+- **Hotkeys:** a shortcut that another action already has waits for "Replace" or "Cancel"; both
+  buttons name the actions involved.
+- **Compact view and tray:** compact rows say Muted, Solo or Dimmed by solo in words. The tray's
+  Mute Mic and Mute Stream keep their labels and are checked while muted. The mix diagram has a text
   summary, and its decorative parts are hidden from assistive technology.
 - **Status:** the PipeWire connection status in the status bar is readable as text.
 
@@ -65,7 +73,7 @@ Page Down twice, M, 2, Ctrl+S) is part of the smoke tests in
 | Bus fader | 1 / 2 / 3 | Send to Headphones / Stream / Both |
 | Bus fader | F2 | Rename the bus |
 | Bus fader | Menu key | Open the bus's context menu |
-| FX button (Mic strip) | Menu key | Open the Mic Filters page |
+| FX button (Mic strip) | Menu key | Open the Studio Voice page |
 | Master fader | Right / Left | Level up or down 1 % |
 | Master fader | Page Up / Page Down, M | Level up or down 10 %, mute |
 | Sidebar | Enter or Space | Open the selected page |
@@ -73,6 +81,7 @@ Page Down twice, M, 2, Ctrl+S) is part of the smoke tests in
 | Scenes page | Enter | Load the selected scene |
 | Renaming | Escape | Cancel |
 | Settings → Hotkeys | Backspace | Clear the focused shortcut |
+| Confirmation dialogs | Enter or Escape | Cancel (Tab to the other button to confirm) |
 
 A fader's tooltip lists its keys when it has focus. Global shortcuts (mute mic, mute all playback
 to stream, previous and next scene, load scenes 1–4) work from any app and can be rebound in
@@ -112,8 +121,9 @@ has a button to assign it to a bus.
 - **Meters are visual first.** The spoken level is the peak in whole dB, at most twice a second.
   It tells you whether a bus has signal and roughly how loud it is, but it is not a replacement for
   listening. The clip mark on screen lasts 1.5 seconds.
-- **Meter zones use color.** The amber (from -12 dB) and red (from -6 dB) zones, and the bus colors,
-  are shown only as color on screen.
+- **Meter zones use color.** The green, amber (from -12 dB) and red (from -6 dB) zones are shown
+  only as color on screen. A bus's own color is only the dot beside its name; the name says which
+  bus it is.
 - **Custom-drawn controls.** Faders, meters and strip toggles are drawn by Rostrum. They take their
   colors from the desktop theme but have not been checked against high-contrast color schemes.
 - **Motion.** There is no setting of Rostrum's own to reduce motion; meters move while audio plays.

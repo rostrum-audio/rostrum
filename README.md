@@ -94,10 +94,11 @@ Five minutes to a split stream:
    - **Privacy and Updates:** crash reports (send, ask, or never; official builds only) and update
      checks.
    - **OBS:** if OBS is installed, **Set Up OBS** shows the same preview as the OBS page (Rostrum
-     creates its devices first), or **Skip**. Also whether Rostrum follows OBS while it runs.
+     creates its devices first), or **Next** to leave OBS for later. Also whether Rostrum follows OBS while it runs.
    - **Ready:** each choice in one list. Click one to change it, then press **Create Mix**.
 
-   Skip Setup creates the same mix with the defaults. Everything can be changed later in Settings.
+   **Skip setup, just create the mix** on the first step (**Skip** on later ones) keeps the choices made
+   so far and creates the same mix with the defaults for the rest. Everything can be changed later in Settings.
    Settings groups the existing controls into General, Audio, Hotkeys, Integrations, and Application tabs.
    **General → Startup → Launch at login** writes an autostart desktop file with an absolute
    `Exec`: the quoted AppImage path or the full path to `~/.local/bin/rostrum`, followed by
@@ -143,8 +144,9 @@ Five minutes to a split stream:
    they can double audio or bypass Headphones Only exclusions. A single Rostrum bus
    such as Desktop is not the Stream Mix. Check OBS track assignments and make a short recording.
 
-   **Check stream readiness** inspects controls, devices, channel routing and OBS capture
-   observations. Results are Verified, Needs attention, Intentionally excluded/idle or
+   On the OBS page, **Check Again** runs the stream readiness check: it inspects controls, devices,
+   channel routing and OBS capture observations. The card shows what needs attention; **Show checks**
+   lists the rest. Results are Verified, Needs attention, Intentionally excluded/idle or
    Not verified. It does not change settings or play/record audio, and it cannot guarantee
    recorded tracks or audience sound. See [the check’s scope](docs/stream-readiness.md).
 
@@ -169,7 +171,7 @@ Five minutes to a split stream:
    rules. Switch with Meta+Alt+PgDown or the scene menu in the header. Move Up and Move Down set
    the order that the header, the tray and the scene hotkeys follow; the badge shows each scene's
    hotkey number.
-7. **Studio Voice (optional).** Open Mic Filters and turn on Studio Voice, or press FX on the mic
+7. **Studio Voice (optional).** Open the Studio Voice page and turn it on, or press FX on the mic
    strip. Pick a sound (Natural, Studio, Noisy desk) — Broadcast is under Advanced — and adjust
    fine controls if you like. "Filter the mic for" chooses between the stream and every app, or only the
    stream; the Apps list below it switches single apps, and remembers apps that are not running.
@@ -183,9 +185,9 @@ Five minutes to a split stream:
    call apps using it follow the mixer and OpenDeck mute. Apps recording the hardware mic directly
    keep their own mute controls.
 
-   ![The Mic Filters page: the on switch, preset and who gets the filtered mic, then Check Your Mic and the rumble filter](docs/screenshots/micfilters.png)
+   ![The Studio Voice page: the on switch, preset and who gets the filtered mic, then Check Your Mic and the rumble filter](docs/screenshots/micfilters.png)
 
-8. **Check how you sound.** Under "Check Your Mic" (on Mic Filters and Devices, or Check Mic in
+8. **Check how you sound.** Under "Check Your Mic" (on Studio Voice and Devices, or Check Mic in
    the header's mic popup), press **Check Mic** and talk for 5 seconds. Rostrum plays the
    recording back in your headphones only, with Rostrum’s mic gain and filters,
    and says whether the level is good, too quiet or too loud. It does not test OBS or audience audio. "Hear yourself live" turns on
@@ -274,8 +276,10 @@ bring both back), sidetone on or off, mute headphones, Stream volume up and down
 filters on or off, check mic, load scene 5–8, and a mute for each playback bus. Push to talk, push to mute and panic are never saved.
 When the Rostrum window is not in front, a hotkey that mutes, unmutes or switches scenes shows a
 short on-screen message (Settings → General → "Show hotkey changes on screen").
+If a shortcut you press in Settings → Hotkeys already belongs to another action, nothing changes
+until you choose **Replace** (the other action loses it) or **Cancel**.
 
-The tray menu has Show or Hide Rostrum, Mute Mic, Mute Stream, Previous and Next Scene, a Scenes submenu, Restart Rostrum
+The tray menu has Show or Hide Rostrum, Mute Mic and Mute Stream (each checked while muted), Previous and Next Scene, a Scenes submenu, Restart Rostrum
 (handy after installing a new build) and Quit.
 Middle-click the tray icon to mute or unmute the mic, scroll on it to change the Stream master.
 
@@ -469,7 +473,7 @@ Installing into `~/.local` adds the app menu entry, the icon and the System Sett
 ### 📋 Source-build requirements
 
 - Linux with PipeWire 1.0 or newer and WirePlumber 0.5 or newer. PulseAudio is not used or required.
-  Mic filters need PipeWire 1.4 or newer; on older versions the Mic Filters page says so and
+  Mic filters need PipeWire 1.4 or newer; on older versions the Studio Voice page says so and
   everything else works.
 - Qt 6.5+ (Base, Declarative, WebSockets and SVG), KDE Frameworks 6.8+ (Kirigami, CoreAddons,
   DBusAddons, GlobalAccel, I18n, StatusNotifierItem, and at run time KDeclarative, KItemModels and

@@ -256,7 +256,7 @@ saved mic is never rewritten.
 
 ## Mic filters (Studio Voice)
 
-The Mic Filters page ("Studio Voice", `[mic_filters] enabled`, off by default), the FX button on
+The Studio Voice page (`[mic_filters] enabled`, off by default), the FX button on
 the mic strip, the `toggle_mic_filters` action and D-Bus `SetMicFilters` switch one filter chain
 on the mic. It is a setting, not part of a scene, so a scene switch never changes how the voice
 sounds. The hardware mic and the system default source are never changed.
@@ -632,7 +632,7 @@ the router nor another program (Easy Effects, for one) moves it onto a bus or an
 
 ## Mic check
 
-"Check Your Mic" on the Mic Filters and Devices pages, Check Mic in the header's mic popup, and the
+"Check Your Mic" on the Studio Voice and Devices pages, Check Mic in the header's mic popup, and the
 `mic_check` action (no default shortcut) record 5 s of `rostrum.mic`, which is what the stream gets:
 after the mic gain, the mute and the mic filters. Then the recording plays back once, mono to both
 ears, on the headphone device in use (`rostrum-mic-check-record`, then `rostrum-mic-check-play`,
@@ -831,7 +831,7 @@ with OBS closed, edits OBS's scene collection after backing it up.
   minimize. A switch to another virtual desktop also stops showing it, but takes focus away
   first, so it is left alone. Minimizing an inactive window (from a task bar menu) just
   minimizes.
-  The menu has Show or Hide Rostrum, Mute Mic, Mute Stream, Previous Scene, Next Scene, a Scenes submenu, Restart Rostrum
+  The menu has Show or Hide Rostrum, Mute Mic and Mute Stream (checkable, checked while muted), Previous Scene, Next Scene, a Scenes submenu, Restart Rostrum
   and Quit.
 - Restart (tray, or Settings → General): quits as Quit does, then starts the same program again
   with `--restart-after=<pid>`. The new copy waits up to 10 s for the old process to exit before
