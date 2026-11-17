@@ -68,6 +68,8 @@ public:
 
     // Unit tests only: install a stand-in graph without a daemon. Refuses if connected.
     void testingInstallGraph(const Graph &graph, State state = State::Ready);
+    // Unit tests only: the object IDs destroyObject() was asked to remove while there is no daemon.
+    QList<uint32_t> testingDestroyRequests() const;
 
 Q_SIGNALS:
     void stateChanged();

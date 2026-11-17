@@ -793,11 +793,22 @@ void Engine::reconcileLinks()
     };
 
     QSet<QPair<uint32_t, uint32_t>> wanted;
+    // Nodes whose ports are arriving or going away (a new node, or WirePlumber reconfiguring one).
+    // What they should be linked to is not known until the set is whole again.
+    QSet<uint32_t> portsInFlux;
     m_phonesCrossLinkWanted = false;
     for (const auto &[out, in] : nodePairs) {
         const auto outPorts = g.outputPorts(out->id);
         const auto inPorts = g.inputPorts(in->id);
-        if (!complete(out, outPorts) || !complete(in, inPorts)) {
+        const bool outComplete = complete(out, outPorts);
+        const bool inComplete = complete(in, inPorts);
+        if (!outComplete) {
+            portsInFlux.insert(out->id);
+        }
+        if (!inComplete) {
+            portsInFlux.insert(in->id);
+        }
+        if (!outComplete || !inComplete) {
             continue;
         }
         for (const auto &p : outPorts) {
@@ -844,6 +855,13 @@ void Engine::reconcileLinks()
     };
 
     for (const auto &l : g.links) {
+        // A link on a node that is losing its ports looks unwanted only because its pair could not
+        // be worked out. PipeWire removes it with the port and reuses the ID straight away, so a
+        // destroy sent now can land on a new object, such as the node's new port. Leave it; if it
+        // really is unwanted it goes once the ports have settled.
+        if (portsInFlux.contains(l.outNode) || portsInFlux.contains(l.inNode)) {
+            continue;
+        }
         if (managed(l) && !wanted.contains({l.outPort, l.inPort}) && !m_pendingDestroy.contains(l.id)) {
             qCInfo(lcEngine) << "unlink" << g.node(l.outNode)->name << "->" << g.node(l.inNode)->name;
             destroyOnce(l.id);

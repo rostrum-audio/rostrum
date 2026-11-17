@@ -575,6 +575,81 @@ private Q_SLOTS:
         QVERIFY(phonesSpy.count() > phonesAfterGone);
     }
 
+    // WirePlumber reconfigures every node when it starts, so a bus loses its ports one by one and
+    // gets new ones. PipeWire removes the links on a removed port itself and hands their IDs to
+    // new objects at once; asking for such a link to be destroyed would remove whatever has the ID
+    // now (in practice: the bus's new ports).
+    void linksOfABusThatIsLosingItsPortsAreLeftAlone()
+    {
+        pw::PwContext pw; // never started: stand-in graph only
+        engine::Engine engine(&pw);
+        auto flush = [] {
+            QCoreApplication::processEvents();
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::Timer);
+            QCoreApplication::processEvents();
+        };
+        auto port = [](uint32_t id, uint32_t nodeId, bool output, const char *channel) {
+            pw::Port p;
+            p.id = id;
+            p.nodeId = nodeId;
+            p.output = output;
+            p.monitor = output;
+            p.channel = QString::fromLatin1(channel);
+            p.name = QStringLiteral("%1_%2").arg(output ? QStringLiteral("monitor") : QStringLiteral("playback"), p.channel);
+            p.serial = QString::number(1000 + id);
+            return p;
+        };
+        auto link = [](uint32_t id, uint32_t outNode, uint32_t outPort, uint32_t inNode, uint32_t inPort) {
+            pw::Link l;
+            l.id = id;
+            l.outNode = outNode;
+            l.outPort = outPort;
+            l.inNode = inNode;
+            l.inPort = inPort;
+            return l;
+        };
+
+        pw::Graph settled;
+        for (auto n : {node(100, "rostrum.game", "Audio/Sink", 9000), node(200, "rostrum.stream", "Audio/Sink", 9000)}) {
+            n.channels = 2;
+            settled.nodes.insert(n.id, n);
+        }
+        for (const auto &p : {port(110, 100, false, "FL"), port(111, 100, false, "FR"), port(112, 100, true, "FL"),
+                              port(113, 100, true, "FR"), port(210, 200, false, "FL"), port(211, 200, false, "FR"),
+                              port(212, 200, true, "FL"), port(213, 200, true, "FR")}) {
+            settled.ports.insert(p.id, p);
+        }
+        settled.links.insert(930, link(930, 100, 112, 200, 210));
+        settled.links.insert(931, link(931, 100, 113, 200, 211));
+
+        engine.setBusDestination(QStringLiteral("game"), Destination::Stream);
+        engine.createMix();
+        pw.testingInstallGraph(settled);
+        flush();
+        // Both links are wanted as they are.
+        QVERIFY(!pw.testingDestroyRequests().contains(930));
+        QVERIFY(!pw.testingDestroyRequests().contains(931));
+
+        // Half way through: the left ports and their link are gone, the right ones not yet.
+        pw::Graph losing = settled;
+        for (uint32_t id : {110u, 111u, 112u}) {
+            losing.ports.remove(id);
+        }
+        losing.links.remove(930);
+        pw.testingInstallGraph(losing);
+        flush();
+        QVERIFY2(!pw.testingDestroyRequests().contains(931),
+                 "The link on a bus that is losing its ports must be left to PipeWire");
+
+        // A link that is really unwanted still goes: the bus stops feeding the stream.
+        pw.testingInstallGraph(settled);
+        flush();
+        engine.setBusDestination(QStringLiteral("game"), Destination::Phones);
+        flush();
+        QVERIFY(pw.testingDestroyRequests().contains(930));
+        QVERIFY(pw.testingDestroyRequests().contains(931));
+    }
+
     void micFilterSettingsAndAppChoices()
     {
         pw::PwContext pw; // never started

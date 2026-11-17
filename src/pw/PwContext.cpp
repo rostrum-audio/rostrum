@@ -128,6 +128,7 @@ struct PwContext::Impl
     QString serverVersion;
     QString wireplumberVersion;
     bool hasWirePlumber = false;
+    QList<uint32_t> testingDestroyRequests; // only filled while unconnected
     Graph graph;
     QHash<uint32_t, QHash<QString, QString>> metadataValues;
     QString defaultSink;
@@ -933,9 +934,12 @@ bool PwContext::roundtrip(int timeoutMs)
     return done;
 }
 
+QList<uint32_t> PwContext::testingDestroyRequests() const { return d->testingDestroyRequests; }
+
 void PwContext::destroyObject(uint32_t id)
 {
     if (!d->registry) {
+        d->testingDestroyRequests.append(id);
         return;
     }
     pw_thread_loop_lock(d->loop);
