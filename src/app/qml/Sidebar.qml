@@ -4,7 +4,7 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import Rostrum
 
-// 200 px page list that collapses to icons only. Arrow keys move, Enter or Space opens.
+// The page list, which collapses to icons only. Arrow keys move, Enter or Space opens.
 QQC2.Pane {
     id: sidebar
 
@@ -21,7 +21,7 @@ QQC2.Pane {
     }
 
     padding: 0
-    implicitWidth: collapsed ? Kirigami.Units.iconSizes.smallMedium + Kirigami.Units.largeSpacing * 4 : 200
+    implicitWidth: collapsed ? Kirigami.Units.iconSizes.smallMedium + Kirigami.Units.largeSpacing * 4 : Kirigami.Units.gridUnit * 11
     Behavior on implicitWidth {
         NumberAnimation {
             duration: Kirigami.Units.shortDuration

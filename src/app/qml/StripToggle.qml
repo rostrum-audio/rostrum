@@ -37,7 +37,9 @@ QQC2.AbstractButton {
     contentItem: QQC2.Label {
         text: toggle.text
         font.weight: Font.Bold
-        color: toggle.on ? "white" : Qt.alpha(Kirigami.Theme.textColor, 0.8)
+        // On the lit button the letter takes the background colour, which the theme keeps readable
+        // against its status colours.
+        color: toggle.on ? Kirigami.Theme.backgroundColor : Qt.alpha(Kirigami.Theme.textColor, 0.8)
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
     }

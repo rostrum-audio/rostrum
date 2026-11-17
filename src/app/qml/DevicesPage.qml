@@ -187,7 +187,7 @@ QQC2.ScrollView {
                         QQC2.Label {
                             text: Preferences.showNodeIds ? i18nc("@info node name and id", "%1 (#%2)", modelData.name, modelData.id)
                                                           : modelData.name
-                            font.family: "monospace"
+                            font.family: Kirigami.Theme.fixedWidthFont.family
                             font.pointSize: Kirigami.Theme.smallFont.pointSize
                             opacity: 0.7
                             Layout.fillWidth: true

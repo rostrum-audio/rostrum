@@ -144,7 +144,7 @@ QQC2.Slider {
             GradientStop { position: 1; color: Qt.lighter(Kirigami.Theme.alternateBackgroundColor, 1.35) }
         }
         border.width: fader.visualFocus ? 2 : 1
-        border.color: fader.visualFocus || fader.pressed ? Kirigami.Theme.focusColor : Qt.alpha("black", 0.45)
+        border.color: fader.visualFocus || fader.pressed ? Kirigami.Theme.focusColor : Qt.alpha(Kirigami.Theme.textColor, 0.35)
 
         Rectangle {
             anchors.centerIn: parent

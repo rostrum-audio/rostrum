@@ -53,30 +53,30 @@ RowLayout {
         QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
         hoverEnabled: true
 
-        // Darker than the logo's coral so white text stays readable.
+        // The theme's negative colour, with the text in the background colour so it stays readable.
         background: Rectangle {
             radius: height / 2
-            color: "#C8102E"
+            color: Kirigami.Theme.negativeTextColor
             border.width: liveBadge.visualFocus ? 2 : 0
             border.color: Kirigami.Theme.focusColor
         }
         contentItem: RowLayout {
             spacing: Kirigami.Units.smallSpacing
             Rectangle {
-                implicitWidth: 8
-                implicitHeight: 8
-                radius: 4
-                color: "white"
+                implicitWidth: Kirigami.Units.smallSpacing * 2
+                implicitHeight: implicitWidth
+                radius: width / 2
+                color: Kirigami.Theme.backgroundColor
             }
             QQC2.Label {
                 text: i18nc("@info badge, keep short", "LIVE")
-                color: "white"
+                color: Kirigami.Theme.backgroundColor
                 font.weight: Font.Bold
                 font.letterSpacing: 0.5
             }
             QQC2.Label {
                 text: badges.streamTime
-                color: "white"
+                color: Kirigami.Theme.backgroundColor
             }
         }
     }
@@ -107,7 +107,7 @@ RowLayout {
         contentItem: RowLayout {
             spacing: Kirigami.Units.smallSpacing
             StreamDot {
-                size: 8
+                size: Kirigami.Units.smallSpacing * 2
                 opacity: Obs.recordPaused ? 0.4 : 1
             }
             QQC2.Label {

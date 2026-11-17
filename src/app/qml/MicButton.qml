@@ -72,7 +72,7 @@ QQC2.AbstractButton {
         }
         Kirigami.Icon {
             source: mic.offline ? "microphone-sensitivity-muted" : mic.noMic ? "dialog-warning" : mic.muted ? "microphone-sensitivity-muted" : "microphone-sensitivity-high"
-            color: mic.muted && !mic.noMic ? "white" : Kirigami.Theme.textColor
+            color: mic.muted && !mic.noMic ? Kirigami.Theme.backgroundColor : Kirigami.Theme.textColor
             isMask: mic.offline || !mic.noMic
             implicitWidth: Kirigami.Units.iconSizes.smallMedium
             implicitHeight: implicitWidth
@@ -81,7 +81,7 @@ QQC2.AbstractButton {
             text: mic.text
             font.weight: Font.Bold
             font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.1
-            color: mic.muted && !mic.noMic ? "white" : Kirigami.Theme.textColor
+            color: mic.muted && !mic.noMic ? Kirigami.Theme.backgroundColor : Kirigami.Theme.textColor
         }
     }
 

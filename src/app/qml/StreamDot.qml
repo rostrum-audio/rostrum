@@ -1,11 +1,12 @@
 import QtQuick
+import org.kde.kirigami as Kirigami
 
-// The on-air dot: the stream's mark everywhere in the app, in the logo's coral.
+// The on-air dot: the stream's mark everywhere in the app, in the theme's negative (red) colour.
 Rectangle {
-    property real size: 10
+    property real size: Kirigami.Units.smallSpacing * 2.5
 
     implicitWidth: size
     implicitHeight: size
     radius: width / 2
-    color: "#FF4F5E"
+    color: Kirigami.Theme.negativeTextColor
 }
