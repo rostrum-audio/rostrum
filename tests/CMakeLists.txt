@@ -132,6 +132,14 @@ if(ROSTRUM_AUDIO_INTEGRATION_TESTS)
     add_test(NAME audio_wireplumber_restart COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/integration/wireplumber-restart.py $<TARGET_FILE:rostrum-graphtest>
         $<TARGET_FILE:rostrum-test-stream>)
+    # With the filter plugin built, Studio Voice is on during the restarts, as when #29 was seen.
+    set(wireplumber_restart_idle_plugin "")
+    if(TARGET rostrum-dsp)
+        set(wireplumber_restart_idle_plugin $<TARGET_FILE:rostrum-dsp>)
+    endif()
+    add_test(NAME audio_wireplumber_restart_idle COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/integration/wireplumber-restart-idle.py $<TARGET_FILE:rostrum-graphtest>
+        $<TARGET_FILE:rostrum-test-stream> ${wireplumber_restart_idle_plugin})
     add_test(NAME audio_pipewire_restart COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/integration/pipewire-restart.py $<TARGET_FILE:rostrum-graphtest>
         $<TARGET_FILE:rostrum-test-stream>)
@@ -173,7 +181,7 @@ if(ROSTRUM_AUDIO_INTEGRATION_TESTS)
     endif()
     # Lifecycle regressions deliberately interrupt private jobs; serialize audio tests.
     set_tests_properties(audio_safety audio_safety_fixture audio_safety_lifecycle audio_readiness
-        audio_rule_fragments audio_stream_replacement audio_wireplumber_restart audio_pipewire_restart
-        audio_obs_capture_lost PROPERTIES
+        audio_rule_fragments audio_stream_replacement audio_wireplumber_restart audio_wireplumber_restart_idle
+        audio_pipewire_restart audio_obs_capture_lost PROPERTIES
         TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
 endif()

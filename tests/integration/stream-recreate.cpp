@@ -4,11 +4,13 @@
 // When the control file holds a new request line, it destroys that stream and creates an identical
 // one in the same loop iteration, as a browser does when it changes tracks or formats. PipeWire
 // then sees the removal and the new node in one burst, so the new node can reuse the old one's ID.
+// A request line "pause" closes the stream and keeps the connection, as a music player does while
+// paused; "play" opens a new one.
 //
 //   rostrum-test-stream --app NAME --control FILE [--frequency HZ] [--no-restore-target]
 //
 // Prints "node <id>" each time a stream reaches the paused or streaming state, and
-// "replaced <request>" after a replacement. Test tooling only.
+// "replaced <request>", "paused <request>" or "playing <request>" after a request. Test tooling only.
 
 #include <pipewire/pipewire.h>
 #include <spa/param/audio/format-utils.h>
@@ -130,11 +132,27 @@ void onPoll(void *data, uint64_t)
         return;
     }
     a.last = request;
-    // Destroy and recreate before returning to the loop: both reach the server in one flush.
-    spa_hook_remove(&a.listener);
-    pw_stream_destroy(a.stream);
-    createStream(a);
-    std::printf("replaced %s\n", request.c_str());
+    if (request.rfind("pause", 0) == 0) {
+        if (a.stream) {
+            spa_hook_remove(&a.listener);
+            pw_stream_destroy(a.stream);
+            a.stream = nullptr;
+        }
+        std::printf("paused %s\n", request.c_str());
+    } else if (request.rfind("play", 0) == 0) {
+        if (!a.stream) {
+            createStream(a);
+        }
+        std::printf("playing %s\n", request.c_str());
+    } else {
+        // Destroy and recreate before returning to the loop: both reach the server in one flush.
+        if (a.stream) {
+            spa_hook_remove(&a.listener);
+            pw_stream_destroy(a.stream);
+        }
+        createStream(a);
+        std::printf("replaced %s\n", request.c_str());
+    }
     std::fflush(stdout);
 }
 
@@ -181,7 +199,9 @@ int main(int argc, char **argv)
     timespec interval{0, 25 * 1000 * 1000};
     pw_loop_update_timer(pw_main_loop_get_loop(a.loop), timer, &interval, &interval, false);
     pw_main_loop_run(a.loop);
-    pw_stream_destroy(a.stream);
+    if (a.stream) {
+        pw_stream_destroy(a.stream);
+    }
     pw_core_disconnect(a.core);
     pw_context_destroy(a.context);
     pw_main_loop_destroy(a.loop);
