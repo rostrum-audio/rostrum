@@ -165,17 +165,17 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
    it shows your distribution, desktop and versions, and no user name, path or device name.
    Pick Never send. The update switches match how this copy was installed (test 14).
 8. Next. On OBS, with OBS installed and running: the step says whether OBS records Rostrum, and
-   the footer button reads Skip. Press Set Up OBS…: a spinner shows while Rostrum creates its
+   the footer offers Skip Setup and Next. Press Set Up OBS…: a spinner shows while Rostrum creates its
    devices, then the same preview as the OBS page opens. Cancel it. "Follow OBS while it runs" and
    "Warn me when a stream starts with a problem" are on. With OBS not installed, the step says
-   so, and Skip moves on.
+   so, and Next moves on.
 9. Next. Ready lists each choice, OBS included. Click Crash reports: setup goes back to Privacy
    and Updates. The finished steps on the left show check marks and can be clicked; later steps
    cannot.
 10. Go to Ready and press Create Mix: a spinner shows, then the Mixer opens.
     `~/.config/rostrum/scenes/live.toml` exists, and `settings.toml` has `wizard_done = true`,
     `setup_version = 3` and `crash_reports = 'never'`.
-11. Repeat from step 1, but press "Skip setup, just create the mix" on Welcome (or Skip on a later step): the Mixer opens and the nodes exist
+11. Repeat from step 1, but press "Skip setup, just create the mix" on Welcome (or Skip Setup on a later step): the Mixer opens and the nodes exist
     anyway. Crash reports stay on Ask.
 12. People who set Rostrum up before 0.1.0 got these choices: in `settings.toml`, delete the
     `setup_version` line and the `[privacy]`, `[updates]` and `[obs]` tables, and start Rostrum.

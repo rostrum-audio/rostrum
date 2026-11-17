@@ -97,7 +97,7 @@ Five minutes to a split stream:
      creates its devices first), or **Next** to leave OBS for later. Also whether Rostrum follows OBS while it runs.
    - **Ready:** each choice in one list. Click one to change it, then press **Create Mix**.
 
-   **Skip setup, just create the mix** on the first step (**Skip** on later ones) keeps the choices made
+   **Skip setup, just create the mix** on the first step (**Skip Setup** on later ones) keeps the choices made
    so far and creates the same mix with the defaults for the rest. Everything can be changed later in Settings.
    Settings groups the existing controls into General, Audio, Hotkeys, Integrations, and Application tabs.
    **General → Startup → Launch at login** writes an autostart desktop file with an absolute

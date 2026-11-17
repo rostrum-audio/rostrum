@@ -22,14 +22,6 @@ QQC2.Pane {
     // Routing gives way first when the window is at its narrowest.
     readonly property bool showRouting: width >= Kirigami.Units.gridUnit * 26
 
-    // Meters only run while something shows them.
-    Binding {
-        target: Mixer
-        property: "metersActive"
-        when: compact.visible
-        value: App.mixReady && compact.Window.window !== null && compact.Window.window.visible
-    }
-
     component SlimRow: RowLayout {
         id: slimRow
 

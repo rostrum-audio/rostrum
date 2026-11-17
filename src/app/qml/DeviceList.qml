@@ -106,25 +106,7 @@ ColumnLayout {
                 }
                 return true
             }
-            readonly property bool isTemporaryStandIn: {
-                if (row.isDisconnected || !list.usingTemporary || list.inUse === "") {
-                    return false
-                }
-                if (modelData.name === "") {
-                    // System default owns the pill only when that radio is selected.
-                    return list.selected === ""
-                           && list.defaultRow
-                           && list.defaultRow.name === list.inUse
-                }
-                if (modelData.name !== list.inUse) {
-                    return false
-                }
-                if (list.selected === "" && list.defaultRow
-                        && list.defaultRow.name === list.inUse) {
-                    return false
-                }
-                return true
-            }
+            readonly property bool isTemporaryStandIn: list.usingTemporary && row.isInUse
             readonly property bool availableFallbackOff: list.isInput && list.savedMissing
                                                          && !list.allowFallback
                                                          && modelData.name !== ""
@@ -157,15 +139,14 @@ ColumnLayout {
             // Card chrome (Penpot device tiles).
             background: Rectangle {
                 radius: Kirigami.Units.cornerRadius
-                color: row.highlighted || row.chosen
-                       ? Qt.alpha(Kirigami.Theme.highlightColor, row.highlighted ? 1 : 0.12)
-                       : Kirigami.Theme.backgroundColor
-                border.width: 1
-                border.color: row.chosen || row.highlighted
-                              ? Kirigami.Theme.highlightColor
+                color: row.chosen ? Qt.alpha(Kirigami.Theme.highlightColor, 0.12)
+                                  : Kirigami.Theme.backgroundColor
+                // Keyboard focus is drawn here: the style's own background is replaced.
+                border.width: row.visualFocus ? 2 : 1
+                border.color: row.visualFocus ? Kirigami.Theme.focusColor
+                              : row.chosen ? Kirigami.Theme.highlightColor
                               : Qt.alpha(Kirigami.Theme.textColor, 0.15)
             }
-            highlighted: false
             onClicked: list.picked(modelData.name)
             Keys.onSpacePressed: list.picked(modelData.name)
 

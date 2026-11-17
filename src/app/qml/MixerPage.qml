@@ -22,10 +22,13 @@ QQC2.Pane {
         return Math.max(stripNarrow, Math.min(stripWide, Math.floor(room / n)))
     }
 
+    // Meters only run while something shows them: this page, or the compact window, which has
+    // meters of its own and hides this page. One owner, so two bindings never disagree.
     Binding {
         target: Mixer
         property: "metersActive"
-        value: page.visible && App.mixReady && page.Window.window !== null && page.Window.window.visible
+        value: (page.visible || (page.Window.window !== null && page.Window.window.compact === true))
+               && App.mixReady && page.Window.window !== null && page.Window.window.visible
     }
 
     DropArea {

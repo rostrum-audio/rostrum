@@ -657,12 +657,13 @@ QQC2.Pane {
                 Layout.margins: Kirigami.Units.largeSpacing
                 spacing: Kirigami.Units.largeSpacing
 
-                // Welcome spells out what skipping does; later steps keep a short Skip that does the same.
+                // Welcome spells out what skipping does; later steps say Skip Setup, so it never reads as
+                // skipping only the step on screen.
                 QQC2.Button {
                     id: skipButton
                     readonly property string longText: i18nc("@action:button skip the whole setup", "Skip setup, just create the mix")
                     visible: !wizard.lastStep
-                    text: wizard.step === 0 ? longText : i18nc("@action:button skip the rest of the setup", "Skip")
+                    text: wizard.step === 0 ? longText : i18nc("@action:button skip the rest of the setup", "Skip Setup")
                     Accessible.name: longText
                     onClicked: App.skipWizard()
                     QQC2.ToolTip.visible: hovered
