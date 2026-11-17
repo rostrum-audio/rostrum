@@ -185,7 +185,7 @@ Five minutes to a split stream:
    call apps using it follow the mixer and OpenDeck mute. Apps recording the hardware mic directly
    keep their own mute controls.
 
-   ![The Studio Voice page: the on switch, preset and who gets the filtered mic, then Check Your Mic and the rumble filter](docs/screenshots/micfilters.png)
+   ![The Studio Voice page: the on switch, the mic, the sound presets, Check Your Mic and who gets the filtered mic](docs/screenshots/micfilters.png)
 
 8. **Check how you sound.** Under "Check Your Mic" (on Studio Voice and Devices, or Check Mic in
    the header's mic popup), press **Check Mic** and talk for 5 seconds. Rostrum plays the
