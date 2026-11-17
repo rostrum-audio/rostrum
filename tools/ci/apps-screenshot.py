@@ -45,6 +45,17 @@ TONES = (
     ("Chromium Web Browser — Very Long Window Title For Truncation", 880),
 )
 
+# For the README and docs: everyday app names, and devices described like real hardware.
+DOCS_TONES = (
+    ("Firefox", 440),
+    ("Discord", 554),
+    ("Spotify", 659),
+)
+DOCS_DEVICES = {
+    "test.headphones": "USB Headset Analog Stereo",
+    "test.saved-mic": "USB Headset Mic",
+}
+
 # Minimal extra scenes for the Scenes page (Live is created as the default).
 SCENE_SEED = (
     ("streaming.toml", '''format = 1
@@ -112,6 +123,40 @@ name = "Desktop"
 volume = 1.0
 '''),
 )
+
+
+def recognised_wireplumber(session) -> None:
+    """Docs shots only. The fixture runs WirePlumber under the profile "rostrum-test", so it
+    registers as "WirePlumber (rostrum-test)" and Rostrum warns that the session manager is not
+    WirePlumber. Run the same private profile under the name "main" instead, for this session
+    alone; the shared fixture is not changed."""
+    spawn = session.spawn
+
+    def spawn_named(args, output=None):
+        if list(args[:1]) == ["wireplumber"]:
+            conf = Path(session.env["WIREPLUMBER_CONFIG_DIR"]) / "wireplumber.conf"
+            text = conf.read_text()
+            if "\n  main = {" not in text or "rostrum-test = {" not in text:
+                raise safety.Failure("Unexpected WirePlumber configuration; cannot rename the test profile")
+            text = text.replace("\n  main = {", "\n  main-original = {", 1).replace("rostrum-test = {", "main = {", 1)
+            conf.write_text(text)
+            args = ["wireplumber", "-p", "main"]
+        return spawn(args, output)
+
+    session.spawn = spawn_named
+
+
+def described_device(session, name: str, description: str, source: bool = False) -> None:
+    """Like the fixture's device(), with a description of its own."""
+    channels = "MONO" if source else "FL FR"
+    media = "Audio/Source/Virtual" if source else "Audio/Sink"
+    session.command("pw-cli", "create-node", "adapter", f'''{{
+        factory.name = support.null-audio-sink node.name = "{name}"
+        node.description = "{description}" media.class = {media}
+        audio.position = [ {channels} ] object.linger = true
+        monitor.channel-volumes = true priority.session = 1000
+    }}''')
+    session.wait(f"fake device {name}", lambda: session.node(session.graph(), name))
 
 
 def report_dir(path: Path) -> Path:
@@ -206,7 +251,7 @@ def print_isolation(env: dict, root: Path) -> None:
 
 def capture(application: Path, output: Path, width: int, height: int, theme: str, page: str,
             with_tones: bool, obs: str = "none", settings_tab: str = "", compact: bool = False,
-            wizard: str = "", open_dialog: str = "") -> None:
+            wizard: str = "", open_dialog: str = "", docs: bool = False) -> None:
     application = application.resolve(strict=True)
     output = report_dir(output)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -216,9 +261,15 @@ def capture(application: Path, output: Path, width: int, height: int, theme: str
     session = safety.Session(application)
     app = None
     try:
+        if docs:
+            recognised_wireplumber(session)
         session.start()
-        session.device("test.headphones")
-        session.device("test.saved-mic", source=True)
+        if docs:
+            described_device(session, "test.headphones", DOCS_DEVICES["test.headphones"])
+            described_device(session, "test.saved-mic", DOCS_DEVICES["test.saved-mic"], source=True)
+        else:
+            session.device("test.headphones")
+            session.device("test.saved-mic", source=True)
 
         config_home = Path(session.env["XDG_CONFIG_HOME"])
         write_settings(config_home, width, height, page, compact, bool(wizard))
@@ -248,9 +299,10 @@ def capture(application: Path, output: Path, width: int, height: int, theme: str
         print(f"theme={theme} scheme={SCHEMES[theme]} page={page}", flush=True)
 
         if with_tones:
-            for name, frequency in TONES:
+            tones = DOCS_TONES if docs else TONES
+            for name, frequency in tones:
                 session.tone(name, "test.headphones", frequency=frequency)
-            for name, _ in TONES:
+            for name, _ in tones:
                 session.wait(f"tone still present {name}",
                              lambda n=name: session.node(session.graph(), n) is not None)
 
@@ -312,7 +364,11 @@ def main() -> int:
     parser.add_argument("--wizard", choices=WIZARD_STEPS, default="",
                         help="Shoot the first-run wizard on this step instead of a page")
     parser.add_argument("--open", default="", metavar="OBJECT_NAME",
-                        help="Open the dialog with this objectName on the page before the shot")
+                        help="Open the dialog, or press the button, with this objectName before the shot; "
+                             "several names separated by commas go in order")
+    parser.add_argument("--docs", action="store_true",
+                        help="For README shots: everyday app and device names, and a private "
+                             "WirePlumber that Rostrum recognises")
     parser.add_argument("--compact", action="store_true",
                         help="Shoot the compact window at --width x --height")
     args = parser.parse_args()
@@ -329,7 +385,7 @@ def main() -> int:
     code = 1
     try:
         capture(args.application, args.output, args.width, args.height, args.theme, args.page,
-                with_tones, args.obs, args.settings_tab, args.compact, args.wizard, args.open)
+                with_tones, args.obs, args.settings_tab, args.compact, args.wizard, args.open, args.docs)
         code = 0
     except KeyboardInterrupt as error:
         safety.report(str(error))

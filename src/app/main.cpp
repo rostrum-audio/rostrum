@@ -203,12 +203,18 @@ int main(int argc, char *argv[])
                 }
             });
         }
-        // ROSTRUM_SCREENSHOT_OPEN=removeBusDialog opens the dialog with that objectName first. Screenshot
-        // runs only.
-        if (const QString name = qEnvironmentVariable("ROSTRUM_SCREENSHOT_OPEN"); !name.isEmpty()) {
-            QTimer::singleShot(1500, app.get(), [window, name] {
-                if (auto *dialog = window ? window->findChild<QObject *>(name) : nullptr) {
-                    QMetaObject::invokeMethod(dialog, "open");
+        // ROSTRUM_SCREENSHOT_OPEN=removeBusDialog opens the dialog with that objectName first, or
+        // presses the button with that name. Several names, separated by commas, go in order.
+        // Screenshot runs only.
+        const QStringList names = qEnvironmentVariable("ROSTRUM_SCREENSHOT_OPEN").split(QLatin1Char(','), Qt::SkipEmptyParts);
+        for (qsizetype n = 0; n < names.size(); ++n) {
+            QTimer::singleShot(1500 + 600 * int(n), app.get(), [window, name = names.at(n)] {
+                if (auto *object = window ? window->findChild<QObject *>(name) : nullptr) {
+                    if (object->metaObject()->indexOfMethod("open()") >= 0) {
+                        QMetaObject::invokeMethod(object, "open");
+                    } else {
+                        QMetaObject::invokeMethod(object, "clicked");
+                    }
                 } else {
                     qWarning("No object named %s to open", qPrintable(name));
                 }
