@@ -91,7 +91,7 @@ QMap<QString, QString> micFxProperties()
         // buffers across quantum changes and subsequently output silent blocks.
         {QStringLiteral("convert.direction"), QStringLiteral("output")},
         {QStringLiteral("node.name"), QString::fromLatin1(kMicFxNode)},
-        {QStringLiteral("node.description"), QStringLiteral("Rostrum Mic Filters")},
+        {QStringLiteral("node.description"), QStringLiteral("Rostrum Studio Voice")},
         {QStringLiteral("audio.channels"), QStringLiteral("1")},
         {QStringLiteral("audio.position"), QStringLiteral("[ MONO ]")},
         {QStringLiteral("object.linger"), QStringLiteral("true")},

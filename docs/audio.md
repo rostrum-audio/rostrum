@@ -75,7 +75,7 @@ Every Rostrum node is a `support.null-audio-sink` adapter created in the PipeWir
 | `rostrum.vod` | `Audio/Sink` | FL FR | `Rostrum VOD Mix` | Twitch VOD mix (playback buses with VOD enabled, default on except Music). Volume = Master Stream. OBS captures its monitor on Track 2. |
 | `rostrum.mic` | `Audio/Source/Virtual` | MONO | `Rostrum Mic` | The hardware mic after Rostrum's gain and mute. OBS captures this. |
 | `rostrum.sidetone` | `Audio/Sink` | MONO | `Rostrum Sidetone` | Mic monitoring into headphones. Volume = sidetone fader. |
-| `rostrum.micfx` | none | MONO | `Rostrum Mic Filters` | Only while mic filters are on. Runs the filter chain (below). |
+| `rostrum.micfx` | none | MONO | `Rostrum Studio Voice` | Only while mic filters are on. Runs the filter chain (below). |
 | `rostrum.filtered` | `Audio/Source/Virtual` | MONO | `Rostrum Filtered Mic` | While the mix runs. With filters on, the voice after `micfx`; with filters off, failed or unavailable, a unity bypass of the hardware mic for apps. |
 
 Properties set on every node:
