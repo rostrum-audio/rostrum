@@ -256,7 +256,10 @@ directory containing `pipewire/client.conf.d/50-rostrum.conf`, then run
    button: the binding clears. Give "Mute mic" the shortcut of "Mute all playback to stream"
    (Meta+Alt+S): the row says it is also used there and offers Replace and Cancel, and nothing is
    saved yet. Cancel: both rows are as before. Do it again and press Replace: "Mute mic" has
-   Meta+Alt+S, the other row is empty, and System Settings → Shortcuts shows the same.
+   Meta+Alt+S, the other row is empty, and System Settings → Shortcuts shows the same. Now give
+   "Mute headphones" Meta+Alt+M and press Replace: with another app focused, Meta+Alt+M mutes the
+   headphones (the action taking the key sorts before the one giving it up). Press Reset on
+   "Mute mic": it asks before taking Meta+Alt+M back.
 5. Make a second scene. Meta+Alt+PgDown switches to it from any app; the tray's Scenes submenu
    checks it. With "Save scene changes automatically" off, "Confirm before switching scenes" on
    and a fader moved, the hotkey raises the window and asks first.

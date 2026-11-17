@@ -207,6 +207,19 @@ void Hotkeys::applyKGlobalAccel()
         delete it.value();
         it = m_actions.erase(it);
     }
+    // First let go of every shortcut that is moving. The desktop refuses a key another Rostrum
+    // action still holds, and the loop below walks the actions in name order, so when Replace moves
+    // a key, the action taking it can come before the one giving it up.
+    for (auto it = m_bindings.cbegin(); it != m_bindings.cend(); ++it) {
+        QAction *action = m_actions.value(it.key());
+        if (!action) {
+            continue;
+        }
+        const QList<QKeySequence> held = kga->shortcut(action);
+        if (!held.isEmpty() && held != QList<QKeySequence>{QKeySequence(it.value(), QKeySequence::PortableText)}) {
+            kga->setShortcut(action, {}, KGlobalAccel::NoAutoloading);
+        }
+    }
     for (auto it = m_bindings.cbegin(); it != m_bindings.cend(); ++it) {
         const QString &id = it.key();
         QAction *action = m_actions.value(id);

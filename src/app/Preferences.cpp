@@ -295,9 +295,11 @@ void Preferences::setHotkeySequence(const QString &actionId, const QKeySequence 
     setHotkey(actionId, sequence.toString(QKeySequence::PortableText));
 }
 
+// The default may belong to another action by now; it loses it, as with Replace. The hotkey list
+// asks first.
 void Preferences::resetHotkey(const QString &actionId)
 {
-    setHotkey(actionId, actions::defaultShortcut(actionId));
+    replaceHotkeySequence(actionId, QKeySequence(actions::defaultShortcut(actionId), QKeySequence::PortableText));
 }
 
 void Preferences::replaceHotkeySequence(const QString &actionId, const QKeySequence &sequence)

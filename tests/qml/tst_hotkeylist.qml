@@ -21,7 +21,8 @@ Item {
         property var pendingConflicts: ({})
         property var sets: []
         property var replaced: []
-        function hotkeyConflict(id, shortcut) { return conflicts[id] ?? "" }
+        // By row id, or by "id shortcut" for a clash only that shortcut would have.
+        function hotkeyConflict(id, shortcut) { return conflicts[id + " " + shortcut] ?? conflicts[id] ?? "" }
         function hotkeySequenceConflict(id, sequence) { return pendingConflicts[id] ?? "" }
         function setHotkeySequence(id, sequence) { sets = sets.concat([id]) }
         function replaceHotkeySequence(id, sequence) { replaced = replaced.concat([id]) }
@@ -34,6 +35,10 @@ Item {
         name: "HotkeyList"
         when: windowShown
         property var list: null
+        property var savedHotkeys: null
+        function initTestCase() { savedHotkeys = prefs.hotkeys }
+        // Some tests change the rows; a failure part way must not leave that for the next test.
+        function cleanup() { prefs.hotkeys = savedHotkeys }
         function init() {
             prefs.conflicts = ({})
             prefs.pendingConflicts = ({})
@@ -93,6 +98,35 @@ Item {
             compare(findChild(other, "hotkeyCancel-bus-game-mute").visible, false)
             mouseClick(replace)
             compare(prefs.replaced, ["bus-game-mute"])
+        }
+        function test_resetToATakenDefaultAsksFirst() {
+            // Mute mic gave its default away earlier; Push to talk has it now.
+            prefs.hotkeys = savedHotkeys.map(r => r.id === "mic-mute" ? Object.assign({}, r, {shortcut: ""}) : r)
+            prefs.conflicts = {"mic-mute Meta+Alt+M": "Push to talk"}
+            prefs.pendingConflicts = {"mic-mute": "Push to talk"}
+            const other = createTemporaryObject(fresh, root)
+            tryVerify(() => findChild(other, "hotkeyReset-mic-mute") !== null)
+            const reset = findChild(other, "hotkeyReset-mic-mute")
+            verify(reset.enabled)
+            compare(findChild(other, "hotkeyReplace-mic-mute").visible, false)
+            reset.clicked()
+            // Nothing changes until the person chooses.
+            compare(prefs.resets.length, 0)
+            compare(findChild(other, "hotkeyRow-mic-mute").pending, true)
+            const replace = findChild(other, "hotkeyReplace-mic-mute")
+            tryCompare(replace, "visible", true)
+            compare(findChild(other, "hotkeyCancel-mic-mute").visible, true)
+            replace.clicked()
+            compare(prefs.replaced, ["mic-mute"])
+            compare(prefs.resets.length, 0)
+        }
+        function test_resetToAFreeDefault() {
+            prefs.hotkeys = savedHotkeys.map(r => r.id === "mic-mute" ? Object.assign({}, r, {shortcut: "Meta+Alt+K"}) : r)
+            const other = createTemporaryObject(fresh, root)
+            tryVerify(() => findChild(other, "hotkeyReset-mic-mute") !== null)
+            findChild(other, "hotkeyReset-mic-mute").clicked()
+            compare(prefs.resets, ["mic-mute"])
+            compare(findChild(other, "hotkeyRow-mic-mute").pending, false)
         }
         function press(id, sequence) {
             const keys = findChild(list, "hotkeyKeys-" + id)

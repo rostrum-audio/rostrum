@@ -226,11 +226,22 @@ ColumnLayout {
                             Accessible.description: hotkeyRow.modelData.description
                         }
                         QQC2.ToolButton {
+                            objectName: "hotkeyReset-" + hotkeyRow.modelData.id
                             icon.name: "edit-undo"
                             text: i18nc("@action:button", "Reset to default")
                             display: QQC2.AbstractButton.IconOnly
                             enabled: hotkeyRow.modelData.shortcut !== hotkeyRow.modelData.defaultShortcut
-                            onClicked: list.preferences.resetHotkey(hotkeyRow.modelData.id)
+                            onClicked: {
+                                // The default may belong to another action by now: ask, as for a typed key.
+                                const fallback = hotkeyRow.modelData.defaultShortcut
+                                if (fallback !== "" && list.preferences.hotkeyConflict(hotkeyRow.modelData.id, fallback) !== "") {
+                                    keys.keySequence = fallback
+                                    hotkeyRow.pending = true
+                                    return
+                                }
+                                hotkeyRow.pending = false
+                                list.preferences.resetHotkey(hotkeyRow.modelData.id)
+                            }
                             Accessible.name: i18nc("@action:button accessible", "Reset the shortcut for %1", hotkeyRow.modelData.label)
                             QQC2.ToolTip.visible: hovered
                             QQC2.ToolTip.text: text
