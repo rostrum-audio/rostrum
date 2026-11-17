@@ -11,8 +11,10 @@ bool hasDenoise();
 
 // The plugin file for PipeWire to load, or empty with *error set. Checks ROSTRUM_DSP_PLUGIN,
 // then the build tree (for a run from it), then next to the executable, then the install path.
-// From an AppImage the file is first copied out of the mount, which goes away on quit while
-// PipeWire still has the plugin loaded.
+// An installed plugin (AppImage or not) is handed over as a copy whose path changes with its
+// contents: PipeWire keeps the plugin loaded after Rostrum quits, so an upgrade must not reuse
+// the path, and an AppImage's mount goes away on quit. Outside an AppImage the installed file is
+// used when the copy cannot be made or its folder forbids running code.
 QString pluginPath(QString *error = nullptr);
 
 // Copies source to dir/<content hash>/<file name> unless an identical copy is there, writing

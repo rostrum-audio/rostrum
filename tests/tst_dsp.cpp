@@ -420,6 +420,48 @@ private Q_SLOTS:
         QVERIFY(de.get("Reduction") > 2);
     }
 
+    // Threshold is the level of the sibilance band itself, so the number on the control means dBFS.
+    void deesserThresholdIsTheBandLevel()
+    {
+        const std::map<std::string, float> controls = { { "Threshold", -28 }, { "Frequency", 6500 }, { "Range", -12 } };
+        Host under("rostrum_deesser", kRate, controls);
+        const auto quiet = sine(6500, std::pow(10.0f, -31.0f / 20), 1.0); // 3 dB under the threshold
+        const double untouched = rmsDb(quiet, 0.5) - rmsDb(under.process(quiet), 0.5);
+        QVERIFY2(std::fabs(untouched) < 0.1, qPrintable(QString::number(untouched)));
+        QCOMPARE(under.get("Reduction"), 0.0f);
+
+        Host over("rostrum_deesser", kRate, controls);
+        const auto loud = sine(6500, std::pow(10.0f, -22.0f / 20), 1.0); // 6 dB over it
+        const double cut = rmsDb(loud, 0.5) - rmsDb(over.process(loud), 0.5);
+        QVERIFY2(cut > 1, qPrintable(QString::number(cut)));
+    }
+
+    // The cut arrives with the Attack time, and the meter shows the cut that was made.
+    void deesserAttackSetsHowFastTheCutArrives()
+    {
+        const auto ess = sine(6500, 0.25f, 1.0);
+        const size_t from = kRate * 5 / 1000, to = kRate * 10 / 1000; // 5 to 10 ms in
+        auto cutAt = [&](float attackMs, double *settled) {
+            Host de("rostrum_deesser", kRate,
+                    { { "Threshold", -40 }, { "Frequency", 6500 }, { "Range", -12 }, { "Attack", attackMs } });
+            const auto out = de.process(ess);
+            *settled = rmsDb(ess, 0.5) - rmsDb(out, 0.5);
+            return rmsDb(ess, from, to) - rmsDb(out, from, to);
+        };
+        double settled = 0;
+        const double fast = cutAt(1, &settled);
+        QVERIFY2(settled > 3, qPrintable(QString::number(settled)));
+        QVERIFY2(fast > 0.85 * settled, qPrintable(QStringLiteral("%1 of %2").arg(fast).arg(settled)));
+        const double slow = cutAt(50, &settled);
+        QVERIFY2(slow < 0.4 * settled, qPrintable(QStringLiteral("%1 of %2").arg(slow).arg(settled)));
+
+        // A short burst: the meter reports what was cut, not what would have been.
+        Host brief("rostrum_deesser", kRate,
+                   { { "Threshold", -40 }, { "Frequency", 6500 }, { "Range", -12 }, { "Attack", 50 } });
+        brief.process(sine(6500, 0.25f, 0.002));
+        QVERIFY2(brief.get("Reduction") < 2, qPrintable(QString::number(brief.get("Reduction"))));
+    }
+
     void limiterNeverPassesTheCeiling()
     {
         Host limiter("rostrum_limiter", kRate, { { "Ceiling", -1 } });

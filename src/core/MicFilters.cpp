@@ -175,7 +175,7 @@ Settings presetValues(const QString &id)
         s.gateThresholdDb = -48;
         s.gateRangeDb = -18;
         s.gateHoldMs = 250;
-        s.deesserThresholdDb = -26;
+        s.deesserThresholdDb = -34;
         s.deesserRangeDb = -12;
         s.compSidechainHz = 140;
     } else if (id == QLatin1String("broadcast")) {
@@ -191,7 +191,7 @@ Settings presetValues(const QString &id)
         s.presenceHz = 4500;
         s.airGainDb = 2;
         s.airHz = 11000;
-        s.deesserThresholdDb = -30;
+        s.deesserThresholdDb = -38;
         s.deesserRangeDb = -12;
         s.compThresholdDb = -24;
         s.compRatio = 4;
@@ -199,6 +199,52 @@ Settings presetValues(const QString &id)
         s.compReleaseMs = 120;
         s.compMakeupDb = 6;
         s.compSidechainHz = 100;
+    }
+    return s;
+}
+
+// The detector's old gain, to the 1 dB step of the threshold.
+constexpr double kHotDetectorDb = 8;
+
+// The presets as Rostrum 0.2.0 had them, to recognise a saved one.
+Settings legacyPresetValues(const QString &id)
+{
+    Settings s = defaultsForRevision(0);
+    if (id == QLatin1String("light")) {
+        s.denoiseStrength = 70;
+        s.eq = false;
+        s.lowGainDb = 0;
+        s.mudGainDb = 0;
+        s.presenceGainDb = 0;
+        s.airGainDb = 0;
+        s.compThresholdDb = -18;
+        s.compRatio = 2;
+        s.compAttackMs = 10;
+        s.compMakeupDb = 2;
+    } else if (id == QLatin1String("noisy")) {
+        s.highpassHz = 100;
+        s.highpassSteep = true;
+        s.voiceThreshold = 50;
+        s.gate = true;
+        s.gateThresholdDb = -45;
+        s.gateRangeDb = -30;
+    } else if (id == QLatin1String("broadcast")) {
+        s.highpassHz = 90;
+        s.highpassSteep = true;
+        s.gate = true;
+        s.gateRangeDb = -15;
+        s.lowGainDb = 2;
+        s.mudGainDb = -3;
+        s.mudHz = 350;
+        s.presenceGainDb = 3;
+        s.presenceHz = 4500;
+        s.airGainDb = 2;
+        s.airHz = 11000;
+        s.compThresholdDb = -24;
+        s.compRatio = 4;
+        s.compAttackMs = 5;
+        s.compReleaseMs = 120;
+        s.compMakeupDb = 7;
     }
     return s;
 }
@@ -280,28 +326,75 @@ Settings applyPreset(Settings s, const QString &id)
     return s;
 }
 
+namespace {
+
+bool soundsLike(const Settings &s, const Settings &preset)
+{
+    bool same = true;
+    for (const Switch &sw : switches()) {
+        // A switched-off module's details do not change how the preset sounds.
+        if (QLatin1String(sw.key) != QLatin1String("enabled") && !moduleOn(preset, sw.module)) {
+            continue;
+        }
+        same = same && s.*sw.field == preset.*sw.field;
+    }
+    for (const Param &p : params()) {
+        if (moduleOn(preset, p.module)) {
+            same = same && std::abs(s.*p.field - preset.*p.field) < p.step / 2;
+        }
+    }
+    return same;
+}
+
+} // namespace
+
 QString matchingPreset(const Settings &s)
 {
     for (const QString &id : presetIds()) {
-        const Settings preset = presetValues(id);
-        bool same = true;
-        for (const Switch &sw : switches()) {
-            // A switched-off module's details do not change how the preset sounds.
-            if (QLatin1String(sw.key) != QLatin1String("enabled") && !moduleOn(preset, sw.module)) {
-                continue;
-            }
-            same = same && s.*sw.field == preset.*sw.field;
-        }
-        for (const Param &p : params()) {
-            if (moduleOn(preset, p.module)) {
-                same = same && std::abs(s.*p.field - preset.*p.field) < p.step / 2;
-            }
-        }
-        if (same) {
+        if (soundsLike(s, presetValues(id))) {
             return id;
         }
     }
     return QStringLiteral("custom");
+}
+
+Settings defaultsForRevision(int revision)
+{
+    Settings s;
+    if (revision >= kSettingsRevision) {
+        return s;
+    }
+    s.deesserThresholdDb += kHotDetectorDb;
+    if (revision >= 1) {
+        return s;
+    }
+    s.denoiseStrength = 100;
+    s.mudGainDb = -2;
+    s.mudHz = 300;
+    s.presenceGainDb = 2;
+    s.presenceHz = 4000;
+    s.airGainDb = 1.5;
+    s.airHz = 10000;
+    // Neither existed: no de-esser, and the compressor heard the whole signal.
+    s.deesser = false;
+    s.compSidechainHz = 20;
+    return s;
+}
+
+Settings upgradeSettings(Settings s, int revision)
+{
+    if (revision >= kSettingsRevision) {
+        return s;
+    }
+    if (revision <= 0) {
+        for (const QString &id : presetIds()) {
+            if (soundsLike(s, legacyPresetValues(id))) {
+                return applyPreset(s, id);
+            }
+        }
+    }
+    s.deesserThresholdDb -= kHotDetectorDb;
+    return s;
 }
 
 AppChoice appChoice(const Settings &s, const QString &appKey)
@@ -392,10 +485,9 @@ QString graphJson(const Settings &s, const QString &pluginPath, bool denoise)
              moduleNode(modules.last()));
 }
 
-bool graphLoaded(const QStringList &propKeys)
+bool graphLoaded(const QStringList &propKeys, const QList<Control> &controls)
 {
-    const QString last = moduleNode(Module::Limiter) + QStringLiteral(":Enabled");
-    return propKeys.contains(last);
+    return std::all_of(controls.cbegin(), controls.cend(), [&](const Control &c) { return propKeys.contains(c.key); });
 }
 
 } // namespace rostrum::micfx

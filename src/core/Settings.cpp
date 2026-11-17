@@ -215,6 +215,7 @@ toml::table micFiltersTable(const micfx::Settings &m)
         {"scope", micfx::scopeName(m.scope).toStdString()},
         {"filtered_apps", stringArray(m.filteredApps)},
         {"raw_apps", stringArray(m.rawApps)},
+        {"revision", micfx::kSettingsRevision},
     };
     for (const auto module : micfx::kModules) {
         toml::table section;
@@ -240,6 +241,10 @@ micfx::Settings parseMicFilters(const toml::table &root)
     if (!t.as_table()) {
         return m;
     }
+    // Files from before the revision was written: the de-esser's table tells the two apart.
+    const int revision = static_cast<int>(
+        t["revision"].value_or(std::int64_t(t[micfx::moduleName(micfx::Module::Deesser).toStdString()].is_table() ? 1 : 0)));
+    m = micfx::defaultsForRevision(revision);
     m.enabled = t["enabled"].value_or(m.enabled);
     m.scope = micfx::scopeFromString(QString::fromStdString(t["scope"].value_or(std::string())))
                   .value_or(m.scope);
@@ -253,7 +258,7 @@ micfx::Settings parseMicFilters(const toml::table &root)
         const auto section = micfx::moduleName(p.module).toStdString();
         m.*p.field = t[section][p.key].value_or(m.*p.field);
     }
-    return micfx::sanitize(m);
+    return micfx::sanitize(micfx::upgradeSettings(micfx::sanitize(m), revision));
 }
 
 } // namespace

@@ -9,6 +9,8 @@
 #include <QFileInfo>
 #include <QSaveFile>
 
+#include <sys/statvfs.h>
+
 namespace rostrum::dsp {
 
 namespace {
@@ -30,8 +32,11 @@ bool inside(const QString &path, const QString &dir)
     return QDir::cleanPath(path).startsWith(base);
 }
 
-QString located()
+// *installed: the file belongs to an installation, where an upgrade replaces it under the same
+// name. Not so for a path the user named or a run from the build tree.
+QString located(bool *installed)
 {
+    *installed = false;
     const QString override = qEnvironmentVariable("ROSTRUM_DSP_PLUGIN");
     if (!override.isEmpty()) {
         return usable(override) ? QDir::cleanPath(override) : QString();
@@ -41,6 +46,7 @@ QString located()
     if (inside(appDir, QStringLiteral(ROSTRUM_BINARY_DIR)) && usable(QStringLiteral(ROSTRUM_DSP_BUILD_PATH))) {
         return QStringLiteral(ROSTRUM_DSP_BUILD_PATH);
     }
+    *installed = true;
     const QString relative = appDir + QStringLiteral("/../" ROSTRUM_INSTALL_LIBDIR "/rostrum/") +
                              QLatin1String(kFileName);
     if (usable(relative)) {
@@ -51,6 +57,21 @@ QString located()
     }
 #endif
     return {};
+}
+
+// PipeWire cannot load a plugin from a mount that forbids running code.
+bool noexec(const QString &dir)
+{
+    QString d = dir;
+    while (!QFileInfo::exists(d)) {
+        const QString up = QFileInfo(d).absolutePath();
+        if (up == d) {
+            break;
+        }
+        d = up;
+    }
+    struct statvfs st {};
+    return statvfs(QFile::encodeName(d).constData(), &st) == 0 && (st.f_flag & ST_NOEXEC);
 }
 
 } // namespace
@@ -75,7 +96,8 @@ bool hasDenoise()
 
 QString pluginPath(QString *error)
 {
-    const QString path = located();
+    bool installed = false;
+    const QString path = located(&installed);
     if (path.isEmpty()) {
         if (error) {
             *error = built() ? QStringLiteral("The Studio Voice plugin (%1) is not installed.").arg(QLatin1String(kFileName))
@@ -83,9 +105,23 @@ QString pluginPath(QString *error)
         }
         return {};
     }
-    const QString appDir = qEnvironmentVariable("APPDIR");
-    if (!qEnvironmentVariable("APPIMAGE").isEmpty() && inside(path, appDir)) {
-        return stableCopy(path, paths::dspDir(), error);
+    // PipeWire keeps the plugin loaded after Rostrum quits (the filter node lingers), and loading
+    // the same path again gives it the copy it already has. An upgraded plugin therefore has to
+    // arrive under a new path, or the new graph meets the old code. The copy's path changes with
+    // its contents. It also outlives an AppImage's mount, which goes away on quit.
+    // The installed file itself stays usable when there is no good copy; an AppImage's does not.
+    if (installed) {
+        const QString appDir = qEnvironmentVariable("APPDIR");
+        const bool appImage = !qEnvironmentVariable("APPIMAGE").isEmpty() && inside(path, appDir);
+        if (appImage) {
+            return stableCopy(path, paths::dspDir(), error);
+        }
+        if (!noexec(paths::dspDir())) {
+            const QString copy = stableCopy(path, paths::dspDir());
+            if (!copy.isEmpty()) {
+                return copy;
+            }
+        }
     }
     return path;
 }

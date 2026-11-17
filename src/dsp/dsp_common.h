@@ -183,8 +183,9 @@ static inline void rd_svf_set(rd_svf *f, rd_svf_type type, float freq, float q, 
         f->m2 = -1.0f;
         break;
     case RD_SVF_BANDPASS:
+        /* k * v1 is 0 dB at the centre frequency; v1 alone peaks at Q. */
         f->m0 = 0.0f;
-        f->m1 = 1.0f;
+        f->m1 = k;
         f->m2 = 0.0f;
         break;
     case RD_SVF_LOWSHELF:

@@ -135,6 +135,113 @@ private Q_SLOTS:
         QVERIFY(m.denoise); // missing keys keep their defaults
     }
 
+    // What Rostrum 0.2.0 wrote: every key of the time, no de-esser, no sidechain filter, no revision.
+    static QString savedBy020(const Settings &module)
+    {
+        rostrum::Settings settings;
+        settings.micFilters = module;
+        settings.micFilters.enabled = true;
+        settings.micFilters.scope = Scope::StreamOnly;
+        settings.micFilters.rawApps = {QStringLiteral("name:Audacity")};
+        QStringList out;
+        bool skip = false;
+        for (const QString &raw : serializeSettings(settings).split(QLatin1Char('\n'))) {
+            const QString line = raw.trimmed(); // sub-tables are written indented
+            if (line.startsWith(QLatin1Char('['))) {
+                skip = line == QLatin1String("[mic_filters.deesser]");
+            }
+            if (!skip && !line.startsWith(QLatin1String("sidechain_hpf")) && !line.startsWith(QLatin1String("revision"))) {
+                out << line;
+            }
+        }
+        return out.join(QLatin1Char('\n'));
+    }
+
+    static Settings preset020(const QString &id)
+    {
+        Settings s = defaultsForRevision(0);
+        if (id == QLatin1String("light")) {
+            s.denoiseStrength = 70;
+            s.eq = false;
+            s.lowGainDb = s.mudGainDb = s.presenceGainDb = s.airGainDb = 0;
+            s.compThresholdDb = -18;
+            s.compRatio = 2;
+            s.compAttackMs = 10;
+            s.compMakeupDb = 2;
+        } else if (id == QLatin1String("noisy")) {
+            s.highpassHz = 100;
+            s.highpassSteep = true;
+            s.voiceThreshold = 50;
+            s.gate = true;
+            s.gateThresholdDb = -45;
+            s.gateRangeDb = -30;
+        } else if (id == QLatin1String("broadcast")) {
+            s.highpassHz = 90;
+            s.highpassSteep = true;
+            s.gate = true;
+            s.gateRangeDb = -15;
+            s.lowGainDb = 2;
+            s.mudGainDb = -3;
+            s.mudHz = 350;
+            s.presenceGainDb = 3;
+            s.presenceHz = 4500;
+            s.airGainDb = 2;
+            s.airHz = 11000;
+            s.compThresholdDb = -24;
+            s.compRatio = 4;
+            s.compAttackMs = 5;
+            s.compReleaseMs = 120;
+            s.compMakeupDb = 7;
+        }
+        return s;
+    }
+
+    void presetSavedBy020StaysThatPreset()
+    {
+        for (const QString &id : presetIds()) {
+            const QString text = savedBy020(preset020(id));
+            QVERIFY(!text.contains(QStringLiteral("deesser")));
+            const Settings m = parseSettings(text).micFilters;
+            QCOMPARE(matchingPreset(m), id);
+            // The user's own choices are untouched.
+            QVERIFY(m.enabled);
+            QCOMPARE(m.scope, Scope::StreamOnly);
+            QCOMPARE(m.rawApps, QStringList{QStringLiteral("name:Audacity")});
+        }
+        // Natural never had a de-esser and still has none.
+        QVERIFY(!parseSettings(savedBy020(preset020(QStringLiteral("light")))).micFilters.deesser);
+    }
+
+    void ownValuesSavedBy020KeepTheirSound()
+    {
+        Settings own = preset020(QStringLiteral("streaming"));
+        own.compRatio = 6;
+        own.presenceGainDb = 5;
+        const Settings m = parseSettings(savedBy020(own)).micFilters;
+        QCOMPARE(matchingPreset(m), QStringLiteral("custom"));
+        QCOMPARE(m.compRatio, 6.0);
+        QCOMPARE(m.presenceGainDb, 5.0);
+        QCOMPARE(m.mudHz, 300.0);   // their saved value, not the new default
+        QVERIFY(!m.deesser);        // never switched on by them
+        QCOMPARE(m.compSidechainHz, 20.0); // the compressor hears the whole signal, as before
+    }
+
+    void firstDeesserThresholdFollowsTheDetector()
+    {
+        // Saved by a build with the de-esser but before the revision: its detector read 8 dB hot.
+        rostrum::Settings settings;
+        settings.micFilters.deesserThresholdDb = -28;
+        QString text = serializeSettings(settings);
+        QVERIFY(text.contains(QStringLiteral("revision = 2")));
+        text.remove(QStringLiteral("revision = 2"));
+        const Settings m = parseSettings(text).micFilters;
+        QCOMPARE(m.deesserThresholdDb, -36.0);
+        QCOMPARE(matchingPreset(m), QStringLiteral("streaming"));
+        // A current file is read as written, however often.
+        const Settings again = parseSettings(serializeSettings(settings)).micFilters;
+        QCOMPARE(again.deesserThresholdDb, -28.0);
+    }
+
     void controlsCoverEveryPortOnce()
     {
         Settings s;
@@ -152,8 +259,20 @@ private Q_SLOTS:
                 QCOMPARE(c.value, 0.5f);
             }
         }
-        QVERIFY(graphLoaded(keys));
-        QVERIFY(!graphLoaded({QStringLiteral("audioconvert.filter-graph.disable")}));
+        QVERIFY(graphLoaded(keys, list));
+        QVERIFY(!graphLoaded({QStringLiteral("audioconvert.filter-graph.disable")}, list));
+        // A graph an older plugin left behind: no de-esser, no sidechain filter.
+        QStringList older = keys;
+        older.removeAll(QStringLiteral("rostrum_compressor:Sidechain HPF"));
+        QVERIFY(!graphLoaded(older, list));
+        older = keys;
+        older.removeIf([](const QString &k) { return k.startsWith(QLatin1String("rostrum_deesser:")); });
+        QVERIFY(!graphLoaded(older, list));
+        // Without RNNoise the denoise controls are not expected.
+        older = keys;
+        older.removeIf([](const QString &k) { return k.startsWith(QLatin1String("rostrum_denoise:")); });
+        QVERIFY(graphLoaded(older, controls(s, false)));
+        QVERIFY(!graphLoaded(older, list));
 
         for (const auto &c : controls(s, false)) {
             QVERIFY(!c.key.startsWith(QLatin1String("rostrum_denoise:")));

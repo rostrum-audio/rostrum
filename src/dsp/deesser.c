@@ -17,12 +17,17 @@ enum {
 
 #define DETECTOR_Q 2.5f
 #define SHELF_Q 0.70710678f
+/* The shelf follows the envelope this often. The envelope already has the attack and release
+ * times, so the cut is not smoothed again: a second, slower glide would let the start of every
+ * sibilant through. Counted in samples, so block sizes do not change the output. */
+#define SHELF_TICK 8
 
 typedef struct {
     LADSPA_Data *port[P_COUNT];
     float rate;
     float glide;
     float freq;
+    float detector_freq; /* what the detector was last tuned to */
     float cut_db;
     float envelope;
     unsigned tick;
@@ -34,8 +39,12 @@ typedef struct {
 static void update_filters(Deesser *d, float freq, float cut_db, int jump)
 {
     d->freq = jump ? freq : rd_glide(d->freq, freq, d->glide);
-    d->cut_db = jump ? cut_db : rd_glide(d->cut_db, cut_db, d->glide);
-    rd_svf_set(&d->detector, RD_SVF_BANDPASS, d->freq, DETECTOR_Q, 0.0f, d->rate);
+    d->cut_db = cut_db;
+    /* Only the shelf follows the envelope; the detector changes only with the frequency. */
+    if (d->freq != d->detector_freq) {
+        rd_svf_set(&d->detector, RD_SVF_BANDPASS, d->freq, DETECTOR_Q, 0.0f, d->rate);
+        d->detector_freq = d->freq;
+    }
     rd_svf_set(&d->shelf, RD_SVF_HIGHSHELF, d->freq, SHELF_Q, d->cut_db, d->rate);
 }
 
@@ -46,7 +55,7 @@ static LADSPA_Handle instantiate(const LADSPA_Descriptor *desc, unsigned long ra
     if (!d)
         return NULL;
     d->rate = (float)rate;
-    d->glide = rd_time_coef(15.0f, d->rate / RD_TICK);
+    d->glide = rd_time_coef(15.0f, d->rate / SHELF_TICK);
     return d;
 }
 
@@ -75,7 +84,7 @@ static void run(LADSPA_Handle handle, unsigned long n)
     const LADSPA_Data *in = d->port[P_IN];
     LADSPA_Data *out = d->port[P_OUT];
     const int enabled = rd_switch(d->port[P_ENABLED]);
-    const float threshold = rd_control(d->port[P_THRESHOLD], -28.0f, -60.0f, 0.0f);
+    const float threshold = rd_control(d->port[P_THRESHOLD], -36.0f, -60.0f, 0.0f);
     const float freq = rd_control(d->port[P_FREQUENCY], 6500.0f, 4000.0f, 12000.0f);
     const float range = rd_control(d->port[P_RANGE], -10.0f, -24.0f, 0.0f);
     const float attack = rd_time_coef(rd_control(d->port[P_ATTACK], 1.0f, 0.5f, 50.0f), d->rate);
@@ -97,15 +106,15 @@ static void run(LADSPA_Handle handle, unsigned long n)
             const float t = over < 12.0f ? over / 12.0f : 1.0f;
             target_cut = range * t * t;
         }
-        if (target_cut < deepest)
-            deepest = target_cut;
-
         if (d->tick == 0) {
             update_filters(d, freq, target_cut, 0);
             rd_svf_flush(&d->detector);
             rd_svf_flush(&d->shelf);
         }
-        d->tick = (d->tick + 1) % RD_TICK;
+        d->tick = (d->tick + 1) % SHELF_TICK;
+        /* The cut in use, which is what the meter shows. */
+        if (d->cut_db < deepest)
+            deepest = d->cut_db;
 
         const float wet = rd_svf_run(&d->shelf, x);
         const float mix = rd_bypass_next(&d->bypass, enabled);

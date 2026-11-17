@@ -59,7 +59,7 @@ struct Settings
     double airHz = 12000;
 
     bool deesser = true;
-    double deesserThresholdDb = -28;
+    double deesserThresholdDb = -36;
     double deesserHz = 6500;
     double deesserRangeDb = -10;
     double deesserAttackMs = 1;
@@ -119,6 +119,17 @@ Settings applyPreset(Settings s, const QString &id);
 // The preset the module values match, or "custom".
 QString matchingPreset(const Settings &s);
 
+// settings.toml says which revision of the module values it holds. 0: before the de-esser
+// (Rostrum 0.2.0 and older). 1: the first de-esser, whose detector read 8 dB hot. 2: current.
+inline constexpr int kSettingsRevision = 2;
+// What a missing key meant in a file of that revision; the base to read such a file onto.
+Settings defaultsForRevision(int revision);
+// Brings values read from an older file up to date. A user who was on a preset stays on it and
+// gets its current values; one with their own values keeps them and how they sounded: no
+// de-esser they never switched on, no sidechain filter, and the same de-esser sensitivity as far
+// as the threshold's range allows (an old setting below -52 dB ends at the -60 dB floor).
+Settings upgradeSettings(Settings s, int revision);
+
 AppChoice appChoice(const Settings &s, const QString &appKey);
 Settings setAppChoice(Settings s, const QString &appKey, AppChoice choice);
 // Whether a capture stream from an app records the filtered mic. excludedByDefault: audio tools
@@ -137,8 +148,9 @@ QList<Control> controls(const Settings &s, bool denoise);
 // The filter graph for an audioconvert node, with the current values as its initial controls.
 // The node layout depends only on the plugin path and denoise, so later changes are controls.
 QString graphJson(const Settings &s, const QString &pluginPath, bool denoise);
-// True once a node's Props list the graph's controls, i.e. the graph loaded.
-bool graphLoaded(const QStringList &propKeys);
+// True once a node's Props list every one of the graph's controls, i.e. the graph loaded.
+// A graph left by an older plugin lacks some of them and does not count.
+bool graphLoaded(const QStringList &propKeys, const QList<Control> &controls);
 
 // The audioconvert Props key the graph is loaded into.
 inline constexpr const char *kGraphKey = "audioconvert.filter-graph.0";

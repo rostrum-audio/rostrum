@@ -357,7 +357,7 @@ void Engine::reconcileMicFx()
     // is used at once and judged only once audio flows.
     const QString layout = micfx::graphJson(micfx::Settings{}, m_fxPlugin, m_fxDenoise);
     const QList<micfx::Control> controls = micfx::controls(m_micFx, m_fxDenoise);
-    const bool loaded = micfx::graphLoaded(fx.params.keys());
+    const bool loaded = micfx::graphLoaded(fx.params.keys(), controls);
     if (!fx.running || loaded) {
         m_fxMissingClock.invalidate();
     } else if (!m_fxMissingClock.isValid()) {
@@ -419,7 +419,14 @@ void Engine::reconcileMicFx()
             return;
         }
         if (since > kFxLoadTimeoutMs) {
-            qCWarning(lcEngine) << "mic filter graph did not load into" << fx.id << m_fxPlugin;
+            // A graph that loaded without every control came from an older plugin PipeWire already
+            // had under this path (a rebuilt plugin in the build tree, say); restarting PipeWire
+            // clears it.
+            const QStringList keys = fx.params.keys();
+            const bool partial = std::any_of(keys.cbegin(), keys.cend(),
+                                             [](const QString &k) { return k.startsWith(QLatin1String("rostrum_")); });
+            qCWarning(lcEngine) << "mic filter graph did not load into" << fx.id << m_fxPlugin
+                                << (partial ? "(some controls missing: an older plugin is still loaded)" : "");
             m_fxFailed = true;
             setMicFxState(MicFxState::Failed, QStringLiteral("PipeWire could not load Studio Voice. "
                                                              "Your mic is used without filters."));

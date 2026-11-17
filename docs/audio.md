@@ -273,7 +273,7 @@ The chain, in signal order (`micfx::kModules`):
 | Noise removal (`denoise`) | on, 80 % | RNNoise, mixed with the dry signal by strength; optional voice threshold |
 | Noise gate (`gate`) | off | Threshold, range, attack, hold, release |
 | Tone (`eq`) | on | Low and high shelves (low, air), peaking mud cut and presence lift |
-| De-esser (`deesser`) | on | Dynamic high shelf driven by a sibilance band detector |
+| De-esser (`deesser`) | on, −36 dB at 6.5 kHz | Dynamic high shelf driven by a sibilance band detector; the threshold is the level of that band |
 | Compressor (`compressor`) | on, 3:1 at −20 dB | Soft knee, makeup gain, sidechain high-pass (~120 Hz) |
 | Limiter (`limiter`) | on, −1 dBFS | Peak limiter with 1.5 ms lookahead |
 
@@ -281,6 +281,14 @@ Presets (Natural, Studio, Noisy desk, Broadcast — TOML ids `light` / `streamin
 `broadcast`) set every module value and keep the scope, the app choices and the master switch. The
 defaults are the Studio (`streaming`) preset; any other value shows as Custom. Values are clamped
 and snapped to the page's steps when loaded (`micfx::sanitize`).
+
+`[mic_filters] revision` says which values a file holds (`micfx::upgradeSettings`). A file
+without it is from before the de-esser (0.2.0 and older) unless it has a `[mic_filters.deesser]`
+table, in which case it is from the first de-esser, whose detector read 8 dB hot. On load, a
+setup that matches one of the old presets moves to that preset's current values; one with its own
+values keeps them, the de-esser stays off if it was never there, the compressor keeps hearing the
+whole signal (sidechain 20 Hz), and a first-de-esser threshold drops 8 dB so it cuts at the same
+level as before.
 
 ### The plugin
 
@@ -301,9 +309,15 @@ RNNoise works on 10 ms frames at 48 kHz, so noise removal adds 10 ms, and the dr
 to match. At any other graph rate it passes audio through. The other modules work at any rate.
 
 Rostrum looks for the plugin in `ROSTRUM_DSP_PLUGIN`, then the build tree (a binary run from the
-build directory), then `../lib/rostrum/` next to the binary, then the install path. An AppImage's
-files vanish when it quits, and the daemon keeps the graph after that, so the AppImage copies its
-plugin to `$XDG_DATA_HOME/rostrum/dsp/<hash>/` and removes older copies.
+build directory), then `../lib/rostrum/` next to the binary, then the install path. The daemon
+keeps the graph, and the plugin it loaded, after Rostrum quits, and loading the same path again
+gives it the copy it already has. So an installed Rostrum (AppImage or not) copies its plugin to
+`$XDG_DATA_HOME/rostrum/dsp/<hash>/`, where the path changes with the plugin's contents, and
+removes older copies: an upgraded plugin is always loaded fresh, and an AppImage's files can
+vanish when it quits. Outside an AppImage, the installed file is used when the copy cannot be
+written or `$XDG_DATA_HOME` is mounted `noexec`. A plugin named by `ROSTRUM_DSP_PLUGIN` or run from
+the build tree is used where it is; after rebuilding it, restart PipeWire, or the graph comes up
+without the new controls and Studio Voice reports that it could not load.
 
 ### The filter node
 
@@ -817,8 +831,8 @@ Outside `~/.config/rostrum/`, Rostrum writes only the two PipeWire rule fragment
 while "Launch at login" is on, `$XDG_CONFIG_HOME/autostart/dev.getrostrum.Rostrum.desktop`
 (`Exec=… --autostart`, pointing at `$APPIMAGE` when running from an AppImage, as Restart does;
 "Start in tray" only applies to that launch). That file is the source of
-truth: removing it in System Settings → Autostart turns the switch off. An AppImage with mic
-filters on also keeps a copy of the filter plugin in `$XDG_DATA_HOME/rostrum/dsp/`. Set Up OBS, when pressed
+truth: removing it in System Settings → Autostart turns the switch off. An installed
+Rostrum also keeps a copy of the filter plugin in `$XDG_DATA_HOME/rostrum/dsp/`. Set Up OBS, when pressed
 with OBS closed, edits OBS's scene collection after backing it up.
 
 ## Desktop integration
