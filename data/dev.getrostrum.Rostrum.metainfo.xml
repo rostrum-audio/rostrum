@@ -19,7 +19,7 @@
       <li>Buses for game, voice, mic, music, alerts and desktop audio, each with a fader and mute</li>
       <li>Two mixes from one console: what you hear and what your audience hears</li>
       <li>Sets up OBS in one click and can undo every change</li>
-      <li>Optional mic filters remove background noise, cut rumble and even out your level, for the stream and every app</li>
+      <li>Optional Studio Voice mic filters remove background noise, cut rumble and harsh S sounds, and even out your level, for the stream and every app</li>
       <li>Check Mic plays your stream mic back in your headphones and says if the level is right</li>
       <li>Shows when OBS is live or recording, and warns when a stream starts with the mic muted</li>
       <li>Stream readiness checks inspect effective controls, devices, routing and observed OBS captures, with evidence and explicitly unverified results</li>
@@ -84,11 +84,11 @@
       <image type="source" width="1280" height="720">https://raw.githubusercontent.com/rostrum-audio/rostrum/main/docs/screenshots/apps.png</image>
     </screenshot>
     <screenshot>
-      <caption>The OBS page: what OBS records right now</caption>
-      <image type="source" width="1280" height="720">https://raw.githubusercontent.com/rostrum-audio/rostrum/main/docs/screenshots/obs.png</image>
+      <caption>The OBS page: stream readiness checks and recording tracks</caption>
+      <image type="source" width="1280" height="900">https://raw.githubusercontent.com/rostrum-audio/rostrum/main/docs/screenshots/obs.png</image>
     </screenshot>
     <screenshot>
-      <caption>The Mic Filters page: presets, who gets the filtered mic, and Check Your Mic</caption>
+      <caption>The Studio Voice page: presets, Check Your Mic and who gets the filtered mic</caption>
       <image type="source" width="1280" height="720">https://raw.githubusercontent.com/rostrum-audio/rostrum/main/docs/screenshots/micfilters.png</image>
     </screenshot>
     <screenshot>
@@ -98,6 +98,11 @@
   </screenshots>
 
   <releases>
+    <release version="0.3.0" date="2026-11-17">
+      <description>
+        <p>Every page is redesigned, and the mic filters are now Studio Voice, with a de-esser and clearer defaults. Links and app routing recover after PipeWire or WirePlumber restarts, Rostrum warns when OBS loses its captures, and a hotkey that clashes asks before it replaces another.</p>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-10-26">
       <description>
         <p>Choose which buses reach your Twitch VOD, record buses on separate OBS tracks, and control the mix with OpenDeck. This release also fixes settings restore, OBS recording controls and status warnings, autostart entries, and AppImage packaging.</p>
