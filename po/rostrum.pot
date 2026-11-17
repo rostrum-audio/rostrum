@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: rostrum 0.2.0\n"
 "Report-Msgid-Bugs-To: https://github.com/rostrum-audio/rostrum/issues\n"
-"POT-Creation-Date: 2026-11-16 20:54-0500\n"
+"POT-Creation-Date: 2026-11-16 21:29-0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1697,12 +1697,12 @@ msgstr ""
 msgid "A fresh live OBS capture snapshot has not been verified."
 msgstr ""
 
-#: src/app/Obs.cpp:1123
+#: src/app/Obs.cpp:1123 src/app/qml/ReadinessPanel.qml:363
 #, kde-format
 msgid "Verified"
 msgstr ""
 
-#: src/app/Obs.cpp:1127
+#: src/app/Obs.cpp:1127 src/app/qml/ReadinessPanel.qml:353
 #, kde-format
 msgid "Needs attention"
 msgstr ""
@@ -1712,7 +1712,7 @@ msgstr ""
 msgid "Intentionally excluded/idle"
 msgstr ""
 
-#: src/app/Obs.cpp:1135
+#: src/app/Obs.cpp:1135 src/app/qml/ReadinessPanel.qml:358
 #, kde-format
 msgid "Not verified"
 msgstr ""
@@ -3878,14 +3878,15 @@ msgstr ""
 #: src/app/qml/DevicesPage.qml:153 src/app/qml/HotkeyList.qml:108
 #: src/app/qml/MicFiltersPage.qml:338 src/app/qml/MicFiltersPage.qml:432
 #: src/app/qml/MicFiltersPage.qml:559 src/app/qml/ObsPage.qml:446
-#: src/app/qml/RecordingTracks.qml:32
+#: src/app/qml/ReadinessPanel.qml:320 src/app/qml/RecordingTracks.qml:32
 #, kde-format
 msgid "Expanded"
 msgstr ""
 
 #: src/app/qml/DevicesPage.qml:153 src/app/qml/HotkeyList.qml:108
 #: src/app/qml/MicFiltersPage.qml:338 src/app/qml/MicFiltersPage.qml:559
-#: src/app/qml/ObsPage.qml:446 src/app/qml/RecordingTracks.qml:32
+#: src/app/qml/ObsPage.qml:446 src/app/qml/ReadinessPanel.qml:320
+#: src/app/qml/RecordingTracks.qml:32
 #, kde-format
 msgid "Collapsed"
 msgstr ""
@@ -5349,6 +5350,185 @@ msgstr ""
 #, kde-format
 msgid ""
 "Flatpak keeps Rostrum up to date through Discover or your software center."
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:29
+#, kde-format
+msgid "Controls"
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:34
+#, kde-format
+msgid "Devices"
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:39
+#, kde-format
+msgid "Routing"
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:44
+#, kde-format
+msgid "OBS capture"
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:64
+#, kde-format
+msgid "Review the microphone's effective mute, gain and stream destination."
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:66
+#, kde-format
+msgid ""
+"The Stream Mix is effectively silent. Review mute, gain and solo controls."
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:68
+#, kde-format
+msgid ""
+"The selected device is missing or could not be resolved. Review the "
+"selection and fallback settings."
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:70
+#, kde-format
+msgid "Observed audio properties indicate silence where audio is expected."
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:72
+#, kde-format
+msgid ""
+"Review the OBS capture target, mute and track assignments. Expand this "
+"result for the observed issue."
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:73
+#, kde-format
+msgid ""
+"Observed routing does not match the intended path. Expand this result for "
+"the missing or unexpected link."
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:79
+#, kde-format
+msgid "Review OBS setup"
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:84
+#, kde-format
+msgid "Review app routing"
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:89
+#, kde-format
+msgid "Open devices"
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:94
+#, kde-format
+msgid "Open Studio Voice"
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:98
+#, kde-format
+msgid "Open mixer"
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:139 src/app/qml/ReadinessPanel.qml:221
+#, kde-format
+msgid "Collapse observed evidence"
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:139 src/app/qml/ReadinessPanel.qml:221
+#, kde-format
+msgid "Expand observed evidence"
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:312
+#, kde-format
+msgid "Checking live observations…"
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:312
+#, kde-format
+msgid "1 check needs attention"
+msgid_plural "%1 checks need attention"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/app/qml/ReadinessPanel.qml:312
+#, kde-format
+msgid "Some checks could not be verified"
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:312
+#, kde-format
+msgid "Controls and routing checked"
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:316
+#, kde-format
+msgid "Hide checks"
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:316 src/app/qml/ReadinessPanel.qml:319
+#, kde-format
+msgid "Show checks"
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:339
+#, kde-format
+msgid "Review the groups below. Verified applies only to the stated check."
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:368
+#, kde-format
+msgid "Excluded / idle"
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:420
+#, kde-format
+msgid "Contains checks needing review"
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:420
+#, kde-format
+msgid "No checks need attention"
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:441
+#, kde-format
+msgid "Needs attention: %1 · Checks: %2"
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:441
+#, kde-format
+msgid "%1 not verified · %2 checks"
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:441
+#, kde-format
+msgid "%1 checks · verified or intentionally excluded/idle"
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:478
+#, kde-format
+msgid ""
+"Recording and audio for viewers are not verified. This check does not play "
+"or record sound, or change settings. Confirm the final result with a short "
+"recording."
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:483
+#, kde-format
+msgid "Limits of this check"
+msgstr ""
+
+#: src/app/qml/ReadinessPanel.qml:492
+#, kde-format
+msgid ""
+"Recording contents, output track selection and audio for viewers are not "
+"verified."
 msgstr ""
 
 #: src/app/qml/RecordingTracks.qml:27

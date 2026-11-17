@@ -26,22 +26,22 @@ ColumnLayout {
     readonly property var definitions: [
         {
             key: "controls",
-            title: qsTr("Controls"),
+            title: i18n("Controls"),
             icon: "audio-volume-high"
         },
         {
             key: "devices",
-            title: qsTr("Devices"),
+            title: i18n("Devices"),
             icon: "audio-card"
         },
         {
             key: "routing",
-            title: qsTr("Routing"),
+            title: i18n("Routing"),
             icon: "network-connect"
         },
         {
             key: "obs",
-            title: qsTr("OBS capture"),
+            title: i18n("OBS capture"),
             icon: "media-record"
         }
     ]
@@ -61,41 +61,41 @@ ColumnLayout {
             }))
     function explanation(id) {
         if (id === "mic-level")
-            return qsTr("Review the microphone's effective mute, gain and stream destination.");
+            return i18n("Review the microphone's effective mute, gain and stream destination.");
         if (id === "stream-level")
-            return qsTr("The Stream Mix is effectively silent. Review mute, gain and solo controls.");
+            return i18n("The Stream Mix is effectively silent. Review mute, gain and solo controls.");
         if (id.endsWith("-device"))
-            return qsTr("The selected device is missing or could not be resolved. Review the selection and fallback settings.");
+            return i18n("The selected device is missing or could not be resolved. Review the selection and fallback settings.");
         if (id.endsWith("-observed-level"))
-            return qsTr("Observed audio properties indicate silence where audio is expected.");
+            return i18n("Observed audio properties indicate silence where audio is expected.");
         if (id.startsWith("obs"))
-            return qsTr("Review the OBS capture target, mute and track assignments. Expand this result for the observed issue.");
-        return qsTr("Observed routing does not match the intended path. Expand this result for the missing or unexpected link.");
+            return i18n("Review the OBS capture target, mute and track assignments. Expand this result for the observed issue.");
+        return i18n("Observed routing does not match the intended path. Expand this result for the missing or unexpected link.");
     }
     function correction(id) {
         if (id.startsWith("obs"))
             return {
                 page: "obs",
-                label: qsTr("Review OBS setup")
+                label: i18n("Review OBS setup")
             };
         if (id.startsWith("app-"))
             return {
                 page: "apps",
-                label: qsTr("Review app routing")
+                label: i18n("Review app routing")
             };
         if (id.endsWith("-device") || id === "mic-route" || id === "phones-output")
             return {
                 page: "devices",
-                label: qsTr("Open devices")
+                label: i18n("Open devices")
             };
         if (id === "mic-filters")
             return {
                 page: "filters",
-                label: qsTr("Open Studio Voice")
+                label: i18n("Open Studio Voice")
             };
         return {
             page: "mixer",
-            label: qsTr("Open mixer")
+            label: i18n("Open mixer")
         };
     }
     function statusColor(status) {
@@ -136,7 +136,7 @@ ColumnLayout {
                 Layout.fillWidth: true
                 onClicked: panel.toggleEvidence(modelData.id, false)
                 Accessible.name: modelData.title + ", " + modelData.label
-                Accessible.description: detailsOpen ? qsTr("Collapse observed evidence") : qsTr("Expand observed evidence")
+                Accessible.description: detailsOpen ? i18n("Collapse observed evidence") : i18n("Expand observed evidence")
                 Accessible.checkable: true
                 Accessible.checked: detailsOpen
                 contentItem: RowLayout {
@@ -218,7 +218,7 @@ ColumnLayout {
             Layout.fillWidth: true
             onClicked: panel.toggleEvidence(modelData.id, false)
             Accessible.name: modelData.title + ", " + modelData.label
-            Accessible.description: detailsOpen ? qsTr("Collapse observed evidence") : qsTr("Expand observed evidence")
+            Accessible.description: detailsOpen ? i18n("Collapse observed evidence") : i18n("Expand observed evidence")
             Accessible.checkable: true
             Accessible.checked: detailsOpen
             contentItem: GridLayout {
@@ -309,15 +309,15 @@ ColumnLayout {
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
             font.weight: Font.DemiBold
-            text: panel.checking ? qsTr("Checking live observations…") : panel.attentionCount === 1 ? qsTr("1 check needs attention") : panel.attentionCount > 1 ? qsTr("%1 checks need attention").arg(panel.attentionCount) : panel.unknownCount > 0 ? qsTr("Some checks could not be verified") : qsTr("Controls and routing checked")
+            text: panel.checking ? i18n("Checking live observations…") : panel.attentionCount > 0 ? i18np("1 check needs attention", "%1 checks need attention", panel.attentionCount) : panel.unknownCount > 0 ? i18n("Some checks could not be verified") : i18n("Controls and routing checked")
         }
         QQC2.ToolButton {
             objectName: "showChecks"
-            text: panel.detailsOpen ? qsTr("Hide checks") : qsTr("Show checks")
+            text: panel.detailsOpen ? i18n("Hide checks") : i18n("Show checks")
             icon.name: panel.detailsOpen ? "arrow-up" : "arrow-down"
             onClicked: panel.detailsOpen = !panel.detailsOpen
-            Accessible.name: qsTr("Show checks")
-            Accessible.description: panel.detailsOpen ? qsTr("Expanded") : qsTr("Collapsed")
+            Accessible.name: i18n("Show checks")
+            Accessible.description: panel.detailsOpen ? i18n("Expanded") : i18n("Collapsed")
         }
     }
 
@@ -336,7 +336,7 @@ ColumnLayout {
         Layout.fillWidth: true
         visible: panel.showDetails
         wrapMode: Text.WordWrap
-        text: qsTr("Review the groups below. Verified applies only to the stated check.")
+        text: i18n("Review the groups below. Verified applies only to the stated check.")
         color: Kirigami.Theme.textColor
     }
     GridLayout {
@@ -350,22 +350,22 @@ ColumnLayout {
                 {
                     count: panel.attentionCount,
                     status: "attention",
-                    label: qsTr("Needs attention")
+                    label: i18n("Needs attention")
                 },
                 {
                     count: panel.unknownCount,
                     status: "unknown",
-                    label: qsTr("Not verified")
+                    label: i18n("Not verified")
                 },
                 {
                     count: panel.verifiedCount,
                     status: "verified",
-                    label: qsTr("Verified")
+                    label: i18n("Verified")
                 },
                 {
                     count: panel.excludedCount,
                     status: "excluded",
-                    label: qsTr("Excluded / idle")
+                    label: i18n("Excluded / idle")
                 }
             ]
             delegate: RowLayout {
@@ -417,7 +417,7 @@ ColumnLayout {
                 Accessible.name: section.modelData.title
                 Accessible.checkable: true
                 Accessible.checked: section.expanded
-                Accessible.description: section.hasIssues ? qsTr("Contains checks needing review") : qsTr("No checks need attention")
+                Accessible.description: section.hasIssues ? i18n("Contains checks needing review") : i18n("No checks need attention")
                 contentItem: RowLayout {
                     spacing: Kirigami.Units.largeSpacing
                     Kirigami.Icon {
@@ -438,7 +438,7 @@ ColumnLayout {
                             font: Kirigami.Theme.smallFont
                             color: Kirigami.Theme.textColor
                             wrapMode: Text.WordWrap
-                            text: section.problems > 0 ? qsTr("Needs attention: %1 · Checks: %2").arg(section.problems).arg(section.rows.length) : section.unknowns > 0 ? qsTr("%1 not verified · %2 checks").arg(section.unknowns).arg(section.rows.length) : qsTr("%1 checks · verified or intentionally excluded/idle").arg(section.rows.length)
+                            text: section.problems > 0 ? i18n("Needs attention: %1 · Checks: %2", section.problems, section.rows.length) : section.unknowns > 0 ? i18n("%1 not verified · %2 checks", section.unknowns, section.rows.length) : i18n("%1 checks · verified or intentionally excluded/idle", section.rows.length)
                         }
                     }
                     Kirigami.Icon {
@@ -475,12 +475,12 @@ ColumnLayout {
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
             font: Kirigami.Theme.smallFont
-            text: qsTr("Recording and audio for viewers are not verified. This check does not play or record sound, or change settings. Confirm the final result with a short recording.")
+            text: i18n("Recording and audio for viewers are not verified. This check does not play or record sound, or change settings. Confirm the final result with a short recording.")
         }
     }
     QQC2.ToolButton {
         visible: panel.showDetails
-        text: qsTr("Limits of this check")
+        text: i18n("Limits of this check")
         icon.name: panel.scopeOpen ? "arrow-down" : "arrow-right"
         onClicked: panel.scopeOpen = !panel.scopeOpen
         Accessible.checkable: true
@@ -489,7 +489,7 @@ ColumnLayout {
     QQC2.Label {
         Layout.fillWidth: true
         visible: panel.showDetails && panel.scopeOpen
-        text: panel.results.find(r => r.id === "output-proof")?.detail ?? qsTr("Recording contents, output track selection and audio for viewers are not verified.")
+        text: panel.results.find(r => r.id === "output-proof")?.detail ?? i18n("Recording contents, output track selection and audio for viewers are not verified.")
         textFormat: Text.PlainText
         wrapMode: Text.Wrap
     }
