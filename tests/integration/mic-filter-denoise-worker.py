@@ -7,7 +7,9 @@ switch makes that worker sleep before every tenth frame, and pw-profiler measure
 rostrum.micfx holds the thread in each graph cycle:
 
 - With run() made to wait for the worker, as when RNNoise ran inline, cycles where rostrum.micfx
-  sits through a whole stall must show up. This proves the measurement sees the problem.
+  sits through the stall must show up. The worker starts sleeping when a frame is handed over and
+  the frame is due a cycle later, so such a cycle holds the thread for about the stall minus one
+  10.7 ms cycle. This proves the measurement sees the problem.
 - With the real worker, no cycle may come near the stall. The late frames go out without noise
   removal, and the plugin logs them in the daemon's log."""
 import argparse
@@ -21,9 +23,9 @@ spec = importlib.util.spec_from_file_location("safety", Path(__file__).with_name
 safety = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(safety)
 
-STALL_MS = 40
+STALL_MS = 60
 STALL_EVERY = 10  # frames of 10 ms, so about ten stalls a second
-HELD_MS = 30      # a cycle where rostrum.micfx ran this long sat through a stall
+HELD_MS = 30      # a cycle where run() waited sits through about STALL_MS minus one cycle
 CYCLES = 300      # about 3 s at the forced 512-sample cycle
 LATE_LINE = "went out without noise removal"
 
