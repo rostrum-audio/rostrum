@@ -435,6 +435,8 @@ protected:
     bool m_feedHandoffWait = false; // a backstop reconcile is queued while one feed into filtered is torn down
 
     bool isOwnedNode(const pw::Node &n) const;
+    // The mix runs each playback bus through a Headphones and a Stream send node.
+    bool perMixActive() const;
     void destroyOnce(uint32_t id);
     // Everything remembered about a node is keyed by its registry ID, which PipeWire hands to the
     // next object once the node goes (a browser replacing its stream gets the same ID back in one
@@ -457,6 +459,7 @@ protected:
     bool m_mixErrorFromLink = false; // m_mixError came from a failed link create
     bool m_reconcilePending = false;
     QHash<QString, QElapsedTimer> m_pendingCreate;
+    QSet<uint32_t> m_sendsConfigured; // send nodes this run has put into DSP mode
     QSet<uint32_t> m_pendingDestroy;
     QElapsedTimer m_mixRequested;
 };

@@ -65,11 +65,13 @@ latter; apps are not moved onto filtered in that state).
 ## Nodes
 
 Every Rostrum node is a `support.null-audio-sink` adapter created in the PipeWire daemon with
-`pw_core_create_object("adapter", ...)`.
+`pw_core_create_object("adapter", ...)`, except `rostrum.micfx` and the send nodes (below).
 
 | Node | media.class | Channels | Description | Purpose |
 |------|-------------|----------|-------------|---------|
-| `rostrum.<bus>` | `Audio/Sink` | FL FR | `Rostrum <Name>` | One per playback bus. Apps are moved here. |
+| `rostrum.<bus>` | `Audio/Sink` | FL FR | `Rostrum <Name>` | One per playback bus. Apps are moved here. Carries the bus's mute, balance and ducking at unity level; OBS recording tracks capture its monitor. |
+| `rostrum.<bus>.phones` | none | FL FR | `Rostrum <Name> → Headphones` | The bus's Headphones level. Feeds `rostrum.phones`. |
+| `rostrum.<bus>.stream` | none | FL FR | `Rostrum <Name> → Stream` | The bus's Stream level. Feeds `rostrum.stream` and `rostrum.vod`. |
 | `rostrum.phones` | `Audio/Sink` | FL FR | `Rostrum Headphones Mix` | Sum of everything bound for headphones. Volume = Master Headphones. |
 | `rostrum.stream` | `Audio/Sink` | FL FR | `Rostrum Stream Mix` | Sum of everything bound for the stream. Volume = Master Stream. OBS captures its monitor on Track 1. |
 | `rostrum.vod` | `Audio/Sink` | FL FR | `Rostrum VOD Mix` | Twitch VOD mix (playback buses with VOD enabled, default on except Music). Volume = Master Stream. OBS captures its monitor on Track 2. |
@@ -93,6 +95,14 @@ Properties set on every node:
 `rostrum.micfx` is the exception to the null-sink rule: it is a bare `audio.convert` node made with
 `spa-node-factory`, because a filter graph runs inside audioconvert. It lingers like the others.
 
+The send nodes are the same kind of node, stereo (`convert.direction = output`, like micfx), with
+`rostrum.role = send`, `rostrum.bus = <id>` and `rostrum.mix = phones|stream`. With no
+`media.class`, WirePlumber leaves them alone and no device list shows them. Rostrum puts each into
+DSP mode once (`PortConfig`, two channels per side); a send that lingered from an earlier run keeps
+its ports and is not configured again, which would drop its audio for a moment. Every playback bus
+has both sends whatever its destination, so a destination change only changes links. They exist
+only while separate levels are in use ([Without per-mix levels](#without-per-mix-levels)).
+
 Limitation and workaround: the spec asked for "loopback nodes". An in-process
 `libpipewire-module-loopback` would put Rostrum's own process in the audio path, so a Rostrum
 crash would cut the stream. Null-sink adapters plus explicit links give the same topology with the
@@ -108,9 +118,10 @@ Rostrum creates links port by port with `link-factory` (`object.linger = true`),
 
 | From | To | When |
 |------|----|------|
-| `rostrum.<bus>` monitor | `rostrum.phones` | bus destination is Headphones or Both |
-| `rostrum.<bus>` monitor | `rostrum.stream` | bus destination is Stream or Both |
-| `rostrum.<bus>` monitor | `rostrum.vod` | bus destination is Stream or Both, and VOD is on |
+| `rostrum.<bus>` monitor | `rostrum.<bus>.phones`, `rostrum.<bus>.stream` | always |
+| `rostrum.<bus>.phones` | `rostrum.phones` | bus destination is Headphones or Both |
+| `rostrum.<bus>.stream` | `rostrum.stream` | bus destination is Stream or Both |
+| `rostrum.<bus>.stream` | `rostrum.vod` | bus destination is Stream or Both, and VOD is on |
 | `rostrum.phones` monitor | headphone device | always; with mono headphones each side also goes into the other front channel |
 | hardware mic | `rostrum.mic` | mic filters off (mute/destination act on the node, not the link) |
 | hardware mic | `rostrum.sidetone` | mic filters off |
@@ -118,6 +129,11 @@ Rostrum creates links port by port with `link-factory` (`object.linger = true`),
 | hardware mic | `rostrum.micfx` | mic filters on |
 | `rostrum.micfx` | `rostrum.mic`, `rostrum.sidetone`, `rostrum.filtered` | mic filters on |
 | `rostrum.sidetone` monitor | `rostrum.phones` | always (muted unless sidetone is on) |
+
+Without per-mix levels the bus monitor links straight into `rostrum.phones`, `rostrum.stream` and
+`rostrum.vod` under the same conditions. When a bus moves between the two paths (upgrading from a
+version without sends, or falling back), the new path into a master is added only once the old one
+is gone from the graph, so for a moment the bus is silent in that mix rather than playing twice.
 
 Rostrum only removes links it manages: links that start at a Rostrum node and end at a Rostrum node
 or a hardware sink, and links into `rostrum.mic`, `rostrum.sidetone`, `rostrum.micfx` and

@@ -2,6 +2,7 @@
 
 #include "core/Volume.h"
 #include "engine/Engine.h"
+#include "engine/MixPlan.h"
 #include "pw/PwContext.h"
 
 #include <QLoggingCategory>
@@ -698,23 +699,43 @@ void Engine::reconcileLinks()
     const pw::Node *hwSource = resolveSource();
 
     QList<QPair<const pw::Node *, const pw::Node *>> nodePairs;
-    for (const auto &b : m_scene.buses) {
-        if (b.isInput()) {
+    const bool perMix = perMixActive();
+    const auto nodesLinked = [&](const pw::Node *out, const pw::Node *in) {
+        return out && in && std::any_of(g.links.cbegin(), g.links.cend(), [&](const pw::Link &l) {
+                   return l.outNode == out->id && l.inNode == in->id;
+               });
+    };
+    const QSet<QString> masters{QString::fromLatin1(kPhonesNode), QString::fromLatin1(kStreamNode),
+                                QString::fromLatin1(kVodNode)};
+    for (const auto &l : busLinks(m_scene, perMix)) {
+        const pw::Node *from = g.nodeByName(l.from);
+        const pw::Node *to = g.nodeByName(l.to);
+        if (!from || !to) {
             continue;
         }
-        const pw::Node *bus = g.nodeByName(b.nodeName());
-        if (!bus) {
+        const bool fromSend = from->rostrumRole() == roleName(NodeRole::Send);
+        const bool toSend = to->rostrumRole() == roleName(NodeRole::Send);
+        if ((fromSend && !hasDspPorts(g, from->id)) || (toSend && !hasDspPorts(g, to->id))) {
             continue;
         }
-        if (feedsPhones(b.destination) && phones) {
-            nodePairs.append(qMakePair(bus, phones));
+        // Switching a bus between the direct path and its sends: add the new path into a master
+        // only once the old one is gone, so the bus is briefly silent there, never doubled.
+        if (masters.contains(l.to)) {
+            const QString busName = l.from.section(QLatin1Char('.'), 0, 1); // rostrum.<id>
+            const QString busId = busName.section(QLatin1Char('.'), 1, 1);
+            bool otherPath = false;
+            if (perMix) {
+                otherPath = nodesLinked(g.nodeByName(busName), to);
+            } else {
+                for (const Mix m : {Mix::Phones, Mix::Stream}) {
+                    otherPath = otherPath || nodesLinked(g.nodeByName(sendNodeName(busId, m)), to);
+                }
+            }
+            if (otherPath) {
+                continue;
+            }
         }
-        if (feedsStream(b.destination) && stream) {
-            nodePairs.append(qMakePair(bus, stream));
-        }
-        if (feedsVod(b) && vod) {
-            nodePairs.append(qMakePair(bus, vod));
-        }
+        nodePairs.append(qMakePair(from, to));
     }
     if (phones && hwSink) {
         nodePairs.append(qMakePair(phones, hwSink));

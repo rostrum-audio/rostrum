@@ -3,6 +3,7 @@
 #include "core/SceneToml.h"
 #include "core/Settings.h"
 #include "engine/Engine.h"
+#include "engine/MixPlan.h"
 #include "engine/NodeSpecs.h"
 #include "engine/SceneManager.h"
 #include "pw/Graph.h"
@@ -57,6 +58,26 @@ QString nameOf(const pw::Node *n)
     return n ? n->name : QString();
 }
 
+QStringList linkNames(const QList<engine::NodeLink> &links)
+{
+    QStringList out;
+    for (const auto &l : links) {
+        out << l.from + QStringLiteral(">") + l.to;
+    }
+    out.sort();
+    return out;
+}
+
+pw::Port port(uint32_t id, uint32_t node, bool output, const char *channel)
+{
+    pw::Port p;
+    p.id = id;
+    p.nodeId = node;
+    p.output = output;
+    p.channel = QString::fromLatin1(channel);
+    return p;
+}
+
 } // namespace
 
 class TestEngine : public QObject
@@ -95,6 +116,108 @@ private Q_SLOTS:
                 }
             }
         }
+    }
+
+    void sendNamesAndProperties()
+    {
+        QCOMPARE(engine::sendNodeName(QStringLiteral("game"), Mix::Phones), QStringLiteral("rostrum.game.phones"));
+        QCOMPARE(engine::sendNodeName(QStringLiteral("game"), Mix::Stream), QStringLiteral("rostrum.game.stream"));
+        const Scene scene = defaults::scene();
+        const auto p = engine::sendProperties(*scene.bus(QStringLiteral("game")), Mix::Stream);
+        QCOMPARE(p.value(QStringLiteral("node.name")), QStringLiteral("rostrum.game.stream"));
+        QCOMPARE(p.value(QStringLiteral("factory.name")), QStringLiteral("audio.convert"));
+        QCOMPARE(p.value(QStringLiteral("convert.direction")), QStringLiteral("output"));
+        QCOMPARE(p.value(QStringLiteral("audio.channels")), QStringLiteral("2"));
+        QCOMPARE(p.value(QStringLiteral("audio.position")), QStringLiteral("[ FL FR ]"));
+        QCOMPARE(p.value(QStringLiteral("rostrum.role")), QStringLiteral("send"));
+        QCOMPARE(p.value(QStringLiteral("rostrum.bus")), QStringLiteral("game"));
+        QCOMPARE(p.value(QStringLiteral("rostrum.mix")), QStringLiteral("stream"));
+        QCOMPARE(p.value(QStringLiteral("object.linger")), QStringLiteral("true"));
+        QCOMPARE(p.value(QStringLiteral("node.virtual")), QStringLiteral("true"));
+        QVERIFY(!p.contains(QStringLiteral("media.class")));
+        QVERIFY(!p.contains(QStringLiteral("node.force-quantum")));
+    }
+
+    void desiredSendsSkipMic()
+    {
+        const auto sends = engine::desiredSends(defaults::scene());
+        QCOMPARE(sends.size(), 10);
+        QCOMPARE(sends.first().name, QStringLiteral("rostrum.game.phones"));
+        QCOMPARE(sends.at(1).name, QStringLiteral("rostrum.game.stream"));
+        for (const auto &spec : sends) {
+            QVERIFY(spec.busId != QStringLiteral("mic"));
+            QCOMPARE(spec.name, engine::sendNodeName(spec.busId, spec.mix));
+        }
+    }
+
+    void busLinksPerMix()
+    {
+        const QStringList links = linkNames(engine::busLinks(defaults::scene(), true));
+        for (const char *l : {"rostrum.game>rostrum.game.phones", "rostrum.game>rostrum.game.stream",
+                              "rostrum.game.phones>rostrum.phones", "rostrum.game.stream>rostrum.stream",
+                              "rostrum.game.stream>rostrum.vod", "rostrum.music.stream>rostrum.stream"}) {
+            QVERIFY2(links.contains(QString::fromLatin1(l)), l);
+        }
+        // Music goes to the stream only, and stays off the VOD by default.
+        QVERIFY(!links.contains(QStringLiteral("rostrum.music.phones>rostrum.phones")));
+        QVERIFY(!links.contains(QStringLiteral("rostrum.music.stream>rostrum.vod")));
+        for (const QString &l : links) {
+            for (const char *master : {"rostrum.phones", "rostrum.stream", "rostrum.vod"}) {
+                const QString to = QStringLiteral(">") + QString::fromLatin1(master);
+                QVERIFY2(!l.endsWith(to) || l.section(QLatin1Char('>'), 0, 0).count(QLatin1Char('.')) == 2,
+                         qPrintable(l)); // only sends ("rostrum.<bus>.<mix>") feed a master
+            }
+        }
+    }
+
+    void busLinksSingleLevel()
+    {
+        const Scene scene = defaults::scene();
+        QStringList expected;
+        for (const auto &b : scene.buses) {
+            if (b.isInput()) {
+                continue;
+            }
+            if (feedsPhones(b.destination)) {
+                expected << b.nodeName() + QStringLiteral(">rostrum.phones");
+            }
+            if (feedsStream(b.destination)) {
+                expected << b.nodeName() + QStringLiteral(">rostrum.stream");
+            }
+            if (feedsVod(b)) {
+                expected << b.nodeName() + QStringLiteral(">rostrum.vod");
+            }
+        }
+        expected.sort();
+        QCOMPARE(linkNames(engine::busLinks(scene, false)), expected);
+    }
+
+    void unwantedSendsAreRemoved()
+    {
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        const QString copy = engine.duplicateBus(QStringLiteral("game"));
+        QVERIFY(engine::sendWanted(engine.scene(), engine::sendNodeName(copy, Mix::Phones)));
+        QVERIFY(engine::sendWanted(engine.scene(), engine::sendNodeName(copy, Mix::Stream)));
+        QVERIFY(engine.removeBus(QStringLiteral("game")));
+        QVERIFY(!engine::sendWanted(engine.scene(), QStringLiteral("rostrum.game.phones")));
+        QVERIFY(!engine::sendWanted(engine.scene(), QStringLiteral("rostrum.game.stream")));
+        QVERIFY(!engine::sendWanted(engine.scene(), QStringLiteral("rostrum.mic.phones")));
+        QVERIFY(!engine::sendWanted(engine.scene(), QStringLiteral("rostrum.voice")));
+    }
+
+    void sendsWithPortsAreNotReconfigured()
+    {
+        pw::Graph g;
+        g.nodes.insert(40, node(40, "rostrum.game.phones", ""));
+        g.nodes.insert(41, node(41, "rostrum.game.stream", ""));
+        for (const auto &p : {port(400, 40, false, "FL"), port(401, 40, false, "FR"), port(402, 40, true, "FL"),
+                              port(403, 40, true, "FR")}) {
+            g.ports.insert(p.id, p);
+        }
+        QVERIFY(!engine::sendNeedsPortConfig(g, 40, {}));
+        QVERIFY(engine::sendNeedsPortConfig(g, 41, {}));
+        QVERIFY(!engine::sendNeedsPortConfig(g, 41, {41}));
     }
 
     void duplicateKeepsMixLevels()

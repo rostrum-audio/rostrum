@@ -2,6 +2,7 @@
 
 #include "core/AppFacts.h"
 #include "core/Volume.h"
+#include "engine/MixPlan.h"
 #include "pw/PwContext.h"
 
 #include <QCoreApplication>
@@ -238,6 +239,7 @@ void Engine::forgetNode(uint32_t id)
     m_appliedStreamMute.remove(id);
     m_recognised.remove(id);
     m_sentVolume.remove(id);
+    m_sendsConfigured.remove(id);
     m_micRouted.remove(id);
     m_micRecognised.remove(id);
     m_micFirstSeen.remove(id);
@@ -345,15 +347,30 @@ void Engine::destroyOnce(uint32_t id)
     m_pw->destroyObject(id);
 }
 
+bool Engine::perMixActive() const
+{
+    // Switched on together with stream readiness for the send path (plan Task 7).
+    return false;
+}
+
 bool Engine::mixReady() const
 {
     if (m_pw->state() != pw::PwContext::State::Ready) {
         return false;
     }
+    const auto &g = m_pw->graph();
     const auto specs = desiredNodes(m_scene);
     for (const auto &s : specs) {
-        if (!m_pw->graph().nodeByName(s.name)) {
+        if (!g.nodeByName(s.name)) {
             return false;
+        }
+    }
+    if (perMixActive()) {
+        for (const auto &send : desiredSends(m_scene)) {
+            const pw::Node *n = g.nodeByName(send.name);
+            if (!n || !hasDspPorts(g, n->id)) {
+                return false;
+            }
         }
     }
     return true;
@@ -438,6 +455,33 @@ void Engine::reconcileNodes()
         t.start();
         m_pendingCreate.insert(spec.name, t);
     }
+    // PipeWire reuses IDs, so forget configured sends that are gone.
+    m_sendsConfigured.removeIf([&](uint32_t id) { return !graph.nodes.contains(id); });
+    if (perMixActive()) {
+        for (const auto &send : desiredSends(m_scene)) {
+            wanted.insert(send.name);
+            if (const pw::Node *n = graph.nodeByName(send.name)) {
+                m_pendingCreate.remove(send.name);
+                if (isOwnedNode(*n) && !m_pendingDestroy.contains(n->id) &&
+                    sendNeedsPortConfig(graph, n->id, m_sendsConfigured)) {
+                    m_pw->setPortConfig(n->id, false, 2);
+                    m_pw->setPortConfig(n->id, true, 2);
+                    m_sendsConfigured.insert(n->id);
+                }
+                continue;
+            }
+            auto it = m_pendingCreate.find(send.name);
+            if (it != m_pendingCreate.end() && it->elapsed() < kCreateRetryMs) {
+                continue;
+            }
+            const Bus *bus = m_scene.bus(send.busId);
+            qCInfo(lcEngine) << "creating" << send.name;
+            m_pw->createSpaNode(sendProperties(*bus, send.mix));
+            QElapsedTimer t;
+            t.start();
+            m_pendingCreate.insert(send.name, t);
+        }
+    }
     // Remove buses that left the scene, and duplicates left by a create race (keep the oldest).
     QHash<QString, uint32_t> keep;
     for (const auto &n : graph.nodes) {
@@ -445,7 +489,7 @@ void Engine::reconcileNodes()
             continue;
         }
         if (!wanted.contains(n.name)) {
-            if (n.rostrumRole() == QLatin1String("bus")) {
+            if (n.rostrumRole() == QLatin1String("bus") || n.rostrumRole() == roleName(NodeRole::Send)) {
                 qCInfo(lcEngine) << "removing" << n.name;
                 destroyOnce(n.id);
             }
