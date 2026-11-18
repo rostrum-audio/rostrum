@@ -6,9 +6,9 @@
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: rostrum 0.2.0\n"
+"Project-Id-Version: rostrum 0.3.0\n"
 "Report-Msgid-Bugs-To: https://github.com/rostrum-audio/rostrum/issues\n"
-"POT-Creation-Date: 2026-11-17 10:24-0500\n"
+"POT-Creation-Date: 2026-11-18 16:22-0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -802,7 +802,7 @@ msgstr ""
 #: src/app/MicFilters.cpp:30
 #, kde-format
 msgid ""
-"Reduces fans, keyboards, traffic and room noise while you talk. Adds 10 ms "
+"Reduces fans, keyboards, traffic and room noise while you talk. Adds 20 ms "
 "of delay."
 msgstr ""
 
@@ -4431,7 +4431,7 @@ msgstr ""
 #, kde-format
 msgid ""
 "Running inside PipeWire, so it keeps working while Rostrum is closed. Adds "
-"about 10 ms of delay while noise removal is on."
+"about 20 ms of delay while noise removal is on."
 msgstr ""
 
 #: src/app/qml/MicFiltersPage.qml:66

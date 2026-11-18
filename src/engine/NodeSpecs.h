@@ -52,12 +52,13 @@ QList<NodeSpec> desiredNodes(const Scene &scene);
 NodeSpec filteredMicSpec();
 
 // The graph cycle, in samples, that rostrum.micfx forces while it runs noise removal. RNNoise runs
-// in the PipeWire daemon's realtime thread, and on a busy desktop one of its 10 ms frames can take
-// several milliseconds (its model is about 1 MB and falls out of the CPU cache between frames).
-// When an app such as a voice chat asks for 256 samples (5.3 ms), those frames overrun the cycle,
-// and every device in the graph, headphones included, crackles. PipeWire has no per-node minimum,
-// so the node forces this cycle, raised to the user's clock.min-quantum and capped at their
-// clock.max-quantum. A clock.force-quantum in the settings metadata still overrides it.
+// on the plugin's worker thread, and on a busy desktop one of its 10 ms frames can take several
+// milliseconds (its model is about 1 MB and falls out of the CPU cache between frames). The worker
+// has until the frame is played: at 512 samples at least one whole 10.7 ms cycle. When an app such
+// as a voice chat asks for 256 samples (5.3 ms), that time shrinks, and more frames would go out
+// without noise removal. PipeWire has no per-node minimum, so the node forces this cycle, raised
+// to the user's clock.min-quantum and capped at their clock.max-quantum. A clock.force-quantum in
+// the settings metadata still overrides it.
 inline constexpr uint32_t kMicFxQuantum = 512;
 // minQuantum, maxQuantum: the "settings" metadata values, empty when not set.
 uint32_t micFxQuantum(const QString &minQuantum, const QString &maxQuantum);

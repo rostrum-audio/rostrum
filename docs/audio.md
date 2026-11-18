@@ -305,8 +305,10 @@ host's PipeWire process and may link nothing but libc and libm; `tools/appimage/
 refuses one with any other dependency. A bundled build installs RNNoise's licence as
 `share/licenses/rostrum/RNNoise-COPYING`.
 
-RNNoise works on 10 ms frames at 48 kHz, so noise removal adds 10 ms, and the dry path is delayed
-to match. At any other graph rate it passes audio through. The other modules work at any rate.
+RNNoise works on 10 ms frames at 48 kHz and runs on a worker thread ([Graph cycle](#graph-cycle)),
+so noise removal adds 20 ms: one frame to collect the audio and one for the worker to finish it.
+The dry path is delayed to match. At any other graph rate it passes audio through. The other
+modules work at any rate.
 
 Rostrum looks for the plugin in `ROSTRUM_DSP_PLUGIN`, then the build tree (a binary run from the
 build directory), then `../lib/rostrum/` next to the binary, then the install path. The daemon
@@ -353,14 +355,28 @@ taken from its channel map, not from its volumes.
 
 ### Graph cycle
 
-With noise removal in the plugin, `rostrum.micfx` is created with `node.force-quantum = 512`, so
-the graph runs 512-sample cycles (10.7 ms at 48 kHz) while Studio Voice is on. RNNoise runs in the
-daemon's realtime thread with every other node in the graph. A 10 ms frame usually takes 0.05 to
-0.15 ms, but on a busy desktop one can take several milliseconds: the model is about 1 MB and
-leaves the CPU cache between frames. Voice chat apps ask for small buffers (Discord asked for 360
-samples in a call, which PipeWire rounds down to 256, a 5.3 ms cycle). A frame that outlasts the cycle makes
-the whole graph miss its deadline, and every device in it, headphones included, crackles. PipeWire
-has no per-node minimum, only a forced value, so the node forces 512.
+The daemon runs every node in the graph one after another in a single realtime thread, so a node
+that takes long holds up all the others, headphones included. A 10 ms RNNoise frame usually takes
+0.05 to 0.3 ms, but on a busy desktop one can take several milliseconds: the model is about 1 MB
+and leaves the CPU cache between frames. When RNNoise ran inside the plugin's `run()`, frames like
+that made the whole graph miss its deadline, and the headphones crackled (on a loaded desktop in a
+Discord call, `rostrum.micfx` reached 9.8 ms in a 10.7 ms cycle).
+
+So the denoise plugin runs RNNoise on a worker thread of its own, at normal priority, and `run()`
+only copies audio in and out. `run()` hands each finished frame to the worker and plays out the
+frame before it, which is where the second 10 ms of delay comes from. At cycles of up to 512
+samples every frame is handed over at least one whole cycle before it is played. A frame the
+worker has not finished by then goes out without noise removal rather than holding up the graph,
+and the plugin writes a line like `rostrum_denoise: 3 frame(s) went out without noise removal in
+the last 10 s` to the daemon's log (`journalctl --user -u pipewire`), at most once every 10 s.
+With longer cycles a frame can be due in the same `run()` call that finished it; `run()` waits for
+the worker then, as it did when RNNoise ran inline, and a cycle that long has the room.
+
+With noise removal in the plugin, `rostrum.micfx` is also created with `node.force-quantum = 512`,
+so the graph runs 512-sample cycles (10.7 ms at 48 kHz) while Studio Voice is on. Voice chat apps
+ask for small buffers (Discord asked for 360 samples in a call, which PipeWire rounds down to 256,
+a 5.3 ms cycle), and shorter cycles leave the worker less time per frame. PipeWire has no per-node
+minimum, only a forced value, so the node forces 512.
 
 The value is raised to `clock.min-quantum` and capped at `clock.max-quantum` from the daemon's
 `settings` metadata, so a floor or ceiling the user set still applies. `clock.force-quantum` there

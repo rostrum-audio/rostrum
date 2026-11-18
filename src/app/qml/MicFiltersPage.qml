@@ -61,7 +61,7 @@ QQC2.ScrollView {
         case "starting":
             return i18n("Starting…")
         case "active":
-            return i18n("Running inside PipeWire, so it keeps working while Rostrum is closed. Adds about 10 ms of delay while noise removal is on.")
+            return i18n("Running inside PipeWire, so it keeps working while Rostrum is closed. Adds about 20 ms of delay while noise removal is on.")
         default:
             return i18n("Your mic is used without filters.")
         }

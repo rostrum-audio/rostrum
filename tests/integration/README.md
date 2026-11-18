@@ -315,6 +315,32 @@ pass for a specific microphone recording, hardware matrix or other release check
 The five successful clean packaged validations are automated evidence; they do
 not turn unreported manual checks into passes.
 
+## Noise removal off the realtime thread
+
+`audio_mic_filter_denoise_worker` is registered for RNNoise builds. It runs the
+real engine and plugin with only noise removal on, a 440 Hz tone into the fake
+mic and a recorder on Filtered Mic, and makes the plugin's worker thread sleep
+60 ms before every tenth frame (`ROSTRUM_DSP_TEST_DENOISE_STALL=60:10` in the
+private daemon's environment). `pw-profiler -J` then records how long
+`rostrum.micfx` runs in each of at least 300 graph cycles:
+
+- With `ROSTRUM_DSP_TEST_DENOISE_WAIT=1`, which makes `run()` wait for the worker
+  as RNNoise inline did, at least five cycles must run 30 ms or more. This shows
+  the measurement sees a held realtime thread. The worker starts sleeping when a
+  frame is handed over and the frame is due a cycle later, so such a cycle holds
+  the thread for about the stall minus one 10.7 ms cycle. A 40 ms stall was too
+  short: on CI the longest hold was 29.93 ms.
+- With the real worker, no cycle may reach 30 ms (the longest was 2 ms), and the
+  private daemon's log must contain the plugin's late-frame line, so the stalls
+  did happen.
+
+A timer drives the private graph, so a stall there only delays the cycle; it
+does not drop audio the way a USB headset's clock does. That is why the test
+measures how long `rostrum.micfx` holds the thread rather than listening for
+gaps. `tst_dsp` covers the plugin itself: a stalled worker never holds up
+`run()` and its frames go out dry, exactly 960 samples late, and at real-time
+pace the worker keeps up at 256, 512 and 2048-sample blocks.
+
 ## Manual confirmation (2026-10-04)
 
 The user confirmed a fresh OBS recording on the installed normal x86_64 build:

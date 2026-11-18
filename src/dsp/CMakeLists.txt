@@ -80,9 +80,11 @@ add_library(rostrum-dsp MODULE
     compressor.c
     limiter.c)
 if(rnnoise_library)
+    # RNNoise runs on a worker thread so it never holds up the daemon's realtime thread.
+    find_package(Threads REQUIRED)
     target_sources(rostrum-dsp PRIVATE denoise.c)
     target_compile_definitions(rostrum-dsp PRIVATE ROSTRUM_DSP_DENOISE)
-    target_link_libraries(rostrum-dsp PRIVATE ${rnnoise_library})
+    target_link_libraries(rostrum-dsp PRIVATE ${rnnoise_library} Threads::Threads)
 endif()
 target_link_libraries(rostrum-dsp PRIVATE m)
 # Runs in the PipeWire daemon's realtime thread, so it is optimised in every build type.
