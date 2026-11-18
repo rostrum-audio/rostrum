@@ -1,13 +1,47 @@
 #!/usr/bin/env python3
-"""Real mic-filter delivery across client-driven quantum changes and legacy-node reuse."""
+"""Real mic-filter delivery across client-driven quantum changes and legacy-node reuse.
+
+With noise removal, rostrum.micfx forces a 512-sample cycle (raised to clock.min-quantum), so a
+client asking for 128 samples cannot shrink the cycle below what RNNoise needs. Without it,
+nothing is forced and the client gets its 128."""
 import argparse
 import importlib.util
 from pathlib import Path
+import re
 import signal
 
 spec = importlib.util.spec_from_file_location("safety", Path(__file__).with_name("audio-safety.py"))
 safety = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(safety)
+
+
+def driver_quantum(s, name):
+    """The quantum pw-top reports for the driver whose group runs node `name`, or None."""
+    blocks = re.split(r"^S\s+ID\s+QUANT.*$", s.command("pw-top", "-b", "-n", "2"), flags=re.M)
+    quantum = None
+    for line in blocks[-1].splitlines():
+        fields = line.split()
+        if len(fields) < 4 or fields[0] not in ("R", "I", "S", "C"):
+            continue
+        # Followers are marked "+", or "=" for streams; anything else starts a driver's group.
+        if fields[-2] not in ("+", "="):
+            quantum = int(fields[2]) if fields[2].isdigit() else None
+        elif fields[-1] == name:
+            return quantum
+    return None
+
+
+def setting(s, key):
+    out = s.command("pw-metadata", "-n", "settings", "0", key)
+    match = re.search(rf"key:'{re.escape(key)}' value:'([^']*)'", out)
+    if not match:
+        raise safety.Failure(f"settings metadata has no {key}: {out!r}")
+    return match.group(1)
+
+
+def force_quantum(s):
+    value = s.node(s.graph(), "rostrum.micfx")["info"]["props"].get("node.force-quantum")
+    return None if value is None else str(value)
 
 
 def run(driver, plugin, denoise):
@@ -52,11 +86,10 @@ enabled = false
             s.capture("rostrum.filtered", 440, 1)
             s.capture("rostrum.mic", 440, 1)
 
-        for _ in range(2):
-            deliveries()
+        def latency_request(tag):
             # An ordinary capture client requests latency; the daemon chooses the
             # quantum. No clock.force-quantum, PIPEWIRE_QUANTUM or fixed bounds.
-            audio = s.root / "latency-request.raw"
+            audio = s.root / f"latency-request-{tag}.raw"
             output = audio.open("wb")
             s.files.append(output)
             target = s.node(s.graph(), "rostrum.filtered")["info"]["props"]["object.serial"]
@@ -66,10 +99,38 @@ enabled = false
                     rostrum.internal = true node.dont-fallback = true node.dont-move = true }''', "-"], output)
             s.route("rostrum.filtered", "MicLatencyRequest")
             s.wait("latency-request capture buffers", lambda: audio.stat().st_size >= 96000)
-            deliveries()
+            return reader
+
+        def end_request(reader):
             s.stop(reader)
             s.wait("latency-request client removed", lambda: s.node(s.graph(), "MicLatencyRequest") is None)
+
+        for round in range(2):
             deliveries()
+            reader = latency_request(round)
+            if force_quantum(s) != ("512" if denoise else None):
+                raise safety.Failure(f"rostrum.micfx node.force-quantum is {force_quantum(s)!r}")
+            expected = 512 if denoise else 128
+            s.wait(f"graph quantum {expected} with a 128-sample request",
+                   lambda: driver_quantum(s, "rostrum.micfx") == expected)
+            deliveries()
+            end_request(reader)
+            deliveries()
+        if denoise:
+            # The user's own floor wins when it is higher: the node is replaced to force it, and
+            # put back when the floor drops again. The voice keeps flowing either way, and a
+            # recorder that asks for 128 samples is still running.
+            reader = latency_request("settings")
+            floor = setting(s, "clock.min-quantum")
+            for value, forced in (("1024", "1024"), (floor, "512")):
+                serial = s.node(s.graph(), "rostrum.micfx")["info"]["props"]["object.serial"]
+                s.command("pw-metadata", "-n", "settings", "0", "clock.min-quantum", value)
+                s.wait(f"rostrum.micfx replaced to force {forced}",
+                       lambda: (node := s.node(s.graph(), "rostrum.micfx")) and
+                       node["info"]["props"]["object.serial"] != serial and force_quantum(s) == forced)
+                deliveries()
+                s.wait(f"graph quantum {forced}", lambda: driver_quantum(s, "rostrum.micfx") == int(forced))
+            end_request(reader)
         # A persistent converter from an older build has no convert.direction.
         # Restarting the engine must upgrade it, not merely reload its LADSPA graph.
         s.stop(engine)
@@ -83,6 +144,8 @@ enabled = false
         engine = s.spawn(args)
         s.wait("legacy converter replaced", lambda: (node := s.node(s.graph(), "rostrum.micfx")) and
                node["info"]["props"]["object.serial"] != serial)
+        if force_quantum(s) != ("512" if denoise else None):
+            raise safety.Failure(f"replacement rostrum.micfx node.force-quantum is {force_quantum(s)!r}")
         deliveries()
         # A call app records rostrum.filtered, not the separately gained stream mic.
         # Global mic mute must silence both public sources without muting the hardware.
@@ -105,6 +168,11 @@ enabled = false
         deliveries()
         print("PASS mic mute silences filtered call apps; unmute restores; hardware and destination preserved", flush=True)
         print("PASS filtered mic and stream mic delivery before/during/after latency requests; persistent converter upgrade", flush=True)
+        if denoise:
+            print("PASS noise removal holds the graph at 512 samples against a 128-sample request; "
+                  "clock.min-quantum above it wins and the node follows it back", flush=True)
+        else:
+            print("PASS without noise removal nothing is forced; the 128-sample request is honoured", flush=True)
     except BaseException:
         safety.cleanup_preserving_failure(s.diagnostics)
         raise

@@ -195,11 +195,23 @@ QString Engine::micMeterNode() const
     return resolvedSourceName();
 }
 
+uint32_t Engine::micFxForceQuantum() const
+{
+    // Without noise removal the chain costs well under a tenth of a millisecond.
+    if (!m_fxDenoise) {
+        return 0;
+    }
+    return micFxQuantum(m_pw->settingValue(QStringLiteral("clock.min-quantum")),
+                        m_pw->settingValue(QStringLiteral("clock.max-quantum")));
+}
+
 void Engine::reconcileMicFx()
 {
     const auto &g = m_pw->graph();
     const QString fxName = QString::fromLatin1(kMicFxNode);
     const QString filteredName = QString::fromLatin1(kFilteredNode);
+    const uint32_t forceQuantum = micFxForceQuantum();
+    const QString forceQuantumProp = forceQuantum > 0 ? QString::number(forceQuantum) : QString();
 
     QList<const pw::Node *> fxNodes;
     QList<const pw::Node *> filteredNodes;
@@ -215,6 +227,15 @@ void Engine::reconcileMicFx()
             if (micFxWanted() && n.props.contains(QStringLiteral("factory.name")) &&
                 n.prop("convert.direction") != QLatin1String("output")) {
                 qCInfo(lcEngine) << "replacing legacy mic filter converter" << n.id;
+                destroyOnce(n.id);
+                continue;
+            }
+            // Likewise a node from an older build, or one made before clock.min-quantum or
+            // clock.max-quantum changed, forces the wrong cycle or none.
+            if (micFxWanted() && n.props.contains(QStringLiteral("factory.name")) &&
+                n.prop("node.force-quantum") != forceQuantumProp) {
+                qCInfo(lcEngine) << "replacing mic filter node" << n.id << "to force quantum"
+                                 << (forceQuantum > 0 ? forceQuantumProp : QStringLiteral("none"));
                 destroyOnce(n.id);
                 continue;
             }
@@ -316,7 +337,7 @@ void Engine::reconcileMicFx()
         m_pendingCreate.insert(name, t);
     };
     if (fxNodes.isEmpty()) {
-        create(fxName, [this] { m_pw->createSpaNode(micFxProperties()); });
+        create(fxName, [this, forceQuantum] { m_pw->createSpaNode(micFxProperties(forceQuantum)); });
     } else {
         m_pendingCreate.remove(fxName);
     }

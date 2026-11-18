@@ -711,6 +711,12 @@ makes noise removal easy to hear.
     mute, mute the mic, then hold Push to talk: both sources are live only while held.
     The hardware input remains unchanged. Apps using
     the plain hardware mic directly do not follow Rostrum's mute.
+14. **Graph cycle in a call.** With the filters on, join a Discord voice call and play a video in
+    a browser. `pw-top` shows the mic's driver at QUANT 512 (Discord alone would bring it to 256),
+    and `journalctl --user -u pipewire -f | grep resync` stays quiet while the video plays without
+    crackles. Turn the filters off: the driver drops to 256. If `clock.min-quantum` is set higher
+    in `pw-metadata -n settings`, the driver runs at that value instead, and the log says
+    `replacing mic filter node <id> to force quantum` when it changes.
 
 ## 29. Mic check
 

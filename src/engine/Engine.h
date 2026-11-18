@@ -268,6 +268,7 @@ protected:
     void fadeTick();
     void reconcileDucking();
     void reconcileMicFx();
+    uint32_t micFxForceQuantum() const; // node.force-quantum for rostrum.micfx, 0 for none
     void reconcileMicRoutes();
     void applyMicFxControls(const pw::Node &fx);
     void micFxConnectionChanged();

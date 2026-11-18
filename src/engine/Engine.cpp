@@ -34,6 +34,8 @@ Engine::Engine(pw::PwContext *pw, QObject *parent)
     // the same ID may already name a replacement that still needs to be managed.
     connect(m_pw, &pw::PwContext::objectRemoved, this, &Engine::forgetNode);
     connect(m_pw, &pw::PwContext::metadataReset, this, &Engine::metadataReset);
+    // clock.min-quantum and clock.max-quantum bound the cycle the mic filter node forces.
+    connect(m_pw, &pw::PwContext::settingsChanged, this, &Engine::scheduleReconcile);
     connect(m_pw, &pw::PwContext::createFailed, this, [this](const QString &msg, const QString &nodeName) {
         // The mix works without mic filters, so their failure is theirs alone.
         if (nodeName == QLatin1String(kMicFxNode) || nodeName == QLatin1String(kFilteredNode)) {
@@ -241,6 +243,14 @@ void Engine::forgetNode(uint32_t id)
     m_micFirstSeen.remove(id);
     m_nodeSerial.remove(id);
     m_portSerial.remove(id);
+    // A replaced rostrum.micfx can come back under the same ID, and then needs its ports and its
+    // graph again. (A daemon crash sends no removals, so the crash breaker still sees the node.)
+    if (id == m_fxConfigured) {
+        m_fxConfigured = 0;
+    }
+    if (id == m_fxGraphNode) {
+        m_fxGraphNode = 0;
+    }
     // objectRemoved also fires for ports and links. Drop pending creates that still name this ID
     // so a reused port cannot satisfy an old out:in pair.
     dropPendingLinksFor(id);

@@ -197,6 +197,7 @@ context.modules = [
     {{ name = libpipewire-module-adapter }}
     {{ name = libpipewire-module-link-factory }}
     {{ name = libpipewire-module-access }}
+    {{ name = libpipewire-module-profiler }}
 ]
 context.objects = [
     {{ factory = spa-node-factory args = {{

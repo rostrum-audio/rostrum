@@ -82,9 +82,24 @@ NodeSpec filteredMicSpec()
             QString(), true, true};
 }
 
-QMap<QString, QString> micFxProperties()
+uint32_t micFxQuantum(const QString &minQuantum, const QString &maxQuantum)
 {
-    return {
+    uint32_t quantum = kMicFxQuantum;
+    bool ok = false;
+    const uint32_t floor = minQuantum.trimmed().toUInt(&ok);
+    if (ok && floor > quantum) {
+        quantum = floor;
+    }
+    const uint32_t ceiling = maxQuantum.trimmed().toUInt(&ok);
+    if (ok && ceiling > 0 && ceiling < quantum) {
+        quantum = ceiling;
+    }
+    return quantum;
+}
+
+QMap<QString, QString> micFxProperties(uint32_t forceQuantum)
+{
+    QMap<QString, QString> p{
         {QStringLiteral("factory.name"), QStringLiteral("audio.convert")},
         // Both sides are DSP ports in the graph clock. Merge mode consumes and
         // flushes each input quantum; the default split mode can retain partial
@@ -98,6 +113,10 @@ QMap<QString, QString> micFxProperties()
         {QStringLiteral("node.virtual"), QStringLiteral("true")},
         {QStringLiteral("rostrum.role"), roleName(NodeRole::MicFx)},
     };
+    if (forceQuantum > 0) {
+        p.insert(QStringLiteral("node.force-quantum"), QString::number(forceQuantum));
+    }
+    return p;
 }
 
 } // namespace rostrum::engine
