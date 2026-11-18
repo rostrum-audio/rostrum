@@ -220,6 +220,168 @@ private Q_SLOTS:
         QVERIFY(!engine::sendNeedsPortConfig(g, 41, {41}));
     }
 
+    void busNodeLevelsPerMix()
+    {
+        Scene s = defaults::scene();
+        Bus *game = s.bus(QStringLiteral("game"));
+        game->volume = 0.5;
+        game->phonesVolume = 0.8;
+        game->balance = 0.4;
+        const auto levels = engine::busNodeLevels(s, {}, {}, 1.0, true);
+        const auto bus = levels.value(QStringLiteral("rostrum.game"));
+        QCOMPARE(bus.position, 1.0);
+        QCOMPARE(bus.balance, 0.4);
+        QCOMPARE(bus.mute, false);
+        QCOMPARE(levels.value(QStringLiteral("rostrum.game.phones")).position, 0.8);
+        QCOMPARE(levels.value(QStringLiteral("rostrum.game.stream")).position, 0.5);
+        QCOMPARE(levels.value(QStringLiteral("rostrum.game.phones")).balance, 0.0);
+        QVERIFY(!levels.contains(QStringLiteral("rostrum.mic")));
+    }
+
+    void soloDimsHeadphonesOnly()
+    {
+        Scene s = defaults::scene();
+        s.bus(QStringLiteral("music"))->destination = Destination::Both; // Stream only by default
+        const auto levels = engine::busNodeLevels(s, {QStringLiteral("music")}, {}, 1.0, true);
+        QCOMPARE(levels.value(QStringLiteral("rostrum.game.phones")).mute, true);
+        QCOMPARE(levels.value(QStringLiteral("rostrum.game.stream")).mute, false);
+        QCOMPARE(levels.value(QStringLiteral("rostrum.game")).mute, false);
+        QCOMPARE(levels.value(QStringLiteral("rostrum.music.phones")).mute, false);
+    }
+
+    void soloSingleLevelUnchanged()
+    {
+        Scene s = defaults::scene();
+        s.bus(QStringLiteral("game"))->volume = 0.5;
+        const auto levels = engine::busNodeLevels(s, {QStringLiteral("music")}, {}, 1.0, false);
+        QCOMPARE(levels.value(QStringLiteral("rostrum.game")).mute, true);
+        QCOMPARE(levels.value(QStringLiteral("rostrum.game")).position, 0.5);
+        QCOMPARE(levels.value(QStringLiteral("rostrum.music")).mute, false);
+        QVERIFY(!levels.contains(QStringLiteral("rostrum.game.phones")));
+        QVERIFY(!levels.contains(QStringLiteral("rostrum.game.stream")));
+    }
+
+    void sendsMutedWhereTheBusDoesNotGo()
+    {
+        Scene s = defaults::scene();
+        s.bus(QStringLiteral("game"))->destination = Destination::Phones;
+        s.bus(QStringLiteral("music"))->destination = Destination::Stream;
+        const auto levels = engine::busNodeLevels(s, {}, {}, 1.0, true);
+        QCOMPARE(levels.value(QStringLiteral("rostrum.game.phones")).mute, false);
+        QCOMPARE(levels.value(QStringLiteral("rostrum.game.stream")).mute, true);
+        QCOMPARE(levels.value(QStringLiteral("rostrum.music.phones")).mute, true);
+        QCOMPARE(levels.value(QStringLiteral("rostrum.music.stream")).mute, false);
+    }
+
+    void duckGainOnBusNode()
+    {
+        const Scene s = defaults::scene();
+        const auto levels = engine::busNodeLevels(s, {}, {QStringLiteral("music")}, 0.25, true);
+        QCOMPARE(levels.value(QStringLiteral("rostrum.music")).gain, 0.25);
+        QCOMPARE(levels.value(QStringLiteral("rostrum.music.phones")).gain, 1.0);
+        QCOMPARE(levels.value(QStringLiteral("rostrum.music.stream")).gain, 1.0);
+        QCOMPARE(levels.value(QStringLiteral("rostrum.game")).gain, 1.0);
+        const auto single = engine::busNodeLevels(s, {}, {QStringLiteral("music")}, 0.25, false);
+        QCOMPARE(single.value(QStringLiteral("rostrum.music")).gain, 0.25);
+    }
+
+    void voiceTriggerScaledByLouderLevel()
+    {
+        Bus voice;
+        voice.id = QStringLiteral("voice");
+        voice.destination = Destination::Both;
+        voice.volume = 0.5;
+        voice.phonesVolume = 1.0;
+        QVERIFY(qAbs(engine::voiceTriggerGain(voice, false, true) - 1.0) < 1e-9);
+        QVERIFY(qAbs(engine::voiceTriggerGain(voice, true, true) - 0.125) < 1e-9);
+        voice.destination = Destination::Stream;
+        QVERIFY(qAbs(engine::voiceTriggerGain(voice, true, true) - 0.125) < 1e-9);
+        voice.destination = Destination::Phones;
+        QCOMPARE(engine::voiceTriggerGain(voice, true, true), 0.0);
+        // Single level: the bus monitor is already after the fader and mute.
+        voice.destination = Destination::Both;
+        QCOMPARE(engine::voiceTriggerGain(voice, false, false), 1.0);
+    }
+
+    void setBusMixVolumeLinked()
+    {
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        Scene s = engine.scene();
+        Bus *game = s.bus(QStringLiteral("game"));
+        game->phonesVolume = 0.6;
+        game->volume = 0.2;
+        game->linked = true;
+        engine.setScene(s);
+        QSignalSpy changed(&engine, &engine::Engine::sceneChanged);
+        engine.setBusMixVolume(QStringLiteral("game"), Mix::Phones, 0.5);
+        QCOMPARE(changed.count(), 1);
+        QVERIFY(qAbs(engine.scene().bus(QStringLiteral("game"))->phonesVolume - 0.5) < 1e-9);
+        QVERIFY(qAbs(engine.scene().bus(QStringLiteral("game"))->volume - 0.1) < 1e-9);
+
+        engine.setScene(s);
+        engine.setBusLinked(QStringLiteral("game"), false);
+        QCOMPARE(engine.scene().bus(QStringLiteral("game"))->linked, false);
+        engine.setBusMixVolume(QStringLiteral("game"), Mix::Phones, 0.5);
+        QVERIFY(qAbs(engine.scene().bus(QStringLiteral("game"))->phonesVolume - 0.5) < 1e-9);
+        QVERIFY(qAbs(engine.scene().bus(QStringLiteral("game"))->volume - 0.2) < 1e-9);
+
+        engine.setBusVolume(QStringLiteral("game"), 0.7);
+        QCOMPARE(engine.scene().bus(QStringLiteral("game"))->phonesVolume, 0.7);
+        QCOMPARE(engine.scene().bus(QStringLiteral("game"))->volume, 0.7);
+
+        // The mic has one level: the Mix variants leave it alone, setBusVolume is its gain.
+        const double micGain = engine.scene().micBus()->volume;
+        engine.setBusMixVolume(QStringLiteral("mic"), Mix::Phones, 0.3);
+        engine.setBusLinked(QStringLiteral("mic"), false);
+        QCOMPARE(engine.scene().micBus()->volume, micGain);
+        QCOMPARE(engine.scene().micBus()->phonesVolume, 1.0);
+        QCOMPARE(engine.scene().micBus()->linked, true);
+        engine.setBusVolume(QStringLiteral("mic"), 1.2);
+        QCOMPARE(engine.scene().micBus()->volume, 1.2);
+        QCOMPARE(engine.scene().micBus()->phonesVolume, 1.0);
+    }
+
+    void setBusMixVolumeTogetherIgnoresLink()
+    {
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        Scene s = engine.scene();
+        Bus *game = s.bus(QStringLiteral("game"));
+        game->phonesVolume = 0.6;
+        game->volume = 0.2;
+        game->linked = false;
+        engine.setScene(s);
+        engine.setBusMixVolumeTogether(QStringLiteral("game"), Mix::Stream, 0.4);
+        QVERIFY(qAbs(engine.scene().bus(QStringLiteral("game"))->phonesVolume - 0.8) < 1e-9);
+        QVERIFY(qAbs(engine.scene().bus(QStringLiteral("game"))->volume - 0.4) < 1e-9);
+        QCOMPARE(engine.scene().bus(QStringLiteral("game"))->linked, false);
+    }
+
+    void fadeIncludesSends()
+    {
+        Scene s = defaults::scene();
+        Bus *game = s.bus(QStringLiteral("game"));
+        game->volume = 0.5;
+        game->phonesVolume = 0.8;
+        game->balance = -0.2;
+        s.bus(QStringLiteral("music"))->muted = true;
+        const auto levels = engine::busFadeLevels(s, {}, true);
+        QCOMPARE(levels.value(QStringLiteral("rostrum.game")), (engine::FadeLevel{1.0, -0.2}));
+        QCOMPARE(levels.value(QStringLiteral("rostrum.game.phones")), (engine::FadeLevel{0.8, 0.0}));
+        QCOMPARE(levels.value(QStringLiteral("rostrum.game.stream")), (engine::FadeLevel{0.5, 0.0}));
+        QCOMPARE(levels.value(QStringLiteral("rostrum.music")).position, 0.0);
+        // Solo dims the headphones send to 0, nothing else.
+        const auto solo = engine::busFadeLevels(s, {QStringLiteral("game")}, true);
+        QCOMPARE(solo.value(QStringLiteral("rostrum.desktop.phones")).position, 0.0);
+        QVERIFY(solo.value(QStringLiteral("rostrum.desktop.stream")).position > 0.0);
+        QVERIFY(solo.value(QStringLiteral("rostrum.desktop")).position > 0.0);
+        // Single level is today's: the bus node at its volume, 0 when muted or dimmed.
+        const auto single = engine::busFadeLevels(s, {QStringLiteral("music")}, false);
+        QCOMPARE(single.value(QStringLiteral("rostrum.game")), (engine::FadeLevel{0.0, -0.2}));
+        QVERIFY(!single.contains(QStringLiteral("rostrum.game.phones")));
+    }
+
     void duplicateKeepsMixLevels()
     {
         pw::PwContext pw;

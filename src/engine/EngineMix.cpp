@@ -33,12 +33,54 @@ void Engine::setBusVolume(const QString &id, double volume)
     if (!b) {
         return;
     }
-    cancelFade(b->nodeName());
+    cancelLevelFades(*b);
     const double v = std::clamp(volume, 0.0, b->isInput() ? kMicMaxGain : 1.0);
-    if (qFuzzyCompare(b->volume + 1.0, v + 1.0)) {
+    const bool same = qFuzzyCompare(b->volume + 1.0, v + 1.0) &&
+                      (b->isInput() || qFuzzyCompare(b->phonesVolume + 1.0, v + 1.0));
+    if (same) {
         return;
     }
     b->volume = v;
+    if (!b->isInput()) {
+        b->phonesVolume = v;
+    }
+    levelChanged();
+}
+
+void Engine::setMixLevels(const QString &id, Mix mix, double volume, bool together)
+{
+    Bus *b = m_scene.bus(id);
+    if (!b || b->isInput()) {
+        return;
+    }
+    const MixLevels to = moveLevel({b->phonesVolume, b->volume}, mix, volume, together);
+    if (qFuzzyCompare(b->phonesVolume + 1.0, to.phones + 1.0) && qFuzzyCompare(b->volume + 1.0, to.stream + 1.0)) {
+        return;
+    }
+    cancelLevelFades(*b);
+    b->phonesVolume = to.phones;
+    b->volume = to.stream;
+    levelChanged();
+}
+
+void Engine::setBusMixVolume(const QString &id, Mix mix, double volume)
+{
+    const Bus *b = m_scene.bus(id);
+    setMixLevels(id, mix, volume, b && b->linked);
+}
+
+void Engine::setBusMixVolumeTogether(const QString &id, Mix mix, double volume)
+{
+    setMixLevels(id, mix, volume, true);
+}
+
+void Engine::setBusLinked(const QString &id, bool linked)
+{
+    Bus *b = m_scene.bus(id);
+    if (!b || b->isInput() || b->linked == linked) {
+        return;
+    }
+    b->linked = linked;
     levelChanged();
 }
 
@@ -653,7 +695,9 @@ void Engine::duckTick()
         peak = m_duckMeters.takePeak(m_duckMicNode) * volume::faderToLinear(mic ? mic->volume : 1.0);
     }
     if (!m_duckVoiceNode.isEmpty()) {
-        peak = std::max(peak, double(m_duckMeters.takePeak(m_duckVoiceNode)));
+        const Bus *voice = m_scene.busFor(AppCategory::Voice);
+        const double gain = voice ? voiceTriggerGain(*voice, dimmedBySolo(voice->id), perMixActive()) : 1.0;
+        peak = std::max(peak, m_duckMeters.takePeak(m_duckVoiceNode) * gain);
     }
     const bool was = m_duckEnvelope.ducked();
     m_duckEnvelope.advance(peak, dt, m_ducking);
@@ -989,12 +1033,15 @@ void Engine::reconcileVolumes()
     };
 
     m_duckGainSent = m_duckEnvelope.gain();
+    QSet<QString> duckTargets;
     for (const auto &b : m_scene.buses) {
-        if (b.isInput()) {
-            continue;
+        if (isDuckTarget(b.id)) {
+            duckTargets.insert(b.id);
         }
-        level(b.nodeName(), b.volume, b.muted || dimmedBySolo(b.id), b.balance,
-              isDuckTarget(b.id) ? m_duckGainSent : 1.0);
+    }
+    const auto busLevels = busNodeLevels(m_scene, m_soloed, duckTargets, m_duckGainSent, perMixActive());
+    for (auto it = busLevels.cbegin(); it != busLevels.cend(); ++it) {
+        level(it.key(), it->position, it->mute, it->balance, it->gain);
     }
     // Halve while mono is wanted or any cross-link is still up, so links and volume changing at
     // slightly different moments can only make it briefly quieter, never 6 dB louder.

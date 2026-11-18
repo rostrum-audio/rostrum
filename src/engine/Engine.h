@@ -6,6 +6,7 @@
 #include "core/Ducking.h"
 #include "core/MicFilters.h"
 #include "core/Model.h"
+#include "engine/MixPlan.h"
 #include "engine/NodeSpecs.h"
 #include "pw/MeterBank.h"
 
@@ -98,7 +99,13 @@ public:
     QString mixError() const { return m_mixError; }
 
     // Levels: these change the live scene and make it dirty until saved.
+    // A playback bus: both levels. The mic: its gain.
     void setBusVolume(const QString &id, double volume);
+    // One level of a playback bus; a linked bus moves the other level by the same amount.
+    void setBusMixVolume(const QString &id, Mix mix, double volume);
+    // Both levels by the same amount, linked or not (the Compact View fader).
+    void setBusMixVolumeTogether(const QString &id, Mix mix, double volume);
+    void setBusLinked(const QString &id, bool linked);
     void setBusMuted(const QString &id, bool muted);
     void setBusBalance(const QString &id, double balance); // playback buses; -1 left .. 1 right
     void setBusDestination(const QString &id, Destination d);
@@ -256,15 +263,12 @@ protected:
     void reconcileDevices();
     void publishMissingLabels(); // emit missing*LabelChanged when the QML-facing strings change
     bool phonesCrossLinked() const; // headphone links that carry one side into the other
-    struct Level
-    {
-        double position = 0.0; // 0 when muted
-        double balance = 0.0;
-        bool operator==(const Level &) const = default;
-    };
+    using Level = FadeLevel;
     QHash<QString, Level> fadeLevels(const Scene &scene, bool withSolo) const; // by node name
     std::optional<Level> fadingLevel(const QString &nodeName) const;
     void cancelFade(const QString &nodeName);
+    void cancelLevelFades(const Bus &b); // the bus node and its sends
+    void setMixLevels(const QString &id, Mix mix, double volume, bool together);
     void fadeTick();
     void reconcileDucking();
     void reconcileMicFx();

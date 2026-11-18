@@ -82,6 +82,46 @@ QList<NodeLink> busLinks(const Scene &scene, bool perMix)
     return out;
 }
 
+QHash<QString, NodeLevel> busNodeLevels(const Scene &scene, const QSet<QString> &soloed,
+                                        const QSet<QString> &duckTargets, double duckGain, bool perMix)
+{
+    QHash<QString, NodeLevel> out;
+    for (const auto &b : scene.buses) {
+        if (b.isInput()) {
+            continue;
+        }
+        const bool dimmed = !soloed.isEmpty() && !soloed.contains(b.id);
+        const double gain = duckTargets.contains(b.id) ? duckGain : 1.0;
+        if (!perMix) {
+            out.insert(b.nodeName(), {b.volume, b.balance, b.muted || dimmed, gain});
+            continue;
+        }
+        out.insert(b.nodeName(), {1.0, b.balance, b.muted, gain});
+        out.insert(sendNodeName(b.id, Mix::Phones),
+                   {b.phonesVolume, 0.0, !feedsPhones(b.destination) || dimmed, 1.0});
+        out.insert(sendNodeName(b.id, Mix::Stream), {b.volume, 0.0, !feedsStream(b.destination), 1.0});
+    }
+    return out;
+}
+
+QHash<QString, FadeLevel> busFadeLevels(const Scene &scene, const QSet<QString> &soloed, bool perMix)
+{
+    QHash<QString, FadeLevel> out;
+    const auto levels = busNodeLevels(scene, soloed, {}, 1.0, perMix);
+    for (auto it = levels.cbegin(); it != levels.cend(); ++it) {
+        out.insert(it.key(), {it->mute ? 0.0 : it->position, it->balance});
+    }
+    return out;
+}
+
+double voiceTriggerGain(const Bus &voice, bool dimmedBySolo, bool perMix)
+{
+    if (!perMix) {
+        return 1.0;
+    }
+    return std::max(mixGain(voice, Mix::Stream, dimmedBySolo), mixGain(voice, Mix::Phones, dimmedBySolo));
+}
+
 bool hasDspPorts(const pw::Graph &g, uint32_t node)
 {
     const auto dsp = [](const QList<pw::Port> &ports) {

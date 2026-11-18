@@ -6,6 +6,7 @@
 
 #include "core/Model.h"
 
+#include <QHash>
 #include <QList>
 #include <QMap>
 #include <QSet>
@@ -49,6 +50,35 @@ struct NodeLink
 // into rostrum.stream when it feeds the stream and into rostrum.vod when it also feeds the VOD.
 // Otherwise the bus links straight into the masters, one level for both.
 QList<NodeLink> busLinks(const Scene &scene, bool perMix);
+
+struct NodeLevel
+{
+    double position = 1.0; // fader position, 0..1
+    double balance = 0.0;
+    bool mute = false;
+    double gain = 1.0; // session-only multiplier (ducking)
+};
+// The level of every playback bus node and, with perMix, of its sends, by node name. perMix: the
+// bus node is at unity with the bus's balance, mute and ducking; the Headphones send carries the
+// Headphones level and is muted where the bus does not reach headphones or is dimmed by solo; the
+// Stream send carries the Stream level and is muted where the bus does not reach the stream.
+// Single level: the bus node carries the Stream level, muted when the bus is muted or dimmed.
+QHash<QString, NodeLevel> busNodeLevels(const Scene &scene, const QSet<QString> &soloed,
+                                        const QSet<QString> &duckTargets, double duckGain, bool perMix);
+
+struct FadeLevel
+{
+    double position = 0.0; // 0 when muted
+    double balance = 0.0;
+    bool operator==(const FadeLevel &) const = default;
+};
+// busNodeLevels without ducking, as scene fades see them: a muted node is at 0.
+QHash<QString, FadeLevel> busFadeLevels(const Scene &scene, const QSet<QString> &soloed, bool perMix);
+
+// What the Voice bus meter is multiplied by for the ducking trigger. perMix: the louder of the
+// levels for the mixes the bus reaches (the meter is before both faders). Single level: 1, as the
+// bus monitor is already after the fader and mute.
+double voiceTriggerGain(const Bus &voice, bool dimmedBySolo, bool perMix);
 
 // A new audio.convert node starts in convert mode with channel-less ports; only after PortConfig
 // does it expose the DSP ports, each with an audio.channel.

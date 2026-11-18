@@ -103,14 +103,7 @@ void Engine::setSceneFadeMs(int ms)
 
 QHash<QString, Engine::Level> Engine::fadeLevels(const Scene &scene, bool withSolo) const
 {
-    QHash<QString, Level> levels;
-    for (const auto &b : scene.buses) {
-        if (b.isInput()) {
-            continue;
-        }
-        const bool off = b.muted || (withSolo && dimmedBySolo(b.id));
-        levels.insert(b.nodeName(), {off ? 0.0 : b.volume, b.balance});
-    }
+    QHash<QString, Level> levels = busFadeLevels(scene, withSolo ? m_soloed : QSet<QString>(), perMixActive());
     levels.insert(QString::fromLatin1(kPhonesNode),
                   {scene.masterPhonesMuted ? 0.0 : scene.masterPhones, 0.0});
     levels.insert(QString::fromLatin1(kStreamNode),
@@ -142,6 +135,13 @@ void Engine::cancelFade(const QString &nodeName)
     if (m_fades.remove(nodeName) && m_fades.isEmpty()) {
         m_fadeTimer.stop();
     }
+}
+
+void Engine::cancelLevelFades(const Bus &b)
+{
+    cancelFade(b.nodeName());
+    cancelFade(sendNodeName(b.id, Mix::Phones));
+    cancelFade(sendNodeName(b.id, Mix::Stream));
 }
 
 void Engine::fadeTick()

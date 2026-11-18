@@ -149,9 +149,21 @@ channel count. Otherwise a half-enumerated stereo device would briefly look mono
 Fader positions are perceptual: linear gain = position³, as in pavucontrol. They are sent as
 `SPA_PROP_channelVolumes` and `SPA_PROP_mute` on the node's `Props` param.
 
-- Bus node: fader, muted if the bus is muted or dimmed by solo. A playback bus with a balance gets
-  one volume per channel (FL, FR): like PulseAudio's balance, the far side is turned down in fader
-  space (position × (1 − |balance|)) and the near side stays at the fader.
+- Each playback bus has two levels, Headphones (`phones_volume` in the scene) and Stream
+  (`volume`), linked by default so moving one moves the other by the same amount (fader space,
+  each clamped to 0..1). Unlinked, each moves alone. Compact View's single fader always moves both.
+- Bus node: unity level, the bus's balance, muted if the bus is muted, and the ducking gain. Mute
+  silences both mixes and the bus's recording track. A playback bus with a balance gets one volume
+  per channel (FL, FR): like PulseAudio's balance, the far side is turned down in fader space
+  (position × (1 − |balance|)) and the near side stays at full level.
+- `rostrum.<bus>.phones`: the Headphones level, muted if the bus does not reach headphones or is
+  dimmed by solo. `rostrum.<bus>.stream`: the Stream level, muted if the bus does not reach the
+  stream. The VOD mix is fed from the Stream send, so it follows the Stream level.
+- Solo is headphones-only: soloing a bus mutes the other buses' Headphones sends and nothing else.
+  The stream, the VOD mix and the recording tracks keep the full mix.
+- Without per-mix levels ([Without per-mix levels](#without-per-mix-levels)) the bus node carries
+  the Stream level instead, muted if the bus is muted or dimmed by solo, and the Headphones level
+  is kept in the scene but not applied. Solo then also dims the stream, as before.
 - `rostrum.phones` / `rostrum.stream` / `rostrum.vod`: Master Headphones / Master Stream. These multiply every bus send.
   "Mute all playback to stream" mutes `rostrum.stream` and `rostrum.vod`.
 - `rostrum.mic`: mic gain (0 to 150%, 100% = 0 dB), muted if the mic is muted or the mic
@@ -192,11 +204,13 @@ never leaves it live for a moment.
   never dirty because of a fade, and a save mid-fade saves the target. The ramp is a session-only
   overlay per node, never stored.
 - Every 16 ms the overlay sends `from + (to − from) × t` in fader space (already perceptual), for
-  the level and the balance. A muted bus counts as level 0: a bus being unmuted is unmuted at the
-  start and ramps up from silence, and a bus being muted ramps down and is muted at the end. Solo
-  is part of the starting level.
-- A switch mid-fade starts from wherever the running fade got to. Moving a fader, mute or balance
-  takes that node out of the fade at once; toggling solo ends the whole fade.
+  the level and the balance. The bus node and both sends fade, each on its own level; a muted node
+  counts as level 0: a bus being unmuted is unmuted at the start and ramps up from silence, and a
+  bus being muted ramps down and is muted at the end. A send muted because the bus does not reach
+  that mix counts as 0 the same way. Solo is part of the starting level (of the Headphones sends).
+- A switch mid-fade starts from wherever the running fade got to. Moving either fader takes the
+  bus node and both its sends out of the fade at once, as do mute and balance for the bus node;
+  toggling solo ends the whole fade.
 - Loading the default scene at startup never fades: the nodes may still be playing at their
   lingering levels, and the scene applies at once as before.
 - Quitting mid-fade sends every node its scene level first, so nothing is left halfway.
@@ -223,16 +237,22 @@ ducked bus is quieter, never silent.
   the strips, independent of what is on screen). With the mic trigger it meters the hardware mic
   summed to mono, times the mic gain, and only while the mic can be heard on stream (not muted,
   destination includes Stream, not unplugged). With the voice trigger it meters the voice bus's
-  monitor, which is after its fader and mute. A peak above -40 dBFS counts as speech. Turning
-  ducking off removes the meter streams.
+  monitor, which is after its mute and balance but before its two levels, so the peak is multiplied
+  by the louder of the levels for the mixes the bus reaches: the Stream level if the destination
+  includes Stream, the Headphones level if it includes Headphones and the bus is not dimmed by
+  solo. With linked, equal levels this is the same trigger as a single fader. A voice bus dimmed
+  in headphones by solo still triggers if it reaches the stream, because viewers still hear it.
+  Without per-mix levels the monitor is after the fader and mute, and the peak is used as it is. A
+  peak above -40 dBFS counts as speech. Turning ducking off removes the meter streams.
 - The mic meter is an active source stream, like every mic meter, so while ducking listens to the
   mic, Plasma's microphone indicator stays lit, even with Rostrum in the tray. Muting the mic stops
   the meter and the indicator. The Settings switch says so.
 - Envelope (`ducking::Envelope`, unit tested): every 20 ms the gain moves toward the amount at
   amount/attack dB per ms while speech is heard, and stays there until 500 ms after the last
   speech, so it does not pump between words. Then it returns to 0 dB at amount/release dB per ms.
-- Applying: the gain multiplies the linear volume of each target bus when volumes are sent, on
-  top of fader, balance and any scene fade. The value sent changes, the scene does not, and the
+- Applying: the gain multiplies the linear volume of each target bus node when volumes are sent,
+  on top of fader, balance and any scene fade. It is on the bus node, so a ducked bus is turned
+  down in both mixes and its recording track. The value sent changes, the scene does not, and the
   once-a-second re-apply compares against the ducked value, so ducking never fights it. The bus
   that receives voice chat is never ducked when it is the trigger.
 - The strip of a ducked bus says "Ducked" in its status line.
