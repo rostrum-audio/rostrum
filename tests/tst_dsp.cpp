@@ -5,11 +5,13 @@
 #include <dlfcn.h>
 
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <map>
 #include <memory>
 #include <set>
 #include <string>
+#include <thread>
 #include <vector>
 
 // Counts heap use while a plugin's run() is on the stack; realtime code must not allocate.
@@ -235,6 +237,14 @@ class TestDsp : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    void initTestCase()
+    {
+        // The denoiser's worker thread makes its output depend on timing. run() waits for it here,
+        // so these tests see exactly what it computes; the denoiseWorker tests use the real timing.
+        qputenv("ROSTRUM_DSP_TEST_DENOISE_WAIT", "1");
+        qunsetenv("ROSTRUM_DSP_TEST_DENOISE_STALL");
+    }
+
     void descriptorsAreWellFormed()
     {
         const auto all = allDescriptors();
@@ -489,7 +499,8 @@ private Q_SLOTS:
         QSKIP("built without RNNoise");
 #else
         Host denoise("rostrum_denoise");
-        QCOMPARE(denoise.get("latency"), 480.0f);
+        // One frame RNNoise needs, one the worker thread has to finish it.
+        QCOMPARE(denoise.get("latency"), 960.0f);
         QCOMPARE(denoise.get("Active"), 1.0f);
         const auto hiss = noise(0.03f, 3.0);
         const double reduction = rmsDb(hiss, 2.0) - rmsDb(denoise.process(hiss), 2.0);
@@ -498,6 +509,77 @@ private Q_SLOTS:
         Host half("rostrum_denoise", kRate, { { "Strength", 0.5f } });
         const double partial = rmsDb(hiss, 2.0) - rmsDb(half.process(hiss), 2.0);
         QVERIFY(partial > 3 && partial < reduction);
+#endif
+    }
+
+    // A worker that falls behind must never hold up run(): the graph's realtime thread runs every
+    // other node too. Late frames go out dry, exactly one latency behind the input.
+    void denoiseWorkerNeverHoldsUpRun()
+    {
+#ifndef ROSTRUM_DSP_DENOISE
+        QSKIP("built without RNNoise");
+#else
+        qunsetenv("ROSTRUM_DSP_TEST_DENOISE_WAIT");
+        qputenv("ROSTRUM_DSP_TEST_DENOISE_STALL", "200:1");
+        const auto hiss = noise(0.03f, 1.0);
+        std::vector<float> out;
+        std::chrono::steady_clock::duration took{};
+        {
+            Host denoise("rostrum_denoise");
+            QVERIFY(denoise.valid());
+            const auto started = std::chrono::steady_clock::now();
+            out = denoise.process(hiss, 512);
+            took = std::chrono::steady_clock::now() - started;
+        }
+        qputenv("ROSTRUM_DSP_TEST_DENOISE_WAIT", "1");
+        qunsetenv("ROSTRUM_DSP_TEST_DENOISE_STALL");
+        // Waiting for even one 200 ms stall would take longer than this.
+        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(took).count();
+        QVERIFY2(ms < 150, qPrintable(QStringLiteral("run() took %1 ms for one second of audio").arg(ms)));
+        for (size_t i = 0; i < hiss.size(); i++) {
+            const float expected = i < 960 ? 0.0f : hiss[i - 960];
+            if (out[i] != expected)
+                QFAIL(qPrintable(QStringLiteral("sample %1 is not the dry input").arg(i)));
+        }
+#endif
+    }
+
+    void denoiseWorkerKeepsUpInRealTime_data()
+    {
+        QTest::addColumn<int>("block");
+        QTest::newRow("256") << 256; // a voice call's cycle
+        QTest::newRow("512") << 512; // the cycle rostrum.micfx forces
+        QTest::newRow("2048") << 2048; // frames due in the call that queued them: run() waits
+    }
+
+    // Blocks arrive at the pace of a real graph; the worker finishes every frame in time and the
+    // hiss comes out as suppressed as when RNNoise ran inline.
+    void denoiseWorkerKeepsUpInRealTime()
+    {
+#ifndef ROSTRUM_DSP_DENOISE
+        QSKIP("built without RNNoise");
+#else
+        QFETCH(int, block);
+        qunsetenv("ROSTRUM_DSP_TEST_DENOISE_WAIT");
+        const auto hiss = noise(0.03f, 3.0);
+        std::vector<float> out(hiss.size());
+        {
+            Host denoise("rostrum_denoise");
+            QVERIFY(denoise.valid());
+            const auto period = std::chrono::microseconds(1000000LL * block / long(kRate));
+            auto next = std::chrono::steady_clock::now();
+            for (size_t at = 0; at < hiss.size(); at += size_t(block)) {
+                const size_t n = std::min(size_t(block), hiss.size() - at);
+                const std::vector<float> part(hiss.begin() + long(at), hiss.begin() + long(at + n));
+                const auto done = denoise.process(part, n);
+                std::copy(done.begin(), done.end(), out.begin() + long(at));
+                next += period;
+                std::this_thread::sleep_until(next);
+            }
+        }
+        qputenv("ROSTRUM_DSP_TEST_DENOISE_WAIT", "1");
+        const double reduction = rmsDb(hiss, 2.0) - rmsDb(out, 2.0);
+        QVERIFY2(reduction > 15, qPrintable(QString::number(reduction)));
 #endif
     }
 

@@ -182,6 +182,15 @@ if(ROSTRUM_AUDIO_INTEGRATION_TESTS)
             $<TARGET_FILE:rostrum-graphtest> $<TARGET_FILE:rostrum-dsp>)
         set_tests_properties(audio_mic_filter_breaker PROPERTIES
             TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
+        if(ROSTRUM_DSP_DENOISE)
+            # Measures how long rostrum.micfx holds the private daemon's realtime thread.
+            find_program(AUDIO_pw-profiler NAMES pw-profiler REQUIRED)
+            add_test(NAME audio_mic_filter_denoise_worker COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/integration/mic-filter-denoise-worker.py
+                $<TARGET_FILE:rostrum-graphtest> $<TARGET_FILE:rostrum-dsp>)
+            set_tests_properties(audio_mic_filter_denoise_worker PROPERTIES
+                TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
+        endif()
     endif()
     # Lifecycle regressions deliberately interrupt private jobs; serialize audio tests.
     set_tests_properties(audio_safety audio_safety_fixture audio_safety_lifecycle audio_readiness

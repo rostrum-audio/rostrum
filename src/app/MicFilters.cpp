@@ -27,7 +27,7 @@ const QList<ModuleText> &moduleTexts()
         {Module::Highpass, ki18nc("@title mic filter", "Rumble filter"),
          ki18n("Cuts hum, desk thumps and handling noise below your voice.")},
         {Module::Denoise, ki18nc("@title mic filter", "Noise removal"),
-         ki18n("Reduces fans, keyboards, traffic and room noise while you talk. Adds 10 ms of delay.")},
+         ki18n("Reduces fans, keyboards, traffic and room noise while you talk. Adds 20 ms of delay.")},
         {Module::Gate, ki18nc("@title mic filter", "Noise gate"),
          ki18n("Turns the mic down between phrases. Noise removal usually does this better; the gate "
                "helps with noise it cannot remove.")},

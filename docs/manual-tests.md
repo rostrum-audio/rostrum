@@ -716,7 +716,11 @@ makes noise removal easy to hear.
     and `journalctl --user -u pipewire -f | grep resync` stays quiet while the video plays without
     crackles. Turn the filters off: the driver drops to 256. If `clock.min-quantum` is set higher
     in `pw-metadata -n settings`, the driver runs at that value instead, and the log says
-    `replacing mic filter node <id> to force quantum` when it changes.
+    `replacing mic filter node <id> to force quantum` when it changes. `pw-top` shows
+    `rostrum.micfx` busy for well under a millisecond, even with the desktop under load: noise
+    removal runs on its own `rostrum-denoise` thread (`ps -L -C pipewire`). `journalctl --user -u
+    pipewire | grep rostrum_denoise` shows only an occasional line about frames that went out
+    without noise removal; you should not hear them.
 
 ## 29. Mic check
 
