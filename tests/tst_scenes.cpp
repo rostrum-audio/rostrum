@@ -48,6 +48,107 @@ class TestScenes : public QObject
 {
     Q_OBJECT
 private Q_SLOTS:
+    void perMixLevelsRoundTrip()
+    {
+        Scene s = defaults::scene();
+        Bus *game = s.bus(QStringLiteral("game"));
+        game->volume = 0.4;
+        game->phonesVolume = 0.9;
+        game->linked = false;
+        const QString text = toml_io::serializeScene(s);
+        QVERIFY2(text.contains(QStringLiteral("volume = 0.4\n")), qPrintable(text));
+        QVERIFY2(text.contains(QStringLiteral("phones_volume = 0.9\n")), qPrintable(text));
+        QVERIFY2(text.contains(QStringLiteral("linked = false\n")), qPrintable(text));
+        const auto back = toml_io::parseScene(text);
+        QVERIFY(back);
+        QCOMPARE(*back, s);
+    }
+
+    void upgradeKeepsOneLevel()
+    {
+        const auto s = toml_io::parseScene(QStringLiteral(R"(
+name = "Old"
+[[bus]]
+id = "game"
+name = "Game"
+kind = "playback"
+volume = 0.7
+)"));
+        QVERIFY(s);
+        const Bus *game = s->bus(QStringLiteral("game"));
+        QVERIFY(game);
+        QCOMPARE(game->volume, 0.7);
+        QCOMPARE(game->phonesVolume, 0.7);
+        QVERIFY(game->linked);
+        const QString text = toml_io::serializeScene(*s);
+        QVERIFY2(!text.contains(QStringLiteral("phones_volume")), qPrintable(text));
+        QVERIFY2(!text.contains(QStringLiteral("linked")), qPrintable(text));
+    }
+
+    void micHasNoMixKeys()
+    {
+        Scene s = defaults::scene();
+        s.bus(QStringLiteral("mic"))->volume = 1.2;
+        const QString text = toml_io::serializeScene(s);
+        QVERIFY2(!text.contains(QStringLiteral("phones_volume")), qPrintable(text));
+        QVERIFY2(!text.contains(QStringLiteral("linked")), qPrintable(text));
+        const auto edited = toml_io::parseScene(QStringLiteral(R"(
+name = "Edited"
+[[bus]]
+id = "mic"
+name = "Mic"
+kind = "input"
+volume = 1.2
+phones_volume = 0.2
+linked = false
+)"));
+        QVERIFY(edited);
+        const Bus *mic = edited->bus(QStringLiteral("mic"));
+        QVERIFY(mic);
+        QCOMPARE(mic->volume, 1.2);
+        QCOMPARE(mic->phonesVolume, 1.0);
+        QVERIFY(mic->linked);
+    }
+
+    void phonesVolumeSanitized()
+    {
+        const auto s = toml_io::parseScene(QStringLiteral(R"(
+name = "Odd"
+[[bus]]
+id = "game"
+name = "Game"
+kind = "playback"
+volume = 0.6
+phones_volume = "x"
+[[bus]]
+id = "voice"
+name = "Voice"
+kind = "playback"
+volume = 0.6
+phones_volume = 3
+)"));
+        QVERIFY(s);
+        QCOMPARE(s->bus(QStringLiteral("game"))->phonesVolume, 0.6);
+        QCOMPARE(s->bus(QStringLiteral("voice"))->phonesVolume, 1.0);
+    }
+
+    void presetsSetBothLevels()
+    {
+        Scene base = defaults::scene();
+        base.bus(QStringLiteral("game"))->phonesVolume = 0.2;
+        base.bus(QStringLiteral("game"))->linked = false;
+        for (const QString &id : presets::ids()) {
+            const Scene s = presets::apply(id, base);
+            for (const auto &b : s.buses) {
+                if (b.isInput()) {
+                    continue;
+                }
+                QVERIFY2(b.phonesVolume == b.volume, qPrintable(id + QLatin1Char(' ') + b.id));
+                QVERIFY2(b.linked, qPrintable(id + QLatin1Char(' ') + b.id));
+            }
+        }
+    }
+
     void roundTrip()
     {
         const Scene s = sample();

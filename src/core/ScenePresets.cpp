@@ -86,6 +86,8 @@ Scene apply(const QString &id, const Scene &base)
         bus.destination = level.destination;
         bus.vod = level.vod;
         bus.volume = level.volume;
+        bus.phonesVolume = level.volume;
+        bus.linked = true;
         bus.muted = level.muted;
     }
     return out;

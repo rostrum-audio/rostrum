@@ -14,6 +14,8 @@ inline constexpr const char *kMicBusId = "mic";
 inline constexpr const char *kDefaultSceneName = "Live";
 
 enum class Destination { Phones, Stream, Both };
+// One of the two mixes a playback bus feeds, each with its own level.
+enum class Mix { Phones, Stream };
 enum class BusKind { Input, Playback };
 enum class MatchKey { Name, Binary };
 // What kind of app a bus receives automatically. None = only apps the user puts there.
@@ -21,6 +23,8 @@ enum class AppCategory { None, Game, Voice, Music, Alerts, Desktop };
 
 QString destinationName(Destination d);
 std::optional<Destination> destinationFromString(const QString &s);
+QString mixName(Mix m); // "phones" or "stream"
+std::optional<Mix> mixFromString(const QString &s);
 QString matchKeyName(MatchKey k);
 std::optional<MatchKey> matchKeyFromString(const QString &s);
 QString categoryName(AppCategory c);
@@ -35,7 +39,10 @@ struct Bus
     QString name;  // user-visible, renamable
     QString color; // "#rrggbb", user data
     BusKind kind = BusKind::Playback;
-    double volume = 1.0; // fader position, 0..1 for playback, 0..1.5 for mic gain (1.0 = unity / 0 dB)
+    // Fader position. Playback buses: the Stream level, 0..1. Mic: gain, 0..1.5 (1.0 = unity / 0 dB).
+    double volume = 1.0;
+    double phonesVolume = 1.0; // playback buses: the Headphones level, 0..1
+    bool linked = true;        // playback buses: moving one level moves the other by the same amount
     bool muted = false;
     double balance = 0.0; // -1 left .. 1 right; playback buses only
     Destination destination = Destination::Both;
@@ -43,11 +50,28 @@ struct Bus
     AppCategory autoCategory = AppCategory::None; // at most one bus per category in a scene
 
     bool isInput() const { return kind == BusKind::Input; }
+    double level(Mix m) const { return m == Mix::Phones ? phonesVolume : volume; }
     QString nodeName() const;
     bool operator==(const Bus &) const = default;
 };
 
 inline bool feedsVod(const Bus &b) { return feedsStream(b.destination) && b.vod; }
+
+struct MixLevels
+{
+    double phones = 1.0;
+    double stream = 1.0;
+    bool operator==(const MixLevels &) const = default;
+};
+
+// Moves `mix` to `target` (clamped to 0..1). With `together`, the other level moves by the same
+// amount and is clamped on its own, so a gap between them shrinks at the ends. A target that is
+// not a number changes nothing.
+MixLevels moveLevel(MixLevels from, Mix mix, double target, bool together);
+
+// The linear gain a mix receives from this playback bus: its level through the fader curve, or 0
+// when the bus is muted, its destination leaves the mix out, or (Headphones only) solo dims it.
+double mixGain(const Bus &b, Mix m, bool dimmedBySolo);
 
 struct AppRule
 {

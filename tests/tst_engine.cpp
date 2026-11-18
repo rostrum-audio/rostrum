@@ -97,6 +97,23 @@ private Q_SLOTS:
         }
     }
 
+    void duplicateKeepsMixLevels()
+    {
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        Scene s = engine.scene();
+        s.bus(QStringLiteral("game"))->volume = 0.4;
+        s.bus(QStringLiteral("game"))->phonesVolume = 0.9;
+        s.bus(QStringLiteral("game"))->linked = false;
+        engine.setScene(s);
+        const QString copy = engine.duplicateBus(QStringLiteral("game"));
+        const Bus *b = engine.scene().bus(copy);
+        QVERIFY(b);
+        QCOMPARE(b->volume, 0.4);
+        QCOMPARE(b->phonesVolume, 0.9);
+        QCOMPARE(b->linked, false);
+    }
+
     void newBusCannotUseVodMasterName()
     {
         pw::PwContext pw;

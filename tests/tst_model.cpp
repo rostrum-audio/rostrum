@@ -15,6 +15,71 @@ class TestModel : public QObject
 {
     Q_OBJECT
 private Q_SLOTS:
+    void moveLevelLinkedKeepsGap()
+    {
+        const MixLevels out = moveLevel({0.6, 0.2}, Mix::Phones, 0.5, true);
+        QVERIFY(qFuzzyCompare(out.phones, 0.5));
+        QVERIFY(qFuzzyCompare(out.stream + 1.0, 0.1 + 1.0));
+    }
+
+    void moveLevelLinkedClampsEachSide()
+    {
+        const MixLevels low = moveLevel({0.6, 0.2}, Mix::Phones, 0.1, true);
+        QVERIFY(qFuzzyCompare(low.phones, 0.1));
+        QCOMPARE(low.stream, 0.0);
+        // The gap shrank at the end and does not come back.
+        const MixLevels up = moveLevel(low, Mix::Phones, 0.6, true);
+        QVERIFY(qFuzzyCompare(up.phones, 0.6));
+        QVERIFY(qFuzzyCompare(up.stream, 0.5));
+    }
+
+    void moveLevelUnlinked()
+    {
+        const MixLevels out = moveLevel({0.6, 0.2}, Mix::Stream, 0.9, false);
+        QVERIFY(qFuzzyCompare(out.phones, 0.6));
+        QVERIFY(qFuzzyCompare(out.stream, 0.9));
+        QCOMPARE(moveLevel({0.6, 0.2}, Mix::Stream, 1.7, false).stream, 1.0);
+        const MixLevels nan = moveLevel({0.6, 0.2}, Mix::Stream, std::nan(""), true);
+        QCOMPARE(nan, (MixLevels{0.6, 0.2}));
+    }
+
+    void mixGainRules()
+    {
+        Bus b;
+        b.id = QStringLiteral("game");
+        b.volume = 0.5;
+        b.phonesVolume = 1.0;
+        b.destination = Destination::Both;
+        QVERIFY(qFuzzyCompare(mixGain(b, Mix::Stream, false), 0.125));
+        QVERIFY(qFuzzyCompare(mixGain(b, Mix::Phones, false), 1.0));
+        QCOMPARE(mixGain(b, Mix::Phones, true), 0.0);
+        QVERIFY(qFuzzyCompare(mixGain(b, Mix::Stream, true), 0.125)); // solo never touches the stream
+        b.destination = Destination::Phones;
+        QCOMPARE(mixGain(b, Mix::Stream, false), 0.0);
+        QVERIFY(qFuzzyCompare(mixGain(b, Mix::Phones, false), 1.0));
+        b.destination = Destination::Stream;
+        QCOMPARE(mixGain(b, Mix::Phones, false), 0.0);
+        b.destination = Destination::Both;
+        b.muted = true;
+        QCOMPARE(mixGain(b, Mix::Phones, false), 0.0);
+        QCOMPARE(mixGain(b, Mix::Stream, false), 0.0);
+        QCOMPARE(b.level(Mix::Phones), 1.0);
+        QCOMPARE(b.level(Mix::Stream), 0.5);
+        QCOMPARE(mixName(Mix::Phones), QStringLiteral("phones"));
+        QCOMPARE(mixFromString(QStringLiteral("Stream")), std::optional<Mix>(Mix::Stream));
+        QVERIFY(!mixFromString(QStringLiteral("vod")).has_value());
+    }
+
+    void mergeKeepsMixLevels()
+    {
+        Scene saved = defaults::scene();
+        saved.bus(QStringLiteral("game"))->phonesVolume = 0.3;
+        saved.bus(QStringLiteral("game"))->linked = false;
+        const Scene merged = mergeStructure(saved, defaults::scene());
+        QCOMPARE(merged.bus(QStringLiteral("game"))->phonesVolume, 0.3);
+        QCOMPARE(merged.bus(QStringLiteral("game"))->linked, false);
+    }
+
     void defaultScene()
     {
         const Scene s = defaults::scene();

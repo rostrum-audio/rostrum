@@ -7,6 +7,7 @@
 #include <QTimeZone>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <sstream>
 #include <toml++/toml.hpp>
 
@@ -90,6 +91,12 @@ toml::table sceneTable(const Scene &scene)
         };
         if (!b.isInput()) {
             bt.insert("vod", b.vod);
+            if (b.phonesVolume != b.volume) {
+                bt.insert("phones_volume", b.phonesVolume);
+            }
+            if (!b.linked) {
+                bt.insert("linked", false);
+            }
         }
         if (b.balance != 0.0) {
             bt.insert("balance", b.balance);
@@ -155,6 +162,9 @@ Scene sceneFrom(const toml::table &t)
             b.kind = qs(bv["kind"]) == QLatin1String("input") ? BusKind::Input : BusKind::Playback;
             b.color = qs(bv["color"]);
             b.volume = num(bv["volume"], 1.0);
+            // Missing in scenes saved before per-mix levels: sanitize gives it the Stream level.
+            b.phonesVolume = num(bv["phones_volume"], std::numeric_limits<double>::quiet_NaN());
+            b.linked = flag(bv["linked"], true);
             b.muted = flag(bv["muted"], false);
             b.balance = num(bv["balance"], 0.0);
             b.destination = destinationFromString(qs(bv["destination"])).value_or(defaults::destinationFor(b.id));
@@ -253,6 +263,12 @@ Scene sanitize(Scene scene)
             b.color = QString::fromLatin1(defaults::palette().at(k % defaults::palette().size()).hex);
         }
         b.volume = level(b.volume, b.isInput() ? 1.5 : 1.0, Bus{}.volume);
+        if (b.isInput()) {
+            b.phonesVolume = Bus{}.phonesVolume;
+            b.linked = true;
+        } else {
+            b.phonesVolume = level(b.phonesVolume, 1.0, b.volume);
+        }
         b.balance = b.isInput() ? 0.0 : volume::clampBalance(b.balance);
     }
     QSet<int> claimed;

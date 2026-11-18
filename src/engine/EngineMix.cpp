@@ -348,6 +348,8 @@ QString Engine::duplicateBus(const QString &id)
     const QString newId = addBus(copy.name + QStringLiteral(" copy"), copy.color);
     if (Bus *b = m_scene.bus(newId)) {
         b->volume = copy.volume;
+        b->phonesVolume = copy.phonesVolume;
+        b->linked = copy.linked;
         b->muted = copy.muted;
         b->balance = copy.balance;
         b->destination = copy.destination;
