@@ -181,6 +181,24 @@ outside -1..1 are clamped, anything that is not a number is centre, and the mono
 one. Set it with the small slider under each playback fader; double-click it or use "Centre
 Balance" in the strip's menu to reset.
 
+### Without per-mix levels
+
+Rostrum falls back to one level per bus, for the rest of the session, when:
+
+- PipeWire's `spa-node-factory` module is not loaded (Studio Voice needs it too), or
+- a send has no ports 4 seconds after Rostrum first wanted it. Rostrum logs which send and removes
+  every send it made.
+
+Then each bus monitor links straight into `rostrum.phones`, `rostrum.stream` and `rostrum.vod`, the
+bus node carries the Stream level, and solo dims both mixes, as in versions without sends. The
+Headphones level and the link flag stay in the scene and are saved, but not applied. The reason is
+`Engine::perMixUnavailable()`, empty while the sends are in use. Rebuild Mix, or restarting
+Rostrum, tries the sends again. A PipeWire restart while a send is still waiting starts its wait
+again.
+
+`ROSTRUM_TEST_SEND_PORTS_FAIL=1` makes Rostrum skip the sends' port setup, so the integration
+tests can force the fallback against a real daemon.
+
 ### Mono headphones
 
 Devices → "Mono headphones" (`[devices] mono_headphones`, off by default) gives both ears the whole

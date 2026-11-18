@@ -16,6 +16,11 @@ namespace rostrum::engine {
 namespace {
 constexpr int kCreateRetryMs = 3000;
 constexpr int kCreateTimeoutMs = 5000;
+// Like kFxLoadTimeoutMs for Studio Voice; under kCreateTimeoutMs so a fallback lands first.
+constexpr qint64 kSendPortsTimeoutMs = 4000;
+// The sends are made and checked, but carry the mix only once stream readiness, the CLI and
+// D-Bus follow the send path.
+constexpr bool kSendPathCarriesMix = false;
 constexpr qint64 kSessionGraceMs = 30000;
 constexpr int kFadeStepMs = 16;
 constexpr int kDuckStepMs = 20;
@@ -204,6 +209,8 @@ void Engine::createMix()
 
 void Engine::rebuildMix()
 {
+    m_sendFailure.clear();
+    m_sendWaiting.clear();
     destroyMix();
     // Give the daemon a moment to drop the old globals before recreating them.
     QTimer::singleShot(500, this, [this] { createMix(); });
@@ -213,6 +220,7 @@ void Engine::destroyMix()
 {
     m_mixEnabled = false;
     m_pendingCreate.clear();
+    m_sendWaiting.clear();
     const auto nodes = m_pw->graph().nodes;
     for (const auto &n : nodes) {
         if (isOwnedNode(n)) {
@@ -349,8 +357,74 @@ void Engine::destroyOnce(uint32_t id)
 
 bool Engine::perMixActive() const
 {
-    // Switched on together with stream readiness for the send path (plan Task 7).
-    return false;
+    return kSendPathCarriesMix && perMixLevels();
+}
+
+bool Engine::perMixLevels() const
+{
+    // Unknown until PipeWire is connected; nothing is applied before then.
+    return m_pw->state() == pw::PwContext::State::Ready && perMixUnavailable().isEmpty();
+}
+
+QString Engine::perMixUnavailable() const
+{
+    if (m_pw->state() == pw::PwContext::State::Ready && !m_pw->graph().hasFactory(QStringLiteral("spa-node-factory"))) {
+        return QStringLiteral("PipeWire's spa-node-factory module is not loaded.");
+    }
+    return m_sendFailure;
+}
+
+void Engine::updatePerMixLevels()
+{
+    const bool now = perMixLevels();
+    const QString why = perMixUnavailable();
+    if (now != m_perMixReported || why != m_perMixReason) {
+        m_perMixReported = now;
+        m_perMixReason = why;
+        Q_EMIT perMixLevelsChanged();
+    }
+}
+
+void Engine::checkSendPorts()
+{
+    const auto &graph = m_pw->graph();
+    const auto sends = desiredSends(m_scene);
+    m_sendWaiting.removeIf([&](const auto &it) {
+        return std::none_of(sends.cbegin(), sends.cend(), [&](const SendSpec &s) { return s.name == it.key(); });
+    });
+    for (const auto &send : sends) {
+        const pw::Node *n = graph.nodeByName(send.name);
+        if (n && hasDspPorts(graph, n->id)) {
+            m_sendWaiting.remove(send.name);
+            continue;
+        }
+        const auto it = m_sendWaiting.constFind(send.name);
+        if (it == m_sendWaiting.cend()) {
+            QElapsedTimer t;
+            t.start();
+            m_sendWaiting.insert(send.name, t);
+            // Recheck without waiting for a graph event: nothing may change while it fails. Precise:
+            // a coarse timer may fire up to 5% early, before the wait is over, and not again.
+            QTimer::singleShot(kSendPortsTimeoutMs + 100, Qt::PreciseTimer, this, &Engine::scheduleReconcile);
+            continue;
+        }
+        if (it->elapsed() <= kSendPortsTimeoutMs) {
+            continue;
+        }
+        const Bus *bus = m_scene.bus(send.busId);
+        qCWarning(lcEngine) << "send" << send.name << "has no ports; using one level per bus";
+        m_sendFailure = QStringLiteral("PipeWire did not set up the level controls for %1.")
+                            .arg(bus ? bus->name : send.busId);
+        m_sendWaiting.clear();
+        for (const auto &node : graph.nodes) {
+            if (isOwnedNode(node) && node.rostrumRole() == roleName(NodeRole::Send)) {
+                destroyOnce(node.id);
+            }
+        }
+        updatePerMixLevels();
+        scheduleReconcile();
+        return;
+    }
 }
 
 bool Engine::mixReady() const
@@ -391,12 +465,16 @@ void Engine::scheduleReconcile()
 void Engine::reconcile()
 {
     if (m_pw->state() != pw::PwContext::State::Ready) {
+        // A send waiting across a PipeWire restart starts its wait again afterwards.
+        m_sendWaiting.clear();
+        updatePerMixLevels();
         if (m_reportedReady) {
             m_reportedReady = false;
             Q_EMIT mixStateChanged();
         }
         return;
     }
+    updatePerMixLevels();
     const auto &g = m_pw->graph();
     for (auto it = m_pendingDestroy.begin(); it != m_pendingDestroy.end();) {
         it = (g.nodes.contains(*it) || g.links.contains(*it)) ? std::next(it) : m_pendingDestroy.erase(it);
@@ -457,15 +535,22 @@ void Engine::reconcileNodes()
     }
     // PipeWire reuses IDs, so forget configured sends that are gone.
     m_sendsConfigured.removeIf([&](uint32_t id) { return !graph.nodes.contains(id); });
-    if (perMixActive()) {
+    if (perMixLevels()) {
+        checkSendPorts();
+    }
+    // For the integration test of the fallback against a real daemon.
+    static const bool sendPortsFail = qEnvironmentVariableIntValue("ROSTRUM_TEST_SEND_PORTS_FAIL") == 1;
+    if (perMixLevels()) {
         for (const auto &send : desiredSends(m_scene)) {
             wanted.insert(send.name);
             if (const pw::Node *n = graph.nodeByName(send.name)) {
                 m_pendingCreate.remove(send.name);
                 if (isOwnedNode(*n) && !m_pendingDestroy.contains(n->id) &&
                     sendNeedsPortConfig(graph, n->id, m_sendsConfigured)) {
-                    m_pw->setPortConfig(n->id, false, 2);
-                    m_pw->setPortConfig(n->id, true, 2);
+                    if (!sendPortsFail) {
+                        m_pw->setPortConfig(n->id, false, 2);
+                        m_pw->setPortConfig(n->id, true, 2);
+                    }
                     m_sendsConfigured.insert(n->id);
                 }
                 continue;

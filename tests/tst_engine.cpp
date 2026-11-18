@@ -382,6 +382,59 @@ private Q_SLOTS:
         QVERIFY(!single.contains(QStringLiteral("rostrum.game.phones")));
     }
 
+    void perMixNeedsFactory()
+    {
+        pw::PwContext pw; // never started
+        engine::Engine engine(&pw);
+        QSignalSpy changed(&engine, &engine::Engine::perMixLevelsChanged);
+        engine.createMix();
+        pw.testingInstallGraph(devices()); // lists no spa-node-factory
+        QTRY_VERIFY(changed.count() >= 1);
+        QCOMPARE(engine.perMixLevels(), false);
+        QCOMPARE(engine.perMixUnavailable(), QStringLiteral("PipeWire's spa-node-factory module is not loaded."));
+        QCOMPARE(changed.count(), 1);
+    }
+
+    void perMixFallsBackWhenPortsNeverCome()
+    {
+        pw::Graph g = devices();
+        g.factories.insert(90, QStringLiteral("spa-node-factory"));
+        uint32_t id = 60;
+        for (const char *name : {"rostrum.game.phones", "rostrum.game.stream"}) {
+            pw::Node send = node(id, name, "");
+            send.props.insert(QStringLiteral("rostrum.role"), QStringLiteral("send"));
+            g.nodes.insert(send.id, send);
+            ++id;
+        }
+        pw::PwContext pw; // never started: setPortConfig does nothing, so the ports never come
+        engine::Engine engine(&pw);
+        Scene scene = engine.scene();
+        scene.bus(QStringLiteral("game"))->phonesVolume = 0.3;
+        engine.setScene(scene);
+        QVERIFY(!engine.perMixLevels()); // not connected yet
+        engine.createMix();
+        pw.testingInstallGraph(g);
+        QCoreApplication::processEvents();
+        QVERIFY(engine.perMixLevels());
+        QVERIFY(engine.perMixUnavailable().isEmpty());
+        QSignalSpy changed(&engine, &engine::Engine::perMixLevelsChanged);
+        QTRY_VERIFY_WITH_TIMEOUT(!engine.perMixLevels(), 6000);
+        QVERIFY(engine.perMixUnavailable().contains(QStringLiteral("Game")));
+        QCOMPARE(engine.perMixUnavailable(), QStringLiteral("PipeWire did not set up the level controls for Game."));
+        QCOMPARE(changed.count(), 1);
+        // The sends it made are removed; the fallback holds for the session.
+        QVERIFY(pw.testingDestroyRequests().contains(60));
+        QVERIFY(pw.testingDestroyRequests().contains(61));
+        pw.testingInstallGraph(g);
+        QCoreApplication::processEvents();
+        QVERIFY(!engine.perMixLevels());
+
+        // fallbackKeepsHeadphonesLevels: the Headphones level is kept, the links are single-level.
+        QCOMPARE(engine.scene().bus(QStringLiteral("game"))->phonesVolume, 0.3);
+        QCOMPARE(linkNames(engine::busLinks(engine.scene(), engine.perMixLevels())),
+                 linkNames(engine::busLinks(engine.scene(), false)));
+    }
+
     void duplicateKeepsMixLevels()
     {
         pw::PwContext pw;

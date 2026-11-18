@@ -224,6 +224,10 @@ public:
     bool micFiltersHaveDenoise() const { return m_fxDenoise; }
     // Why mic filters cannot run on this system, empty when they can.
     QString micFiltersUnavailable() const;
+    // Separate Headphones and Stream levels are in use: PipeWire has spa-node-factory and every
+    // send got its ports. Otherwise each bus has one level (its Stream level) for both mixes.
+    bool perMixLevels() const;
+    QString perMixUnavailable() const; // why not, as a sentence; empty while the sends are in use
     enum class MicFxState { Off, Starting, Active, Failed };
     MicFxState micFiltersState() const;
     QString micFilterError() const { return m_fxError; }
@@ -236,6 +240,7 @@ Q_SIGNALS:
     void sceneChanged();
     void structureChanged(); // bus list, names, colors or rules changed: persist without saving faders
     void mixStateChanged();
+    void perMixLevelsChanged();
     void appsChanged();
     void levelsChanged();
     void soloChanged();
@@ -441,6 +446,8 @@ protected:
     bool isOwnedNode(const pw::Node &n) const;
     // The mix runs each playback bus through a Headphones and a Stream send node.
     bool perMixActive() const;
+    void checkSendPorts(); // falls back to one level per bus when a send has no ports in time
+    void updatePerMixLevels(); // emits perMixLevelsChanged when perMixLevels() or the reason changed
     void destroyOnce(uint32_t id);
     // Everything remembered about a node is keyed by its registry ID, which PipeWire hands to the
     // next object once the node goes (a browser replacing its stream gets the same ID back in one
@@ -464,6 +471,10 @@ protected:
     bool m_reconcilePending = false;
     QHash<QString, QElapsedTimer> m_pendingCreate;
     QSet<uint32_t> m_sendsConfigured; // send nodes this run has put into DSP mode
+    QHash<QString, QElapsedTimer> m_sendWaiting; // wanted sends without ports, since first wanted
+    QString m_sendFailure; // set once a send never got ports; cleared only by rebuildMix()
+    bool m_perMixReported = false;
+    QString m_perMixReason;
     QSet<uint32_t> m_pendingDestroy;
     QElapsedTimer m_mixRequested;
 };
