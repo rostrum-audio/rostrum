@@ -1,5 +1,7 @@
 #include "pw/PwContext.h"
 
+#include "pw/PortConfig.h"
+
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLoggingCategory>
@@ -896,29 +898,13 @@ void PwContext::setPortConfig(uint32_t nodeId, bool output, int channels)
     if (!d->loop) {
         return;
     }
-    spa_audio_info_raw info{};
-    info.format = SPA_AUDIO_FORMAT_F32P;
-    if (channels <= 1) {
-        info.channels = 1;
-        info.position[0] = SPA_AUDIO_CHANNEL_MONO;
-    } else {
-        info.channels = 2;
-        info.position[0] = SPA_AUDIO_CHANNEL_FL;
-        info.position[1] = SPA_AUDIO_CHANNEL_FR;
-    }
     pw_thread_loop_lock(d->loop);
     if (auto it = d->boundNodes.find(nodeId); it != d->boundNodes.end()) {
         uint8_t buffer[1024];
         spa_pod_builder b = SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
-        spa_pod_frame f;
-        spa_pod_builder_push_object(&b, &f, SPA_TYPE_OBJECT_ParamPortConfig, SPA_PARAM_PortConfig);
-        spa_pod_builder_add(&b, SPA_PARAM_PORT_CONFIG_direction,
-                            SPA_POD_Id(output ? SPA_DIRECTION_OUTPUT : SPA_DIRECTION_INPUT),
-                            SPA_PARAM_PORT_CONFIG_mode, SPA_POD_Id(SPA_PARAM_PORT_CONFIG_MODE_dsp), 0);
-        spa_pod_builder_prop(&b, SPA_PARAM_PORT_CONFIG_format, 0);
-        spa_format_audio_raw_build(&b, SPA_PARAM_Format, &info);
-        auto *pod = static_cast<spa_pod *>(spa_pod_builder_pop(&b, &f));
-        pw_node_set_param(it->second->proxy, SPA_PARAM_PortConfig, 0, pod);
+        if (spa_pod *pod = buildDspPortConfig(&b, output, channels)) {
+            pw_node_set_param(it->second->proxy, SPA_PARAM_PortConfig, 0, pod);
+        }
     }
     pw_thread_loop_unlock(d->loop);
 }

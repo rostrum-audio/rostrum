@@ -7,6 +7,7 @@
 #include "engine/SceneManager.h"
 #include "pw/Graph.h"
 #include "pw/MicCheck.h"
+#include "pw/PortConfig.h"
 #include "pw/PwContext.h"
 
 #include <QCoreApplication>
@@ -16,6 +17,10 @@
 #include <QTest>
 
 #include <cmath>
+
+#include <spa/param/audio/format-utils.h>
+#include <spa/param/param.h>
+#include <spa/pod/parser.h>
 
 using namespace rostrum;
 
@@ -58,6 +63,40 @@ class TestEngine : public QObject
 {
     Q_OBJECT
 private Q_SLOTS:
+    // PipeWire 1.4 refuses a PortConfig format without a rate (1.6 dropped the check), and then
+    // Studio Voice never gets its ports. Both versions ignore the rate in DSP mode.
+    void dspPortConfigPassesPipeWire14Checks()
+    {
+        for (const int channels : {1, 2}) {
+            for (const bool output : {false, true}) {
+                uint8_t buffer[1024];
+                spa_pod_builder b = SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
+                const spa_pod *param = pw::buildDspPortConfig(&b, output, channels);
+                QVERIFY(param);
+                uint32_t direction = 0, mode = 0;
+                const spa_pod *format = nullptr;
+                // The same checks, in the same terms, as audioconvert's PortConfig handler.
+                QVERIFY(spa_pod_parse_object(param, SPA_TYPE_OBJECT_ParamPortConfig, nullptr,
+                                             SPA_PARAM_PORT_CONFIG_direction, SPA_POD_Id(&direction),
+                                             SPA_PARAM_PORT_CONFIG_mode, SPA_POD_Id(&mode),
+                                             SPA_PARAM_PORT_CONFIG_format, SPA_POD_Pod(&format)) >= 0);
+                QCOMPARE(direction, uint32_t(output ? SPA_DIRECTION_OUTPUT : SPA_DIRECTION_INPUT));
+                QCOMPARE(mode, uint32_t(SPA_PARAM_PORT_CONFIG_MODE_dsp));
+                spa_audio_info_raw info{};
+                QVERIFY(spa_format_audio_raw_parse(format, &info) >= 0);
+                QVERIFY(info.format != 0);
+                QVERIFY(info.rate != 0);
+                QCOMPARE(info.channels, uint32_t(channels));
+                if (channels == 1) {
+                    QCOMPARE(info.position[0], uint32_t(SPA_AUDIO_CHANNEL_MONO));
+                } else {
+                    QCOMPARE(info.position[0], uint32_t(SPA_AUDIO_CHANNEL_FL));
+                    QCOMPARE(info.position[1], uint32_t(SPA_AUDIO_CHANNEL_FR));
+                }
+            }
+        }
+    }
+
     void newBusCannotUseVodMasterName()
     {
         pw::PwContext pw;

@@ -2,6 +2,7 @@ add_library(rostrum_pw STATIC
     Graph.cpp Graph.h
     MeterBank.cpp MeterBank.h
     MicCheck.cpp MicCheck.h
+    PortConfig.cpp PortConfig.h
     PwContext.cpp PwContext.h
     TestTone.cpp TestTone.h
 )
