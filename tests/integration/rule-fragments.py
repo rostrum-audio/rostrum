@@ -123,8 +123,8 @@ def main():
             str(o["info"]["props"].get("application.process.id")) == str(server.pid) and
             o["info"]["props"].get("config.name") == "pipewire-pulse.conf" for o in s.graph()))
         s.env["PULSE_SERVER"] = f"unix:{socket}"
-        tone = s.root / f"{APP}.raw"  # Written by s.tone() above.
-        s.spawn(["pacat", "--playback", "--raw", "--format=float32le", f"--rate={RATE}", "--channels=2",
+        tone = s.root / f"{APP}.wav"  # Written by s.tone() above.
+        s.spawn(["pacat", "--playback", "--file-format=wav",
                  "--latency-msec=20", f"--property=application.name={APP}", "--stream-name=PulsePlayback",
                  str(tone)])
         check_playback(s, "pulse playback", lambda g: nodes_of(g, media_name="PulsePlayback"))
