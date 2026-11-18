@@ -158,6 +158,10 @@ if(ROSTRUM_AUDIO_INTEGRATION_TESTS)
         if(ROSTRUM_DSP_DENOISE)
             list(APPEND mic_filter_test_options --denoise)
         endif()
+        # The scheduling test reads the graph quantum and changes the private daemon's settings.
+        foreach(tool pw-top pw-metadata)
+            find_program(AUDIO_${tool} NAMES ${tool} REQUIRED)
+        endforeach()
         add_test(NAME audio_mic_filter_scheduling COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/integration/mic-filter-scheduling.py
             $<TARGET_FILE:rostrum-graphtest> $<TARGET_FILE:rostrum-dsp> ${mic_filter_test_options})

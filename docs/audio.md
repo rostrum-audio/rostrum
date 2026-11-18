@@ -75,7 +75,7 @@ Every Rostrum node is a `support.null-audio-sink` adapter created in the PipeWir
 | `rostrum.vod` | `Audio/Sink` | FL FR | `Rostrum VOD Mix` | Twitch VOD mix (playback buses with VOD enabled, default on except Music). Volume = Master Stream. OBS captures its monitor on Track 2. |
 | `rostrum.mic` | `Audio/Source/Virtual` | MONO | `Rostrum Mic` | The hardware mic after Rostrum's gain and mute. OBS captures this. |
 | `rostrum.sidetone` | `Audio/Sink` | MONO | `Rostrum Sidetone` | Mic monitoring into headphones. Volume = sidetone fader. |
-| `rostrum.micfx` | none | MONO | `Rostrum Studio Voice` | Only while mic filters are on. Runs the filter chain (below). |
+| `rostrum.micfx` | none | MONO | `Rostrum Studio Voice` | Only while mic filters are on. Runs the filter chain (below) and, when the plugin has noise removal, holds the graph at 512-sample cycles ([Graph cycle](#graph-cycle)). |
 | `rostrum.filtered` | `Audio/Source/Virtual` | MONO | `Rostrum Filtered Mic` | While the mix runs. With filters on, the voice after `micfx`; with filters off, failed or unavailable, a unity bypass of the hardware mic for apps. |
 
 Properties set on every node:
@@ -350,6 +350,26 @@ which PipeWire loads by default. Otherwise the page says why, and the mic works 
 A control changed by another tool is set back at most once a second, like volumes. audioconvert
 keeps whatever number of channel volumes it was last sent, so the channel count of every node is
 taken from its channel map, not from its volumes.
+
+### Graph cycle
+
+With noise removal in the plugin, `rostrum.micfx` is created with `node.force-quantum = 512`, so
+the graph runs 512-sample cycles (10.7 ms at 48 kHz) while Studio Voice is on. RNNoise runs in the
+daemon's realtime thread with every other node in the graph. A 10 ms frame usually takes 0.05 to
+0.15 ms, but on a busy desktop one can take several milliseconds: the model is about 1 MB and
+leaves the CPU cache between frames. Voice chat apps ask for small buffers (Discord asked for 360
+samples in a call, which PipeWire rounds down to 256, a 5.3 ms cycle). A frame that outlasts the cycle makes
+the whole graph miss its deadline, and every device in it, headphones included, crackles. PipeWire
+has no per-node minimum, only a forced value, so the node forces 512.
+
+The value is raised to `clock.min-quantum` and capped at `clock.max-quantum` from the daemon's
+`settings` metadata, so a floor or ceiling the user set still applies. `clock.force-quantum` there
+overrides the node outright. These are creation properties: when the settings move the value, or a
+node from an older build forces none, Rostrum replaces `rostrum.micfx` (a short gap on the mic
+path; `rostrum.filtered` stays). A replacement can come back under the same ID, so Rostrum forgets
+its ports and graph when the old one is removed. Without noise removal the chain costs well under
+0.1 ms per cycle and nothing is forced. Turning Studio Voice off removes the node and the force
+with it.
 
 ### Which apps get the filtered mic
 

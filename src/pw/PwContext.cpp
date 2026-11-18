@@ -111,6 +111,9 @@ struct PwContext::Impl
     pw_metadata *metadata = nullptr;
     uint32_t metadataId = SPA_ID_INVALID;
     spa_hook metadataListener{};
+    pw_metadata *settings = nullptr; // the daemon's "settings", only read
+    uint32_t settingsId = SPA_ID_INVALID;
+    spa_hook settingsListener{};
     pw_client *wpClient = nullptr;
     spa_hook wpClientListener{};
     std::unordered_map<uint32_t, std::unique_ptr<BoundNode>> boundNodes;
@@ -131,6 +134,7 @@ struct PwContext::Impl
     QList<uint32_t> testingDestroyRequests; // only filled while unconnected
     Graph graph;
     QHash<uint32_t, QHash<QString, QString>> metadataValues;
+    QHash<QString, QString> settingsValues;
     QString defaultSink;
     QString defaultSource;
     bool changePending = false;
@@ -348,6 +352,32 @@ const pw_metadata_events kMetadataEvents = {
     .property = onMetadataProperty,
 };
 
+int onSettingsProperty(void *data, uint32_t subject, const char *key, const char *, const char *value)
+{
+    auto *impl = static_cast<PwContext::Impl *>(data);
+    if (subject != PW_ID_CORE) {
+        return 0;
+    }
+    const QString k = key ? QString::fromUtf8(key) : QString();
+    const QString v = value ? QString::fromUtf8(value) : QString();
+    impl->post([impl, k, v] {
+        if (k.isEmpty()) {
+            impl->settingsValues.clear();
+        } else if (v.isEmpty()) {
+            impl->settingsValues.remove(k);
+        } else {
+            impl->settingsValues.insert(k, v);
+        }
+        Q_EMIT impl->q->settingsChanged();
+    });
+    return 0;
+}
+
+const pw_metadata_events kSettingsEvents = {
+    .version = PW_VERSION_METADATA_EVENTS,
+    .property = onSettingsProperty,
+};
+
 void onCreatedBound(void *data, uint32_t globalId)
 {
     static_cast<CreatedProxy *>(data)->globalId = globalId;
@@ -482,6 +512,14 @@ void onGlobal(void *data, uint32_t id, uint32_t, const char *type, uint32_t, con
             impl->q->scheduleChanged();
         });
     } else if (std::strcmp(type, PW_TYPE_INTERFACE_Metadata) == 0) {
+        if (props.value(QStringLiteral(PW_KEY_METADATA_NAME)) == QLatin1String("settings") && !impl->settings) {
+            impl->settings = static_cast<pw_metadata *>(
+                pw_registry_bind(impl->registry, id, type, PW_VERSION_METADATA, 0));
+            impl->settingsId = id;
+            if (impl->settings) {
+                pw_metadata_add_listener(impl->settings, &impl->settingsListener, &kSettingsEvents, impl);
+            }
+        }
         if (props.value(QStringLiteral(PW_KEY_METADATA_NAME)) == QLatin1String("default") && !impl->metadata) {
             impl->metadata = static_cast<pw_metadata *>(
                 pw_registry_bind(impl->registry, id, type, PW_VERSION_METADATA, 0));
@@ -520,8 +558,19 @@ void onGlobalRemove(void *data, uint32_t id)
         impl->metadata = nullptr;
         impl->metadataId = SPA_ID_INVALID;
     }
-    impl->post([impl, id, metadataGone] {
+    const bool settingsGone = id == impl->settingsId && impl->settings;
+    if (settingsGone) {
+        spa_hook_remove(&impl->settingsListener);
+        pw_proxy_destroy(reinterpret_cast<pw_proxy *>(impl->settings));
+        impl->settings = nullptr;
+        impl->settingsId = SPA_ID_INVALID;
+    }
+    impl->post([impl, id, metadataGone, settingsGone] {
         auto &g = impl->graph;
+        if (settingsGone && !impl->settingsValues.isEmpty()) {
+            impl->settingsValues.clear();
+            Q_EMIT impl->q->settingsChanged();
+        }
         if (metadataGone) {
             // WirePlumber quit or restarted. Every target.object it held is gone with it, and it
             // relinks streams by their own properties. A stale cache would make routed streams
@@ -632,6 +681,12 @@ void PwContext::Impl::teardownLocked()
         pw_proxy_destroy(reinterpret_cast<pw_proxy *>(metadata));
         metadata = nullptr;
     }
+    if (settings) {
+        spa_hook_remove(&settingsListener);
+        pw_proxy_destroy(reinterpret_cast<pw_proxy *>(settings));
+        settings = nullptr;
+        settingsId = SPA_ID_INVALID;
+    }
     if (wpClient) {
         spa_hook_remove(&wpClientListener);
         pw_proxy_destroy(reinterpret_cast<pw_proxy *>(wpClient));
@@ -670,6 +725,7 @@ bool PwContext::start()
     stop();
     d->graph = {};
     d->metadataValues.clear();
+    d->settingsValues.clear();
     d->error.clear();
     d->errorCode = 0;
     d->state = State::Connecting;
@@ -776,6 +832,11 @@ void PwContext::testingInstallGraph(const Graph &graph, State state)
 QString PwContext::metadataValue(uint32_t subject, const QString &key) const
 {
     return d->metadataValues.value(subject).value(key);
+}
+
+QString PwContext::settingValue(const QString &key) const
+{
+    return d->settingsValues.value(key);
 }
 
 pw_thread_loop *PwContext::threadLoop() const { return d->loop; }
@@ -935,6 +996,20 @@ bool PwContext::roundtrip(int timeoutMs)
 }
 
 QList<uint32_t> PwContext::testingDestroyRequests() const { return d->testingDestroyRequests; }
+
+void PwContext::testingSetSetting(const QString &key, const QString &value)
+{
+    if (d->loop) {
+        qCWarning(lcPw) << "testingSetSetting refused: a real PipeWire connection is up";
+        return;
+    }
+    if (value.isEmpty()) {
+        d->settingsValues.remove(key);
+    } else {
+        d->settingsValues.insert(key, value);
+    }
+    Q_EMIT settingsChanged();
+}
 
 void PwContext::destroyObject(uint32_t id)
 {

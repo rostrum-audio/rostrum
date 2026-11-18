@@ -40,6 +40,9 @@ public:
     QString defaultSinkName() const;
     QString defaultSourceName() const;
     QString metadataValue(uint32_t subject, const QString &key) const;
+    // An entry of the daemon's "settings" metadata (clock.min-quantum and so on), read only.
+    // Empty when it is not set or the daemon has no such metadata.
+    QString settingValue(const QString &key) const;
 
     // Creates a support.null-audio-sink adapter node in the daemon with the given properties.
     void createNullNode(const QMap<QString, QString> &props);
@@ -70,6 +73,9 @@ public:
     void testingInstallGraph(const Graph &graph, State state = State::Ready);
     // Unit tests only: the object IDs destroyObject() was asked to remove while there is no daemon.
     QList<uint32_t> testingDestroyRequests() const;
+    // Unit tests only: set or, with an empty value, clear a "settings" metadata entry. Refuses if
+    // connected.
+    void testingSetSetting(const QString &key, const QString &value);
 
 Q_SIGNALS:
     void stateChanged();
@@ -82,6 +88,7 @@ Q_SIGNALS:
     // The "default" metadata went away or was replaced: every cached entry was dropped, and
     // anything Rostrum set there has to be set again.
     void metadataReset();
+    void settingsChanged();
     void defaultsChanged();
     // nodeName: the node.name of a node that could not be created, empty for links.
     void createFailed(const QString &message, const QString &nodeName);

@@ -650,6 +650,81 @@ private Q_SLOTS:
         QVERIFY(pw.testingDestroyRequests().contains(931));
     }
 
+    void micFxQuantumFollowsSettings()
+    {
+        using engine::micFxQuantum;
+        QCOMPARE(micFxQuantum(QString(), QString()), engine::kMicFxQuantum);
+        QCOMPARE(micFxQuantum(QStringLiteral("32"), QStringLiteral("2048")), 512u);
+        // The user's own floor wins when it is higher; their ceiling when it is lower.
+        QCOMPARE(micFxQuantum(QStringLiteral("1024"), QStringLiteral("2048")), 1024u);
+        QCOMPARE(micFxQuantum(QString(), QStringLiteral("256")), 256u);
+        QCOMPARE(micFxQuantum(QStringLiteral("1024"), QStringLiteral("512")), 512u);
+        QCOMPARE(micFxQuantum(QStringLiteral("junk"), QStringLiteral("0")), 512u);
+
+        QCOMPARE(engine::micFxProperties(512).value(QStringLiteral("node.force-quantum")), QStringLiteral("512"));
+        QVERIFY(!engine::micFxProperties(0).contains(QStringLiteral("node.force-quantum")));
+    }
+
+    void micFxNodeIsReplacedWhenItsQuantumIsStale()
+    {
+        auto flush = [] {
+            QCoreApplication::processEvents();
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::Timer);
+            QCoreApplication::processEvents();
+        };
+        auto graphWith = [](const QString &forceQuantum) {
+            pw::Graph g = devices();
+            g.factories.insert(900, QStringLiteral("spa-node-factory"));
+            pw::Node fx = node(150, "rostrum.micfx", "");
+            fx.props.insert(QStringLiteral("rostrum.role"), QStringLiteral("micfx"));
+            fx.props.insert(QStringLiteral("factory.name"), QStringLiteral("audio.convert"));
+            fx.props.insert(QStringLiteral("convert.direction"), QStringLiteral("output"));
+            if (!forceQuantum.isEmpty()) {
+                fx.props.insert(QStringLiteral("node.force-quantum"), forceQuantum);
+            }
+            g.nodes.insert(fx.id, fx);
+            return g;
+        };
+
+        pw::PwContext pw; // never started
+        engine::Engine engine(&pw);
+        engine.setMicFilterPlugin(QStringLiteral("/opt/rostrum/lib/rostrum/librostrum-dsp.so"), true, QString());
+        micfx::Settings s;
+        s.enabled = true;
+        engine.setMicFilters(s);
+        engine.createMix();
+
+        // A node from 0.3.0 forces nothing: it is replaced.
+        pw.testingInstallGraph(graphWith(QString()));
+        flush();
+        QVERIFY(pw.testingDestroyRequests().contains(150));
+
+        // One that forces the wanted cycle is kept.
+        pw::PwContext current;
+        engine::Engine kept(&current);
+        kept.setMicFilterPlugin(QStringLiteral("/opt/rostrum/lib/rostrum/librostrum-dsp.so"), true, QString());
+        kept.setMicFilters(s);
+        kept.createMix();
+        current.testingInstallGraph(graphWith(QStringLiteral("512")));
+        flush();
+        QVERIFY(!current.testingDestroyRequests().contains(150));
+
+        // Raising clock.min-quantum above it makes it stale.
+        current.testingSetSetting(QStringLiteral("clock.min-quantum"), QStringLiteral("1024"));
+        flush();
+        QVERIFY(current.testingDestroyRequests().contains(150));
+
+        // Without noise removal nothing is forced, so a forcing node is replaced too.
+        pw::PwContext plain;
+        engine::Engine noDenoise(&plain);
+        noDenoise.setMicFilterPlugin(QStringLiteral("/opt/rostrum/lib/rostrum/librostrum-dsp.so"), false, QString());
+        noDenoise.setMicFilters(s);
+        noDenoise.createMix();
+        plain.testingInstallGraph(graphWith(QStringLiteral("512")));
+        flush();
+        QVERIFY(plain.testingDestroyRequests().contains(150));
+    }
+
     void micFilterSettingsAndAppChoices()
     {
         pw::PwContext pw; // never started

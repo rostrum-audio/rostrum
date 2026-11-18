@@ -278,10 +278,22 @@ integration tests are enabled. It uses the real engine and plugin, with high-pas
 filtering enabled and the other modules bypassed. It requires the deterministic
 440 Hz signal at the fake hardware mic, Filtered Mic and Rostrum Mic, before,
 during and after an ordinary capture client's 128/48000 latency request. Starting
-and removing the client lets PipeWire negotiate its quantum normally; no forced
-quantum, fixed bounds, sleeps or relaxed signal thresholds are used. A restart
-also installs a legacy persistent converter in the private graph and requires its
-replacement plus correct delivery. The public virtual mic nodes remain intact.
+and removing the client lets PipeWire negotiate its quantum normally; the test
+sets no clock.force-quantum, fixed bounds, sleeps or relaxed signal thresholds. A
+restart also installs a legacy persistent converter in the private graph and
+requires its replacement plus correct delivery. The public virtual mic nodes
+remain intact.
+
+With `--denoise` (an RNNoise build, as CTest runs it) `rostrum.micfx` must carry
+`node.force-quantum = 512`, and `pw-top` must show its driver at 512 while the
+client asks for 128. Raising the private daemon's `clock.min-quantum` to 1024 must
+replace the node with one forcing 1024, and restoring it must bring back 512, with
+the 440 Hz delivery checked after each replacement. Without `--denoise` nothing is
+forced and the driver must run the client's 128. That variant was already flaky on
+`main` (about one run in two on a loaded desktop): the tone through the filter is
+distorted while the graph runs 128-sample cycles. The private daemon runs without
+realtime priority, which points at timing; the cause is not confirmed, and CTest
+does not run this variant.
 
 The old `rostrum.micfx` bare `audio.convert` used the default input/split direction.
 After quantum changes its partial-buffer state could yield alternating silent
