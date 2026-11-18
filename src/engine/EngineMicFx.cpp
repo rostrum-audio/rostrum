@@ -4,7 +4,6 @@
 #include "pw/PwContext.h"
 
 #include <QLoggingCategory>
-#include <QVersionNumber>
 
 #include <algorithm>
 #include <cmath>
@@ -103,11 +102,6 @@ QString Engine::micFiltersUnavailable() const
     }
     if (m_pw->state() != pw::PwContext::State::Ready) {
         return {};
-    }
-    const QVersionNumber version = QVersionNumber::fromString(m_pw->serverVersion());
-    if (!version.isNull() && version < QVersionNumber(1, 4, 0)) {
-        return QStringLiteral("Studio Voice needs PipeWire 1.4 or newer. This system runs PipeWire %1.")
-            .arg(m_pw->serverVersion());
     }
     if (!m_pw->graph().hasFactory(QStringLiteral("spa-node-factory"))) {
         return QStringLiteral("Studio Voice needs PipeWire's spa-node-factory module, which is not loaded.");

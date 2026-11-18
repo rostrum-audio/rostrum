@@ -22,8 +22,12 @@ private Q_SLOTS:
 
     void minimums()
     {
-        QVERIFY(pipewireOk(QStringLiteral("1.0.0")));
+        QVERIFY(!pipewireOk(QStringLiteral("1.0.0")));
+        QVERIFY(!pipewireOk(QStringLiteral("1.3.99")));
+        QVERIFY(pipewireOk(QStringLiteral("1.4.0")));
         QVERIFY(pipewireOk(QStringLiteral("1.6.2")));
+        QVERIFY(pipewireOk(QStringLiteral("Linked with libpipewire 1.6.2")));
+        QVERIFY(installHint().startsWith(QStringLiteral("Rostrum needs PipeWire 1.4+ with WirePlumber 0.5+.")));
         QVERIFY(!pipewireOk(QStringLiteral("0.3.85")));
         QVERIFY(!pipewireOk(QString()));
         QVERIFY(wireplumberOk(QStringLiteral("0.5.13")));

@@ -6,7 +6,7 @@
 namespace rostrum::requirements {
 
 inline constexpr int kMinPipeWireMajor = 1;
-inline constexpr int kMinPipeWireMinor = 0;
+inline constexpr int kMinPipeWireMinor = 4;
 inline constexpr int kMinWirePlumberMajor = 0;
 inline constexpr int kMinWirePlumberMinor = 5;
 

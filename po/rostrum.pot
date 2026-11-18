@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: rostrum 0.3.0\n"
 "Report-Msgid-Bugs-To: https://github.com/rostrum-audio/rostrum/issues\n"
-"POT-Creation-Date: 2026-11-18 16:22-0500\n"
+"POT-Creation-Date: 2026-11-18 17:40-0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -20,7 +20,7 @@ msgstr ""
 
 #: src/app/AppController.cpp:184
 #, kde-format
-msgid "PipeWire %1 is too old. Rostrum needs PipeWire 1.0 or newer."
+msgid "PipeWire %1 is too old. Rostrum needs PipeWire 1.4 or newer."
 msgstr ""
 
 #: src/app/AppController.cpp:193
@@ -5111,7 +5111,7 @@ msgstr ""
 #: src/app/qml/PipeWireMissingPage.qml:81
 #, kde-format
 msgid ""
-"Rostrum needs PipeWire 1.0 or newer with WirePlumber 0.5 or newer. Install "
+"Rostrum needs PipeWire 1.4 or newer with WirePlumber 0.5 or newer. Install "
 "the latest packages, then log out and back in."
 msgstr ""
 

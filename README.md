@@ -413,9 +413,8 @@ are documented in [releasing.md](docs/releasing.md#what-gets-published).
 ### Build from source
 
 These dependency lists are for building Rostrum, not for running the AppImage. Source-level
-requirements are Qt 6.5+, KDE Frameworks 6.8+, PipeWire 1.0+ and WirePlumber 0.5+;
-mic filters additionally require PipeWire 1.4+ audio-convert support. Meeting these
-minimum versions does not establish AppImage compatibility.
+requirements are Qt 6.5+, KDE Frameworks 6.8+, PipeWire 1.4+ and WirePlumber 0.5+. Meeting
+these minimum versions does not establish AppImage compatibility.
 
 ### 🟠 Kubuntu / Ubuntu
 
@@ -472,9 +471,7 @@ Installing into `~/.local` adds the app menu entry, the icon and the System Sett
 
 ### 📋 Source-build requirements
 
-- Linux with PipeWire 1.0 or newer and WirePlumber 0.5 or newer. PulseAudio is not used or required.
-  Mic filters need PipeWire 1.4 or newer; on older versions the Studio Voice page says so and
-  everything else works.
+- Linux with PipeWire 1.4 or newer and WirePlumber 0.5 or newer. PulseAudio is not used or required.
 - Qt 6.5+ (Base, Declarative, WebSockets and SVG), KDE Frameworks 6.8+ (Kirigami, CoreAddons,
   DBusAddons, GlobalAccel, I18n, StatusNotifierItem, and at run time KDeclarative, KItemModels and
   QQC2 Desktop Style), Kirigami Addons, toml++ 3, CMake 3.22+ and C and C++20 compilers.

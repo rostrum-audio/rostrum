@@ -55,7 +55,7 @@ QList<InstallCommand> installCommands()
 
 QString installHint()
 {
-    QString out = QStringLiteral("Rostrum needs PipeWire 1.0+ with WirePlumber 0.5+.\n"
+    QString out = QStringLiteral("Rostrum needs PipeWire 1.4+ with WirePlumber 0.5+.\n"
                                  "Start it for your session:\n  %1\n"
                                  "If it is not installed, install it, then log out and back in:\n")
                       .arg(startCommand());

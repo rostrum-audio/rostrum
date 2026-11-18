@@ -323,8 +323,8 @@ without the new controls and Studio Voice reports that it could not load.
 
 ### The filter node
 
-Mic filters need PipeWire 1.4 or newer (filter graphs in audioconvert) and `spa-node-factory`,
-which PipeWire loads by default. Otherwise the page says why, and the mic works as before.
+Mic filters run as a filter graph in audioconvert (PipeWire 1.4 or newer, Rostrum's minimum)
+and need `spa-node-factory`, which PipeWire loads by default. Otherwise the page says why, and the mic works as before.
 
 1. While the mix runs, Rostrum creates `rostrum.filtered` and adopts it when it already exists
    (duplicates from a race are removed, oldest wins). It creates `rostrum.micfx` only when mic
