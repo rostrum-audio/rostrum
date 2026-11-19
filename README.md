@@ -16,7 +16,7 @@
 
 > *A stream mix console for Linux, not a patchbay.*
 
-![The Mixer: Headphones and Stream masters, then six buses with faders, mute, solo, destinations and the apps on each bus, and FX for the mic filters](docs/screenshots/mixer.png)
+![The Mixer: Headphones and Stream masters, then six buses with Headphones and Stream faders (linked), mute, solo, destinations and the apps on each bus, and FX for the mic filters](docs/screenshots/mixer.png)
 
 
 ## 🌟 Highlights
