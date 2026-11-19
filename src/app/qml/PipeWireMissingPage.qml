@@ -78,7 +78,7 @@ Item {
             title: App.pipewireTooOld ? i18nc("@title:group", "Update PipeWire")
                                       : i18nc("@title:group", "Not installed?")
             explanation: App.pipewireTooOld
-                         ? i18n("Rostrum needs PipeWire 1.0 or newer with WirePlumber 0.5 or newer. Install the latest packages, then log out and back in.")
+                         ? i18n("Rostrum needs PipeWire 1.4 or newer with WirePlumber 0.5 or newer. Install the latest packages, then log out and back in.")
                          : i18n("Install PipeWire with WirePlumber, then log out and back in.")
         }
         Repeater {

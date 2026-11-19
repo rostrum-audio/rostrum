@@ -32,7 +32,7 @@ if(ROSTRUM_BUILD_APP)
 endif()
 find_package(PkgConfig REQUIRED)
 find_package(tomlplusplus 3 REQUIRED)
-pkg_check_modules(PipeWire REQUIRED IMPORTED_TARGET libpipewire-0.3>=1.0)
+pkg_check_modules(PipeWire REQUIRED IMPORTED_TARGET libpipewire-0.3>=1.4)
 
 add_compile_definitions(
     QT_NO_KEYWORDS

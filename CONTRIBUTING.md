@@ -18,7 +18,7 @@ By taking part you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Build
 
-You need PipeWire 1.0+ with WirePlumber 0.5+, Qt 6.5+ (with Qt WebSockets), KDE Frameworks 6 and
+You need PipeWire 1.4+ with WirePlumber 0.5+, Qt 6.5+ (with Qt WebSockets), KDE Frameworks 6 and
 toml++ 3. The Installation section of the [README](README.md) lists the packages for Kubuntu,
 Debian, Ubuntu, Fedora and Arch.
 

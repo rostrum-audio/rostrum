@@ -107,8 +107,7 @@ The x86_64 AppImage was built and functionally checked in Ubuntu 26.04 container
 2.43, PipeWire 1.6.2 and WirePlumber 0.5.13. Its bundled ELF libraries reference glibc symbols
 through 2.43, so older glibc is unsupported. This is not a claim that every distribution with
 glibc 2.43 works. Other distributions, hardware audio, and desktop integration still need manual
-release testing. The code requires PipeWire 1.0+ and WirePlumber 0.5+; mic filters additionally
-require PipeWire 1.4+ and its audio-convert graph support. Only 1.6.2/0.5.13 was exercised for this
+release testing. The code requires PipeWire 1.4+ and WirePlumber 0.5+. Only 1.6.2/0.5.13 was exercised for this
 artifact. No host Qt/KDE or development packages are needed. There is no aarch64 build.
 
 On Ubuntu 26.04, the clean runtime used these host packages (plus their runtime dependencies):

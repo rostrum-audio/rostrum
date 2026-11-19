@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import wave
 import uuid
 
 from process_lifecycle import Job, OwnershipError, report
@@ -263,18 +264,22 @@ context.objects = [
         return self.wait(f"fake device {name}", lambda: self.node(self.graph(), name))
 
     def tone(self, name, target, frequency=440, channels=2, internal=False):
-        path = self.root / f"{name}.raw"
-        block = array.array("f", (0.1 * math.sin(2 * math.pi * frequency * i / RATE)
+        # A WAV file, not raw: PipeWire 1.4's pw-cat --raw ignores the file name and reads stdin,
+        # which the job supervisor closes, so the stream would end at once. Both versions play WAV.
+        path = self.root / f"{name}.wav"
+        block = array.array("h", (round(32767 * 0.1 * math.sin(2 * math.pi * frequency * i / RATE))
                                  for i in range(RATE) for _ in range(channels))).tobytes()
-        with path.open("wb") as f:
+        with wave.open(str(path), "wb") as f:
+            f.setnchannels(channels)
+            f.setsampwidth(2)
+            f.setframerate(RATE)
             for _ in range(120):
-                f.write(block)
+                f.writeframes(block)
         props = f'{{ node.name = "{name}" application.name = "{name}"'
         if internal:
             props += ' rostrum.internal = true node.dont-move = true node.dont-fallback = true'
         props += " }"
-        p = self.spawn(["pw-cat", "-p", "-a", "--format", "f32", "--rate", str(RATE),
-                        "--channels", str(channels), "--channel-map", "MONO" if channels == 1 else "FL,FR",
+        p = self.spawn(["pw-cat", "-p", "--channel-map", "MONO" if channels == 1 else "FL,FR",
                         "--target", target, "-P", props, str(path)])
         self.wait(f"tone stream {name}", lambda: self.node(self.graph(), name))
         return p
