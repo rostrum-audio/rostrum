@@ -64,6 +64,11 @@ double mixGain(const Bus &b, Mix m, bool dimmedBySolo)
     return volume::faderToLinear(b.level(m));
 }
 
+QString sendNodeName(const QString &busId, Mix mix)
+{
+    return QStringLiteral("rostrum.%1.%2").arg(busId, mixName(mix));
+}
+
 std::optional<Destination> destinationFromString(const QString &s)
 {
     const QString v = s.trimmed().toLower();

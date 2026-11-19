@@ -219,9 +219,11 @@ void LiveStatus::onEvent(const QString &type, const QJsonObject &data)
 }
 
 QList<GoLiveProblem> goLiveProblems(const Scene &scene, const QSet<QString> &soloed,
-                                    const QList<Recording> *recordings, const EffectiveMutes *mutes)
+                                    const QList<Recording> *recordings, const EffectiveMutes *mutes,
+                                    bool perMixLevels)
 {
     ReadinessInput input;
+    input.perMixLevels = perMixLevels;
     input.scene = scene;
     input.soloed = soloed;
     input.mutes =

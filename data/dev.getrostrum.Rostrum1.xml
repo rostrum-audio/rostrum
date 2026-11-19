@@ -58,6 +58,9 @@
     <method name="SwitchScene">
       <arg name="name" type="s" direction="in"/>
     </method>
+    <!-- busId: a bus id or name, or "stream"/"phones" for the masters. A playback bus sets both
+         its levels; "<bus>.phones" or "<bus>.stream" sets one, and a linked bus moves the other by
+         the same amount. A mix on the mic or a master is InvalidValue. -->
     <method name="SetBusVolume">
       <arg name="busId" type="s" direction="in"/>
       <arg name="position" type="d" direction="in"/>

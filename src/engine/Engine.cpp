@@ -18,9 +18,6 @@ constexpr int kCreateRetryMs = 3000;
 constexpr int kCreateTimeoutMs = 5000;
 // Like kFxLoadTimeoutMs for Studio Voice; under kCreateTimeoutMs so a fallback lands first.
 constexpr qint64 kSendPortsTimeoutMs = 4000;
-// The sends are made and checked, but carry the mix only once stream readiness, the CLI and
-// D-Bus follow the send path.
-constexpr bool kSendPathCarriesMix = false;
 constexpr qint64 kSessionGraceMs = 30000;
 constexpr int kFadeStepMs = 16;
 constexpr int kDuckStepMs = 20;
@@ -357,7 +354,7 @@ void Engine::destroyOnce(uint32_t id)
 
 bool Engine::perMixActive() const
 {
-    return kSendPathCarriesMix && perMixLevels();
+    return perMixLevels();
 }
 
 bool Engine::perMixLevels() const

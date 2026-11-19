@@ -108,7 +108,7 @@ class FixtureTests(unittest.TestCase):
             with self.assertRaisesRegex(safety.Failure, "expected 440"):
                 self.s.capture("rostrum.stream", 440)
             self.s.tone("SafetyPlayer", "rostrum.game")
-            self.s.route("rostrum.game", "rostrum.phones")
+            self.s.mix_route("rostrum.game", "rostrum.phones")
             self.s.capture("test.headphones", 440)
             if CHECKPOINT:
                 hold(self.s, CHECKPOINT)

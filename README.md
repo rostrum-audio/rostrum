@@ -302,7 +302,7 @@ rostrum --toggle-mic                 # also --mute-mic, --unmute-mic
 rostrum --scene "Just Chatting"
 rostrum --action panic_mute          # any id from --list-actions
 rostrum --action toggle_mic_filters
-rostrum --set-volume game=0.8        # or game=80%; stream and phones are the masters
+rostrum --set-volume game=0.8        # both levels; game.phones or game.stream sets one. stream and phones are the masters
 rostrum --list-scenes                # also --list-actions, --list-buses
 ```
 

@@ -7,11 +7,6 @@
 
 namespace rostrum::engine {
 
-QString sendNodeName(const QString &busId, Mix mix)
-{
-    return QStringLiteral("rostrum.%1.%2").arg(busId, mixName(mix));
-}
-
 QMap<QString, QString> sendProperties(const Bus &bus, Mix mix)
 {
     return {

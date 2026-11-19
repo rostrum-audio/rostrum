@@ -72,6 +72,8 @@ MixLevels moveLevel(MixLevels from, Mix mix, double target, bool together);
 // The linear gain a mix receives from this playback bus: its level through the fader curve, or 0
 // when the bus is muted, its destination leaves the mix out, or (Headphones only) solo dims it.
 double mixGain(const Bus &b, Mix m, bool dimmedBySolo);
+// "rostrum.<bus>.phones" or "rostrum.<bus>.stream": the node carrying the bus's level in that mix.
+QString sendNodeName(const QString &busId, Mix mix);
 
 struct AppRule
 {

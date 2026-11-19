@@ -20,8 +20,7 @@ struct Graph;
 
 namespace rostrum::engine {
 
-// "rostrum.<bus>.phones" or "rostrum.<bus>.stream": the bus's level in that mix.
-QString sendNodeName(const QString &busId, Mix mix);
+using rostrum::sendNodeName; // core/Model.h, shared with stream readiness
 
 // For spa-node-factory: a bare stereo audio.convert, like rostrum.micfx. No media.class, so the
 // session manager leaves it alone and it appears in no device list. It lingers like every node.

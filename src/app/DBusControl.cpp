@@ -148,24 +148,7 @@ void DBusControl::reply(const Error &e)
 // A bus id, or failing that a bus name in any case. Also "stream" and "phones" for the masters.
 QString DBusControl::resolveBus(const QString &text) const
 {
-    const QString t = text.trimmed();
-    for (const char *master : {remote::kStreamId, remote::kPhonesId}) {
-        if (t.compare(QLatin1String(master), Qt::CaseInsensitive) == 0) {
-            return QString::fromLatin1(master);
-        }
-    }
-    const Scene &scene = m_app->engine()->scene();
-    for (const auto &b : scene.buses) {
-        if (b.id.compare(t, Qt::CaseInsensitive) == 0) {
-            return b.id;
-        }
-    }
-    for (const auto &b : scene.buses) {
-        if (b.name.compare(t, Qt::CaseInsensitive) == 0) {
-            return b.id;
-        }
-    }
-    return {};
+    return remote::resolveBusId(m_app->engine()->scene(), text);
 }
 
 DBusControl::Error DBusControl::checkKnown(const QString &id) const
@@ -223,9 +206,15 @@ DBusControl::Error DBusControl::switchScene(const QString &name)
 
 DBusControl::Error DBusControl::setBusVolume(const QString &busText, double position)
 {
-    const QString busId = resolveBus(busText);
-    if (busId.isEmpty()) {
+    const auto target = remote::resolveVolumeTarget(m_app->engine()->scene(), busText);
+    const QString &busId = target.busId;
+    if (target.error == QLatin1String(remote::kErrorNoSuchBus)) {
         return error(remote::kErrorNoSuchBus, i18n("The live scene has no bus “%1”.", busText));
+    }
+    if (target.error == QLatin1String(remote::kErrorInvalidValue)) {
+        return error(remote::kErrorInvalidValue, busId == QLatin1String(kMicBusId)
+                                                     ? i18n("The mic has one level.")
+                                                     : i18n("The %1 master has one level.", busId));
     }
     const double max = remote::maxPosition(busId);
     if (!std::isfinite(position) || position < 0.0 || position > max) {
@@ -237,6 +226,8 @@ DBusControl::Error DBusControl::setBusVolume(const QString &busText, double posi
         engine->setMasterStream(position);
     } else if (busId == QLatin1String(remote::kPhonesId)) {
         engine->setMasterPhones(position);
+    } else if (target.mix) {
+        engine->setBusMixVolume(busId, *target.mix, position); // a linked bus moves both, as in the UI
     } else {
         engine->setBusVolume(busId, position);
     }

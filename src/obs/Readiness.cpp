@@ -106,6 +106,35 @@ ReadinessResult route(const pw::Graph *g, const QString &id, const QString &titl
                    : tr("All expected channel links report active. Audible delivery was not tested.");
     return r;
 }
+int severity(ReadinessStatus s)
+{
+    switch (s) {
+    case ReadinessStatus::Attention:
+        return 3;
+    case ReadinessStatus::Unknown:
+        return 2;
+    case ReadinessStatus::Excluded:
+        return 1;
+    case ReadinessStatus::Verified:
+        break;
+    }
+    return 0;
+}
+// A playback bus into a master through its send for that mix: bus -> send -> master.
+ReadinessResult sendRoute(const pw::Graph *g, const QString &id, const QString &title, const pw::Node *bus,
+                          const pw::Node *send, const pw::Node *master, bool wanted)
+{
+    // A direct link would skip the level for that mix, or play the bus twice.
+    if (g && bus && master &&
+        std::any_of(g->links.cbegin(), g->links.cend(),
+                    [&](const pw::Link &l) { return l.outNode == bus->id && l.inNode == master->id; }))
+        return {id, title, tr("The bus also links straight into this mix, past its level for the mix."),
+                ReadinessStatus::Attention, {}};
+    if (!wanted)
+        return route(g, id, title, send, master, false);
+    const auto in = route(g, id, title, bus, send, true), out = route(g, id, title, send, master, true);
+    return severity(out.status) > severity(in.status) ? out : in;
+}
 } // namespace
 
 QList<ReadinessResult> evaluateReadiness(const ReadinessInput &i)
@@ -136,8 +165,9 @@ QList<ReadinessResult> evaluateReadiness(const ReadinessInput &i)
     for (const auto &b : i.scene.buses)
         if (!b.isInput() && feedsStream(b.destination)) {
             included = true;
+            // With per-mix levels solo dims headphones only; the stream keeps every bus.
             reaches = reaches || (!b.muted && std::isfinite(b.volume) && b.volume > 0 &&
-                                  (i.soloed.isEmpty() || i.soloed.contains(b.id)));
+                                  (i.perMixLevels || i.soloed.isEmpty() || i.soloed.contains(b.id)));
         }
     const bool streamMuted = i.mutes.stream || !std::isfinite(i.scene.masterStream) ||
                              i.scene.masterStream <= 0 || (included && !reaches);
@@ -209,14 +239,30 @@ QList<ReadinessResult> evaluateReadiness(const ReadinessInput &i)
         for (const auto &b : i.scene.buses)
             if (!b.isInput()) {
                 const auto *n = node(b.nodeName());
-                out << route(i.graph, b.id + QStringLiteral("-phones"), tr("%1 → headphones").arg(b.name), n,
-                             phones, feedsPhones(b.destination));
-                out << route(i.graph, b.id + QStringLiteral("-stream"), tr("%1 → Stream Mix").arg(b.name), n,
-                             stream, feedsStream(b.destination));
-                if (b.muted || b.volume <= 0 || (!i.soloed.isEmpty() && !i.soloed.contains(b.id)))
-                    add(b.id + QStringLiteral("-level"), tr("%1 level").arg(b.name),
+                const QString phonesId = b.id + QStringLiteral("-phones"), streamId = b.id + QStringLiteral("-stream");
+                const QString phonesTitle = tr("%1 → headphones").arg(b.name),
+                              streamTitle = tr("%1 → Stream Mix").arg(b.name);
+                const bool dimmed = !i.soloed.isEmpty() && !i.soloed.contains(b.id);
+                if (!i.perMixLevels) {
+                    out << route(i.graph, phonesId, phonesTitle, n, phones, feedsPhones(b.destination));
+                    out << route(i.graph, streamId, streamTitle, n, stream, feedsStream(b.destination));
+                    if (b.muted || b.volume <= 0 || dimmed)
+                        add(b.id + QStringLiteral("-level"), tr("%1 level").arg(b.name), ReadinessStatus::Excluded,
+                            tr("Muted, at zero gain, or excluded by solo. No audio is expected from this bus."));
+                    continue;
+                }
+                out << sendRoute(i.graph, phonesId, phonesTitle, n,
+                                 node(sendNodeName(b.id, Mix::Phones)), phones, feedsPhones(b.destination));
+                out << sendRoute(i.graph, streamId, streamTitle, n,
+                                 node(sendNodeName(b.id, Mix::Stream)), stream, feedsStream(b.destination));
+                if (b.muted || b.volume <= 0)
+                    add(b.id + QStringLiteral("-level"), tr("%1 level").arg(b.name), ReadinessStatus::Excluded,
+                        tr("Muted or at zero Stream level. No audio is expected on stream from this bus."));
+                if (b.muted || b.phonesVolume <= 0 || dimmed)
+                    add(b.id + QStringLiteral("-phones-level"), tr("%1 headphones level").arg(b.name),
                         ReadinessStatus::Excluded,
-                        tr("Muted, at zero gain, or excluded by solo. No audio is expected from this bus."));
+                        tr("Muted, at zero Headphones level, or dimmed by solo. No audio is expected in "
+                           "headphones from this bus."));
             }
         out << route(i.graph, QStringLiteral("phones-output"), tr("Headphones → resolved output"), phones,
                      node(i.resolvedPhones), true, false, i.monoPhones);

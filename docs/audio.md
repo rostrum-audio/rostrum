@@ -869,8 +869,10 @@ outlives OBS.
   Rostrum connects to a stream already running, it checks the current scene
   (`obs::goLiveProblems`). It warns if the mic is muted, at zero, or its destination leaves out
   Stream. It warns if Master Stream is muted or at zero, or if no unmuted playback bus with a
-  level above zero and a Stream destination is left, solo included. It also warns if OBS records
-  nothing from `Rostrum Stream Mix` or `Rostrum Mic`, read from the PipeWire graph as on the OBS
+  Stream level above zero and a Stream destination is left. Solo does not count: it dims
+  headphones only. Without per-mix levels, solo still silences the stream, as before. It also
+  warns if OBS records nothing from `Rostrum Stream Mix` or `Rostrum Mic`, read from the PipeWire
+  graph as on the OBS
   page. One banner and one desktop notification are shown per stream start. A problem drops off
   the banner once it is fixed, and the banner goes away when the stream stops. A problem that
   appears later in the stream is not reported.
@@ -995,7 +997,7 @@ it.
 | `TriggerAction(s id)` | Runs an action as a shortcut press. Hold actions are refused (`Error.HoldAction`) |
 | `PressAction(s id)`, `ReleaseAction(s id)` | Start and end a hold (or press any other action) |
 | `SwitchScene(s name)` | Switches at once, name matched without case |
-| `SetBusVolume(s bus, d position)` | Fader travel 0–1, mic gain 0–1.5 |
+| `SetBusVolume(s bus, d position)` | A playback bus sets both levels. `bus.phones` or `bus.stream` sets one; a linked bus moves the other by the same amount. A mix suffix on the mic or a master is `InvalidValue`. Fader travel 0–1, mic gain 0–1.5. `ListBuses` still reports the Stream level |
 | `SetBusMuted(s bus, b)`, `ToggleBusMuted(s bus)` | Mute a bus, the mic or a master |
 | `SetMicMuted(b)`, `ToggleMicMute()` | The mic, as the header button |
 | `SetMicFilters(b)` | Mic filters on or off, saved (`toggle_mic_filters` toggles) |

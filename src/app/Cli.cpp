@@ -114,8 +114,9 @@ void addOptions(QCommandLineParser &parser)
         {QStringLiteral("toggle-mic"), i18n("Mute the mic if it is live, unmute it if it is muted.")},
         {QStringLiteral("set-volume"),
          i18n(
-             "Set a fader. <bus> is a bus id or name, or stream or phones for the masters. <level> is 0 to 1 "
-             "or a percentage; mic gain goes to 1.5. Can be repeated."),
+             "Set a fader. <bus> is a bus id or name, or stream or phones for the masters. A bus sets both its "
+             "levels; <bus>.phones or <bus>.stream sets one, and a linked bus moves the other with it. <level> "
+             "is 0 to 1 or a percentage; mic gain goes to 1.5. Can be repeated."),
          i18nc("@info:shell value name", "bus=level")},
         {QStringLiteral("list-scenes"), i18n("Print the scene names, one per line.")},
         {QStringLiteral("list-actions"), i18n("Print the action ids and their names, separated by a tab.")},
