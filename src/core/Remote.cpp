@@ -35,4 +35,54 @@ std::optional<VolumeArg> parseVolumeArg(const QString &text)
     return out;
 }
 
+QString resolveBusId(const Scene &scene, const QString &text)
+{
+    const QString t = text.trimmed();
+    for (const char *master : {kStreamId, kPhonesId}) {
+        if (t.compare(QLatin1String(master), Qt::CaseInsensitive) == 0) {
+            return QString::fromLatin1(master);
+        }
+    }
+    for (const auto &b : scene.buses) {
+        if (b.id.compare(t, Qt::CaseInsensitive) == 0) {
+            return b.id;
+        }
+    }
+    for (const auto &b : scene.buses) {
+        if (b.name.compare(t, Qt::CaseInsensitive) == 0) {
+            return b.id;
+        }
+    }
+    return {};
+}
+
+MixTarget splitMixTarget(const QString &text)
+{
+    const qsizetype dot = text.lastIndexOf(QLatin1Char('.'));
+    if (dot > 0) {
+        const QString suffix = text.mid(dot + 1);
+        for (const Mix m : {Mix::Phones, Mix::Stream}) {
+            if (suffix.compare(mixName(m), Qt::CaseInsensitive) == 0) {
+                return {text.left(dot), m};
+            }
+        }
+    }
+    return {text, std::nullopt};
+}
+
+VolumeTarget resolveVolumeTarget(const Scene &scene, const QString &text)
+{
+    if (const QString whole = resolveBusId(scene, text); !whole.isEmpty()) {
+        return {whole, std::nullopt, {}};
+    }
+    const MixTarget t = splitMixTarget(text.trimmed());
+    const QString bus = t.mix ? resolveBusId(scene, t.bus) : QString();
+    if (bus.isEmpty()) {
+        return {{}, std::nullopt, QString::fromLatin1(kErrorNoSuchBus)};
+    }
+    const bool oneLevel = bus == QLatin1String(kStreamId) || bus == QLatin1String(kPhonesId) ||
+                          bus == QLatin1String(kMicBusId);
+    return {bus, t.mix, oneLevel ? QString::fromLatin1(kErrorInvalidValue) : QString()};
+}
+
 } // namespace rostrum::remote

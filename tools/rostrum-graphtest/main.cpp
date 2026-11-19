@@ -2,6 +2,7 @@
 // It runs the same Engine as the app, without any UI.
 
 #include "core/Paths.h"
+#include "core/Remote.h"
 #include "core/RuleExport.h"
 #include "core/Settings.h"
 #include "core/Volume.h"
@@ -92,6 +93,15 @@ int main(int argc, char **argv)
                                 QStringLiteral("v"));
     QCommandLineOption solo(QStringLiteral("solo"), QStringLiteral("Solo a bus (session only)."),
                             QStringLiteral("bus"));
+    QCommandLineOption volume(
+        QStringLiteral("volume"),
+        QStringLiteral("Set a fader, e.g. game=0.8, game.phones=1.0 or game.stream=0.5. A mix suffix "
+                       "unlinks the bus first so the two levels can differ. Repeatable."),
+        QStringLiteral("bus[.phones|.stream]=level"));
+    QCommandLineOption buses(
+        QStringLiteral("buses"),
+        QStringLiteral("Add playback buses until the scene has this many (mic not counted). Cap is 11."),
+        QStringLiteral("N"));
     QCommandLineOption config(QStringLiteral("config"),
                               QStringLiteral("Apply the saved default scene and devices from $XDG_CONFIG_HOME/rostrum."));
     QCommandLineOption tone(QStringLiteral("tone"),
@@ -130,6 +140,8 @@ int main(int argc, char **argv)
                        micFallback,
                        sidetone,
                        solo,
+                       volume,
+                       buses,
                        config,
                        tone,
                        meter,
@@ -415,6 +427,41 @@ int main(int argc, char **argv)
         }
         for (const auto &bus : parser.values(solo)) {
             engine.setSolo(bus, true);
+        }
+        if (parser.isSet(buses)) {
+            const int want = parser.value(buses).toInt();
+            int playback = 0;
+            for (const auto &b : engine.scene().buses) {
+                playback += b.isInput() ? 0 : 1;
+            }
+            for (int i = playback; i < want && engine.canAddBus(); ++i) {
+                engine.addBus(QStringLiteral("Extra %1").arg(i + 1));
+            }
+        }
+        for (const QString &spec : parser.values(volume)) {
+            const auto arg = remote::parseVolumeArg(spec);
+            if (!arg) {
+                QTextStream(stderr) << "Bad --volume " << spec << "\n";
+                QCoreApplication::exit(1);
+                return;
+            }
+            const auto target = remote::resolveVolumeTarget(engine.scene(), arg->busId);
+            if (!target.error.isEmpty()) {
+                QTextStream(stderr) << "Bad --volume " << spec << ": " << target.error << "\n";
+                QCoreApplication::exit(1);
+                return;
+            }
+            if (target.busId == QLatin1String(remote::kStreamId)) {
+                engine.setMasterStream(arg->position);
+            } else if (target.busId == QLatin1String(remote::kPhonesId)) {
+                engine.setMasterPhones(arg->position);
+            } else if (target.mix) {
+                // Unlink so a phones= and a stream= on the same bus can differ.
+                engine.setBusLinked(target.busId, false);
+                engine.setBusMixVolume(target.busId, *target.mix, arg->position);
+            } else {
+                engine.setBusVolume(target.busId, arg->position);
+            }
         }
         engine.createMix();
         auto apply = [&](const QStringList &specs, bool always) {

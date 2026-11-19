@@ -3,6 +3,7 @@ add_library(rostrum_engine STATIC
     Engine.cpp Engine.h
     EngineMicFx.cpp
     EngineMix.cpp
+    MixPlan.cpp MixPlan.h
     NodeSpecs.cpp NodeSpecs.h
     SceneManager.cpp SceneManager.h
 )

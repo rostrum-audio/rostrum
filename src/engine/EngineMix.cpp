@@ -2,6 +2,7 @@
 
 #include "core/Volume.h"
 #include "engine/Engine.h"
+#include "engine/MixPlan.h"
 #include "pw/PwContext.h"
 
 #include <QLoggingCategory>
@@ -32,12 +33,54 @@ void Engine::setBusVolume(const QString &id, double volume)
     if (!b) {
         return;
     }
-    cancelFade(b->nodeName());
+    cancelLevelFades(*b);
     const double v = std::clamp(volume, 0.0, b->isInput() ? kMicMaxGain : 1.0);
-    if (qFuzzyCompare(b->volume + 1.0, v + 1.0)) {
+    const bool same = qFuzzyCompare(b->volume + 1.0, v + 1.0) &&
+                      (b->isInput() || qFuzzyCompare(b->phonesVolume + 1.0, v + 1.0));
+    if (same) {
         return;
     }
     b->volume = v;
+    if (!b->isInput()) {
+        b->phonesVolume = v;
+    }
+    levelChanged();
+}
+
+void Engine::setMixLevels(const QString &id, Mix mix, double volume, bool together)
+{
+    Bus *b = m_scene.bus(id);
+    if (!b || b->isInput()) {
+        return;
+    }
+    const MixLevels to = moveLevel({b->phonesVolume, b->volume}, mix, volume, together);
+    if (qFuzzyCompare(b->phonesVolume + 1.0, to.phones + 1.0) && qFuzzyCompare(b->volume + 1.0, to.stream + 1.0)) {
+        return;
+    }
+    cancelLevelFades(*b);
+    b->phonesVolume = to.phones;
+    b->volume = to.stream;
+    levelChanged();
+}
+
+void Engine::setBusMixVolume(const QString &id, Mix mix, double volume)
+{
+    const Bus *b = m_scene.bus(id);
+    setMixLevels(id, mix, volume, b && b->linked);
+}
+
+void Engine::setBusMixVolumeTogether(const QString &id, Mix mix, double volume)
+{
+    setMixLevels(id, mix, volume, true);
+}
+
+void Engine::setBusLinked(const QString &id, bool linked)
+{
+    Bus *b = m_scene.bus(id);
+    if (!b || b->isInput() || b->linked == linked) {
+        return;
+    }
+    b->linked = linked;
     levelChanged();
 }
 
@@ -348,6 +391,8 @@ QString Engine::duplicateBus(const QString &id)
     const QString newId = addBus(copy.name + QStringLiteral(" copy"), copy.color);
     if (Bus *b = m_scene.bus(newId)) {
         b->volume = copy.volume;
+        b->phonesVolume = copy.phonesVolume;
+        b->linked = copy.linked;
         b->muted = copy.muted;
         b->balance = copy.balance;
         b->destination = copy.destination;
@@ -650,7 +695,9 @@ void Engine::duckTick()
         peak = m_duckMeters.takePeak(m_duckMicNode) * volume::faderToLinear(mic ? mic->volume : 1.0);
     }
     if (!m_duckVoiceNode.isEmpty()) {
-        peak = std::max(peak, double(m_duckMeters.takePeak(m_duckVoiceNode)));
+        const Bus *voice = m_scene.busFor(AppCategory::Voice);
+        const double gain = voice ? voiceTriggerGain(*voice, dimmedBySolo(voice->id), perMixActive()) : 1.0;
+        peak = std::max(peak, m_duckMeters.takePeak(m_duckVoiceNode) * gain);
     }
     const bool was = m_duckEnvelope.ducked();
     m_duckEnvelope.advance(peak, dt, m_ducking);
@@ -696,23 +743,43 @@ void Engine::reconcileLinks()
     const pw::Node *hwSource = resolveSource();
 
     QList<QPair<const pw::Node *, const pw::Node *>> nodePairs;
-    for (const auto &b : m_scene.buses) {
-        if (b.isInput()) {
+    const bool perMix = perMixActive();
+    const auto nodesLinked = [&](const pw::Node *out, const pw::Node *in) {
+        return out && in && std::any_of(g.links.cbegin(), g.links.cend(), [&](const pw::Link &l) {
+                   return l.outNode == out->id && l.inNode == in->id;
+               });
+    };
+    const QSet<QString> masters{QString::fromLatin1(kPhonesNode), QString::fromLatin1(kStreamNode),
+                                QString::fromLatin1(kVodNode)};
+    for (const auto &l : busLinks(m_scene, perMix)) {
+        const pw::Node *from = g.nodeByName(l.from);
+        const pw::Node *to = g.nodeByName(l.to);
+        if (!from || !to) {
             continue;
         }
-        const pw::Node *bus = g.nodeByName(b.nodeName());
-        if (!bus) {
+        const bool fromSend = from->rostrumRole() == roleName(NodeRole::Send);
+        const bool toSend = to->rostrumRole() == roleName(NodeRole::Send);
+        if ((fromSend && !hasDspPorts(g, from->id)) || (toSend && !hasDspPorts(g, to->id))) {
             continue;
         }
-        if (feedsPhones(b.destination) && phones) {
-            nodePairs.append(qMakePair(bus, phones));
+        // Switching a bus between the direct path and its sends: add the new path into a master
+        // only once the old one is gone, so the bus is briefly silent there, never doubled.
+        if (masters.contains(l.to)) {
+            const QString busName = l.from.section(QLatin1Char('.'), 0, 1); // rostrum.<id>
+            const QString busId = busName.section(QLatin1Char('.'), 1, 1);
+            bool otherPath = false;
+            if (perMix) {
+                otherPath = nodesLinked(g.nodeByName(busName), to);
+            } else {
+                for (const Mix m : {Mix::Phones, Mix::Stream}) {
+                    otherPath = otherPath || nodesLinked(g.nodeByName(sendNodeName(busId, m)), to);
+                }
+            }
+            if (otherPath) {
+                continue;
+            }
         }
-        if (feedsStream(b.destination) && stream) {
-            nodePairs.append(qMakePair(bus, stream));
-        }
-        if (feedsVod(b) && vod) {
-            nodePairs.append(qMakePair(bus, vod));
-        }
+        nodePairs.append(qMakePair(from, to));
     }
     if (phones && hwSink) {
         nodePairs.append(qMakePair(phones, hwSink));
@@ -966,12 +1033,15 @@ void Engine::reconcileVolumes()
     };
 
     m_duckGainSent = m_duckEnvelope.gain();
+    QSet<QString> duckTargets;
     for (const auto &b : m_scene.buses) {
-        if (b.isInput()) {
-            continue;
+        if (isDuckTarget(b.id)) {
+            duckTargets.insert(b.id);
         }
-        level(b.nodeName(), b.volume, b.muted || dimmedBySolo(b.id), b.balance,
-              isDuckTarget(b.id) ? m_duckGainSent : 1.0);
+    }
+    const auto busLevels = busNodeLevels(m_scene, m_soloed, duckTargets, m_duckGainSent, perMixActive());
+    for (auto it = busLevels.cbegin(); it != busLevels.cend(); ++it) {
+        level(it.key(), it->position, it->mute, it->balance, it->gain);
     }
     // Halve while mono is wanted or any cross-link is still up, so links and volume changing at
     // slightly different moments can only make it briefly quieter, never 6 dB louder.

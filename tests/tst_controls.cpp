@@ -320,6 +320,53 @@ private Q_SLOTS:
         QCOMPARE(r.controls.press(QStringLiteral("scene_5")).result, Result::NoSuchScene);
     }
 
+    void mixTargets()
+    {
+        auto t = remote::splitMixTarget(QStringLiteral("game.phones"));
+        QCOMPARE(t.bus, QStringLiteral("game"));
+        QCOMPARE(t.mix, std::optional(Mix::Phones));
+        t = remote::splitMixTarget(QStringLiteral("Game.Stream"));
+        QCOMPARE(t.bus, QStringLiteral("Game"));
+        QCOMPARE(t.mix, std::optional(Mix::Stream));
+        for (const char *whole : {"stream", "game", "x.vod", ".stream", "game."}) {
+            t = remote::splitMixTarget(QString::fromLatin1(whole));
+            QCOMPARE(t.bus, QString::fromLatin1(whole));
+            QVERIFY(!t.mix);
+        }
+    }
+
+    void micHasOneLevel()
+    {
+        Scene scene = defaults::scene();
+        auto r = remote::resolveVolumeTarget(scene, QStringLiteral("mic.phones"));
+        QCOMPARE(r.error, QString::fromLatin1(remote::kErrorInvalidValue));
+        r = remote::resolveVolumeTarget(scene, QStringLiteral("Mic.Stream"));
+        QCOMPARE(r.error, QString::fromLatin1(remote::kErrorInvalidValue));
+        r = remote::resolveVolumeTarget(scene, QStringLiteral("phones.stream")); // a master
+        QCOMPARE(r.error, QString::fromLatin1(remote::kErrorInvalidValue));
+
+        r = remote::resolveVolumeTarget(scene, QStringLiteral("Game.Phones"));
+        QVERIFY(r.error.isEmpty());
+        QCOMPARE(r.busId, QStringLiteral("game"));
+        QCOMPARE(r.mix, std::optional(Mix::Phones));
+        r = remote::resolveVolumeTarget(scene, QStringLiteral("game"));
+        QCOMPARE(r.busId, QStringLiteral("game"));
+        QVERIFY(!r.mix);
+        r = remote::resolveVolumeTarget(scene, QStringLiteral("Stream"));
+        QCOMPARE(r.busId, QString::fromLatin1(remote::kStreamId));
+        r = remote::resolveVolumeTarget(scene, QStringLiteral("nowhere.stream"));
+        QCOMPARE(r.error, QString::fromLatin1(remote::kErrorNoSuchBus));
+
+        // The whole text wins over a mix suffix: a bus can be called "Chat.Stream".
+        Bus chat;
+        chat.id = QStringLiteral("chat");
+        chat.name = QStringLiteral("Chat.Stream");
+        scene.buses.append(chat);
+        r = remote::resolveVolumeTarget(scene, QStringLiteral("chat.stream"));
+        QCOMPARE(r.busId, QStringLiteral("chat"));
+        QVERIFY(!r.mix);
+    }
+
     void volumeArguments()
     {
         auto v = remote::parseVolumeArg(QStringLiteral("game=0.8"));

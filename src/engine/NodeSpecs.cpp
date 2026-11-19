@@ -21,6 +21,8 @@ QString roleName(NodeRole role)
         return QStringLiteral("micfx");
     case NodeRole::Filtered:
         return QStringLiteral("filtered");
+    case NodeRole::Send:
+        return QStringLiteral("send");
     }
     return {};
 }

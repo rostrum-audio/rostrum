@@ -1,7 +1,12 @@
 #include "core/Model.h"
 
+#include "core/Volume.h"
+
 #include <QHash>
 #include <QRegularExpression>
+
+#include <algorithm>
+#include <cmath>
 
 namespace rostrum {
 
@@ -16,6 +21,52 @@ QString destinationName(Destination d)
         return QStringLiteral("both");
     }
     return QStringLiteral("both");
+}
+
+QString mixName(Mix m)
+{
+    return m == Mix::Phones ? QStringLiteral("phones") : QStringLiteral("stream");
+}
+
+std::optional<Mix> mixFromString(const QString &s)
+{
+    const QString v = s.trimmed().toLower();
+    if (v == QLatin1String("phones") || v == QLatin1String("headphones")) {
+        return Mix::Phones;
+    }
+    if (v == QLatin1String("stream")) {
+        return Mix::Stream;
+    }
+    return std::nullopt;
+}
+
+MixLevels moveLevel(MixLevels from, Mix mix, double target, bool together)
+{
+    if (!std::isfinite(target)) {
+        return from;
+    }
+    const double to = std::clamp(target, 0.0, 1.0);
+    double &moved = mix == Mix::Phones ? from.phones : from.stream;
+    double &other = mix == Mix::Phones ? from.stream : from.phones;
+    if (together) {
+        other = std::clamp(other + (to - moved), 0.0, 1.0);
+    }
+    moved = to;
+    return from;
+}
+
+double mixGain(const Bus &b, Mix m, bool dimmedBySolo)
+{
+    const bool reaches = m == Mix::Phones ? feedsPhones(b.destination) : feedsStream(b.destination);
+    if (b.muted || !reaches || (m == Mix::Phones && dimmedBySolo)) {
+        return 0.0;
+    }
+    return volume::faderToLinear(b.level(m));
+}
+
+QString sendNodeName(const QString &busId, Mix mix)
+{
+    return QStringLiteral("rostrum.%1.%2").arg(busId, mixName(mix));
 }
 
 std::optional<Destination> destinationFromString(const QString &s)
@@ -267,6 +318,8 @@ Scene mergeStructure(const Scene &saved, const Scene &current)
     for (auto &b : out.buses) {
         if (const Bus *s = saved.bus(b.id)) {
             b.volume = s->volume;
+            b.phonesVolume = s->phonesVolume;
+            b.linked = s->linked;
             b.muted = s->muted;
             b.balance = s->balance;
             b.destination = s->destination;

@@ -21,8 +21,9 @@
 
 ## 🌟 Highlights
 
-- 🎚️ **Buses, not wires.** Game, Voice, Mic, Music, Alerts and Desktop each get a fader and mute,
-  and every playback bus gets solo.
+- 🎚️ **Buses, not wires.** Game, Voice, Mic, Music, Alerts and Desktop each get mute, and every
+  playback bus gets solo plus a Headphones fader and a Stream fader, linked so they move together
+  until you unlink them.
 - 🎧 **Two mixes from one console.** Send each bus to your headphones, to the stream, or to both.
   Music can play for viewers without playing in your ears.
 - 🔴 **OBS in one click.** OBS captures `Rostrum Stream Mix` and `Rostrum Mic` separately.
@@ -122,7 +123,7 @@ Five minutes to a split stream:
 
    ![The Apps page: what is playing now, and the saved rules](docs/screenshots/apps.png)
 
-4. **Pick destinations.** Each bus goes to Headphones, Stream or Both. Defaults: Music → Stream (excluded from headphones), the other playback buses → Both, Mic → Stream with sidetone off.
+4. **Pick destinations and levels.** Each bus goes to Headphones, Stream or Both. Defaults: Music → Stream (excluded from headphones), the other playback buses → Both, Mic → Stream with sidetone off. Each playback bus has a Headphones level and a Stream level. They start linked, so moving one moves the other by the same amount. Unlink a bus to set them apart: Game quiet in your ears and full on stream, or the other way around. A fader for a mix the bus does not reach is greyed out. The mic keeps one gain fader.
    Headphones Only removes the bus’s Stream Mix sends; Stream Only removes its headphone sends.
    This controls Rostrum’s outputs, not independent OBS application/headphone captures.
    The small slider under each playback bus sets its balance. If you listen on one ear, turn on
@@ -250,7 +251,8 @@ Rostrum saves a separate recording backup and offers **Undo Recording Changes**.
 
 Playback captures use each bus's existing monitor, including Headphones-only buses; recording
 does not change their stream destination or Include in Twitch VOD flag. A bus mute silences
-that bus capture, and its fader controls the capture volume. The mic track captures
+that bus capture. The capture is taken from the bus itself, before the Headphones and Stream
+faders, so those levels do not change it; mute, balance and ducking do. The mic track captures
 `rostrum.mic` with filters off and
 `rostrum.filtered` with filters on (processed) or bypassed when filters are off; mic mute
 silences both. After changing filters, review and apply the recording changes again.
@@ -283,8 +285,8 @@ The tray menu has Show or Hide Rostrum, Mute Mic and Mute Stream (each checked w
 (handy after installing a new build) and Quit.
 Middle-click the tray icon to mute or unmute the mic, scroll on it to change the Stream master.
 
-With a fader focused: Up/Down 1 %, Page Up/Down 10 %, M mute, S solo, 1/2/3 Headphones/Stream/Both.
-Double-click a fader, a balance slider or the mic gain to reset it.
+With a fader focused, Headphones or Stream: Up/Down 1 %, Page Up/Down 10 %, M mute, S solo,
+1/2/3 Headphones/Stream/Both. Double-click a fader, a balance slider or the mic gain to reset it.
 App menu → Compact View shrinks Rostrum to a small mixer (mic, scene, masters and a slim fader per
 bus) that can stay on top of a game or OBS; it remembers its own size and comes back that way.
 Ctrl+Z and Ctrl+Shift+Z undo and redo level and bus edits in the live scene (not solo, and never
@@ -302,7 +304,7 @@ rostrum --toggle-mic                 # also --mute-mic, --unmute-mic
 rostrum --scene "Just Chatting"
 rostrum --action panic_mute          # any id from --list-actions
 rostrum --action toggle_mic_filters
-rostrum --set-volume game=0.8        # or game=80%; stream and phones are the masters
+rostrum --set-volume game=0.8        # both levels; game.phones or game.stream sets one. stream and phones are the masters
 rostrum --list-scenes                # also --list-actions, --list-buses
 ```
 

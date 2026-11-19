@@ -24,7 +24,7 @@ inline constexpr const char *kVodDescription = "Rostrum VOD Mix";
 inline constexpr const char *kMicDescription = "Rostrum Mic";
 inline constexpr const char *kFilteredDescription = "Rostrum Filtered Mic";
 
-enum class NodeRole { Bus, Phones, Stream, Vod, Mic, Sidetone, MicFx, Filtered };
+enum class NodeRole { Bus, Phones, Stream, Vod, Mic, Sidetone, MicFx, Filtered, Send };
 
 struct NodeSpec
 {

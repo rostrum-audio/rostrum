@@ -43,6 +43,9 @@ struct ReadinessInput
     Facts facts;
     QSet<QString> recordingDevices; // explicitly assigned isolated captures for this collection
     const QList<Recording> *legacyRecordings = nullptr;
+    // Each playback bus reaches the masters through a Headphones and a Stream send, so solo only
+    // dims headphones. False: one level per bus, linked straight into the masters.
+    bool perMixLevels = true;
 };
 QList<ReadinessResult> evaluateReadiness(const ReadinessInput &input);
 QList<GoLiveProblem> readinessWarnings(const QList<ReadinessResult> &results);

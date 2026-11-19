@@ -53,14 +53,17 @@ Each result has a specific scope:
 - **Needs attention:** observed evidence establishes a missing required path/device, an error,
   a forbidden destination send, effective silence, or an unwanted capture target.
 - **Intentionally excluded/idle:** the selected destination excludes that output, a bus is
-  muted/at zero/removed by solo, an app or complete path is idle, or an extra OBS capture is
-  disabled. An idle app or silent meter alone is never a routing failure.
+  muted or at zero on that mix, a bus is dimmed by solo on headphones only, an app or complete
+  path is idle, or an extra OBS capture is disabled. Solo does not exclude a bus from the
+  stream. An idle app or silent meter alone is never a routing failure.
 - **Not verified:** observations are disconnected, incomplete, unsupported, stale, ambiguous,
   or still negotiating. A node's existence alone does not establish routing or delivery.
 
 The effective mic and Stream Mix rows include session controls: panic and held push-to-talk/
 push-to-mute. A held push-to-talk overrides a saved mic mute; push-to-mute and panic take
-precedence. Gain positions, destination and solo are evaluated too. Separate observed-node
+precedence. Gain positions and destination are evaluated for both mixes. Solo excludes a bus
+from headphones only; the stream keeps it. Without per-mix levels, solo still excludes the bus
+from the stream, as before. Separate observed-node
 rows report available PipeWire mute/gain properties. A live scene change can briefly leave
 controls/properties unsettled; re-check after routing settles.
 
@@ -69,7 +72,10 @@ whether microphone fallback was explicitly enabled. A missing saved mic is repor
 when an enabled fallback supplies another mic, so that replacement is visible. Headphones
 may fall back without changing the saved selection. The check never changes these choices.
 
-Both headphone and Stream Mix paths are inspected for every playback bus. Headphones Only
+Both headphone and Stream Mix paths are inspected for every playback bus. With per-mix levels
+the path is the bus into its send for that mix (`rostrum.<bus>.phones` or `.stream`), then the
+send into the master. A direct link from the bus to the master needs attention: it skips that
+mix's level, or plays the bus twice. Headphones Only
 requires no Desktop/bus sends to Stream Mix; Stream Only requires no sends to headphones,
 including links that are currently inactive. Expected paths require complete channel ports
 and matching links. Paused links are labelled idle; errors are not. Unmapped source channels

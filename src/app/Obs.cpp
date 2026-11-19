@@ -1032,6 +1032,7 @@ obs::ReadinessInput Obs::readinessInput() const
     obs::ReadinessInput input;
     const auto *engine = m_app->engine();
     input.scene = engine->scene();
+    input.perMixLevels = engine->perMixLevels();
     input.mutes = {engine->effectiveMicMuted(), engine->effectiveStreamMuted()};
     input.panic = engine->panic();
     input.pushToTalk = engine->pushToTalk();

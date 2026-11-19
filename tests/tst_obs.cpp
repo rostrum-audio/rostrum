@@ -1625,8 +1625,10 @@ private Q_SLOTS:
             }
         }
         QVERIFY(goLiveProblems(scene, {}, nullptr).isEmpty()); // Music still reaches the stream
-        // Solo dims the stream too: soloing a muted bus leaves nothing.
-        QCOMPARE(goLiveProblems(scene, {QStringLiteral("game")}, nullptr),
+        // Solo only dims headphones: soloing a muted bus leaves Music on the stream. With one level
+        // per bus (no sends) solo dims the stream too, so nothing is left.
+        QVERIFY(goLiveProblems(scene, {QStringLiteral("game")}, nullptr).isEmpty());
+        QCOMPARE(goLiveProblems(scene, {QStringLiteral("game")}, nullptr, nullptr, false),
                  QList<GoLiveProblem>{GoLiveProblem::StreamMixSilent});
         scene.bus(QStringLiteral("music"))->volume = 0.0;
         QCOMPARE(goLiveProblems(scene, {}, nullptr), QList<GoLiveProblem>{GoLiveProblem::StreamMixSilent});

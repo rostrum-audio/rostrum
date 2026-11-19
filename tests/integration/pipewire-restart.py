@@ -5,8 +5,9 @@ A restarted daemon numbers every object afresh, so IDs, and even serials, repeat
 restart rebuilds the session in its original order (daemon, WirePlumber, devices, Rostrum, then
 the app): Rostrum's buses and the app come back under their old IDs and serials. The second
 restart lets the app reconnect first, as apps usually do before Rostrum's retry timer fires, so
-Rostrum finds it already playing. Each time the app must end up only on Game, the bus Rostrum
-dims for solo must be muted again, and Game must reach the stream only. The driver reconnects
+Rostrum finds it already playing. Each time the app must end up only on Game, Music's
+Headphones send must be muted by solo again (the bus itself stays live, and its Stream send
+is not muted), and Game must reach the stream only. The driver reconnects
 only when told, as the app's retry timer would, once the rest of the session is back.
 """
 import importlib.util
@@ -58,8 +59,12 @@ def restart_daemon(s, driver_log, lost):
 
 def settled(s):
     s.route(APP, "rostrum.game")
-    s.wait("Music dimmed by solo", lambda: muted(s, "rostrum.music") is True)
-    s.route("rostrum.game", "rostrum.stream")
+    # Solo dims headphones only: the Music bus stays live, its Headphones send is muted,
+    # and its Stream send is not.
+    s.wait("Music headphones dimmed by solo", lambda: muted(s, "rostrum.music.phones") is True)
+    s.wait("Music bus stays live under solo", lambda: muted(s, "rostrum.music") is False)
+    s.wait("solo leaves Music on the stream", lambda: muted(s, "rostrum.music.stream") is False)
+    s.mix_route("rostrum.game", "rostrum.stream")
     s.capture("rostrum.game", 440)
     s.capture("test.headphones")  # Game goes to the stream only.
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/Model.h"
+
 #include <QString>
 #include <optional>
 
@@ -31,5 +33,28 @@ struct VolumeArg
 
 // "game=0.5" or "game=50%" from --set-volume. The range is checked by whoever applies it.
 std::optional<VolumeArg> parseVolumeArg(const QString &text);
+
+// A bus id or name (case-insensitive, id first), or kStreamId / kPhonesId for the masters. Empty if
+// nothing matches.
+QString resolveBusId(const Scene &scene, const QString &text);
+
+struct MixTarget
+{
+    QString bus;
+    std::optional<Mix> mix;
+};
+// "game.stream" -> {"game", Stream}; "Game.Phones" -> {"Game", Phones}; anything without a
+// ".phones" or ".stream" suffix after a non-empty bus part is the whole text with no mix.
+MixTarget splitMixTarget(const QString &text);
+
+struct VolumeTarget
+{
+    QString busId;
+    std::optional<Mix> mix; // one level of a playback bus; none for both levels, the mic or a master
+    QString error;          // kErrorNoSuchBus or kErrorInvalidValue (a mix on the mic or a master)
+};
+// What SetBusVolume and --set-volume set. The whole text as a bus wins, so a bus can be called
+// "Chat.Stream"; otherwise a mix suffix is split off and the rest resolved.
+VolumeTarget resolveVolumeTarget(const Scene &scene, const QString &text);
 
 } // namespace rostrum::remote

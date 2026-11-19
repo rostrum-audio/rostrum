@@ -65,11 +65,13 @@ latter; apps are not moved onto filtered in that state).
 ## Nodes
 
 Every Rostrum node is a `support.null-audio-sink` adapter created in the PipeWire daemon with
-`pw_core_create_object("adapter", ...)`.
+`pw_core_create_object("adapter", ...)`, except `rostrum.micfx` and the send nodes (below).
 
 | Node | media.class | Channels | Description | Purpose |
 |------|-------------|----------|-------------|---------|
-| `rostrum.<bus>` | `Audio/Sink` | FL FR | `Rostrum <Name>` | One per playback bus. Apps are moved here. |
+| `rostrum.<bus>` | `Audio/Sink` | FL FR | `Rostrum <Name>` | One per playback bus. Apps are moved here. Carries the bus's mute, balance and ducking at unity level; OBS recording tracks capture its monitor. |
+| `rostrum.<bus>.phones` | none | FL FR | `Rostrum <Name> → Headphones` | The bus's Headphones level. Feeds `rostrum.phones`. |
+| `rostrum.<bus>.stream` | none | FL FR | `Rostrum <Name> → Stream` | The bus's Stream level. Feeds `rostrum.stream` and `rostrum.vod`. |
 | `rostrum.phones` | `Audio/Sink` | FL FR | `Rostrum Headphones Mix` | Sum of everything bound for headphones. Volume = Master Headphones. |
 | `rostrum.stream` | `Audio/Sink` | FL FR | `Rostrum Stream Mix` | Sum of everything bound for the stream. Volume = Master Stream. OBS captures its monitor on Track 1. |
 | `rostrum.vod` | `Audio/Sink` | FL FR | `Rostrum VOD Mix` | Twitch VOD mix (playback buses with VOD enabled, default on except Music). Volume = Master Stream. OBS captures its monitor on Track 2. |
@@ -93,6 +95,14 @@ Properties set on every node:
 `rostrum.micfx` is the exception to the null-sink rule: it is a bare `audio.convert` node made with
 `spa-node-factory`, because a filter graph runs inside audioconvert. It lingers like the others.
 
+The send nodes are the same kind of node, stereo (`convert.direction = output`, like micfx), with
+`rostrum.role = send`, `rostrum.bus = <id>` and `rostrum.mix = phones|stream`. With no
+`media.class`, WirePlumber leaves them alone and no device list shows them. Rostrum puts each into
+DSP mode once (`PortConfig`, two channels per side); a send that lingered from an earlier run keeps
+its ports and is not configured again, which would drop its audio for a moment. Every playback bus
+has both sends whatever its destination, so a destination change only changes links. They exist
+only while separate levels are in use ([Without per-mix levels](#without-per-mix-levels)).
+
 Limitation and workaround: the spec asked for "loopback nodes". An in-process
 `libpipewire-module-loopback` would put Rostrum's own process in the audio path, so a Rostrum
 crash would cut the stream. Null-sink adapters plus explicit links give the same topology with the
@@ -108,9 +118,10 @@ Rostrum creates links port by port with `link-factory` (`object.linger = true`),
 
 | From | To | When |
 |------|----|------|
-| `rostrum.<bus>` monitor | `rostrum.phones` | bus destination is Headphones or Both |
-| `rostrum.<bus>` monitor | `rostrum.stream` | bus destination is Stream or Both |
-| `rostrum.<bus>` monitor | `rostrum.vod` | bus destination is Stream or Both, and VOD is on |
+| `rostrum.<bus>` monitor | `rostrum.<bus>.phones`, `rostrum.<bus>.stream` | always |
+| `rostrum.<bus>.phones` | `rostrum.phones` | bus destination is Headphones or Both |
+| `rostrum.<bus>.stream` | `rostrum.stream` | bus destination is Stream or Both |
+| `rostrum.<bus>.stream` | `rostrum.vod` | bus destination is Stream or Both, and VOD is on |
 | `rostrum.phones` monitor | headphone device | always; with mono headphones each side also goes into the other front channel |
 | hardware mic | `rostrum.mic` | mic filters off (mute/destination act on the node, not the link) |
 | hardware mic | `rostrum.sidetone` | mic filters off |
@@ -118,6 +129,11 @@ Rostrum creates links port by port with `link-factory` (`object.linger = true`),
 | hardware mic | `rostrum.micfx` | mic filters on |
 | `rostrum.micfx` | `rostrum.mic`, `rostrum.sidetone`, `rostrum.filtered` | mic filters on |
 | `rostrum.sidetone` monitor | `rostrum.phones` | always (muted unless sidetone is on) |
+
+Without per-mix levels the bus monitor links straight into `rostrum.phones`, `rostrum.stream` and
+`rostrum.vod` under the same conditions. When a bus moves between the two paths (upgrading from a
+version without sends, or falling back), the new path into a master is added only once the old one
+is gone from the graph, so for a moment the bus is silent in that mix rather than playing twice.
 
 Rostrum only removes links it manages: links that start at a Rostrum node and end at a Rostrum node
 or a hardware sink, and links into `rostrum.mic`, `rostrum.sidetone`, `rostrum.micfx` and
@@ -133,9 +149,21 @@ channel count. Otherwise a half-enumerated stereo device would briefly look mono
 Fader positions are perceptual: linear gain = position³, as in pavucontrol. They are sent as
 `SPA_PROP_channelVolumes` and `SPA_PROP_mute` on the node's `Props` param.
 
-- Bus node: fader, muted if the bus is muted or dimmed by solo. A playback bus with a balance gets
-  one volume per channel (FL, FR): like PulseAudio's balance, the far side is turned down in fader
-  space (position × (1 − |balance|)) and the near side stays at the fader.
+- Each playback bus has two levels, Headphones (`phones_volume` in the scene) and Stream
+  (`volume`), linked by default so moving one moves the other by the same amount (fader space,
+  each clamped to 0..1). Unlinked, each moves alone. Compact View's single fader always moves both.
+- Bus node: unity level, the bus's balance, muted if the bus is muted, and the ducking gain. Mute
+  silences both mixes and the bus's recording track. A playback bus with a balance gets one volume
+  per channel (FL, FR): like PulseAudio's balance, the far side is turned down in fader space
+  (position × (1 − |balance|)) and the near side stays at full level.
+- `rostrum.<bus>.phones`: the Headphones level, muted if the bus does not reach headphones or is
+  dimmed by solo. `rostrum.<bus>.stream`: the Stream level, muted if the bus does not reach the
+  stream. The VOD mix is fed from the Stream send, so it follows the Stream level.
+- Solo is headphones-only: soloing a bus mutes the other buses' Headphones sends and nothing else.
+  The stream, the VOD mix and the recording tracks keep the full mix.
+- Without per-mix levels ([Without per-mix levels](#without-per-mix-levels)) the bus node carries
+  the Stream level instead, muted if the bus is muted or dimmed by solo, and the Headphones level
+  is kept in the scene but not applied. Solo then also dims the stream, as before.
 - `rostrum.phones` / `rostrum.stream` / `rostrum.vod`: Master Headphones / Master Stream. These multiply every bus send.
   "Mute all playback to stream" mutes `rostrum.stream` and `rostrum.vod`.
 - `rostrum.mic`: mic gain (0 to 150%, 100% = 0 dB), muted if the mic is muted or the mic
@@ -152,6 +180,24 @@ written). It is a level like the fader: saved with the scene, and it makes the s
 outside -1..1 are clamped, anything that is not a number is centre, and the mono mic bus never has
 one. Set it with the small slider under each playback fader; double-click it or use "Centre
 Balance" in the strip's menu to reset.
+
+### Without per-mix levels
+
+Rostrum falls back to one level per bus, for the rest of the session, when:
+
+- PipeWire's `spa-node-factory` module is not loaded (Studio Voice needs it too), or
+- a send has no ports 4 seconds after Rostrum first wanted it. Rostrum logs which send and removes
+  every send it made.
+
+Then each bus monitor links straight into `rostrum.phones`, `rostrum.stream` and `rostrum.vod`, the
+bus node carries the Stream level, and solo dims both mixes, as in versions without sends. The
+Headphones level and the link flag stay in the scene and are saved, but not applied. The reason is
+`Engine::perMixUnavailable()`, empty while the sends are in use. Rebuild Mix, or restarting
+Rostrum, tries the sends again. A PipeWire restart while a send is still waiting starts its wait
+again.
+
+`ROSTRUM_TEST_SEND_PORTS_FAIL=1` makes Rostrum skip the sends' port setup, so the integration
+tests can force the fallback against a real daemon.
 
 ### Mono headphones
 
@@ -176,11 +222,13 @@ never leaves it live for a moment.
   never dirty because of a fade, and a save mid-fade saves the target. The ramp is a session-only
   overlay per node, never stored.
 - Every 16 ms the overlay sends `from + (to − from) × t` in fader space (already perceptual), for
-  the level and the balance. A muted bus counts as level 0: a bus being unmuted is unmuted at the
-  start and ramps up from silence, and a bus being muted ramps down and is muted at the end. Solo
-  is part of the starting level.
-- A switch mid-fade starts from wherever the running fade got to. Moving a fader, mute or balance
-  takes that node out of the fade at once; toggling solo ends the whole fade.
+  the level and the balance. The bus node and both sends fade, each on its own level; a muted node
+  counts as level 0: a bus being unmuted is unmuted at the start and ramps up from silence, and a
+  bus being muted ramps down and is muted at the end. A send muted because the bus does not reach
+  that mix counts as 0 the same way. Solo is part of the starting level (of the Headphones sends).
+- A switch mid-fade starts from wherever the running fade got to. Moving either fader takes the
+  bus node and both its sends out of the fade at once, as do mute and balance for the bus node;
+  toggling solo ends the whole fade.
 - Loading the default scene at startup never fades: the nodes may still be playing at their
   lingering levels, and the scene applies at once as before.
 - Quitting mid-fade sends every node its scene level first, so nothing is left halfway.
@@ -207,16 +255,22 @@ ducked bus is quieter, never silent.
   the strips, independent of what is on screen). With the mic trigger it meters the hardware mic
   summed to mono, times the mic gain, and only while the mic can be heard on stream (not muted,
   destination includes Stream, not unplugged). With the voice trigger it meters the voice bus's
-  monitor, which is after its fader and mute. A peak above -40 dBFS counts as speech. Turning
-  ducking off removes the meter streams.
+  monitor, which is after its mute and balance but before its two levels, so the peak is multiplied
+  by the louder of the levels for the mixes the bus reaches: the Stream level if the destination
+  includes Stream, the Headphones level if it includes Headphones and the bus is not dimmed by
+  solo. With linked, equal levels this is the same trigger as a single fader. A voice bus dimmed
+  in headphones by solo still triggers if it reaches the stream, because viewers still hear it.
+  Without per-mix levels the monitor is after the fader and mute, and the peak is used as it is. A
+  peak above -40 dBFS counts as speech. Turning ducking off removes the meter streams.
 - The mic meter is an active source stream, like every mic meter, so while ducking listens to the
   mic, Plasma's microphone indicator stays lit, even with Rostrum in the tray. Muting the mic stops
   the meter and the indicator. The Settings switch says so.
 - Envelope (`ducking::Envelope`, unit tested): every 20 ms the gain moves toward the amount at
   amount/attack dB per ms while speech is heard, and stays there until 500 ms after the last
   speech, so it does not pump between words. Then it returns to 0 dB at amount/release dB per ms.
-- Applying: the gain multiplies the linear volume of each target bus when volumes are sent, on
-  top of fader, balance and any scene fade. The value sent changes, the scene does not, and the
+- Applying: the gain multiplies the linear volume of each target bus node when volumes are sent,
+  on top of fader, balance and any scene fade. It is on the bus node, so a ducked bus is turned
+  down in both mixes and its recording track. The value sent changes, the scene does not, and the
   once-a-second re-apply compares against the ducked value, so ducking never fights it. The bus
   that receives voice chat is never ducked when it is the trigger.
 - The strip of a ducked bus says "Ducked" in its status line.
@@ -656,6 +710,11 @@ that happens for a node it is logged. The realtime callback only keeps the
 peak sample in an atomic. The UI takes it every 40 ms (80 ms with low meter speed), falls off at
 20 dB/s and holds a clip mark for 1.5 s.
 
+A playback strip shows two meters from that one bus-node capture. Each is the peak multiplied
+by that mix's level, so solo and a destination that leaves a mix out zero only that mix's
+meter. Without per-mix levels the headphones meter copies the stream meter. No extra capture
+targets are added.
+
 The Apps page meters each running app the same way, by capturing the app's own playback stream
 (targeted by node id, since app node names repeat). WirePlumber links a capture stream to a
 playback stream's output ports without moving the app, so the app keeps playing where it was.
@@ -815,8 +874,10 @@ outlives OBS.
   Rostrum connects to a stream already running, it checks the current scene
   (`obs::goLiveProblems`). It warns if the mic is muted, at zero, or its destination leaves out
   Stream. It warns if Master Stream is muted or at zero, or if no unmuted playback bus with a
-  level above zero and a Stream destination is left, solo included. It also warns if OBS records
-  nothing from `Rostrum Stream Mix` or `Rostrum Mic`, read from the PipeWire graph as on the OBS
+  Stream level above zero and a Stream destination is left. Solo does not count: it dims
+  headphones only. Without per-mix levels, solo still silences the stream, as before. It also
+  warns if OBS records nothing from `Rostrum Stream Mix` or `Rostrum Mic`, read from the PipeWire
+  graph as on the OBS
   page. One banner and one desktop notification are shown per stream start. A problem drops off
   the banner once it is fixed, and the banner goes away when the stream stops. A problem that
   appears later in the stream is not reported.
@@ -941,7 +1002,7 @@ it.
 | `TriggerAction(s id)` | Runs an action as a shortcut press. Hold actions are refused (`Error.HoldAction`) |
 | `PressAction(s id)`, `ReleaseAction(s id)` | Start and end a hold (or press any other action) |
 | `SwitchScene(s name)` | Switches at once, name matched without case |
-| `SetBusVolume(s bus, d position)` | Fader travel 0–1, mic gain 0–1.5 |
+| `SetBusVolume(s bus, d position)` | A playback bus sets both levels. `bus.phones` or `bus.stream` sets one; a linked bus moves the other by the same amount. A mix suffix on the mic or a master is `InvalidValue`. Fader travel 0–1, mic gain 0–1.5. `ListBuses` still reports the Stream level |
 | `SetBusMuted(s bus, b)`, `ToggleBusMuted(s bus)` | Mute a bus, the mic or a master |
 | `SetMicMuted(b)`, `ToggleMicMute()` | The mic, as the header button |
 | `SetMicFilters(b)` | Mic filters on or off, saved (`toggle_mic_filters` toggles) |

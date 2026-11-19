@@ -11,12 +11,11 @@ ReadinessResult row(const QList<ReadinessResult> &rows, const QString &id)
             return r;
     return {};
 }
-pw::Graph graph()
+pw::Graph graphOf(const QStringList &names)
 {
     pw::Graph g;
     uint32_t id = 1, port = 100;
-    for (const QString &name : {QStringLiteral("rostrum.desktop"), QStringLiteral("rostrum.phones"),
-                                QStringLiteral("rostrum.stream"), QStringLiteral("hardware")}) {
+    for (const QString &name : names) {
         pw::Node n;
         n.id = id++;
         n.name = name;
@@ -41,6 +40,18 @@ pw::Graph graph()
     }
     return g;
 }
+pw::Graph graph()
+{
+    return graphOf({QStringLiteral("rostrum.desktop"), QStringLiteral("rostrum.phones"),
+                    QStringLiteral("rostrum.stream"), QStringLiteral("hardware")});
+}
+// Ids 1-4 as graph(), then the desktop bus's sends: 5 = Headphones, 6 = Stream.
+pw::Graph sendGraph()
+{
+    return graphOf({QStringLiteral("rostrum.desktop"), QStringLiteral("rostrum.phones"),
+                    QStringLiteral("rostrum.stream"), QStringLiteral("hardware"),
+                    QStringLiteral("rostrum.desktop.phones"), QStringLiteral("rostrum.desktop.stream")});
+}
 void link(pw::Graph &g, uint32_t from, uint32_t to)
 {
     const auto outputs = g.outputPorts(from), inputs = g.inputPorts(to);
@@ -60,7 +71,13 @@ ReadinessInput input(const pw::Graph &g)
     i.scene = defaults::scene();
     i.graph = &g;
     i.resolvedPhones = QStringLiteral("hardware");
+    i.perMixLevels = false; // the fixtures above link buses straight into the masters
     return i;
+}
+void activate(pw::Graph &g)
+{
+    for (auto &l : g.links)
+        l.state = QStringLiteral("active");
 }
 } // namespace
 class TestReadiness : public QObject
@@ -155,6 +172,98 @@ private Q_SLOTS:
                 b.destination = Destination::Phones;
         QCOMPARE(row(evaluateReadiness(i), QStringLiteral("stream-level")).status, ReadinessStatus::Excluded);
         QVERIFY(goLiveProblems(i.scene, {}, nullptr).contains(GoLiveProblem::StreamMixSilent));
+        QVERIFY(goLiveProblems(i.scene, {}, nullptr, nullptr, false).contains(GoLiveProblem::StreamMixSilent));
+    }
+    void soloKeepsStreamPerMix()
+    {
+        ReadinessInput i;
+        i.scene = defaults::scene();
+        i.inspectRouting = false;
+        i.soloed = {QStringLiteral("music")};
+        i.scene.bus(QStringLiteral("music"))->muted = true;
+        // Music is soloed but muted, so only solo-dimmed buses could reach the stream.
+        i.perMixLevels = true;
+        QCOMPARE(row(evaluateReadiness(i), QStringLiteral("stream-level")).status, ReadinessStatus::Verified);
+        QVERIFY(!readinessWarnings(evaluateReadiness(i)).contains(GoLiveProblem::StreamMixSilent));
+        i.perMixLevels = false;
+        QCOMPARE(row(evaluateReadiness(i), QStringLiteral("stream-level")).status, ReadinessStatus::Attention);
+
+        auto g = sendGraph();
+        auto routed = input(g);
+        routed.perMixLevels = true;
+        routed.soloed = {QStringLiteral("music")};
+        const auto rows = evaluateReadiness(routed);
+        QVERIFY(row(rows, QStringLiteral("desktop-level")).id.isEmpty()); // not excluded for the stream
+        QCOMPARE(row(rows, QStringLiteral("desktop-phones-level")).status, ReadinessStatus::Excluded);
+        routed.perMixLevels = false;
+        QCOMPARE(row(evaluateReadiness(routed), QStringLiteral("desktop-level")).status, ReadinessStatus::Excluded);
+    }
+    void streamLevelZeroExcluded()
+    {
+        auto g = sendGraph();
+        link(g, 1, 5); // bus -> Headphones send
+        link(g, 5, 2); // Headphones send -> phones
+        link(g, 1, 6); // bus -> Stream send
+        link(g, 6, 3); // Stream send -> stream
+        activate(g);
+        auto i = input(g);
+        i.perMixLevels = true;
+        i.scene.bus(QStringLiteral("desktop"))->volume = 0.0;
+        i.scene.bus(QStringLiteral("desktop"))->phonesVolume = 1.0;
+        const auto rows = evaluateReadiness(i);
+        QCOMPARE(row(rows, QStringLiteral("desktop-level")).status, ReadinessStatus::Excluded);
+        QVERIFY(row(rows, QStringLiteral("desktop-phones-level")).id.isEmpty());
+        QCOMPARE(row(rows, QStringLiteral("desktop-phones")).status, ReadinessStatus::Verified);
+        // The other way round: silent in headphones only.
+        i.scene.bus(QStringLiteral("desktop"))->volume = 1.0;
+        i.scene.bus(QStringLiteral("desktop"))->phonesVolume = 0.0;
+        const auto other = evaluateReadiness(i);
+        QVERIFY(row(other, QStringLiteral("desktop-level")).id.isEmpty());
+        QCOMPARE(row(other, QStringLiteral("desktop-phones-level")).status, ReadinessStatus::Excluded);
+    }
+    void routesThroughSends()
+    {
+        auto g = sendGraph();
+        link(g, 1, 5);
+        link(g, 5, 2);
+        link(g, 1, 6);
+        link(g, 6, 3);
+        activate(g);
+        auto i = input(g);
+        i.perMixLevels = true;
+        QCOMPARE(row(evaluateReadiness(i), QStringLiteral("desktop-phones")).status, ReadinessStatus::Verified);
+        QCOMPARE(row(evaluateReadiness(i), QStringLiteral("desktop-stream")).status, ReadinessStatus::Verified);
+
+        // Without the send -> master link the route is broken.
+        auto noMaster = g;
+        for (auto it = noMaster.links.begin(); it != noMaster.links.end();)
+            it = (it->outNode == 5 && it->inNode == 2) ? noMaster.links.erase(it) : std::next(it);
+        i.graph = &noMaster;
+        QCOMPARE(row(evaluateReadiness(i), QStringLiteral("desktop-phones")).status, ReadinessStatus::Attention);
+
+        // Nor is bus -> send optional.
+        auto noSend = g;
+        for (auto it = noSend.links.begin(); it != noSend.links.end();)
+            it = (it->outNode == 1 && it->inNode == 6) ? noSend.links.erase(it) : std::next(it);
+        i.graph = &noSend;
+        QCOMPARE(row(evaluateReadiness(i), QStringLiteral("desktop-stream")).status, ReadinessStatus::Attention);
+
+        // A direct bus -> master link next to the send path doubles the bus.
+        auto doubled = g;
+        link(doubled, 1, 3);
+        activate(doubled);
+        i.graph = &doubled;
+        QCOMPARE(row(evaluateReadiness(i), QStringLiteral("desktop-stream")).status, ReadinessStatus::Attention);
+
+        // Excluded from headphones: the send must not reach rostrum.phones.
+        i.graph = &g;
+        i.scene.bus(QStringLiteral("desktop"))->destination = Destination::Stream;
+        QCOMPARE(row(evaluateReadiness(i), QStringLiteral("desktop-phones")).status, ReadinessStatus::Attention);
+        auto excluded = g;
+        for (auto it = excluded.links.begin(); it != excluded.links.end();)
+            it = (it->outNode == 5 && it->inNode == 2) ? excluded.links.erase(it) : std::next(it);
+        i.graph = &excluded;
+        QCOMPARE(row(evaluateReadiness(i), QStringLiteral("desktop-phones")).status, ReadinessStatus::Excluded);
     }
     void exclusionChecksEveryLink()
     {

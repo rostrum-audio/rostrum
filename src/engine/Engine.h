@@ -6,6 +6,7 @@
 #include "core/Ducking.h"
 #include "core/MicFilters.h"
 #include "core/Model.h"
+#include "engine/MixPlan.h"
 #include "engine/NodeSpecs.h"
 #include "pw/MeterBank.h"
 
@@ -98,7 +99,13 @@ public:
     QString mixError() const { return m_mixError; }
 
     // Levels: these change the live scene and make it dirty until saved.
+    // A playback bus: both levels. The mic: its gain.
     void setBusVolume(const QString &id, double volume);
+    // One level of a playback bus; a linked bus moves the other level by the same amount.
+    void setBusMixVolume(const QString &id, Mix mix, double volume);
+    // Both levels by the same amount, linked or not (the Compact View fader).
+    void setBusMixVolumeTogether(const QString &id, Mix mix, double volume);
+    void setBusLinked(const QString &id, bool linked);
     void setBusMuted(const QString &id, bool muted);
     void setBusBalance(const QString &id, double balance); // playback buses; -1 left .. 1 right
     void setBusDestination(const QString &id, Destination d);
@@ -217,6 +224,10 @@ public:
     bool micFiltersHaveDenoise() const { return m_fxDenoise; }
     // Why mic filters cannot run on this system, empty when they can.
     QString micFiltersUnavailable() const;
+    // Separate Headphones and Stream levels are in use: PipeWire has spa-node-factory and every
+    // send got its ports. Otherwise each bus has one level (its Stream level) for both mixes.
+    bool perMixLevels() const;
+    QString perMixUnavailable() const; // why not, as a sentence; empty while the sends are in use
     enum class MicFxState { Off, Starting, Active, Failed };
     MicFxState micFiltersState() const;
     QString micFilterError() const { return m_fxError; }
@@ -229,6 +240,7 @@ Q_SIGNALS:
     void sceneChanged();
     void structureChanged(); // bus list, names, colors or rules changed: persist without saving faders
     void mixStateChanged();
+    void perMixLevelsChanged();
     void appsChanged();
     void levelsChanged();
     void soloChanged();
@@ -256,15 +268,12 @@ protected:
     void reconcileDevices();
     void publishMissingLabels(); // emit missing*LabelChanged when the QML-facing strings change
     bool phonesCrossLinked() const; // headphone links that carry one side into the other
-    struct Level
-    {
-        double position = 0.0; // 0 when muted
-        double balance = 0.0;
-        bool operator==(const Level &) const = default;
-    };
+    using Level = FadeLevel;
     QHash<QString, Level> fadeLevels(const Scene &scene, bool withSolo) const; // by node name
     std::optional<Level> fadingLevel(const QString &nodeName) const;
     void cancelFade(const QString &nodeName);
+    void cancelLevelFades(const Bus &b); // the bus node and its sends
+    void setMixLevels(const QString &id, Mix mix, double volume, bool together);
     void fadeTick();
     void reconcileDucking();
     void reconcileMicFx();
@@ -435,6 +444,10 @@ protected:
     bool m_feedHandoffWait = false; // a backstop reconcile is queued while one feed into filtered is torn down
 
     bool isOwnedNode(const pw::Node &n) const;
+    // The mix runs each playback bus through a Headphones and a Stream send node.
+    bool perMixActive() const;
+    void checkSendPorts(); // falls back to one level per bus when a send has no ports in time
+    void updatePerMixLevels(); // emits perMixLevelsChanged when perMixLevels() or the reason changed
     void destroyOnce(uint32_t id);
     // Everything remembered about a node is keyed by its registry ID, which PipeWire hands to the
     // next object once the node goes (a browser replacing its stream gets the same ID back in one
@@ -457,6 +470,11 @@ protected:
     bool m_mixErrorFromLink = false; // m_mixError came from a failed link create
     bool m_reconcilePending = false;
     QHash<QString, QElapsedTimer> m_pendingCreate;
+    QSet<uint32_t> m_sendsConfigured; // send nodes this run has put into DSP mode
+    QHash<QString, QElapsedTimer> m_sendWaiting; // wanted sends without ports, since first wanted
+    QString m_sendFailure; // set once a send never got ports; cleared only by rebuildMix()
+    bool m_perMixReported = false;
+    QString m_perMixReason;
     QSet<uint32_t> m_pendingDestroy;
     QElapsedTimer m_mixRequested;
 };

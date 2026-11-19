@@ -1,6 +1,7 @@
 #include "engine/Engine.h"
 
 #include "core/AppFacts.h"
+#include "engine/MixPlan.h"
 #include "pw/PwContext.h"
 
 #include <QLoggingCategory>
@@ -21,17 +22,6 @@ constexpr int kFxCrashStrikes = 2;
 constexpr qint64 kFxControlResendMs = 1000;
 // How long removing the filter nodes waits for apps to move back to the mic.
 constexpr qint64 kFxReleaseMs = 3000;
-
-// A new audio.convert node starts in convert mode with one channel-less port per side; only after
-// PortConfig does it expose the mono DSP ports the filter graph runs on.
-bool hasDspPorts(const pw::Graph &g, uint32_t node)
-{
-    const auto dsp = [](const QList<pw::Port> &ports) {
-        return !ports.isEmpty()
-            && std::all_of(ports.cbegin(), ports.cend(), [](const pw::Port &p) { return !p.channel.isEmpty(); });
-    };
-    return dsp(g.inputPorts(node)) && dsp(g.outputPorts(node));
-}
 
 bool isTrue(const QString &v)
 {

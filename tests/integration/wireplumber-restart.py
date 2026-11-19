@@ -54,7 +54,7 @@ def main(driver, client):
             s.route(APP, "rostrum.game")
             s.wait(f"after restart {restart}, {APP} only on Game",
                    lambda: targets(s, s.graph(), APP) == {"rostrum.game"})
-            s.route("rostrum.game", "rostrum.stream")
+            s.mix_route("rostrum.game", "rostrum.stream")
             s.capture("rostrum.game", 440)
             s.capture("rostrum.stream", 440)
             s.capture("test.headphones")  # Game goes to the stream only.

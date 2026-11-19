@@ -163,6 +163,39 @@ class Session:
         return self.wait(f"active route {source} -> {destination}",
                          lambda: self.linked(self.graph(), source, destination))
 
+    # Playback buses reach a master through rostrum.<bus>.phones or .stream, never directly.
+    _MASTER_MIX = {"rostrum.phones": "phones", "rostrum.stream": "stream", "rostrum.vod": "stream"}
+
+    @classmethod
+    def send_name(cls, bus, master):
+        return f"{bus}.{cls._MASTER_MIX[master]}"
+
+    @staticmethod
+    def _any_link(graph, out_id, in_id):
+        return any(o["type"].endswith(":Link") and
+                   o["info"].get("output-node-id") == out_id and
+                   o["info"].get("input-node-id") == in_id for o in graph)
+
+    def mix_linked(self, graph, bus, master):
+        send = self.send_name(bus, master)
+        return (self.linked(graph, bus, send) and self.linked(graph, send, master)
+                and not self.linked(graph, bus, master))
+
+    def mix_route(self, bus, master):
+        send = self.send_name(bus, master)
+        return self.wait(f"active mix route {bus} -> {send} -> {master}, no direct link",
+                         lambda: self.mix_linked(self.graph(), bus, master))
+
+    def mix_unlinked(self, graph, bus, master):
+        """No bus->master link and no send->master link, in any state."""
+        source, target = self.node(graph, bus), self.node(graph, master)
+        if not source or not target:
+            return False
+        if self._any_link(graph, source["id"], target["id"]):
+            return False
+        send = self.node(graph, self.send_name(bus, master))
+        return not send or not self._any_link(graph, send["id"], target["id"])
+
     def start(self):
         config = self.root / "config/pipewire"
         config.mkdir()
@@ -312,7 +345,8 @@ mic_fallback = {str(fallback).lower()}
         acknowledgement = f"Destination request {self.destination_request}: {bus}={destination}\n"
         self.wait(f"applied destination request {request}", lambda: acknowledgement in log.read_text())
 
-    def capture(self, name, frequency=None, channels=2):
+    def _capture_raw(self, name, channels=2, seconds=0.5):
+        """Record float32 interleaved audio from a node; returns the bytes."""
         graph = self.graph()
         node = self.node(graph, name)
         if not node:
@@ -324,12 +358,32 @@ mic_fallback = {str(fallback).lower()}
         if node["info"]["props"].get("media.class") == "Audio/Sink":
             props += " stream.capture.sink = true"
         props += " }"
+        need = int(RATE * channels * 4 * seconds)
         p = self.spawn(["pw-cat", "-r", "-a", "--format", "f32", "--rate", str(RATE),
                         "--channels", str(channels), "--target",
                         str(node["info"]["props"]["object.serial"]), "-P", props, "-"], output)
-        self.wait(f"real capture buffers from {name}", lambda: path.stat().st_size >= RATE * channels * 4 // 2)
+        self.wait(f"real capture buffers from {name}", lambda: path.stat().st_size >= need)
         self.stop(p)
-        self.verify(name, path.read_bytes()[:RATE * channels * 4 // 2], frequency, channels)
+        return path.read_bytes()[:need]
+
+    def capture(self, name, frequency=None, channels=2):
+        self.verify(name, self._capture_raw(name, channels, 0.5), frequency, channels)
+
+    def rms(self, name, channels=2):
+        """RMS of the last 300 ms on each channel of a short capture from `name`."""
+        raw = self._capture_raw(name, channels, 0.5)
+        data = array.array("f")
+        data.frombytes(raw[:len(raw) // (4 * channels) * 4 * channels])
+        if len(data) < RATE * channels * 3 // 10:
+            raise Failure(f"{name}: fewer than 300 ms of real buffers")
+        out = []
+        for channel in range(channels):
+            samples = list(data)[channel::channels][-RATE * 3 // 10:]
+            value = math.sqrt(sum(v * v for v in samples) / len(samples))
+            if not math.isfinite(value):
+                raise Failure(f"{name}: non-finite audio")
+            out.append(value)
+        return out
 
     @staticmethod
     def verify(name, raw, frequency=None, channels=2):
@@ -424,7 +478,7 @@ def startup(s):
     s.capture("test.headphones", 440)
     s.engine()
     s.route("SafetyPlayer", "rostrum.game")
-    s.route("rostrum.game", "rostrum.stream")
+    s.mix_route("rostrum.game", "rostrum.stream")
     s.capture("rostrum.game", 440)
     s.capture("rostrum.stream", 440)
 
@@ -440,8 +494,9 @@ def destinations(s):
     s.capture("rostrum.stream")
     s.stop(engine)
     engine = s.engine(destination="stream")
-    s.route("rostrum.game", "rostrum.stream")
-    s.wait("headphones send removed", lambda: not s.linked(s.graph(), "rostrum.game", "rostrum.phones"))
+    s.mix_route("rostrum.game", "rostrum.stream")
+    s.wait("headphones path removed",
+           lambda: s.mix_unlinked(s.graph(), "rostrum.game", "rostrum.phones"))
     s.capture("rostrum.stream", 440)
     s.capture("test.headphones")
 
@@ -450,27 +505,21 @@ def destinations(s):
     s.stop(engine)
     engine = s.engine(bus="desktop", live_destinations=True)
     s.route("SafetyPlayer", "rostrum.desktop")
-    s.route("rostrum.desktop", "rostrum.stream")
-    s.route("rostrum.desktop", "rostrum.phones")
+    s.mix_route("rostrum.desktop", "rostrum.stream")
+    s.mix_route("rostrum.desktop", "rostrum.phones")
     s.capture("rostrum.stream", 440)
     s.capture("test.headphones", 440)
 
-    def absent(destination):
-        graph = s.graph()
-        source = s.node(graph, "rostrum.desktop")
-        target = s.node(graph, destination)
-        return source and target and not any(
-            o["type"].endswith(":Link") and
-            o["info"].get("output-node-id") == source["id"] and
-            o["info"].get("input-node-id") == target["id"] for o in graph)
+    def absent(master):
+        return s.mix_unlinked(s.graph(), "rostrum.desktop", master)
 
     for destination in ("phones", "stream", "both", "phones") * 2:
         print(f"  live Desktop -> {destination}", flush=True)
         s.destination(engine, "desktop", destination)
         if destination in ("phones", "both"):
-            s.route("rostrum.desktop", "rostrum.phones")
+            s.mix_route("rostrum.desktop", "rostrum.phones")
         if destination in ("stream", "both"):
-            s.route("rostrum.desktop", "rostrum.stream")
+            s.mix_route("rostrum.desktop", "rostrum.stream")
         if destination == "phones":
             s.wait("all Desktop Stream links removed", lambda: absent("rostrum.stream"))
             s.capture("test.headphones", 440)
