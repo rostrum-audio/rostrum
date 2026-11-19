@@ -1044,6 +1044,82 @@ private Q_SLOTS:
         QVERIFY(pw.testingDestroyRequests().contains(931));
     }
 
+    // A send gets DSP ports by a port config that replaces the ports it starts with. PipeWire drops
+    // the links on the old ports itself and reuses their IDs for the new ports at once, so a destroy
+    // sent for such a link removed a new DSP port (PipeWire 1.4: the send then fell back for good).
+    void linksOfASendWaitingForItsPortsAreLeftAlone()
+    {
+        pw::PwContext pw; // never started: stand-in graph only
+        engine::Engine engine(&pw);
+        auto flush = [] {
+            QCoreApplication::processEvents();
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::Timer);
+            QCoreApplication::processEvents();
+        };
+        auto port = [](uint32_t id, uint32_t nodeId, bool output, const char *channel, const char *name) {
+            pw::Port p;
+            p.id = id;
+            p.nodeId = nodeId;
+            p.output = output;
+            p.monitor = output && nodeId != 300; // the buses' outputs are their monitors
+            p.channel = QString::fromLatin1(channel);
+            p.name = QString::fromLatin1(name);
+            p.serial = QString::number(1000 + id);
+            return p;
+        };
+        auto link = [](uint32_t id, uint32_t outNode, uint32_t outPort, uint32_t inNode, uint32_t inPort) {
+            pw::Link l;
+            l.id = id;
+            l.outNode = outNode;
+            l.outPort = outPort;
+            l.inNode = inNode;
+            l.inPort = inPort;
+            return l;
+        };
+
+        pw::Graph g;
+        g.factories.insert(90, QStringLiteral("spa-node-factory"));
+        for (auto n : {node(100, "rostrum.game", "Audio/Sink", 9000),
+                       node(200, "rostrum.stream", "Audio/Sink", 9000)}) {
+            n.channels = 2;
+            g.nodes.insert(n.id, n);
+        }
+        pw::Node send = node(300, "rostrum.game.stream", "");
+        send.props.insert(QStringLiteral("rostrum.role"), QStringLiteral("send"));
+        g.nodes.insert(send.id, send);
+        for (const auto &p :
+             {port(110, 100, false, "FL", "playback_FL"), port(111, 100, false, "FR", "playback_FR"),
+              port(112, 100, true, "FL", "monitor_FL"), port(113, 100, true, "FR", "monitor_FR"),
+              port(210, 200, false, "FL", "playback_FL"), port(211, 200, false, "FR", "playback_FR"),
+              port(310, 300, false, "", "input_1"), port(311, 300, true, "", "output_1")}) {
+            g.ports.insert(p.id, p);
+        }
+        // Linked before its port config, e.g. while its node info was still on the way.
+        g.links.insert(960, link(960, 100, 112, 300, 310));
+
+        engine.setBusDestination(QStringLiteral("game"), Destination::Stream);
+        engine.createMix();
+        pw.testingInstallGraph(g);
+        flush();
+        QVERIFY(engine.perMixLevels());
+        QVERIFY2(!pw.testingDestroyRequests().contains(960),
+                 "A link on a send waiting for its DSP ports must be left to PipeWire");
+
+        // Once the DSP ports are there, a link that is really unwanted still goes.
+        g.ports.remove(310);
+        g.ports.remove(311);
+        for (const auto &p :
+             {port(320, 300, false, "FL", "input_FL"), port(321, 300, false, "FR", "input_FR"),
+              port(322, 300, true, "FL", "output_FL"), port(323, 300, true, "FR", "output_FR")}) {
+            g.ports.insert(p.id, p);
+        }
+        g.links.remove(960);
+        g.links.insert(961, link(961, 100, 112, 300, 321)); // left into right
+        pw.testingInstallGraph(g);
+        flush();
+        QVERIFY(pw.testingDestroyRequests().contains(961));
+    }
+
     void micFxQuantumFollowsSettings()
     {
         using engine::micFxQuantum;

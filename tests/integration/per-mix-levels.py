@@ -58,6 +58,27 @@ def is_send_name(name):
         and name.count(".") >= 2 and name not in ("rostrum.phones", "rostrum.stream")
 
 
+def dump_sends(graph):
+    """Each send's ports and links from pw-dump, so a CI failure shows what the sends had."""
+    sends = {o["id"]: o["info"]["props"].get("node.name") for o in graph
+             if o["type"].endswith(":Node") and is_send_name(o["info"]["props"].get("node.name", ""))}
+    print(f"Send nodes: {len(sends)}", file=sys.stderr)
+    for node, name in sorted(sends.items()):
+        ports = [o for o in graph if o["type"].endswith(":Port")
+                 and str(o["info"]["props"].get("node.id")) == str(node)]
+        print(f"  {node} {name}: {len(ports)} ports", file=sys.stderr)
+        for o in sorted(ports, key=lambda o: o["id"]):
+            props = o["info"]["props"]
+            print(f"    port {o['id']} {props.get('port.name')} {props.get('port.direction')} "
+                  f"channel={props.get('audio.channel')}", file=sys.stderr)
+        for o in graph:
+            info = o.get("info", {})
+            if o["type"].endswith(":Link") and node in (info.get("output-node-id"), info.get("input-node-id")):
+                print(f"    link {o['id']} {info.get('output-node-id')}:{info.get('output-port-id')} -> "
+                      f"{info.get('input-node-id')}:{info.get('input-port-id')} state={info.get('state')} "
+                      f"error={info.get('error')}", file=sys.stderr)
+
+
 def wait_ready(s, engine):
     log = next(log for child, log in s.processes if child is engine)
     s.wait("Mix ready", lambda: "Mix ready." in log.read_text())
@@ -182,6 +203,7 @@ def upgrade_from_direct_links(s):
         time.sleep(0.05)
     else:
         g = s.graph()
+        dump_sends(g)
         raise safety.Failure(
             "Timed out: active mix route after upgrade from direct links "
             f"(bus→send={s.linked(g, 'rostrum.game', 'rostrum.game.stream')}, "
