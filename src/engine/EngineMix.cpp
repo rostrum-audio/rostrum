@@ -751,15 +751,30 @@ void Engine::reconcileLinks()
     };
     const QSet<QString> masters{QString::fromLatin1(kPhonesNode), QString::fromLatin1(kStreamNode),
                                 QString::fromLatin1(kVodNode)};
+    // Nodes whose ports are arriving or going away (a new node, or WirePlumber reconfiguring one).
+    // What they should be linked to is not known until the set is whole again.
+    QSet<uint32_t> portsInFlux;
     for (const auto &l : busLinks(m_scene, perMix)) {
         const pw::Node *from = g.nodeByName(l.from);
         const pw::Node *to = g.nodeByName(l.to);
         if (!from || !to) {
             continue;
         }
-        const bool fromSend = from->rostrumRole() == roleName(NodeRole::Send);
-        const bool toSend = to->rostrumRole() == roleName(NodeRole::Send);
-        if ((fromSend && !hasDspPorts(g, from->id)) || (toSend && !hasDspPorts(g, to->id))) {
+        // A new send's role arrives with its node info, after its first ports: go by the name too, so
+        // nothing links to the ports it has before its DSP ports.
+        const bool fromSend = from->rostrumRole() == roleName(NodeRole::Send) || sendWanted(m_scene, l.from);
+        const bool toSend = to->rostrumRole() == roleName(NodeRole::Send) || sendWanted(m_scene, l.to);
+        const bool fromWaiting = fromSend && !hasDspPorts(g, from->id);
+        const bool toWaiting = toSend && !hasDspPorts(g, to->id);
+        if (fromWaiting || toWaiting) {
+            // Its port config replaces the ports and drops their links, and PipeWire reuses those
+            // IDs for the new ports at once: destroying a link here can remove a new DSP port.
+            if (fromWaiting) {
+                portsInFlux.insert(from->id);
+            }
+            if (toWaiting) {
+                portsInFlux.insert(to->id);
+            }
             continue;
         }
         // Switching a bus between the direct path and its sends: add the new path into a master
@@ -860,9 +875,6 @@ void Engine::reconcileLinks()
     };
 
     QSet<QPair<uint32_t, uint32_t>> wanted;
-    // Nodes whose ports are arriving or going away (a new node, or WirePlumber reconfiguring one).
-    // What they should be linked to is not known until the set is whole again.
-    QSet<uint32_t> portsInFlux;
     m_phonesCrossLinkWanted = false;
     for (const auto &[out, in] : nodePairs) {
         const auto outPorts = g.outputPorts(out->id);

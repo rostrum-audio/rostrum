@@ -397,6 +397,11 @@ void Engine::checkSendPorts()
         }
         const auto it = m_sendWaiting.constFind(send.name);
         if (it == m_sendWaiting.cend()) {
+            // Ports it had are gone: ask for DSP ports again. Once per loss, as the wait starts;
+            // a new send has not been asked yet, so this changes nothing for it.
+            if (n) {
+                m_sendsConfigured.remove(n->id);
+            }
             QElapsedTimer t;
             t.start();
             m_sendWaiting.insert(send.name, t);
