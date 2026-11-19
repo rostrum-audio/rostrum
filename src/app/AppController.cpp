@@ -184,7 +184,10 @@ void AppController::updateStatus()
     const auto state = m_pw.state();
     if (m_versionRefused) {
         status = QStringLiteral("missing");
-        detail = i18n("PipeWire %1 is too old. Rostrum needs PipeWire 1.4 or newer.", m_pw.serverVersion());
+        detail = i18n("PipeWire %1 is too old. Rostrum needs PipeWire %2 or newer.", m_pw.serverVersion(),
+                      QStringLiteral("%1.%2")
+                          .arg(requirements::kMinPipeWireMajor)
+                          .arg(requirements::kMinPipeWireMinor));
     } else if (state == pw::PwContext::State::Failed || state == pw::PwContext::State::Idle) {
         status = QStringLiteral("missing");
         detail = connectFailureText();
