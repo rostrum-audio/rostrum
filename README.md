@@ -67,10 +67,11 @@ bus goes to your headphones, to the stream, or to both. OBS captures Stream Mix 
 separately. Tools like qpwgraph and Helvum show every port and every link. Rostrum hides the graph and gives you a mixing
 desk instead: faders, meters, mute and solo, and scenes you can switch live.
 
-**Released:** [Rostrum 0.3.0](https://github.com/rostrum-audio/rostrum/releases/tag/v0.3.0),
-with an [x86_64 AppImage](https://github.com/rostrum-audio/rostrum/releases/download/v0.3.0/Rostrum-0.3.0-x86_64.AppImage).
+**Released:** [Rostrum 0.4.0](https://github.com/rostrum-audio/rostrum/releases/tag/v0.4.0),
+with an [x86_64 AppImage](https://github.com/rostrum-audio/rostrum/releases/download/v0.4.0/Rostrum-0.4.0-x86_64.AppImage).
 The AppImage was functionally validated in clean Ubuntu 26.04 x86_64 with glibc 2.43,
-PipeWire 1.6.2 and WirePlumber 0.5.13. Its glibc 2.43 binary floor is not a guarantee
+PipeWire 1.6.2 and WirePlumber 0.5.13. It needs glibc 2.43 or newer: Ubuntu 26.04 works;
+Debian 13 (2.41) and Fedora 43 (2.42) do not. That floor is not a guarantee
 that every newer Linux distribution works. Other desktop/hardware combinations need
 their own checks; source-build CI on Fedora and Arch does not validate this AppImage there.
 
@@ -84,7 +85,7 @@ Rostrum is made by [Rostrum Audio](https://github.com/rostrum-audio). More at
 
 Five minutes to a split stream:
 
-1. **Start Rostrum** with the AppImage ([download and launch](#appimage-020-x86_64)),
+1. **Start Rostrum** with the AppImage ([download and launch](#appimage-040-x86_64)),
    from the app menu after a source install, or run `./build/src/app/rostrum`. Fully quit any
    existing instance first; closing its window may leave it in the tray.
 2. **Run first-time setup.** Follow the short steps, with a summary at the end:
@@ -387,18 +388,18 @@ and the warning switch are on).
 
 ## ⬇️ Installation
 
-### AppImage 0.3.0 (x86_64)
+### AppImage 0.4.0 (x86_64)
 
-Download [Rostrum-0.3.0-x86_64.AppImage](https://github.com/rostrum-audio/rostrum/releases/download/v0.3.0/Rostrum-0.3.0-x86_64.AppImage)
-and [SHA256SUMS](https://github.com/rostrum-audio/rostrum/releases/download/v0.3.0/SHA256SUMS)
-into the same folder. [Release notes and compatibility limits](https://github.com/rostrum-audio/rostrum/releases/tag/v0.3.0).
+Download [Rostrum-0.4.0-x86_64.AppImage](https://github.com/rostrum-audio/rostrum/releases/download/v0.4.0/Rostrum-0.4.0-x86_64.AppImage)
+and [SHA256SUMS](https://github.com/rostrum-audio/rostrum/releases/download/v0.4.0/SHA256SUMS)
+into the same folder. [Release notes and compatibility limits](https://github.com/rostrum-audio/rostrum/releases/tag/v0.4.0).
 
 ```sh
 sha256sum -c SHA256SUMS
-chmod +x Rostrum-0.3.0-x86_64.AppImage
-./Rostrum-0.3.0-x86_64.AppImage
+chmod +x Rostrum-0.4.0-x86_64.AppImage
+./Rostrum-0.4.0-x86_64.AppImage
 # If FUSE is unavailable:
-./Rostrum-0.3.0-x86_64.AppImage --appimage-extract-and-run
+./Rostrum-0.4.0-x86_64.AppImage --appimage-extract-and-run
 ```
 
 Fully quit an existing instance through tray/menu **Quit** before launching another build.
@@ -406,7 +407,8 @@ The AppImage and source installation share settings, scenes and routing rules; a
 can activate the old process. Changing XDG paths alone does not isolate audio.
 
 The validated AppImage environment is **Ubuntu 26.04 x86_64, glibc 2.43, PipeWire 1.6.2,
-WirePlumber 0.5.13**. Older glibc and aarch64 are unsupported by this artifact. Qt/KDE/QML
+WirePlumber 0.5.13**. The AppImage needs glibc 2.43 or newer: Ubuntu 26.04 works; Debian 13
+(2.41) and Fedora 43 (2.42) do not. aarch64 is unsupported by this artifact. Qt/KDE/QML
 and icons are bundled; host development packages are not required. A working audio session,
 desktop D-Bus, X11 or Wayland, graphics/font libraries and FUSE (for mounted launch) are required.
 The clean runtime’s host packages and [dependency/source/replacement instructions](docs/appimage-dependencies.md)
