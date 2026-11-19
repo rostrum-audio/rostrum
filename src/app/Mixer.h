@@ -31,6 +31,8 @@ public:
         ColorRole,
         IsInputRole,
         VolumeRole,
+        PhonesVolumeRole,
+        LinkedRole,
         MutedRole,
         SoloedRole,
         DimmedRole,
@@ -38,6 +40,8 @@ public:
         AppsRole,
         PeakRole,
         ClipRole,
+        PhonesPeakRole,
+        PhonesClipRole,
         AutoCategoryRole, // "game", "voice", ... or "none"
         BalanceRole,
         DuckedRole, // turned down by auto-ducking right now
@@ -51,13 +55,15 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     void refresh();
-    void setMeter(int row, double fraction, bool clip);
+    void setMeter(int row, double fraction, bool clip, double phonesFraction, bool phonesClip);
 
 private:
     struct Meter
     {
         double fraction = 0.0;
         bool clip = false;
+        double phonesFraction = 0.0;
+        bool phonesClip = false;
     };
     engine::Engine *m_engine = nullptr;
     QStringList m_ids;
@@ -88,6 +94,8 @@ class Mixer : public QObject
     Q_PROPERTY(bool metersActive READ metersActive WRITE setMetersActive NOTIFY metersActiveChanged)
     Q_PROPERTY(bool showDb READ showDb NOTIFY settingsChanged)
     Q_PROPERTY(bool scrollToAdjust READ scrollToAdjust NOTIFY settingsChanged)
+    Q_PROPERTY(bool perMixLevels READ perMixLevels NOTIFY perMixLevelsChanged)
+    Q_PROPERTY(QString perMixUnavailable READ perMixUnavailable NOTIFY perMixLevelsChanged)
 
 public:
     // Destination indices used by QML, in the order of the segmented control.
@@ -120,9 +128,16 @@ public:
     void setMetersActive(bool active);
     bool showDb() const;
     bool scrollToAdjust() const;
+    bool perMixLevels() const;
+    QString perMixUnavailable() const;
     void notifySettingsChanged() { Q_EMIT settingsChanged(); }
 
     Q_INVOKABLE void setVolume(const QString &busId, double position);
+    // mix is "phones" or "stream". A linked bus moves the other level by the same amount.
+    Q_INVOKABLE void setMixVolume(const QString &busId, const QString &mix, double position);
+    Q_INVOKABLE void setLinked(const QString &busId, bool linked);
+    // Compact View: move the Stream level to streamPosition and the Headphones level by the same amount.
+    Q_INVOKABLE void setVolumeTogether(const QString &busId, double streamPosition);
     Q_INVOKABLE void setMuted(const QString &busId, bool muted);
     Q_INVOKABLE void setBalance(const QString &busId, double balance);
     Q_INVOKABLE void toggleMuted(const QString &busId);
@@ -149,6 +164,7 @@ Q_SIGNALS:
     void metersChanged();
     void metersActiveChanged();
     void settingsChanged();
+    void perMixLevelsChanged();
 
 private:
     using MeterState = meters::State;
@@ -166,6 +182,7 @@ private:
     qint64 m_lastTick = 0;
     bool m_metersActive = false;
     QHash<QString, MeterState> m_busMeters;
+    QHash<QString, MeterState> m_phonesBusMeters;
     MeterState m_phones;
     MeterState m_stream;
 };

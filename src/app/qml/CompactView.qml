@@ -312,7 +312,8 @@ QQC2.Pane {
                         clip: model.clip
                         destination: model.destination
                         onDestinationPicked: index => Mixer.setDestination(model.busId, index)
-                        onEdited: v => Mixer.setVolume(model.busId, v)
+                        onEdited: v => model.isInput ? Mixer.setVolume(model.busId, v)
+                                                   : Mixer.setVolumeTogether(model.busId, v)
                         onMuteToggled: Mixer.toggleMuted(model.busId)
                     }
                 }

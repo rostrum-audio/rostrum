@@ -710,6 +710,11 @@ that happens for a node it is logged. The realtime callback only keeps the
 peak sample in an atomic. The UI takes it every 40 ms (80 ms with low meter speed), falls off at
 20 dB/s and holds a clip mark for 1.5 s.
 
+A playback strip shows two meters from that one bus-node capture. Each is the peak multiplied
+by that mix's level, so solo and a destination that leaves a mix out zero only that mix's
+meter. Without per-mix levels the headphones meter copies the stream meter. No extra capture
+targets are added.
+
 The Apps page meters each running app the same way, by capturing the app's own playback stream
 (targeted by node id, since app node names repeat). WirePlumber links a capture stream to a
 playback stream's output ports without moving the app, so the app keeps playing where it was.

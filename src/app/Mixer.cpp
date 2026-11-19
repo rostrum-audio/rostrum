@@ -2,6 +2,7 @@
 
 #include "app/AppController.h"
 #include "app/Apps.h"
+#include "core/Model.h"
 #include "core/Volume.h"
 #include "engine/Engine.h"
 #include "engine/NodeSpecs.h"
@@ -44,9 +45,11 @@ QHash<int, QByteArray> BusModel::roleNames() const
 {
     return {
         {IdRole, "busId"},     {NameRole, "name"},       {ColorRole, "busColor"},
-        {IsInputRole, "isInput"}, {VolumeRole, "volume"}, {MutedRole, "muted"},
+        {IsInputRole, "isInput"}, {VolumeRole, "volume"}, {PhonesVolumeRole, "phonesVolume"},
+        {LinkedRole, "linked"}, {MutedRole, "muted"},
         {SoloedRole, "soloed"}, {DimmedRole, "dimmed"},   {DestinationRole, "destination"},
         {AppsRole, "apps"},    {PeakRole, "peak"},       {ClipRole, "clip"},
+        {PhonesPeakRole, "phonesPeak"}, {PhonesClipRole, "phonesClip"},
         {AutoCategoryRole, "autoCategory"}, {BalanceRole, "balance"}, {DuckedRole, "ducked"},
         {VodRole, "vod"},
     };
@@ -73,6 +76,10 @@ QVariant BusModel::data(const QModelIndex &index, int role) const
         return b->isInput();
     case VolumeRole:
         return b->volume;
+    case PhonesVolumeRole:
+        return b->phonesVolume;
+    case LinkedRole:
+        return b->linked;
     case MutedRole:
         return b->isInput() ? m_engine->effectiveMicMuted() : b->muted;
     case SoloedRole:
@@ -87,6 +94,10 @@ QVariant BusModel::data(const QModelIndex &index, int role) const
         return m_meters.value(id).fraction;
     case ClipRole:
         return m_meters.value(id).clip;
+    case PhonesPeakRole:
+        return m_meters.value(id).phonesFraction;
+    case PhonesClipRole:
+        return m_meters.value(id).phonesClip;
     case AutoCategoryRole:
         return categoryName(b->autoCategory);
     case BalanceRole:
@@ -153,23 +164,26 @@ void BusModel::refresh()
     }
     if (!m_ids.isEmpty()) {
         Q_EMIT dataChanged(index(0), index(int(m_ids.size()) - 1),
-                           {NameRole, ColorRole, VolumeRole, MutedRole, SoloedRole, DimmedRole, DestinationRole,
-                            AppsRole, AutoCategoryRole, BalanceRole, DuckedRole});
+                           {NameRole, ColorRole, VolumeRole, PhonesVolumeRole, LinkedRole, MutedRole, SoloedRole,
+                            DimmedRole, DestinationRole, AppsRole, AutoCategoryRole, BalanceRole, DuckedRole});
     }
 }
 
-void BusModel::setMeter(int row, double fraction, bool clip)
+void BusModel::setMeter(int row, double fraction, bool clip, double phonesFraction, bool phonesClip)
 {
     if (row < 0 || row >= m_ids.size()) {
         return;
     }
     Meter &m = m_meters[m_ids.at(row)];
-    if (qFuzzyCompare(m.fraction + 1.0, fraction + 1.0) && m.clip == clip) {
+    if (qFuzzyCompare(m.fraction + 1.0, fraction + 1.0) && m.clip == clip &&
+        qFuzzyCompare(m.phonesFraction + 1.0, phonesFraction + 1.0) && m.phonesClip == phonesClip) {
         return;
     }
     m.fraction = fraction;
     m.clip = clip;
-    Q_EMIT dataChanged(index(row), index(row), {PeakRole, ClipRole});
+    m.phonesFraction = phonesFraction;
+    m.phonesClip = phonesClip;
+    Q_EMIT dataChanged(index(row), index(row), {PeakRole, ClipRole, PhonesPeakRole, PhonesClipRole});
 }
 
 // ---- Mixer ------------------------------------------------------------------------------
@@ -206,6 +220,7 @@ Mixer::Mixer(AppController *app, QObject *parent)
     connect(m_engine, &engine::Engine::appsChanged, this, [this] { m_model.refresh(); });
     connect(m_engine, &engine::Engine::duckedChanged, this, [this] { m_model.refresh(); });
     connect(m_engine, &engine::Engine::devicesChanged, this, &Mixer::updateTargets);
+    connect(m_engine, &engine::Engine::perMixLevelsChanged, this, &Mixer::perMixLevelsChanged);
 
     connect(&m_timer, &QTimer::timeout, this, &Mixer::tick);
     m_model.refresh();
@@ -257,10 +272,11 @@ void Mixer::setMetersActive(bool active)
     } else {
         m_timer.stop();
         m_busMeters.clear();
+        m_phonesBusMeters.clear();
         m_phones = {};
         m_stream = {};
         for (int row = 0; row < m_model.rowCount(); ++row) {
-            m_model.setMeter(row, 0.0, false);
+            m_model.setMeter(row, 0.0, false, 0.0, false);
         }
         Q_EMIT metersChanged();
     }
@@ -280,13 +296,32 @@ void Mixer::tick()
         if (!b) {
             continue;
         }
-        const float peak = !b->isInput() ? m_meters.takePeak(b->nodeName())
-                         : m_micMeterNode.isEmpty() ? 0.0f
-                         : m_meters.takePeak(m_micMeterNode) * float(volume::faderToLinear(b->volume));
-        MeterState &st = m_busMeters[id];
-        const bool muted = b->isInput() ? m_engine->effectiveMicMuted() : b->muted;
-        meters::advance(st, peak, muted || m_engine->dimmedBySolo(id), dt, now);
-        m_model.setMeter(row, st.fraction, st.clip);
+        const bool mic = b->isInput();
+        const float raw = mic ? (m_micMeterNode.isEmpty() ? 0.0f : m_meters.takePeak(m_micMeterNode))
+                              : m_meters.takePeak(b->nodeName());
+        MeterState &stream = m_busMeters[id];
+        MeterState &phones = m_phonesBusMeters[id];
+        if (mic) {
+            const float peak = raw * float(volume::faderToLinear(b->volume));
+            meters::advance(stream, peak, m_engine->effectiveMicMuted(), dt, now);
+            phones = {};
+        } else {
+            // One capture of the bus node, no extra targets. With per-mix levels the node is at
+            // unity, so each meter is that peak through its own level. Solo and a destination
+            // that leaves a mix out zero that mix only. Without per-mix levels the node is
+            // already post-fader, and the headphones meter copies the stream meter.
+            const bool dimmed = m_engine->dimmedBySolo(id);
+            if (m_engine->perMixLevels()) {
+                const double streamGain = mixGain(*b, Mix::Stream, dimmed);
+                const double phonesGain = mixGain(*b, Mix::Phones, dimmed);
+                meters::advance(stream, raw * float(streamGain), streamGain <= 0.0, dt, now);
+                meters::advance(phones, raw * float(phonesGain), phonesGain <= 0.0, dt, now);
+            } else {
+                meters::advance(stream, raw, b->muted || dimmed, dt, now);
+                phones = stream;
+            }
+        }
+        m_model.setMeter(row, stream.fraction, stream.clip, phones.fraction, phones.clip);
     }
     meters::advance(m_phones, m_meters.takePeak(QString::fromLatin1(engine::kPhonesNode)), s.masterPhonesMuted, dt, now);
     meters::advance(m_stream, m_meters.takePeak(QString::fromLatin1(engine::kStreamNode)),
@@ -326,6 +361,24 @@ QStringList Mixer::paletteNames() const
 }
 
 void Mixer::setVolume(const QString &busId, double position) { m_engine->setBusVolume(busId, position); }
+
+void Mixer::setMixVolume(const QString &busId, const QString &mix, double position)
+{
+    const auto which = mixFromString(mix);
+    if (which) {
+        m_engine->setBusMixVolume(busId, *which, position);
+    }
+}
+
+void Mixer::setLinked(const QString &busId, bool linked) { m_engine->setBusLinked(busId, linked); }
+
+void Mixer::setVolumeTogether(const QString &busId, double streamPosition)
+{
+    m_engine->setBusMixVolumeTogether(busId, Mix::Stream, streamPosition);
+}
+
+bool Mixer::perMixLevels() const { return m_engine->perMixLevels(); }
+QString Mixer::perMixUnavailable() const { return m_engine->perMixUnavailable(); }
 void Mixer::setMuted(const QString &busId, bool muted) { m_engine->setBusMuted(busId, muted); }
 void Mixer::setBalance(const QString &busId, double balance) { m_engine->setBusBalance(busId, balance); }
 

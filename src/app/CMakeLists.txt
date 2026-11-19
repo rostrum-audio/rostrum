@@ -56,6 +56,7 @@ qt_add_qml_module(rostrum
         qml/MasterFader.qml
         qml/BusStrip.qml
         qml/Fader.qml
+        qml/MixFaders.qml
         qml/PlainSlider.qml
         qml/SliderReset.qml
         qml/PeakMeter.qml

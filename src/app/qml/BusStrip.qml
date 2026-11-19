@@ -4,8 +4,9 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import Rostrum
 
-// One bus: color dot and name, meter and fader, M/S, destination, app chips. The mic strip
-// shows gain instead, takes no app drops and hides sidetone behind an expander.
+// One bus: color dot and name, meters and faders, M/S, destination, app chips. A playback bus
+// has a Headphones fader and a Stream fader. The mic strip shows gain instead, takes no app
+// drops and hides sidetone behind an expander.
 QQC2.Control {
     id: strip
 
@@ -15,6 +16,8 @@ QQC2.Control {
     required property string busColor
     required property bool isInput
     required property real volume
+    required property real phonesVolume
+    required property bool linked
     required property bool muted
     required property bool soloed
     required property bool dimmed
@@ -22,6 +25,8 @@ QQC2.Control {
     required property var apps
     required property real peak
     required property bool clip
+    required property real phonesPeak
+    required property bool phonesClip
     required property string autoCategory
     required property real balance
     required property bool ducked
@@ -149,7 +154,34 @@ QQC2.Control {
             }
         }
 
+        MixFaders {
+            id: mixFaders
+            visible: !strip.isInput
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            busName: strip.name
+            phonesValue: strip.phonesVolume
+            streamValue: strip.volume
+            linked: strip.linked
+            phonesEnabled: Mixer.perMixLevels && (strip.destination === Mixer.PhonesIndex || strip.destination === Mixer.BothIndex)
+            streamEnabled: strip.destination === Mixer.StreamIndex || strip.destination === Mixer.BothIndex
+            phonesPeak: strip.phonesPeak
+            streamPeak: strip.peak
+            phonesClip: strip.phonesClip
+            streamClip: strip.clip
+            accentColor: strip.busColor
+            onPhonesEdited: v => Mixer.setMixVolume(strip.busId, "phones", v)
+            onStreamEdited: v => Mixer.setMixVolume(strip.busId, "stream", v)
+            onLinkToggled: Mixer.setLinked(strip.busId, !strip.linked)
+            onMuteRequested: Mixer.toggleMuted(strip.busId)
+            onSoloRequested: Mixer.toggleSolo(strip.busId)
+            onDestinationRequested: i => Mixer.setDestination(strip.busId, i)
+            onMenuRequested: contextMenu.popup(mixFaders, 0, 0)
+            onRenameRequested: strip.startRename()
+        }
+
         RowLayout {
+            visible: strip.isInput
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: Kirigami.Units.smallSpacing
@@ -174,15 +206,12 @@ QQC2.Control {
                 Layout.minimumHeight: Kirigami.Units.gridUnit * 4
                 orientation: Qt.Vertical
                 accentColor: strip.busColor
-                to: strip.isInput ? 1.5 : 1.0
+                to: 1.5
                 value: strip.volume
                 dimmed: strip.muted || strip.dimmed
-                accessibleName: strip.isInput ? i18nc("@label accessible", "%1 gain", strip.name)
-                                              : i18nc("@label accessible", "%1 volume", strip.name)
+                accessibleName: i18nc("@label accessible", "%1 gain", strip.name)
                 onEdited: v => Mixer.setVolume(strip.busId, v)
                 onMuteRequested: Mixer.toggleMuted(strip.busId)
-                onSoloRequested: if (!strip.isInput) Mixer.toggleSolo(strip.busId)
-                onDestinationRequested: i => Mixer.setDestination(strip.busId, i)
                 Keys.onMenuPressed: contextMenu.popup(fader, 0, 0)
                 Keys.onReleased: event => {
                     if (event.key === Qt.Key_F2) {
@@ -200,7 +229,7 @@ QQC2.Control {
             Layout.alignment: Qt.AlignHCenter
             text: Mixer.formatDb(strip.volume)
             font.features: { "tnum": 1 }
-            opacity: (Mixer.showDb || fader.hovered || fader.activeFocus) ? 0.8 : 0
+            opacity: (Mixer.showDb || (strip.isInput ? (fader.hovered || fader.activeFocus) : mixFaders.adjusting)) ? 0.8 : 0
         }
 
         // The mic strip keeps the row empty so every fader has the same height.

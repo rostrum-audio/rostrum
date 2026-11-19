@@ -99,6 +99,13 @@ QQC2.Pane {
             }
         }
 
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: Mixer.perMixUnavailable.length > 0
+            type: Kirigami.MessageType.Warning
+            text: Mixer.perMixUnavailable
+        }
+
         RowLayout {
             Layout.fillWidth: true
             visible: App.mixBusy

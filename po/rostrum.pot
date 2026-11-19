@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: rostrum 0.3.0\n"
 "Report-Msgid-Bugs-To: https://github.com/rostrum-audio/rostrum/issues\n"
-"POT-Creation-Date: 2026-11-18 17:40-0500\n"
+"POT-Creation-Date: 2026-11-18 19:17-0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -380,89 +380,101 @@ msgstr ""
 #, kde-format
 msgid ""
 "Set a fader. <bus> is a bus id or name, or stream or phones for the masters. "
-"<level> is 0 to 1 or a percentage; mic gain goes to 1.5. Can be repeated."
+"A bus sets both its levels; <bus>.phones or <bus>.stream sets one, and a "
+"linked bus moves the other with it. <level> is 0 to 1 or a percentage; mic "
+"gain goes to 1.5. Can be repeated."
 msgstr ""
 
-#: src/app/Cli.cpp:119
+#: src/app/Cli.cpp:120
 #, kde-format
 msgctxt "@info:shell value name"
 msgid "bus=level"
 msgstr ""
 
-#: src/app/Cli.cpp:120
+#: src/app/Cli.cpp:121
 #, kde-format
 msgid "Print the scene names, one per line."
 msgstr ""
 
-#: src/app/Cli.cpp:121
+#: src/app/Cli.cpp:122
 #, kde-format
 msgid "Print the action ids and their names, separated by a tab."
 msgstr ""
 
-#: src/app/Cli.cpp:123
+#: src/app/Cli.cpp:124
 #, kde-format
 msgid ""
 "Print id, level, muted or unmuted, and name of each fader, separated by tabs."
 msgstr ""
 
-#: src/app/Cli.cpp:178
+#: src/app/Cli.cpp:179
 #, kde-format
 msgid "--scene needs a scene name."
 msgstr ""
 
-#: src/app/Cli.cpp:184
+#: src/app/Cli.cpp:185
 #, kde-format
 msgid "Use only one of --mute-mic, --unmute-mic and --toggle-mic."
 msgstr ""
 
-#: src/app/Cli.cpp:195
+#: src/app/Cli.cpp:196
 #, kde-format
 msgid "“%1” is not bus=level, for example game=0.8 or game=80%."
 msgstr ""
 
-#: src/app/Cli.cpp:224
+#: src/app/Cli.cpp:225
 #, kde-format
 msgid "Could not reach Rostrum: %1"
 msgstr ""
 
-#: src/app/DBusControl.cpp:174 src/app/DBusControl.cpp:196
+#: src/app/DBusControl.cpp:157 src/app/DBusControl.cpp:179
 #, kde-format
 msgid "There is no action “%1”."
 msgstr ""
 
-#: src/app/DBusControl.cpp:186
+#: src/app/DBusControl.cpp:169
 #, kde-format
 msgid "“%1” acts while held. Use PressAction and ReleaseAction instead."
 msgstr ""
 
-#: src/app/DBusControl.cpp:191
+#: src/app/DBusControl.cpp:174
 #, kde-format
 msgid "There is no scene %1."
 msgstr ""
 
-#: src/app/DBusControl.cpp:194 src/app/DBusControl.cpp:228
-#: src/app/DBusControl.cpp:250 src/app/DBusControl.cpp:269
+#: src/app/DBusControl.cpp:177 src/app/DBusControl.cpp:212
+#: src/app/DBusControl.cpp:241 src/app/DBusControl.cpp:260
 #, kde-format
 msgid "The live scene has no bus “%1”."
 msgstr ""
 
-#: src/app/DBusControl.cpp:214
+#: src/app/DBusControl.cpp:197
 #, kde-format
 msgid "There is no scene called “%1”."
 msgstr ""
 
-#: src/app/DBusControl.cpp:233
+#: src/app/DBusControl.cpp:216
+#, kde-format
+msgid "The mic has one level."
+msgstr ""
+
+#: src/app/DBusControl.cpp:217
+#, kde-format
+msgid "The %1 master has one level."
+msgstr ""
+
+#: src/app/DBusControl.cpp:222
 #, kde-format
 msgid "The volume for “%1” must be between 0 and %2."
 msgstr ""
 
-#: src/app/DBusControl.cpp:304
+#: src/app/DBusControl.cpp:295
 #, kde-format
 msgctxt "@label master fader"
 msgid "Stream"
 msgstr ""
 
-#: src/app/DBusControl.cpp:306
+#: src/app/DBusControl.cpp:297
 #, kde-format
 msgctxt "@label master fader"
 msgid "Headphones"
@@ -1208,31 +1220,31 @@ msgctxt "@item value in decibels"
 msgid "%1 dB"
 msgstr ""
 
-#: src/app/Mixer.cpp:373
+#: src/app/Mixer.cpp:426
 #, kde-format
 msgctxt "default name of a new bus"
 msgid "Bus %1"
 msgstr ""
 
-#: src/app/Mixer.cpp:409
+#: src/app/Mixer.cpp:462
 #, kde-format
 msgctxt "decibels, silent"
 msgid "−∞ dB"
 msgstr ""
 
-#: src/app/Mixer.cpp:414
+#: src/app/Mixer.cpp:467
 #, kde-format
 msgctxt "decibels"
 msgid "+%1 dB"
 msgstr ""
 
-#: src/app/Mixer.cpp:417
+#: src/app/Mixer.cpp:470
 #, kde-format
 msgctxt "decibels"
 msgid "−%1 dB"
 msgstr ""
 
-#: src/app/Mixer.cpp:419
+#: src/app/Mixer.cpp:472
 #, kde-format
 msgctxt "decibels"
 msgid "0.0 dB"
@@ -1692,70 +1704,70 @@ msgstr ""
 msgid "OBS switched to %1, so Rostrum loaded %2."
 msgstr ""
 
-#: src/app/Obs.cpp:1092
+#: src/app/Obs.cpp:1093
 #, kde-format
 msgid "A fresh live OBS capture snapshot has not been verified."
 msgstr ""
 
-#: src/app/Obs.cpp:1123 src/app/qml/ReadinessPanel.qml:363
+#: src/app/Obs.cpp:1124 src/app/qml/ReadinessPanel.qml:363
 #, kde-format
 msgid "Verified"
 msgstr ""
 
-#: src/app/Obs.cpp:1127 src/app/qml/ReadinessPanel.qml:353
+#: src/app/Obs.cpp:1128 src/app/qml/ReadinessPanel.qml:353
 #, kde-format
 msgid "Needs attention"
 msgstr ""
 
-#: src/app/Obs.cpp:1131
+#: src/app/Obs.cpp:1132
 #, kde-format
 msgid "Intentionally excluded/idle"
 msgstr ""
 
-#: src/app/Obs.cpp:1135 src/app/qml/ReadinessPanel.qml:358
+#: src/app/Obs.cpp:1136 src/app/qml/ReadinessPanel.qml:358
 #, kde-format
 msgid "Not verified"
 msgstr ""
 
-#: src/app/Obs.cpp:1228
+#: src/app/Obs.cpp:1229
 #, kde-format
 msgctxt "List separator for missing OBS capture devices"
 msgid ", "
 msgstr ""
 
-#: src/app/Obs.cpp:1227
+#: src/app/Obs.cpp:1228
 #, kde-format
 msgid ""
 "PipeWire restarted, and OBS did not pick Rostrum back up. Restart OBS to "
 "restore %1."
 msgstr ""
 
-#: src/app/Obs.cpp:1283
+#: src/app/Obs.cpp:1284
 #, kde-format
 msgid "Your mic is muted or kept off the stream."
 msgstr ""
 
-#: src/app/Obs.cpp:1287
+#: src/app/Obs.cpp:1288
 #, kde-format
 msgid ""
 "No bus reaches the stream: Master Stream or every bus sent to the stream is "
 "muted."
 msgstr ""
 
-#: src/app/Obs.cpp:1290
+#: src/app/Obs.cpp:1291
 #, kde-format
 msgid ""
 "OBS isn't recording Rostrum Stream Mix, so viewers won't hear your buses."
 msgstr ""
 
-#: src/app/Obs.cpp:1294
+#: src/app/Obs.cpp:1295
 #, kde-format
 msgid ""
 "OBS isn't recording Rostrum Mic, so viewers won't hear your voice through "
 "Rostrum."
 msgstr ""
 
-#: src/app/Obs.cpp:1301
+#: src/app/Obs.cpp:1302
 #, kde-format
 msgctxt "@info %1 is one or more sentences"
 msgid "You're live, but: %1"
@@ -2854,7 +2866,7 @@ msgctxt "@info:tooltip"
 msgid "Only this launch goes to this bus"
 msgstr ""
 
-#: src/app/qml/AppRow.qml:172 src/app/qml/BusStrip.qml:168
+#: src/app/qml/AppRow.qml:172 src/app/qml/BusStrip.qml:200
 #: src/app/qml/CompactView.qml:131 src/app/qml/DeviceList.qml:245
 #: src/app/qml/MasterFader.qml:134
 #, kde-format
@@ -2924,8 +2936,8 @@ msgctxt "@info:tooltip"
 msgid "Muted until Rostrum quits"
 msgstr ""
 
-#: src/app/qml/AppRow.qml:285 src/app/qml/BusStrip.qml:181
-#: src/app/qml/CompactView.qml:110 src/app/qml/MasterFader.qml:107
+#: src/app/qml/AppRow.qml:285 src/app/qml/CompactView.qml:110
+#: src/app/qml/MasterFader.qml:107
 #, kde-format
 msgctxt "@label accessible"
 msgid "%1 volume"
@@ -3191,321 +3203,321 @@ msgctxt "@action:button"
 msgid "Skip This Version"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:35
+#: src/app/qml/BusStrip.qml:40
 #, kde-format
 msgctxt "@info bus receives automatically"
 msgid "Auto: games"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:36
+#: src/app/qml/BusStrip.qml:41
 #, kde-format
 msgctxt "@info bus receives automatically"
 msgid "Auto: voice chat"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:37
+#: src/app/qml/BusStrip.qml:42
 #, kde-format
 msgctxt "@info bus receives automatically"
 msgid "Auto: music"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:38
+#: src/app/qml/BusStrip.qml:43
 #, kde-format
 msgctxt "@info bus receives automatically"
 msgid "Auto: stream alerts"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:39
+#: src/app/qml/BusStrip.qml:44
 #, kde-format
 msgctxt "@info bus receives automatically"
 msgid "Auto: everything else"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:42
+#: src/app/qml/BusStrip.qml:47
 #, kde-format
 msgctxt "@info balance"
 msgid "Centre"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:43
+#: src/app/qml/BusStrip.qml:48
 #, kde-format
 msgctxt "@info balance"
 msgid "Left %1%"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:44
+#: src/app/qml/BusStrip.qml:49
 #, kde-format
 msgctxt "@info balance"
 msgid "Right %1%"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:99
+#: src/app/qml/BusStrip.qml:104
 #, kde-format
 msgctxt "@info:tooltip"
 msgid "Click to rename"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:116
+#: src/app/qml/BusStrip.qml:121
 #, kde-format
 msgctxt "@label accessible"
 msgid "%1 name"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:138 src/app/qml/CompactView.qml:45
+#: src/app/qml/BusStrip.qml:143 src/app/qml/CompactView.qml:45
 #: src/app/qml/MasterFader.qml:73
 #, kde-format
 msgctxt "@info:status"
 msgid "Muted"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:139 src/app/qml/CompactView.qml:46
+#: src/app/qml/BusStrip.qml:144 src/app/qml/CompactView.qml:46
 #, kde-format
 msgctxt "@info:status"
 msgid "Dimmed by solo"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:140 src/app/qml/CompactView.qml:47
+#: src/app/qml/BusStrip.qml:145 src/app/qml/CompactView.qml:47
 #, kde-format
 msgctxt "@info:status"
 msgid "Solo"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:141
+#: src/app/qml/BusStrip.qml:146
 #, kde-format
 msgctxt "@info:status turned down while someone speaks"
 msgid "Ducked"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:142 src/app/qml/MicButton.qml:116
+#: src/app/qml/BusStrip.qml:147 src/app/qml/MicButton.qml:116
 #, kde-format
 msgctxt "@label"
 msgid "Gain"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:180
+#: src/app/qml/BusStrip.qml:212
 #, kde-format
 msgctxt "@label accessible"
 msgid "%1 gain"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:220
+#: src/app/qml/BusStrip.qml:249
 #, kde-format
 msgctxt "@label accessible"
 msgid "%1 balance"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:224
+#: src/app/qml/BusStrip.qml:253
 #, kde-format
 msgctxt "@info:tooltip"
 msgid "Balance: %1. Double-click to centre."
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:239
+#: src/app/qml/BusStrip.qml:268
 #, kde-format
 msgctxt "@action:button short for mute"
 msgid "M"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:242 src/app/qml/CompactView.qml:149
+#: src/app/qml/BusStrip.qml:271 src/app/qml/CompactView.qml:149
 #: src/app/qml/MasterFader.qml:87
 #, kde-format
 msgctxt "@action:button accessible"
 msgid "%1 mute"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:243
+#: src/app/qml/BusStrip.qml:272
 #, kde-format
 msgctxt "@info:tooltip"
 msgid "Unmute (M)"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:243
+#: src/app/qml/BusStrip.qml:272
 #, kde-format
 msgctxt "@info:tooltip"
 msgid "Mute (M)"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:249
+#: src/app/qml/BusStrip.qml:278
 #, kde-format
 msgctxt "@action:button short for solo"
 msgid "S"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:252
+#: src/app/qml/BusStrip.qml:281
 #, kde-format
 msgctxt "@action:button accessible"
 msgid "%1 solo"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:253
+#: src/app/qml/BusStrip.qml:282
 #, kde-format
 msgctxt "@info:tooltip"
 msgid "Solo (S). Not saved in the scene."
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:260
+#: src/app/qml/BusStrip.qml:289
 #, kde-format
 msgctxt "@action:button short for mic filters (effects)"
 msgid "FX"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:263
+#: src/app/qml/BusStrip.qml:292
 #, kde-format
 msgctxt "@action:button accessible"
 msgid "Studio Voice"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:265
+#: src/app/qml/BusStrip.qml:294
 #, kde-format
 msgctxt "@info:tooltip"
 msgid "Studio Voice on (FX). Right-click to set it up."
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:266
+#: src/app/qml/BusStrip.qml:295
 #, kde-format
 msgctxt "@info:tooltip"
 msgid "Studio Voice off (FX). Right-click to set it up."
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:293
+#: src/app/qml/BusStrip.qml:322
 #, kde-format
 msgctxt "@option:check"
 msgid "Include in Twitch VOD"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:294 src/app/qml/BusStrip.qml:495
+#: src/app/qml/BusStrip.qml:323 src/app/qml/BusStrip.qml:524
 #, kde-format
 msgctxt "@label:accessible"
 msgid "%1: Include in Twitch VOD"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:333
+#: src/app/qml/BusStrip.qml:362
 #, kde-format
 msgctxt "@action:button more apps"
 msgid "+%1 more"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:347
+#: src/app/qml/BusStrip.qml:376
 #, kde-format
 msgctxt "@info placeholder"
 msgid "Drop an app here"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:370
+#: src/app/qml/BusStrip.qml:399
 #, kde-format
 msgctxt "@action:button"
 msgid "Sidetone"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:377
+#: src/app/qml/BusStrip.qml:406
 #, kde-format
 msgctxt "@action:button accessible"
 msgid "Show sidetone"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:399
+#: src/app/qml/BusStrip.qml:428
 #, kde-format
 msgctxt "@info:status sidetone"
 msgid "On"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:399
+#: src/app/qml/BusStrip.qml:428
 #, kde-format
 msgctxt "@info:status sidetone"
 msgid "Off"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:407
+#: src/app/qml/BusStrip.qml:436
 #, kde-format
 msgctxt "@option:check"
 msgid "On"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:411
+#: src/app/qml/BusStrip.qml:440
 #, kde-format
 msgctxt "@option:check accessible"
 msgid "Sidetone"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:421 src/app/qml/MicCheckCard.qml:132
+#: src/app/qml/BusStrip.qml:450 src/app/qml/MicCheckCard.qml:132
 #, kde-format
 msgctxt "@label accessible"
 msgid "Sidetone volume"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:452
+#: src/app/qml/BusStrip.qml:481
 #, kde-format
 msgctxt "@action:inmenu"
 msgid "Rename"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:457
+#: src/app/qml/BusStrip.qml:486
 #, kde-format
 msgctxt "@action:inmenu"
 msgid "Color…"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:463
+#: src/app/qml/BusStrip.qml:492
 #, kde-format
 msgctxt "@title:menu"
 msgid "Receives Automatically"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:467
+#: src/app/qml/BusStrip.qml:496
 #, kde-format
 msgctxt "@item:inmenu automatic bus"
 msgid "Games"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:468
+#: src/app/qml/BusStrip.qml:497
 #, kde-format
 msgctxt "@item:inmenu automatic bus"
 msgid "Voice Chat"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:469
+#: src/app/qml/BusStrip.qml:498
 #, kde-format
 msgctxt "@item:inmenu automatic bus"
 msgid "Music Players"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:470
+#: src/app/qml/BusStrip.qml:499
 #, kde-format
 msgctxt "@item:inmenu automatic bus"
 msgid "Stream Alerts"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:471
+#: src/app/qml/BusStrip.qml:500
 #, kde-format
 msgctxt "@item:inmenu automatic bus"
 msgid "Everything Else"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:472
+#: src/app/qml/BusStrip.qml:501
 #, kde-format
 msgctxt "@item:inmenu automatic bus"
 msgid "Nothing"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:486
+#: src/app/qml/BusStrip.qml:515
 #, kde-format
 msgctxt "@action:inmenu"
 msgid "Centre Balance"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:494
+#: src/app/qml/BusStrip.qml:523
 #, kde-format
 msgctxt "@action:inmenu"
 msgid "Include in Twitch VOD"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:505
+#: src/app/qml/BusStrip.qml:534
 #, kde-format
 msgctxt "@action:inmenu"
 msgid "Duplicate"
 msgstr ""
 
-#: src/app/qml/BusStrip.qml:513
+#: src/app/qml/BusStrip.qml:542
 #, kde-format
 msgctxt "@action:inmenu"
 msgid "Remove…"
@@ -4682,6 +4694,42 @@ msgctxt "diagram box"
 msgid "OBS (your stream)"
 msgstr ""
 
+#: src/app/qml/MixFaders.qml:61
+#, kde-format
+msgctxt "@label accessible"
+msgid "%1 headphones level"
+msgstr ""
+
+#: src/app/qml/MixFaders.qml:73
+#, kde-format
+msgctxt "@label accessible"
+msgid "%1 headphones"
+msgstr ""
+
+#: src/app/qml/MixFaders.qml:94
+#, kde-format
+msgctxt "@label accessible"
+msgid "%1 stream"
+msgstr ""
+
+#: src/app/qml/MixFaders.qml:113
+#, kde-format
+msgctxt "@label accessible"
+msgid "%1 stream level"
+msgstr ""
+
+#: src/app/qml/MixFaders.qml:124
+#, kde-format
+msgctxt "@action:button"
+msgid "Unlink"
+msgstr ""
+
+#: src/app/qml/MixFaders.qml:125
+#, kde-format
+msgctxt "@action:button"
+msgid "Link Headphones and Stream"
+msgstr ""
+
 #: src/app/qml/MixerPage.qml:55
 #, kde-format
 msgctxt "@title"
@@ -4712,24 +4760,24 @@ msgctxt "@label master caption"
 msgid "What viewers hear"
 msgstr ""
 
-#: src/app/qml/MixerPage.qml:111 src/app/qml/ObsPage.qml:118
+#: src/app/qml/MixerPage.qml:118 src/app/qml/ObsPage.qml:118
 #, kde-format
 msgid "Creating the mix in PipeWire…"
 msgstr ""
 
-#: src/app/qml/MixerPage.qml:154
+#: src/app/qml/MixerPage.qml:161
 #, kde-format
 msgctxt "@action:button"
 msgid "Add Bus"
 msgstr ""
 
-#: src/app/qml/MixerPage.qml:177
+#: src/app/qml/MixerPage.qml:184
 #, kde-format
 msgctxt "@title:dialog"
 msgid "Remove %1?"
 msgstr ""
 
-#: src/app/qml/MixerPage.qml:179
+#: src/app/qml/MixerPage.qml:186
 #, kde-format
 msgctxt "@info"
 msgid "One app assigned to %2 goes back to the default output."
@@ -4737,12 +4785,12 @@ msgid_plural "%1 apps assigned to %2 go back to the default output."
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/app/qml/MixerPage.qml:181
+#: src/app/qml/MixerPage.qml:188
 #, kde-format
 msgid "The %1 bus is removed from this scene."
 msgstr ""
 
-#: src/app/qml/MixerPage.qml:182
+#: src/app/qml/MixerPage.qml:189
 #, kde-format
 msgctxt "@action:button"
 msgid "Remove"

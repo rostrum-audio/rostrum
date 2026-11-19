@@ -21,6 +21,7 @@ public Q_SLOTS:
         qmlRegisterType<AppRowsFixture>("RostrumTest", 1, 0, "AppRowsFixture");
         KLocalizedString::setApplicationDomain("rostrum");
         KLocalization::setupLocalizedContext(engine);
+        engine->addImportPath(QStringLiteral(ROSTRUM_QML_STUBS));
     }
 };
 QUICK_TEST_MAIN_WITH_SETUP(rostrum_quick, Setup)
