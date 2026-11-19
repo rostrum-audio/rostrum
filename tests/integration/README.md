@@ -315,6 +315,29 @@ pass for a specific microphone recording, hardware matrix or other release check
 The five successful clean packaged validations are automated evidence; they do
 not turn unreported manual checks into passes.
 
+## Per-mix levels
+
+`audio_per_mix_levels` (`per-mix-levels.py`) drives `rostrum-graphtest` against a
+private PipeWire/WirePlumber/D-Bus session with fake headphones. Each playback bus
+feeds Headphones and Stream through `rostrum.<bus>.phones` and `.stream` send
+nodes. The cases are:
+
+- Headphones at 100% and Stream at 50% differ by about 18 dB on the two masters
+  (`0.5³`), and the same ratio holds after graphtest exits without `--teardown`
+- A restart keeps the same send node ids, and a continuous capture of
+  `rostrum.stream` has no 20 ms window below −40 dBFS
+- Starting with `ROSTRUM_TEST_SEND_PORTS_FAIL=1` (direct links) then again
+  normally never leaves a double path (+6 dB) into the stream
+- Send nodes have no `media.class`, so they do not appear as sinks or sources
+- Soloing Music silences Game in headphones and leaves it on the stream
+- With the ports-fail switch, every send is gone within the fallback window and
+  the bus links straight into both masters at the Stream level
+- With `--buses 11` and six tones, `pw-profiler -J` over 300 cycles: the median
+  per-cycle sum of all send busy times stays under 100 µs
+
+`Session.rms` shares its capture path with `capture`. Graphtest gains
+`--volume bus[.phones|.stream]=v` and `--buses N`.
+
 ## Noise removal off the realtime thread
 
 `audio_mic_filter_denoise_worker` is registered for RNNoise builds. It runs the

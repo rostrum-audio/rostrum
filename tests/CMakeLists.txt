@@ -193,9 +193,15 @@ if(ROSTRUM_AUDIO_INTEGRATION_TESTS)
                 TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
         endif()
     endif()
+    # Headphones and Stream sends: levels, solo, fallback, upgrade and realtime cost.
+    find_program(AUDIO_pw-profiler NAMES pw-profiler REQUIRED)
+    add_test(NAME audio_per_mix_levels COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/integration/per-mix-levels.py $<TARGET_FILE:rostrum-graphtest>)
+    set_tests_properties(audio_per_mix_levels PROPERTIES
+        TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
     # Lifecycle regressions deliberately interrupt private jobs; serialize audio tests.
     set_tests_properties(audio_safety audio_safety_fixture audio_safety_lifecycle audio_readiness
         audio_rule_fragments audio_stream_replacement audio_wireplumber_restart audio_wireplumber_restart_idle
-        audio_pipewire_restart audio_obs_capture_lost PROPERTIES
+        audio_pipewire_restart audio_obs_capture_lost audio_per_mix_levels PROPERTIES
         TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
 endif()

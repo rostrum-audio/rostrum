@@ -345,7 +345,8 @@ mic_fallback = {str(fallback).lower()}
         acknowledgement = f"Destination request {self.destination_request}: {bus}={destination}\n"
         self.wait(f"applied destination request {request}", lambda: acknowledgement in log.read_text())
 
-    def capture(self, name, frequency=None, channels=2):
+    def _capture_raw(self, name, channels=2, seconds=0.5):
+        """Record float32 interleaved audio from a node; returns the bytes."""
         graph = self.graph()
         node = self.node(graph, name)
         if not node:
@@ -357,12 +358,32 @@ mic_fallback = {str(fallback).lower()}
         if node["info"]["props"].get("media.class") == "Audio/Sink":
             props += " stream.capture.sink = true"
         props += " }"
+        need = int(RATE * channels * 4 * seconds)
         p = self.spawn(["pw-cat", "-r", "-a", "--format", "f32", "--rate", str(RATE),
                         "--channels", str(channels), "--target",
                         str(node["info"]["props"]["object.serial"]), "-P", props, "-"], output)
-        self.wait(f"real capture buffers from {name}", lambda: path.stat().st_size >= RATE * channels * 4 // 2)
+        self.wait(f"real capture buffers from {name}", lambda: path.stat().st_size >= need)
         self.stop(p)
-        self.verify(name, path.read_bytes()[:RATE * channels * 4 // 2], frequency, channels)
+        return path.read_bytes()[:need]
+
+    def capture(self, name, frequency=None, channels=2):
+        self.verify(name, self._capture_raw(name, channels, 0.5), frequency, channels)
+
+    def rms(self, name, channels=2):
+        """RMS of the last 300 ms on each channel of a short capture from `name`."""
+        raw = self._capture_raw(name, channels, 0.5)
+        data = array.array("f")
+        data.frombytes(raw[:len(raw) // (4 * channels) * 4 * channels])
+        if len(data) < RATE * channels * 3 // 10:
+            raise Failure(f"{name}: fewer than 300 ms of real buffers")
+        out = []
+        for channel in range(channels):
+            samples = list(data)[channel::channels][-RATE * 3 // 10:]
+            value = math.sqrt(sum(v * v for v in samples) / len(samples))
+            if not math.isfinite(value):
+                raise Failure(f"{name}: non-finite audio")
+            out.append(value)
+        return out
 
     @staticmethod
     def verify(name, raw, frequency=None, channels=2):

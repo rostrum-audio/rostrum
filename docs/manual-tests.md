@@ -857,6 +857,26 @@ Needs real OBS with Set Up OBS applied, Rostrum connected, "Follow OBS while it 
 6. Quit and start OBS (or restart the Flatpak). Rostrum captures return, meters move, and the
    warning clears without Set Up OBS again.
 
+## 34. Per-mix levels (Headphones and Stream)
+
+Needs a running Rostrum with the send path (PipeWire 1.4+, `spa-node-factory` loaded).
+
+1. On the Mixer, every playback strip shows two faders and a link button between them.
+   The mic strip still has one gain fader.
+2. With the link on, drag Game's Headphones fader: Stream moves by the same amount.
+   Unlink, set Headphones to 100% and Stream to 50%: your ears hear Game louder than
+   the Stream Mix meters (and a private-session check expects about 18 dB).
+3. Solo Music: Game dims in headphones and says Dimmed by solo; Stream Mix still carries
+   Game. Unsolo.
+4. Set Game to Stream only: its Headphones fader greys out. Set Music to Headphones only:
+   its Stream fader greys out. Return both to Both.
+5. In OBS, start a short recording with Stream Mix and an isolated Game track. Change
+   Game's Stream fader while recording: the Stream Mix level moves; the Game track does
+   not (it captures the bus before the sends). Mute Game: both go silent.
+6. Include Game in Twitch VOD and move only the Stream fader: the VOD mix follows Stream.
+7. Quit Rostrum without Rebuild Mix. `pw-dump` still lists `rostrum.game.phones` and
+   `.stream`, and a tone into Game still reaches the masters at the saved levels.
+
 ## Smoke test log
 
 Kubuntu 26.04, Plasma 6.6 Wayland, PipeWire 1.6.2, WirePlumber 0.5.13, build 0.1.0. The checks
