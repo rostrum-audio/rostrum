@@ -943,7 +943,14 @@ void Engine::reconcileLinks()
         }
         if (managed(l) && !wanted.contains({l.outPort, l.inPort}) && !m_pendingDestroy.contains(l.id)) {
             qCInfo(lcEngine) << "unlink" << g.node(l.outNode)->name << "->" << g.node(l.inNode)->name;
-            destroyOnce(l.id);
+            // Removed only while its ID still names this link where PipeWire's events arrive first;
+            // refused, it is looked at again once the graph has caught up.
+            if (m_pw->destroyLink(l.id, l.serial)) {
+                m_pendingDestroy.insert(l.id);
+            } else {
+                qCInfo(lcEngine) << "not unlinking" << l.id << "serial" << l.serial
+                                 << ": the ID names another object now";
+            }
         }
     }
     // A pair no longer wanted would otherwise stay forever, and hold back a link asked for again

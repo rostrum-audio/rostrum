@@ -60,6 +60,7 @@ struct Link
     uint32_t outPort = 0;
     uint32_t inNode = 0;
     uint32_t inPort = 0;
+    QString serial; // object.serial; not reused when the registry ID is
     QString state; // empty until link info arrives; never assume active from presence
     QString error;
 };

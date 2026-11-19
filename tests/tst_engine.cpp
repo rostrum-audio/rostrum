@@ -1044,6 +1044,84 @@ private Q_SLOTS:
         QVERIFY(pw.testingDestroyRequests().contains(931));
     }
 
+    // PipeWire hands a removed link's ID to the next object at once (packet #3: a new DSP port).
+    // Rostrum's graph copy can still show the old link when it decides to unlink; the destroy must
+    // only be sent while the ID still names that very link (same object.serial).
+    void unlinkSkipsALinkWhoseIdWasReused()
+    {
+        pw::PwContext pw; // never started: stand-in graph only
+        engine::Engine engine(&pw);
+        auto flush = [] {
+            QCoreApplication::processEvents();
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::Timer);
+            QCoreApplication::processEvents();
+        };
+        auto port = [](uint32_t id, uint32_t nodeId, bool output, const char *channel) {
+            pw::Port p;
+            p.id = id;
+            p.nodeId = nodeId;
+            p.output = output;
+            p.monitor = output;
+            p.channel = QString::fromLatin1(channel);
+            p.name = QStringLiteral("%1_%2").arg(
+                output ? QStringLiteral("monitor") : QStringLiteral("playback"), p.channel);
+            p.serial = QString::number(1000 + id);
+            return p;
+        };
+        auto link = [](uint32_t id, uint32_t outNode, uint32_t outPort, uint32_t inNode, uint32_t inPort,
+                       const char *serial) {
+            pw::Link l;
+            l.id = id;
+            l.outNode = outNode;
+            l.outPort = outPort;
+            l.inNode = inNode;
+            l.inPort = inPort;
+            l.serial = QString::fromLatin1(serial);
+            return l;
+        };
+
+        pw::Graph g;
+        for (auto n : {node(100, "rostrum.game", "Audio/Sink", 9000),
+                       node(200, "rostrum.stream", "Audio/Sink", 9000)}) {
+            n.channels = 2;
+            g.nodes.insert(n.id, n);
+        }
+        for (const auto &p :
+             {port(110, 100, false, "FL"), port(111, 100, false, "FR"), port(112, 100, true, "FL"),
+              port(113, 100, true, "FR"), port(210, 200, false, "FL"), port(211, 200, false, "FR"),
+              port(212, 200, true, "FL"), port(213, 200, true, "FR")}) {
+            g.ports.insert(p.id, p);
+        }
+        g.links.insert(930, link(930, 100, 112, 200, 210, "5930"));
+        g.links.insert(931, link(931, 100, 113, 200, 211, "5931"));
+
+        engine.setBusDestination(QStringLiteral("game"), Destination::Stream);
+        engine.createMix();
+        pw.testingInstallGraph(g);
+        flush();
+        QVERIFY(!pw.testingDestroyRequests().contains(930));
+        QVERIFY(!pw.testingDestroyRequests().contains(931));
+
+        // Where PipeWire's events arrive first, 930 is already a port and 931 a newer link; the
+        // copy has not caught up. The bus stops feeding the stream, so both look unwanted.
+        QHash<uint32_t, pw::Link> loop;
+        loop.insert(931, link(931, 100, 113, 200, 211, "6931"));
+        pw.testingSetLoopLinks(loop);
+        engine.setBusDestination(QStringLiteral("game"), Destination::Phones);
+        flush();
+        QVERIFY2(!pw.testingDestroyRequests().contains(930), "930 now names a port");
+        QVERIFY2(!pw.testingDestroyRequests().contains(931), "931 now names a different link");
+
+        // Once the IDs name the same links again, the unwanted links do go.
+        loop.insert(930, g.links.value(930));
+        loop.insert(931, g.links.value(931));
+        pw.testingSetLoopLinks(loop);
+        pw.testingInstallGraph(g);
+        flush();
+        QVERIFY(pw.testingDestroyRequests().contains(930));
+        QVERIFY(pw.testingDestroyRequests().contains(931));
+    }
+
     // A send gets DSP ports by a port config that replaces the ports it starts with. PipeWire drops
     // the links on the old ports itself and reuses their IDs for the new ports at once, so a destroy
     // sent for such a link removed a new DSP port (PipeWire 1.4: the send then fell back for good).

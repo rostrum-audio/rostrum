@@ -21,6 +21,7 @@
 #include <cstring>
 #include <list>
 #include <map>
+#include <optional>
 #include <unordered_map>
 
 Q_LOGGING_CATEGORY(lcPw, "rostrum.pw")
@@ -86,6 +87,7 @@ struct BoundLink
 {
     PwContext::Impl *impl = nullptr;
     uint32_t id = 0;
+    QString serial; // object.serial
     pw_link *proxy = nullptr;
     spa_hook listener{};
 };
@@ -134,6 +136,7 @@ struct PwContext::Impl
     QString wireplumberVersion;
     bool hasWirePlumber = false;
     QList<uint32_t> testingDestroyRequests; // only filled while unconnected
+    std::optional<QHash<uint32_t, Link>> testingLoopLinks; // only set while unconnected
     Graph graph;
     QHash<uint32_t, QHash<QString, QString>> metadataValues;
     QHash<QString, QString> settingsValues;
@@ -477,6 +480,7 @@ void onGlobal(void *data, uint32_t id, uint32_t, const char *type, uint32_t, con
         l.outPort = props.value(QStringLiteral(PW_KEY_LINK_OUTPUT_PORT)).toUInt();
         l.inNode = props.value(QStringLiteral(PW_KEY_LINK_INPUT_NODE)).toUInt();
         l.inPort = props.value(QStringLiteral(PW_KEY_LINK_INPUT_PORT)).toUInt();
+        l.serial = props.value(QStringLiteral(PW_KEY_OBJECT_SERIAL));
         impl->post([impl, l] {
             impl->graph.links.insert(l.id, l);
             impl->q->scheduleChanged();
@@ -484,6 +488,7 @@ void onGlobal(void *data, uint32_t id, uint32_t, const char *type, uint32_t, con
         auto b = std::make_unique<BoundLink>();
         b->impl = impl;
         b->id = id;
+        b->serial = l.serial;
         b->proxy = static_cast<pw_link *>(pw_registry_bind(impl->registry, id, type, PW_VERSION_LINK, 0));
         if (b->proxy) {
             pw_link_add_listener(b->proxy, &b->listener, &kLinkEvents, b.get());
@@ -1006,6 +1011,38 @@ void PwContext::destroyObject(uint32_t id)
     pw_thread_loop_lock(d->loop);
     pw_registry_destroy(d->registry, id);
     pw_thread_loop_unlock(d->loop);
+}
+
+bool PwContext::destroyLink(uint32_t id, const QString &serial)
+{
+    if (!d->registry) {
+        if (d->testingLoopLinks) {
+            const auto it = d->testingLoopLinks->constFind(id);
+            if (it == d->testingLoopLinks->cend() || (!serial.isEmpty() && it->serial != serial)) {
+                return false;
+            }
+        }
+        d->testingDestroyRequests.append(id);
+        return true;
+    }
+    pw_thread_loop_lock(d->loop);
+    // boundLinks follows the registry: an ID removed, or given to a port or a newer link, fails here.
+    const auto it = d->boundLinks.find(id);
+    const bool same = it != d->boundLinks.end() && (serial.isEmpty() || it->second->serial == serial);
+    if (same) {
+        pw_registry_destroy(d->registry, id);
+    }
+    pw_thread_loop_unlock(d->loop);
+    return same;
+}
+
+void PwContext::testingSetLoopLinks(const QHash<uint32_t, Link> &links)
+{
+    if (d->loop) {
+        qCWarning(lcPw) << "testingSetLoopLinks refused: a real PipeWire connection is up";
+        return;
+    }
+    d->testingLoopLinks = links;
 }
 
 void PwContext::createLink(uint32_t outPort, uint32_t inPort)
