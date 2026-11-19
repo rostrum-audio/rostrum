@@ -97,6 +97,11 @@
   </screenshots>
 
   <releases>
+    <release version="0.4.0" date="2026-11-19">
+      <description>
+        <p>Each playback bus now has Headphones and Stream levels, linked so existing scenes sound the same, and Rostrum now needs PipeWire 1.4 or newer. Studio Voice no longer crackles in the headphones (it now adds 20 ms of delay instead of 10) and starts properly on PipeWire 1.4 instead of falling back to an unfiltered mic.</p>
+      </description>
+    </release>
     <release version="0.3.0" date="2026-11-17">
       <description>
         <p>Every page is redesigned, and the mic filters are now Studio Voice, with a de-esser and clearer defaults. Links and app routing recover after PipeWire or WirePlumber restarts, Rostrum warns when OBS loses its captures, and a hotkey that clashes asks before it replaces another.</p>
