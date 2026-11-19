@@ -118,14 +118,29 @@ Item {
             id: linkButton
             objectName: "linkButton"
             Layout.alignment: Qt.AlignHCenter
-            icon.name: root.linked ? "link" : "edit-link"
+            Layout.preferredWidth: Kirigami.Units.iconSizes.medium + Kirigami.Units.smallSpacing * 2
+            Layout.preferredHeight: Kirigami.Units.iconSizes.medium + Kirigami.Units.smallSpacing * 2
+            // Breeze's "link" / "edit-link" are identical; qrc SVGs need Kirigami.Icon
+            // for theme tinting — ToolButton.icon.color does not recolor them reliably.
             display: QQC2.AbstractButton.IconOnly
+            padding: Kirigami.Units.smallSpacing
             onClicked: root.linkToggled()
             Accessible.name: root.linked ? i18nc("@action:button", "Unlink")
                                           : i18nc("@action:button", "Link Headphones and Stream")
             QQC2.ToolTip.text: Accessible.name
             QQC2.ToolTip.visible: hovered
             QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+
+            contentItem: Kirigami.Icon {
+                source: root.linked ? "qrc:/icons/mix-link.svg"
+                                    : "qrc:/icons/mix-unlink.svg"
+                // Linked = full text color; unlinked = quieter + broken glyph.
+                color: root.linked ? Kirigami.Theme.textColor
+                                   : Kirigami.Theme.disabledTextColor
+                implicitWidth: Kirigami.Units.iconSizes.smallMedium
+                implicitHeight: Kirigami.Units.iconSizes.smallMedium
+                isMask: true
+            }
         }
     }
 }

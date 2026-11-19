@@ -99,6 +99,8 @@ qt_add_resources(rostrum "icons"
         ${PROJECT_SOURCE_DIR}/data/icons/${ROSTRUM_APP_ID}.svg
         ${PROJECT_SOURCE_DIR}/data/icons/${ROSTRUM_APP_ID}-tray.svg
         ${PROJECT_SOURCE_DIR}/data/icons/${ROSTRUM_APP_ID}-tray-muted.svg
+        ${PROJECT_SOURCE_DIR}/data/icons/mix-link.svg
+        ${PROJECT_SOURCE_DIR}/data/icons/mix-unlink.svg
 )
 
 # Shared system Qt: QML imports resolve at runtime, no static plugin import scan needed.
