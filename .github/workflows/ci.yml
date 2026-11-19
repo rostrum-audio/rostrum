@@ -35,12 +35,19 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
-  # The oldest PipeWire Rostrum supports. Not a required check, like Arch.
+  # The oldest PipeWire Rostrum supports. A failure here fails the run: PipeWire 1.4 is the
+  # documented minimum, so it must not be hidden the way the Arch job's rolling packages are.
   debian:
     name: Debian 13 unit tests (PipeWire 1.4)
     runs-on: ubuntu-24.04
-    continue-on-error: true
-    container: debian:13
+    # debian:13 (13.7, trixie-20261104) by index digest, and trixie's PipeWire/WirePlumber by
+    # exact version, so the oldest supported PipeWire cannot drift. Bump all three in one PR
+    # ("Debian 13 pins" in CONTRIBUTING.md); Dependabot does not update container: images.
+    container: debian:13@sha256:9c6e381421d0f48d1b8133e573f33c185ee16cbf505eda9c4a8a4791b25ea8a6
+    env:
+      # PipeWire and WirePlumber exactly as trixie main ships them (not trixie-backports).
+      PW_VERSION: 1.4.2-1
+      WP_VERSION: 0.5.8-2
     steps:
       - uses: actions/checkout@v7
       - name: Install build dependencies
@@ -49,10 +56,15 @@ jobs:
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             ca-certificates build-essential cmake ninja-build pkg-config \
             qt6-base-dev qt6-declarative-dev qt6-websockets-dev libkf6i18n-dev \
-            libpipewire-0.3-dev libtomlplusplus-dev \
-            pipewire-bin pipewire-pulse pulseaudio-utils wireplumber dbus python3
+            libtomlplusplus-dev pulseaudio-utils dbus python3 \
+            libpipewire-0.3-dev="$PW_VERSION" libpipewire-0.3-0t64="$PW_VERSION" \
+            libpipewire-0.3-modules="$PW_VERSION" libspa-0.2-dev="$PW_VERSION" \
+            libspa-0.2-modules="$PW_VERSION" pipewire="$PW_VERSION" pipewire-bin="$PW_VERSION" \
+            pipewire-pulse="$PW_VERSION" wireplumber="$WP_VERSION" libwireplumber-0.5-0="$WP_VERSION"
       - name: Show the PipeWire version
-        run: pipewire --version
+        run: |
+          pipewire --version
+          dpkg-query -W -f '${Package} ${Version}\n' 'libpipewire*' 'libspa*' 'pipewire*' '*wireplumber*'
       - name: Configure
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DROSTRUM_BUILD_APP=OFF -DROSTRUM_AUDIO_INTEGRATION_TESTS=ON
       - name: Build

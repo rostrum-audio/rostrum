@@ -174,11 +174,22 @@ it can merge:
 - **Ubuntu unit tests:** builds the engine, tools and tests on Ubuntu 26.04 and runs `ctest`.
 - **Fedora build:** builds the engine and tools on the latest Fedora.
 
-An Arch build also runs and is allowed to fail. **Ubuntu app build** builds the whole Kirigami
+**Debian 13 unit tests (PipeWire 1.4)** runs the same tests against the oldest PipeWire Rostrum
+supports. It is not a required check, but a failure turns the run red; do not merge over it without
+saying why in the pull request. An Arch build also runs and is allowed to fail. **Ubuntu app build** builds the whole Kirigami
 app on Ubuntu 26.04, runs the tests, validates the desktop entry and the AppStream metainfo with
 `desktop-file-validate` and `appstreamcli validate`, and starts the app offscreen once so a QML
 error fails the job. It cannot click through the pages, so still start the app locally if you
 change anything in `src/app/`.
+
+**Debian 13 pins.** The Debian job pins the `debian:13` image by digest and PipeWire and
+WirePlumber by exact version (`PW_VERSION` and `WP_VERSION` in `ci.yml`). Dependabot does not update
+`container:` images, so bump them by hand in one pull request after each Debian point release, or
+when the install step fails with "Version ... was not found": get the new digest with
+`crane digest debian:13` (or `skopeo inspect --raw docker://debian:13 | sha256sum`), read the
+versions with `apt-cache policy pipewire wireplumber` in that image, and check that the "Show the
+PipeWire version" step lists them. Stay on trixie main, not trixie-backports, so the job keeps
+testing the PipeWire that Debian 13 users have.
 
 1. Fork the repository and create a branch from `main`.
 2. Make the change, with tests where they fit.

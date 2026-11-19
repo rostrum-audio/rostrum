@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import shutil
 import signal
+import subprocess
 import sys
 import tempfile
 import time
@@ -70,6 +71,25 @@ def snapshot(owner, output, budget=2):
     (output / 'process-state.json').write_text(json.dumps(state, indent=2))
 
 
+def proc_read_probe():
+    """After the launch: can this container read what snapshot() records? A disposable child, never the app."""
+    child = subprocess.Popen(['sleep', '10'], stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        time.sleep(.05)  # let it reach its sleep syscall; this is not part of the launch deadline
+        probe = {}
+        for name in ('wchan', 'syscall', 'stack'):
+            try:
+                with open(f'/proc/{child.pid}/task/{child.pid}/{name}', 'rb') as item:
+                    probe[name] = 'readable' if item.read(4096).strip() else 'empty'
+            except OSError as error:
+                probe[name] = f'unavailable: {error.strerror}'
+        return probe
+    finally:
+        child.kill()
+        child.wait()
+
+
 def run(application, output, timeout_seconds=60, diagnostic_at=50):
     # Only tests shorten these values. CI's CLI has no deadline/retry override.
     if not 0 < diagnostic_at < timeout_seconds:
@@ -95,7 +115,7 @@ def run(application, output, timeout_seconds=60, diagnostic_at=50):
                PULSE_SERVER=f'unix:{private}/runtime/no-pulse',
                ROSTRUM_SCREENSHOT=str(output / 'screenshot.png'))
     job = None
-    result = {'returncode': 1, 'cleanup_complete': False, 'error': None,
+    result = {'returncode': 1, 'cleanup_complete': False, 'error': None, 'first_output_seconds': None,
               'diagnostic_at_seconds': diagnostic_at, 'deadline_seconds': timeout_seconds}
     started = time.monotonic()
     interrupted = None
@@ -125,6 +145,9 @@ def run(application, output, timeout_seconds=60, diagnostic_at=50):
                 signal.pthread_sigmask(signal.SIG_SETMASK, mask)
             captured = False
             while job.poll() is None:
+                if result['first_output_seconds'] is None and os.fstat(log.fileno()).st_size > 0:
+                    # Passive: our own log file. A timeout with null here produced no output at all.
+                    result['first_output_seconds'] = round(time.monotonic() - started, 3)
                 if not captured and time.monotonic() - started >= diagnostic_at:
                     captured = True
                     try:
@@ -140,6 +163,9 @@ def run(application, output, timeout_seconds=60, diagnostic_at=50):
                 time.sleep(.02)  # Observed process status, not a startup-success delay.
             else:
                 result['returncode'] = job.returncode
+            if result['first_output_seconds'] is None and os.fstat(log.fileno()).st_size > 0:
+                # Output arrived between the last poll and exit: an upper bound, not a timestamp.
+                result['first_output_seconds'] = round(time.monotonic() - started, 3)
         if result['returncode'] == 0:
             screenshot = output / 'screenshot.png'
             if not screenshot.is_file() or screenshot.stat().st_size == 0:
@@ -178,6 +204,11 @@ def run(application, output, timeout_seconds=60, diagnostic_at=50):
             if result['returncode'] == 0:
                 result['returncode'] = 1
         result['elapsed_seconds'] = round(time.monotonic() - started, 3)
+        try:
+            # Diagnostic only, after the launch and cleanup: never changes the returncode.
+            result['proc_read_probe'] = proc_read_probe()
+        except Exception as error:
+            result['proc_read_probe'] = {'error': str(error)}
         (output / 'result.json').write_text(json.dumps(result, indent=2))
         for sig, handler in old_handlers.items():
             signal.signal(sig, handler)

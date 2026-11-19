@@ -58,7 +58,10 @@ print('startup output', flush=True)
         self.assertEqual((self.output / 'rostrum.log').read_text(), 'private startup log')
         self.assertFalse((self.output / 'process-state.json').exists())
         self.assertFalse(list(self.output.glob('private-*')))
-        self.assertTrue(json.loads((self.output / 'result.json').read_text())['cleanup_complete'])
+        record = json.loads((self.output / 'result.json').read_text())
+        self.assertTrue(record['cleanup_complete'])
+        self.assertIsNotNone(record['first_output_seconds'])
+        self.assertEqual(sorted(record['proc_read_probe']), ['stack', 'syscall', 'wchan'])
 
     def test_timeout_retains_live_descendant_state_and_reclaims_tree(self):
         result = self.run_probe('''import os, subprocess, sys, time
