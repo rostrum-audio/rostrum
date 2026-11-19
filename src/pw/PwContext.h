@@ -54,6 +54,10 @@ public:
     // Sets entries of a node's Props "params" struct. Values may be bool, numbers or strings.
     void setNodeParams(uint32_t nodeId, const QList<QPair<QString, QVariant>> &params);
     void destroyObject(uint32_t id);
+    // Removes a link only if, on the PipeWire thread, the ID still names a link with this
+    // object.serial (empty: any link). PipeWire hands a removed object's ID to the next object at
+    // once, and that thread hears of it before the graph() copy does. Returns whether it was sent.
+    bool destroyLink(uint32_t id, const QString &serial);
     void createLink(uint32_t outPort, uint32_t inPort);
     void setNodeVolume(uint32_t nodeId, float linear, bool mute);
     void setNodeVolumes(uint32_t nodeId, const QList<float> &perChannel, bool mute); // the last repeats
@@ -71,8 +75,12 @@ public:
 
     // Unit tests only: install a stand-in graph without a daemon. Refuses if connected.
     void testingInstallGraph(const Graph &graph, State state = State::Ready);
-    // Unit tests only: the object IDs destroyObject() was asked to remove while there is no daemon.
+    // Unit tests only: the object IDs destroyObject() or destroyLink() was asked to remove while there
+    // is no daemon.
     QList<uint32_t> testingDestroyRequests() const;
+    // Unit tests only: the links the PipeWire thread would know of while there is no daemon, when
+    // they differ from the installed graph (events graph() has not seen yet). Refuses if connected.
+    void testingSetLoopLinks(const QHash<uint32_t, Link> &links);
     // Unit tests only: set or, with an empty value, clear a "settings" metadata entry. Refuses if
     // connected.
     void testingSetSetting(const QString &key, const QString &value);
