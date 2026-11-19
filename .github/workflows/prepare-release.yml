@@ -9,6 +9,10 @@ on:
       notes:
         description: Release notes, one or two plain sentences. They become the GitHub release text and the app's What's New.
         required: true
+      date:
+        description: Release date, YYYY-MM-DD. Leave empty for today in New York time. If you set the version by hand, enter the date already in the metainfo entry.
+        required: false
+        default: ''
       dry_run:
         description: Dry run. Check everything and show the changes, but push and publish nothing.
         type: boolean
@@ -33,6 +37,7 @@ jobs:
     env:
       VERSION: ${{ inputs.version }}
       NOTES: ${{ inputs.notes }}
+      DATE: ${{ inputs.date }}
       DRY_RUN: ${{ inputs.dry_run }}
       HAS_RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN != '' }}
     steps:
@@ -62,7 +67,16 @@ jobs:
             echo "::error::Write the release notes."
             exit 1
           fi
+          if [ -z "$DATE" ]; then
+            DATE="$(TZ=America/New_York date +%F)"
+          fi
+          if ! printf '%s' "$DATE" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' \
+            || [ "$(date -u -d "$DATE" +%F 2>/dev/null)" != "$DATE" ]; then
+            echo "::error::'$DATE' is not a date like 2026-11-19."
+            exit 1
+          fi
           echo "RELEASE_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "RELEASE_DATE=$DATE" >> "$GITHUB_ENV"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
           if [ "$DRY_RUN" = "true" ]; then
             echo "publish=false" >> "$GITHUB_OUTPUT"
@@ -72,12 +86,14 @@ jobs:
       - name: Set the version
         id: bump
         run: |
-          result="$(python3 tools/release/set-version.py --version "$RELEASE_VERSION" --notes "$NOTES")"
+          result="$(python3 tools/release/set-version.py --version "$RELEASE_VERSION" --notes "$NOTES" --date "$RELEASE_DATE")"
           echo "result=$result" >> "$GITHUB_OUTPUT"
           {
             echo "## Rostrum $RELEASE_VERSION"
             echo
             echo "Release notes: $NOTES"
+            echo
+            echo "Release date: $RELEASE_DATE"
             echo
             if [ "$result" = "changed" ]; then
               echo '```diff'

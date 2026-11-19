@@ -27,7 +27,12 @@ CI uploads `app-offscreen-fedora` on success or failure:
 - `rostrum.log`: Rostrum's private startup log, if logging was initialized.
 - `screenshot.png`: if the app produced it.
 - `result.json` and `job-status.json`: actual exit, elapsed time and supervisor
-  cleanup acknowledgement. Timeout remains exit 124; cleanup errors cannot replace
+  cleanup acknowledgement. `first_output_seconds` is when `app.log` first became
+  nonempty (`null`: no output before the deadline; every passing launch's first
+  line is the app's portal activation). `proc_read_probe` records, after the
+  launch, whether this container can read `wchan`, `syscall` and `stack` of a
+  disposable child, so green runs show whether a future `process-state.json`
+  would contain them. Timeout remains exit 124; cleanup errors cannot replace
   the original failure and make an otherwise successful check fail.
 - `process-state.json`: if still running at 50 seconds, a single passive snapshot
   of the owned process tree, process/thread status, wait channels, current syscalls,
