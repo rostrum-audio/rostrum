@@ -165,7 +165,10 @@ void AppController::onConnectionChanged()
     }
     if (state == pw::PwContext::State::Ready) {
         if (!requirements::pipewireOk(m_pw.serverVersion())) {
-            qCWarning(lcApp) << "PipeWire" << m_pw.serverVersion() << "is older than 1.0";
+            qCWarning(lcApp) << "PipeWire" << m_pw.serverVersion() << "is older than"
+                             << qUtf8Printable(QStringLiteral("%1.%2")
+                                                   .arg(requirements::kMinPipeWireMajor)
+                                                   .arg(requirements::kMinPipeWireMinor));
             m_versionRefused = true;
             m_pw.stop();
         }

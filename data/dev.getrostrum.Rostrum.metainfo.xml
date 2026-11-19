@@ -16,7 +16,7 @@
       switch live, with the PipeWire graph kept out of sight.
     </p>
     <ul>
-      <li>Buses for game, voice, mic, music, alerts and desktop audio, each with a fader and mute</li>
+      <li>Buses for game, voice, mic, music, alerts and desktop audio, each with mute, Headphones and Stream faders on playback buses, and a gain fader on the mic</li>
       <li>Two mixes from one console: what you hear and what your audience hears</li>
       <li>Sets up OBS in one click and can undo every change</li>
       <li>Optional Studio Voice mic filters remove background noise, cut rumble and harsh S sounds, and even out your level, for the stream and every app</li>
@@ -29,8 +29,7 @@
       <li>Audio keeps flowing if Rostrum quits or crashes</li>
     </ul>
     <p>
-      Rostrum needs PipeWire 1.0 or newer with WirePlumber 0.5 or newer. Mic filters need
-      PipeWire 1.4 or newer.
+      Rostrum needs PipeWire 1.4 or newer with WirePlumber 0.5 or newer.
     </p>
   </description>
 
@@ -76,7 +75,7 @@
 
   <screenshots>
     <screenshot type="default">
-      <caption>The Mixer: Headphones and Stream masters, then a strip for each bus</caption>
+      <caption>The Mixer: Headphones and Stream masters, and Headphones and Stream faders on each playback bus</caption>
       <image type="source" width="1280" height="720">https://raw.githubusercontent.com/rostrum-audio/rostrum/main/docs/screenshots/mixer.png</image>
     </screenshot>
     <screenshot>
