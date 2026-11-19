@@ -490,7 +490,7 @@ QQC2.Pane {
                             visible: Updates.canCheck
                             text: i18nc("@action:button", "Check now")
                             icon.name: "view-refresh"
-                            enabled: Updates.state !== "checking" && Updates.state !== "downloading"
+                            enabled: Updates.state !== "checking" && Updates.state !== "downloading" && Updates.state !== "ready"
                             description: {
                                 const last = Updates.lastChecked ? i18nc("@info", "Last checked %1.", Updates.lastChecked) : i18nc("@info", "Not checked yet.")
                                 switch (Updates.state) {

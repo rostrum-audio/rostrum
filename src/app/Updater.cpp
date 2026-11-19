@@ -170,7 +170,10 @@ void Updater::maybeCheck()
 
 void Updater::checkNow()
 {
-    if (!canCheck() || m_state == QLatin1String("checking") || m_state == QLatin1String("downloading")) {
+    // "ready": the new AppImage is in place and waits for a restart; checking again would download
+    // it once more and drop the Restart Now banner.
+    if (!canCheck() || m_state == QLatin1String("checking") || m_state == QLatin1String("downloading") ||
+        m_state == QLatin1String("ready")) {
         return;
     }
     if (!m_networkAllowed) {
