@@ -20,6 +20,9 @@ sys.path.insert(0, str(HERE / "tests/integration"))
 spec = importlib.util.spec_from_file_location("safety", HERE / "tests/integration/audio-safety.py")
 safety = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(safety)
+spec = importlib.util.spec_from_file_location("per_mix", HERE / "tests/integration/per-mix-levels.py")
+per_mix = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(per_mix)
 
 
 def check_updates(s, image, settings):
@@ -129,15 +132,23 @@ def check_live_destinations(s, image, app):
             raise safety.Failure("Packaged application or playback source changed during live routing")
 
     def no_links(destination):
-        graph = s.graph()
-        source, target = s.node(graph, "rostrum.desktop"), s.node(graph, destination)
-        return source and target and not any(
-            o["type"].endswith(":Link") and
-            o["info"].get("output-node-id") == source["id"] and
-            o["info"].get("input-node-id") == target["id"] for o in graph)
+        return s.mix_unlinked(s.graph(), "rostrum.desktop", destination)
 
-    s.route("rostrum.desktop", "rostrum.phones")
-    s.route("rostrum.desktop", "rostrum.stream")
+    # Desktop reaches each master only through its send, as in per-mix-levels.py. A direct
+    # bus link is the one-level-per-bus fallback, so it fails here rather than passing.
+    def mix_route(destination):
+        try:
+            s.mix_route("rostrum.desktop", destination)
+        except safety.Failure as error:
+            graph = s.graph()
+            send = s.send_name("rostrum.desktop", destination)
+            per_mix.dump_sends(graph)
+            raise safety.Failure(f"{error} (bus→send={s.linked(graph, 'rostrum.desktop', send)}, "
+                                 f"send→master={s.linked(graph, send, destination)}, "
+                                 f"direct={s.linked(graph, 'rostrum.desktop', destination)})") from None
+
+    mix_route("rostrum.phones")
+    mix_route("rostrum.stream")
     s.capture("test.headphones", 440)
     s.capture("rostrum.stream", 440)
     # Repeating this small sequence exercises registry ID reuse after capture/link churn.
@@ -151,11 +162,11 @@ def check_live_destinations(s, image, app):
         check_identity()
         s.route("PackagedBrowser", "rostrum.desktop")
         if scene != "Stream Only":
-            s.route("rostrum.desktop", "rostrum.phones")
+            mix_route("rostrum.phones")
         if scene == "Headphones Only":
             s.wait("packaged Desktop Stream links removed", lambda: no_links("rostrum.stream"))
         else:
-            s.route("rostrum.desktop", "rostrum.stream")
+            mix_route("rostrum.stream")
         if scene == "Stream Only":
             s.wait("packaged Desktop headphone links removed", lambda: no_links("rostrum.phones"))
         # Positive source delivery is required before silence can pass.
