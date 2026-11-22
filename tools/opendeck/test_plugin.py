@@ -302,6 +302,49 @@ class ControlsTest(unittest.IsolatedAsyncioTestCase):
         await controls.close()
         self.assertTrue(bus.closed)
 
+    async def test_properties_changed_after_empty_owner_leaves_props_empty(self):
+        controls, _, _ = self.controls()
+        await controls.ensure_bus()
+        await controls._handle_owner('', '')
+        self.assertEqual(controls.props, {})
+        controls._on_signal(_signal(
+            'PropertiesChanged', 'sa{sv}as', (plugin.IFACE, {'MicMuted': True}, []),
+            plugin.PROPS_IFACE, sender=':1.42', path=plugin.OBJECT))
+        self.assertEqual(controls.props, {})
+        await controls.close()
+
+    async def test_late_getall_after_empty_owner_does_not_refill_props(self):
+        controls, bus, _ = self.controls()
+        await controls.ensure_bus()
+        started = asyncio.Event()
+        release = asyncio.Event()
+        original = bus.call
+
+        async def delayed_call(destination, path, interface, member, signature='', *args, timeout=2.0):
+            if member == 'GetAll':
+                started.set()
+                await release.wait()
+            return await original(destination, path, interface, member, signature, *args, timeout=timeout)
+
+        bus.call = delayed_call
+        task = asyncio.create_task(controls._load_props())
+        await started.wait()
+        await controls._handle_owner('', '')
+        self.assertEqual(controls.props, {})
+        release.set()
+        await task
+        self.assertEqual(controls.props, {})
+        await controls.close()
+
+    async def test_close_clears_props(self):
+        controls, bus, _ = self.controls()
+        await controls.ensure_bus()
+        self.assertTrue(controls.props)
+        await controls.close()
+        self.assertIsNone(controls.owner)
+        self.assertEqual(controls.props, {})
+        self.assertTrue(bus.closed)
+
     async def test_properties_changed_updates_props(self):
         controls, _, _ = self.controls()
         await controls.ensure_bus()

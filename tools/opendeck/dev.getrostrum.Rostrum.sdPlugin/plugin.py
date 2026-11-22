@@ -101,6 +101,7 @@ class Controls:
         bus = self.bus
         self.bus = None
         self.owner = None
+        self.props = {}
         if bus is not None:
             bus.on_signal = None
             await _await_close(bus)
@@ -197,7 +198,7 @@ class Controls:
     def _signal_properties(self, message):
         if message.path not in (None, OBJECT):
             return
-        if message.sender and self.owner and message.sender != self.owner:
+        if not message.sender or not self.owner or message.sender != self.owner:
             return
         iface, changed, invalidated = decode_body(message.signature or 'sa{sv}as', message.body)
         if iface != IFACE or not isinstance(changed, dict):
@@ -261,11 +262,14 @@ class Controls:
     async def _load_props(self):
         if self.bus is None or not self.owner or self._closed:
             return
+        owner = self.owner
         try:
-            body = await self.bus.call(self.owner, OBJECT, PROPS_IFACE, 'GetAll', 's', IFACE)
+            body = await self.bus.call(owner, OBJECT, PROPS_IFACE, 'GetAll', 's', IFACE)
         except TimeoutError:
             return
         except (OSError, DBusError, ValueError):
+            return
+        if self.owner != owner:
             return
         props = body[0] if body else {}
         if isinstance(props, dict):
