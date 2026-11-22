@@ -1,10 +1,12 @@
-"""Bounded little-endian D-Bus codec for the OpenDeck plugin.
+"""Bounded little-endian D-Bus codec and session-bus client.
 
-SessionBus stays a stub until the async transport lands. Body bytes are
-marshaled as if they begin on an 8-byte boundary, which is where a message
-places its body.
+Body bytes are marshaled as if they begin on an 8-byte boundary, which is
+where a message places its body. SessionBus speaks SASL EXTERNAL, then reads
+one framed message at a time so a stream can never be handed to the codec.
 """
 
+import asyncio
+import os
 import struct
 
 MAX_MESSAGE = 1024 * 1024
@@ -47,18 +49,219 @@ class Message:
         self.body = body
 
 
+class DBusError(Exception):
+    def __init__(self, name, message=''):
+        self.name = name or ''
+        self.message = message or ''
+        detail = self.name if not self.message else f'{self.name}: {self.message}'
+        super().__init__(detail)
+
+
 class SessionBus:
-    """Async session bus. connect, call, and close are wired in Task 3."""
+    """Async session bus. One reader task matches replies and dispatches signals."""
+
+    def __init__(self, reader, writer):
+        self.reader = reader
+        self.writer = writer
+        self._serial = 0
+        self._pending = {}
+        self.on_signal = None
+        self._reader_task = asyncio.create_task(self._read_loop())
 
     @classmethod
     async def connect(cls, address=None):
-        raise NotImplementedError
+        path = _session_socket_path(address)
+        reader, writer = await asyncio.open_unix_connection(path)
+        try:
+            await _authenticate(reader, writer)
+        except Exception:
+            writer.close()
+            await writer.wait_closed()
+            raise
+        return cls(reader, writer)
 
     async def call(self, destination, path, interface, member, signature='', *args, timeout=2.0):
-        raise NotImplementedError
+        if self._reader_task is None or self._reader_task.done():
+            raise ConnectionError('D-Bus connection closed')
+        self._serial = (self._serial % 0xffffffff) + 1
+        serial = self._serial
+        body = encode_body(signature, *args) if signature else b''
+        msg = encode_message('l', 1, 0x02, serial, {
+            'path': path,
+            'interface': interface,
+            'member': member,
+            'destination': destination,
+            'signature': signature,
+        }, body)
+        fut = asyncio.get_running_loop().create_future()
+        self._pending[serial] = fut
+        try:
+            self.writer.write(msg)
+            await self.writer.drain()
+            return await asyncio.wait_for(fut, timeout)
+        finally:
+            self._pending.pop(serial, None)
 
     async def close(self):
-        raise NotImplementedError
+        task = self._reader_task
+        self._reader_task = None
+        if task is not None and not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        self._fail_pending(ConnectionError('D-Bus connection closed'))
+        self._close_writer()
+        try:
+            await self.writer.wait_closed()
+        except (BrokenPipeError, ConnectionError, OSError):
+            pass
+
+    async def _read_loop(self):
+        try:
+            while True:
+                message = await self._read_frame()
+                self._dispatch(message)
+        except asyncio.CancelledError:
+            raise
+        except asyncio.IncompleteReadError:
+            self._fail_pending(ConnectionError('D-Bus connection closed'))
+        except Exception as exc:
+            self._fail_pending(exc)
+        finally:
+            self._fail_pending(ConnectionError('D-Bus connection closed'))
+            self._close_writer()
+
+    async def _read_frame(self):
+        # Header first, then exactly the declared remainder. Never accumulate a
+        # stream: decode_message rejects any buffer larger than one message.
+        header = await self.reader.readexactly(16)
+        if header[0:1] != b'l':
+            raise ValueError('only little-endian messages are supported')
+        body_len, _serial, fields_len = struct.unpack_from('<III', header, 4)
+        if body_len > MAX_MESSAGE or fields_len > MAX_MESSAGE:
+            raise ValueError('message exceeds maximum size')
+        header_end = 16 + fields_len
+        total = ((header_end + 7) & ~7) + body_len
+        if total > MAX_MESSAGE or total < 16:
+            raise ValueError('message exceeds maximum size')
+        rest = await self.reader.readexactly(total - 16) if total > 16 else b''
+        frame = header + rest
+        consumed, message = decode_message(frame)
+        if message is None or consumed != len(frame):
+            raise ValueError('truncated D-Bus message')
+        return message
+
+    def _dispatch(self, message):
+        if message.type == 4:
+            if self.on_signal is not None:
+                self.on_signal(message)
+            return
+        if message.type not in (2, 3):
+            return
+        fut = self._pending.get(message.reply_serial)
+        if fut is None or fut.done():
+            return
+        if message.type == 3:
+            text = ''
+            if message.signature == 's':
+                text, = decode_body('s', message.body)
+            elif message.signature:
+                raise ValueError('unsupported error body')
+            fut.set_exception(DBusError(message.error_name or '', text))
+            return
+        fut.set_result(decode_body(message.signature, message.body))
+
+    def _fail_pending(self, exc):
+        pending = list(self._pending.values())
+        self._pending.clear()
+        for fut in pending:
+            if not fut.done():
+                fut.set_exception(_copy_error(exc))
+
+    def _close_writer(self):
+        if not self.writer.is_closing():
+            self.writer.close()
+
+
+def _copy_error(exc):
+    # IncompleteReadError.args is only the message, so reconstructing it
+    # raises TypeError and would leave the caller waiting until timeout.
+    if isinstance(exc, asyncio.IncompleteReadError):
+        return ConnectionError('D-Bus connection closed')
+    try:
+        return exc.__class__(*exc.args) if exc.args else exc.__class__(str(exc))
+    except Exception:
+        return ConnectionError('D-Bus connection closed')
+
+
+def _session_socket_path(address):
+    if address is None:
+        address = os.environ.get('DBUS_SESSION_BUS_ADDRESS')
+    if not isinstance(address, str) or not address:
+        raise ValueError('DBUS_SESSION_BUS_ADDRESS is not set')
+    for entry in address.split(';'):
+        if not entry.startswith('unix:'):
+            continue
+        for part in entry[len('unix:'):].split(','):
+            key, sep, value = part.partition('=')
+            if sep and key == 'path' and value:
+                return _unescape_address(value)
+    raise ValueError('session bus address has no unix path')
+
+
+def _unescape_address(value):
+    out = bytearray()
+    index = 0
+    while index < len(value):
+        if value[index] == '%':
+            hex_digits = value[index + 1:index + 3]
+            if len(hex_digits) != 2:
+                raise ValueError('invalid session bus address escape')
+            try:
+                out.append(int(hex_digits, 16))
+            except ValueError as error:
+                raise ValueError('invalid session bus address escape') from error
+            index += 3
+        else:
+            out.extend(value[index].encode('utf-8'))
+            index += 1
+    return out.decode('utf-8')
+
+
+async def _read_sasl_line(reader):
+    try:
+        raw = await reader.readuntil(b'\r\n')
+    except asyncio.IncompleteReadError as error:
+        raise ConnectionError('D-Bus connection closed during SASL') from error
+    except asyncio.LimitOverrunError as error:
+        raise ConnectionError('D-Bus SASL line too long') from error
+    if raw.startswith(b'\0'):
+        raw = raw[1:]
+    try:
+        return raw[:-2].decode('ascii')
+    except UnicodeDecodeError as error:
+        raise ConnectionError('D-Bus SASL line is not ASCII') from error
+
+
+async def _authenticate(reader, writer):
+    token = str(os.getuid()).encode('ascii').hex().encode('ascii')
+    writer.write(b'\0AUTH EXTERNAL ' + token + b'\r\n')
+    await writer.drain()
+    while True:
+        line = await _read_sasl_line(reader)
+        if line.startswith('OK '):
+            writer.write(b'BEGIN\r\n')
+            await writer.drain()
+            return
+        if line == 'DATA' or line.startswith('DATA '):
+            writer.write(b'DATA\r\n')
+            await writer.drain()
+            continue
+        if line.startswith('REJECTED') or line.startswith('ERROR'):
+            raise ConnectionError(line)
+        raise ConnectionError(f'unexpected D-Bus SASL line: {line}')
 
 
 class _Cursor:

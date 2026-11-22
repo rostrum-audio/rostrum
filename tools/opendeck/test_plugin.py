@@ -6,6 +6,7 @@ import importlib.util
 import os
 import struct
 import json
+import tempfile
 from pathlib import Path
 import subprocess
 import unittest
@@ -589,6 +590,223 @@ class DbusCodecTest(unittest.TestCase):
         raw[3] = 0
         with self.assertRaises(ValueError):
             plugin_dbus.decode_message(bytes(raw))
+
+
+_SASL_GUID = '00112233445566778899aabbccddeeff'
+
+
+class SessionBusTest(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self._dir = tempfile.TemporaryDirectory()
+        self._sock_path = str(Path(self._dir.name) / 'bus')
+        self._server = None
+        self.calls = []
+
+    async def asyncTearDown(self):
+        if self._server is not None:
+            self._server.close()
+            await self._server.wait_closed()
+        self._dir.cleanup()
+
+    async def _serve(self, handler):
+        self._server = await asyncio.start_unix_server(handler, path=self._sock_path)
+        return self._server
+
+    async def _sasl(self, reader, writer):
+        """AUTH EXTERNAL, then DATA (empty payload accepted), then OK, then BEGIN."""
+        seen_auth = False
+        while True:
+            line = await reader.readuntil(b'\r\n')
+            if line.startswith(b'\0'):
+                line = line[1:]
+            command, _, arg = line[:-2].partition(b' ')
+            if command == b'AUTH':
+                mechanism, _, initial = arg.partition(b' ')
+                self.assertEqual(mechanism, b'EXTERNAL')
+                self.assertEqual(initial, str(os.getuid()).encode('ascii').hex().encode('ascii'))
+                seen_auth = True
+                writer.write(b'DATA\r\n')
+                await writer.drain()
+            elif command == b'DATA':
+                writer.write(f'OK {_SASL_GUID}\r\n'.encode('ascii'))
+                await writer.drain()
+            elif command == b'BEGIN':
+                self.assertTrue(seen_auth)
+                return
+            else:
+                writer.write(b'ERROR\r\n')
+                await writer.drain()
+
+    async def _read_message(self, reader):
+        header = await reader.readexactly(16)
+        body_len, _serial, fields_len = struct.unpack_from('<III', header, 4)
+        header_end = 16 + fields_len
+        total = ((header_end + 7) & ~7) + body_len
+        rest = await reader.readexactly(total - 16)
+        consumed, message = plugin_dbus.decode_message(header + rest)
+        self.assertEqual(consumed, total)
+        self.assertIsNotNone(message)
+        return message
+
+    async def _finish(self, reader, writer):
+        try:
+            await reader.read()
+        except (asyncio.IncompleteReadError, ConnectionError, BrokenPipeError):
+            pass
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except (ConnectionError, BrokenPipeError):
+            pass
+
+    async def _reply_peer(self, reader, writer):
+        try:
+            await self._sasl(reader, writer)
+            message = await self._read_message(reader)
+            self.calls.append(message)
+            signal = plugin_dbus.encode_message(
+                'l', 4, 0, 2,
+                {'path': '/org/freedesktop/DBus',
+                 'interface': 'org.freedesktop.DBus',
+                 'member': 'NameOwnerChanged',
+                 'signature': 'sss'},
+                plugin_dbus.encode_body('sss', 'dev.getrostrum.Rostrum', '', ':1.1'))
+            wrong = plugin_dbus.encode_message(
+                'l', 2, 0, 3,
+                {'reply_serial': message.serial + 50, 'signature': 's', 'sender': ':1.1'},
+                plugin_dbus.encode_body('s', 'nope'))
+            reply = plugin_dbus.encode_message(
+                'l', 2, 0, 4,
+                {'reply_serial': message.serial, 'signature': 's', 'sender': ':1.1'},
+                plugin_dbus.encode_body('s', 'ok'))
+            writer.write(signal + wrong + reply)
+            await writer.drain()
+            await self._finish(reader, writer)
+        except (asyncio.IncompleteReadError, ConnectionError, BrokenPipeError):
+            writer.close()
+
+    async def _silent_peer(self, reader, writer):
+        try:
+            await self._sasl(reader, writer)
+            await self._read_message(reader)
+            await self._finish(reader, writer)
+        except (asyncio.IncompleteReadError, ConnectionError, BrokenPipeError):
+            writer.close()
+
+    async def _error_peer(self, reader, writer):
+        try:
+            await self._sasl(reader, writer)
+            message = await self._read_message(reader)
+            error = plugin_dbus.encode_message(
+                'l', 3, 0, 5,
+                {'reply_serial': message.serial,
+                 'error_name': 'dev.getrostrum.Rostrum1.Error.Missing',
+                 'signature': 's'},
+                plugin_dbus.encode_body('s', 'no such bus'))
+            writer.write(error)
+            await writer.drain()
+            await self._finish(reader, writer)
+        except (asyncio.IncompleteReadError, ConnectionError, BrokenPipeError):
+            writer.close()
+
+    async def _oversize_peer(self, reader, writer):
+        try:
+            await self._sasl(reader, writer)
+            await self._read_message(reader)
+            header = struct.pack(
+                '<cBBBIII', b'l', 2, 0, 1, plugin_dbus.MAX_MESSAGE + 1, 9, 0)
+            writer.write(header)
+            await writer.drain()
+            await self._finish(reader, writer)
+        except (asyncio.IncompleteReadError, ConnectionError, BrokenPipeError):
+            writer.close()
+
+    async def test_reply_matched_while_signal_arrives(self):
+        signals = []
+        server = await self._serve(self._reply_peer)
+        async with server:
+            bus = await plugin_dbus.SessionBus.connect(
+                address=f'unix:path={self._sock_path}')
+            bus.on_signal = signals.append
+            body = await bus.call(':1.1', '/x', 'x.Y', 'Ping', 's', 'hi')
+            self.assertEqual(body, ('ok',))
+            self.assertEqual(len(signals), 1)
+            self.assertEqual(signals[0].member, 'NameOwnerChanged')
+            self.assertEqual(len(self.calls), 1)
+            self.assertEqual(self.calls[0].flags, 0x02)
+            self.assertEqual(self.calls[0].destination, ':1.1')
+            self.assertEqual(self.calls[0].path, '/x')
+            self.assertEqual(self.calls[0].interface, 'x.Y')
+            self.assertEqual(self.calls[0].member, 'Ping')
+            self.assertEqual(plugin_dbus.decode_body(self.calls[0].signature, self.calls[0].body),
+                             ('hi',))
+            await bus.close()
+
+    async def test_call_timeout(self):
+        server = await self._serve(self._silent_peer)
+        async with server:
+            bus = await plugin_dbus.SessionBus.connect(
+                address=f'unix:path={self._sock_path}')
+            with self.assertRaises(asyncio.TimeoutError):
+                await bus.call(':1.1', '/x', 'x.Y', 'Ping', '', timeout=0.05)
+            await bus.close()
+
+    async def test_error_reply_raises_dbus_error(self):
+        server = await self._serve(self._error_peer)
+        async with server:
+            bus = await plugin_dbus.SessionBus.connect(
+                address=f'unix:path={self._sock_path}')
+            with self.assertRaises(plugin_dbus.DBusError) as caught:
+                await bus.call(':1.1', '/x', 'x.Y', 'Ping', '')
+            self.assertEqual(caught.exception.name, 'dev.getrostrum.Rostrum1.Error.Missing')
+            self.assertEqual(caught.exception.message, 'no such bus')
+            await bus.close()
+
+    async def test_connects_using_session_bus_address(self):
+        server = await self._serve(self._silent_peer)
+        address = f'unix:path={self._sock_path},guid={_SASL_GUID}'
+        async with server:
+            with patch.dict(os.environ, {'DBUS_SESSION_BUS_ADDRESS': address}):
+                bus = await plugin_dbus.SessionBus.connect()
+            await bus.close()
+
+    async def test_connect_requires_session_address(self):
+        with patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(ValueError):
+                await plugin_dbus.SessionBus.connect()
+
+    async def _drop_peer(self, reader, writer):
+        try:
+            await self._sasl(reader, writer)
+            await self._read_message(reader)
+        except (asyncio.IncompleteReadError, ConnectionError, BrokenPipeError):
+            pass
+        finally:
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except (ConnectionError, BrokenPipeError):
+                pass
+
+    async def test_dropped_peer_raises_connection_error(self):
+        server = await self._serve(self._drop_peer)
+        async with server:
+            bus = await plugin_dbus.SessionBus.connect(
+                address=f'unix:path={self._sock_path}')
+            try:
+                with self.assertRaises(ConnectionError):
+                    await bus.call(':1.1', '/x', 'x.Y', 'Ping', '', timeout=0.5)
+            finally:
+                await bus.close()
+
+    async def test_reader_rejects_declared_oversize(self):
+        server = await self._serve(self._oversize_peer)
+        async with server:
+            bus = await plugin_dbus.SessionBus.connect(
+                address=f'unix:path={self._sock_path}')
+            with self.assertRaises(ValueError):
+                await bus.call(':1.1', '/x', 'x.Y', 'Ping', '', timeout=0.5)
+            await bus.close()
 
 
 if __name__ == '__main__':
