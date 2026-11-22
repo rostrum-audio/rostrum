@@ -22,40 +22,89 @@ plugin_dbus = importlib.util.module_from_spec(dbus_spec)
 dbus_spec.loader.exec_module(plugin_dbus)
 
 
-class Runner:
-    def __init__(self, absent=False, fallback=False):
+class CliRunner:
+    def __init__(self):
         self.commands = []
-        self.absent = absent
-        self.fallback = fallback
 
     def __call__(self, command, **kwargs):
-        self.commands.append(command)
-        method = command[command.index('--method') + 1] if '--method' in command else ''
-        output = '()'
-        status = 0
-        if method.endswith('GetNameOwner'):
-            status = 1 if self.absent else 0
-            output = "(':1.42',)"
-        elif self.fallback and method:
-            status = 1
-        elif method.endswith('ListBuses'):
-            output = "([('mic', 'Mic', 1.0, false), ('game', 'Game', 1.0, true)],)"
-        elif method.endswith('ListScenes'):
-            output = "(['Live', 'Just Chatting'],)"
-        elif '--list-buses' in command:
+        self.commands.append(list(command))
+        if command and command[0] == 'gdbus':
+            raise AssertionError('gdbus must not be used')
+        if '--list-buses' in command:
             output = 'mic\t1.00\tunmuted\tMic\ngame\t1.00\tmuted\tGame\n'
         elif '--list-scenes' in command:
             output = 'Live\nJust Chatting\n'
-        return subprocess.CompletedProcess(command, status, output, 'unreachable' if status else '')
+        else:
+            output = ''
+        return subprocess.CompletedProcess(command, 0, output, '')
+
+
+class FakeBus:
+    def __init__(self, owner=':1.42'):
+        self.owner = owner
+        self.calls = []
+        self.on_signal = None
+        self.failures = {}
+        self.props = {'MicMuted': False, 'Panic': False, 'CurrentScene': 'Live', 'MicFilters': False}
+        self.closed = False
+
+    async def call(self, destination, path, interface, member, signature='', *args, timeout=2.0):
+        self.calls.append({'destination': destination, 'path': path, 'interface': interface,
+                           'member': member, 'signature': signature, 'args': args})
+        failure = self.failures.get(member)
+        if failure is not None:
+            raise failure() if isinstance(failure, type) else failure
+        if member == 'Hello':
+            return (':1.99',)
+        if member == 'AddMatch':
+            return ()
+        if member == 'GetNameOwner':
+            if not self.owner:
+                raise plugin.DBusError('org.freedesktop.DBus.Error.NameHasNoOwner', 'no owner')
+            return (self.owner,)
+        if interface == plugin.IFACE or member == 'GetAll':
+            if destination != self.owner:
+                raise AssertionError(destination)
+        if member == 'GetAll':
+            return (dict(self.props),)
+        if member == 'ListBuses':
+            return ([('mic', 'Mic', 1.0, False), ('game', 'Game', 1.0, True)],)
+        if member == 'ListScenes':
+            return (['Live', 'Just Chatting'],)
+        if member in ('ToggleBusMuted', 'TriggerAction', 'SwitchScene', 'PressAction', 'ReleaseAction'):
+            return ()
+        raise AssertionError(member)
+
+    async def close(self):
+        self.closed = True
+        self.on_signal = None
+
+
+def fake_connect(bus):
+    async def connect(address=None):
+        return bus
+    return connect
+
+
+async def refuse_bus(address=None):
+    raise OSError('no session bus')
+
+
+def _signal(member, signature, values, interface, sender=None, path=None):
+    body = plugin_dbus.encode_body(signature, *values)
+    return plugin_dbus.Message(4, 0, 1, body, path=path, interface=interface, member=member,
+                               sender=sender, signature=signature)
 
 
 class PluginTest(unittest.TestCase):
-    def setup_plugin(self, **kwargs):
-        runner = Runner(**kwargs)
-        backend = plugin.Controls(run=runner, executable='/test/rostrum')
+    def setup_plugin(self, *, owner=':1.42', connect=True, run=None):
+        bus = FakeBus(owner=owner)
+        runner = run or CliRunner()
+        factory = fake_connect(bus) if connect else refuse_bus
+        backend = plugin.Controls(run=runner, executable='/test/rostrum', bus_factory=factory)
         events = []
         app = plugin.Plugin(backend, events.append)
-        return app, runner, events
+        return app, bus, runner, events
 
     def appear(self, app, action='mic', settings=None):
         app.handle({'event': 'willAppear', 'context': 'key',
@@ -65,57 +114,67 @@ class PluginTest(unittest.TestCase):
         app.handle({'event': 'keyDown', 'context': 'key'})
 
     def test_absent_does_not_launch(self):
-        app, runner, events = self.setup_plugin(absent=True)
+        app, bus, runner, events = self.setup_plugin(owner=None)
         self.appear(app)
         self.down(app)
         self.assertEqual(events[-1]['payload']['title'], 'Unavailable')
-        self.assertFalse(any(command[0] == '/test/rostrum' for command in runner.commands))
+        self.assertEqual(runner.commands, [])
+        self.assertTrue(any(call['member'] == 'GetNameOwner' and call['args'] == (plugin.SERVICE,)
+                            for call in bus.calls))
+        self.assertFalse(any(call['member'] in ('ListBuses', 'ToggleBusMuted') for call in bus.calls))
 
     def test_mic_command_and_state(self):
-        app, runner, events = self.setup_plugin()
+        app, bus, runner, events = self.setup_plugin()
         self.appear(app)
         self.down(app)
-        self.assertTrue(any(command[-3:] == ['--method', plugin.IFACE + '.ToggleBusMuted', json.dumps('mic')]
-                            for command in runner.commands))
+        toggles = [call for call in bus.calls if call['member'] == 'ToggleBusMuted']
+        self.assertEqual(toggles[-1]['args'], ('mic',))
+        self.assertEqual(toggles[-1]['destination'], ':1.42')
+        self.assertNotEqual(toggles[-1]['destination'], plugin.SERVICE)
+        self.assertEqual(toggles[-1]['path'], plugin.OBJECT)
         self.assertTrue(any(event['payload'].get('title') == 'Mic live' for event in events))
+        self.assertEqual(runner.commands, [])
 
     def test_named_scene(self):
-        app, runner, _ = self.setup_plugin()
+        app, bus, runner, _ = self.setup_plugin()
         self.appear(app, 'scene', {'scene': 'Just Chatting'})
         self.down(app)
-        self.assertTrue(any(command[-2:] == [plugin.IFACE + '.SwitchScene', json.dumps('Just Chatting')]
-                            for command in runner.commands))
+        self.assertTrue(any(call['member'] == 'SwitchScene' and call['args'] == ('Just Chatting',)
+                            and call['destination'] == ':1.42' for call in bus.calls))
+        self.assertEqual(runner.commands, [])
 
     def test_bus_id(self):
-        app, runner, events = self.setup_plugin()
+        app, bus, runner, events = self.setup_plugin()
         self.appear(app, 'bus', {'bus': 'game'})
         self.down(app)
-        self.assertTrue(any(command[-2:] == [plugin.IFACE + '.ToggleBusMuted', json.dumps('game')]
-                            for command in runner.commands))
+        self.assertTrue(any(call['member'] == 'ToggleBusMuted' and call['args'] == ('game',)
+                            and call['destination'] == ':1.42' for call in bus.calls))
         self.assertTrue(any(event['payload'].get('title') == 'Game muted' for event in events))
+        self.assertEqual(runner.commands, [])
 
     def test_panic(self):
-        app, runner, _ = self.setup_plugin()
+        app, bus, runner, _ = self.setup_plugin()
         self.appear(app, 'panic')
         self.down(app)
-        self.assertTrue(any(command[-2:] == [plugin.IFACE + '.TriggerAction', json.dumps('panic_mute')]
-                            for command in runner.commands))
+        self.assertTrue(any(call['member'] == 'TriggerAction' and call['args'] == ('panic_mute',)
+                            and call['destination'] == ':1.42' for call in bus.calls))
+        self.assertEqual(runner.commands, [])
 
     def test_key_up_releases_and_refreshes(self):
-        app, runner, _ = self.setup_plugin()
+        app, bus, _, _ = self.setup_plugin()
         self.appear(app)
         # No hold action is exposed. Exercise cleanup if a future action records a press.
         app.held['key'] = 'push_to_talk'
-        before = len(runner.commands)
+        before = len(bus.calls)
         app.handle({'event': 'keyUp', 'context': 'key'})
         self.assertEqual(app.held, {})
-        self.assertTrue(any(command[-2:] == [plugin.IFACE + '.ReleaseAction', json.dumps('push_to_talk')]
-                            for command in runner.commands[before:]))
-        self.assertTrue(any(command[-1] == plugin.IFACE + '.ListBuses'
-                            for command in runner.commands[before:]))
+        later = bus.calls[before:]
+        self.assertTrue(any(call['member'] == 'ReleaseAction' and call['args'] == ('push_to_talk',)
+                            and call['destination'] == ':1.42' for call in later))
+        self.assertTrue(any(call['member'] == 'ListBuses' for call in later))
 
     def test_cli_fallback_never_starts(self):
-        app, runner, _ = self.setup_plugin(fallback=True)
+        app, _, runner, _ = self.setup_plugin(connect=False)
         for action, settings, args in [('mic', {}, ['--toggle-mic']),
                                        ('scene', {'scene': 'Just Chatting'}, ['--scene', 'Just Chatting']),
                                        ('bus', {'bus': 'game'}, ['--action', 'mute_bus_game']),
@@ -123,82 +182,48 @@ class PluginTest(unittest.TestCase):
             self.appear(app, action, settings)
             self.down(app)
             self.assertIn(['/test/rostrum', '--no-start'] + args, runner.commands)
+        self.assertTrue(app.controls.cli_only)
+        self.assertTrue(all(command[:2] == ['/test/rostrum', '--no-start'] for command in runner.commands))
 
     def test_missing_and_empty_choices(self):
         for action, settings in [('scene', {'scene': 'Gone'}), ('bus', {'bus': 'gone'})]:
-            app, runner, events = self.setup_plugin()
+            app, bus, _, events = self.setup_plugin()
             self.appear(app, action, settings)
-            before = len(runner.commands)
+            before = len(bus.calls)
             self.down(app)
-            self.assertEqual(len(runner.commands), before)
+            self.assertEqual(len(bus.calls), before)
             self.assertEqual(events[-1]['payload']['title'], 'Missing')
-        app, runner, _ = self.setup_plugin()
+        app, bus, _, _ = self.setup_plugin()
         self.appear(app, 'scene')
-        before = len(runner.commands)
+        before = len(bus.calls)
         self.down(app)
-        self.assertEqual(len(runner.commands), before)
+        self.assertEqual(len(bus.calls), before)
 
     def test_poll_rate_and_profile_closed(self):
-        app, runner, _ = self.setup_plugin()
+        app, bus, _, _ = self.setup_plugin()
         self.appear(app)
-        before = len(runner.commands)
+        before = len(bus.calls)
         for _ in range(10):
             app.poll()
-        self.assertEqual(len(runner.commands), before)
+        self.assertEqual(len(bus.calls), before)
         app.handle({'event': 'willDisappear', 'context': 'key'})
         app.poll(force=True)
-        self.assertEqual(len(runner.commands), before)
-
-    def test_master_cli_actions(self):
-        runner = Runner(fallback=True)
-        controls = plugin.Controls(run=runner, executable='/test/rostrum')
-        controls.snapshot()
-        controls.toggle('stream')
-        controls.toggle('phones')
-        self.assertIn(['/test/rostrum', '--no-start', '--action', 'mute_stream'], runner.commands)
-        self.assertIn(['/test/rostrum', '--no-start', '--action', 'mute_headphones'], runner.commands)
-
-    def test_timeout_does_not_toggle_twice(self):
-        runner = Runner()
-        def run(command, **kwargs):
-            if command[-2:] == [plugin.IFACE + '.ToggleBusMuted', json.dumps('mic')]:
-                raise subprocess.TimeoutExpired(command, 2)
-            return runner(command, **kwargs)
-        controls = plugin.Controls(run=run, executable='/test/rostrum')
-        controls.snapshot()
-        with self.assertRaises(plugin.Unavailable):
-            controls.toggle('mic')
-        self.assertFalse(any(command[0] == '/test/rostrum' for command in runner.commands))
-
-    def test_missing_gdbus_and_unreachable_cli(self):
-        commands = []
-        def run(command, **kwargs):
-            commands.append(command)
-            if command[0] == 'gdbus':
-                raise FileNotFoundError()
-            return subprocess.CompletedProcess(command, 2, '', '')
-        controls = plugin.Controls(run=run, executable='/test/rostrum')
-        with self.assertRaises(plugin.Unavailable):
-            controls.snapshot()
-        self.assertEqual(commands[-1], ['/test/rostrum', '--no-start', '--list-buses'])
-
-    def test_gvariant_strings_are_preserved(self):
-        self.assertEqual(plugin.variant("(['true', 'false', \"Just Chatting\", '@as in a name'],)"),
-                         (['true', 'false', 'Just Chatting', '@as in a name'],))
-        self.assertEqual(plugin.variant('(@a(ssdb) [],)'), ([],))
+        self.assertEqual(len(bus.calls), before)
 
     def test_disappeared_choice_in_cli_fallback(self):
-        runner = Runner(fallback=True)
+        runner = CliRunner()
+
         def run(command, **kwargs):
             if '--scene' in command:
+                runner.commands.append(list(command))
                 return subprocess.CompletedProcess(command, 1, '', 'No such scene')
             return runner(command, **kwargs)
-        controls = plugin.Controls(run=run, executable='/test/rostrum')
-        events = []
-        app = plugin.Plugin(controls, events.append)
+
+        app, _, _, events = self.setup_plugin(connect=False, run=run)
         self.appear(app, 'scene', {'scene': 'Just Chatting'})
         self.down(app)
         self.assertEqual(events[-1]['payload']['title'], 'Missing')
+        self.assertTrue(any(command[:2] == ['/test/rostrum', '--no-start'] for command in runner.commands))
 
     @unittest.skipUnless(plugin.shutil.which('node'), 'optional inspector check requires Node.js')
     def test_inspector_settings_round_trip(self):
@@ -214,6 +239,148 @@ class PluginTest(unittest.TestCase):
             self.assertNotIn('OnlyShowIn', action)
             for state in action['States']:
                 self.assertTrue((ROOT / (state['Image'] + '.svg')).is_file())
+
+
+class ControlsTest(unittest.IsolatedAsyncioTestCase):
+    def controls(self, *, owner=':1.42', connect=True, run=None):
+        bus = FakeBus(owner=owner)
+        runner = run or CliRunner()
+        factory = fake_connect(bus) if connect else refuse_bus
+        backend = plugin.Controls(run=runner, executable='/test/rostrum', bus_factory=factory)
+        return backend, bus, runner
+
+    async def test_subscribes_and_loads_properties_from_unique_owner(self):
+        controls, bus, runner = self.controls()
+        await controls.ensure_bus()
+        buses, scenes = await controls.snapshot()
+        self.assertEqual(controls.owner, ':1.42')
+        self.assertFalse(controls.cli_only)
+        self.assertEqual(controls.props['MicMuted'], False)
+        self.assertEqual(controls.props['CurrentScene'], 'Live')
+        self.assertIn('MicFilters', controls.props)
+        self.assertEqual(buses['mic']['name'], 'Mic')
+        self.assertIn('Just Chatting', scenes)
+        members = [call['member'] for call in bus.calls]
+        self.assertEqual(members[:5], ['Hello', 'AddMatch', 'AddMatch', 'GetNameOwner', 'GetAll'])
+        rules = [call['args'][0] for call in bus.calls if call['member'] == 'AddMatch']
+        self.assertTrue(any('NameOwnerChanged' in rule and plugin.SERVICE in rule for rule in rules))
+        self.assertTrue(any('PropertiesChanged' in rule and plugin.IFACE in rule for rule in rules))
+        get_all = next(call for call in bus.calls if call['member'] == 'GetAll')
+        self.assertEqual(get_all['destination'], ':1.42')
+        self.assertNotEqual(get_all['destination'], plugin.SERVICE)
+        self.assertEqual(get_all['args'], (plugin.IFACE,))
+        self.assertTrue(all(call['destination'] == ':1.42'
+                            for call in bus.calls if call['interface'] == plugin.IFACE))
+        self.assertEqual(runner.commands, [])
+        await controls.close()
+        self.assertTrue(bus.closed)
+
+    async def test_empty_owner_clears_props_and_notifies(self):
+        controls, bus, _ = self.controls()
+        await controls.ensure_bus()
+        owners = []
+        controls.on_owner = owners.append
+
+        def explode(_owner):
+            raise RuntimeError('owner callback')
+
+        controls._on_signal(_signal(
+            'NameOwnerChanged', 'sss', (plugin.SERVICE, ':1.42', ''),
+            plugin.BUS_IFACE, path=plugin.BUS_PATH))
+        for _ in range(3):
+            await asyncio.sleep(0)
+        self.assertIsNone(controls.owner)
+        self.assertEqual(controls.props, {})
+        self.assertEqual(owners, [None])
+        controls.on_owner = explode
+        controls._on_signal(_signal(
+            'NameOwnerChanged', 'sss', (plugin.SERVICE, '', ''),
+            plugin.BUS_IFACE))
+        for _ in range(3):
+            await asyncio.sleep(0)
+        self.assertIsNone(controls.owner)
+        await controls.close()
+        self.assertTrue(bus.closed)
+
+    async def test_properties_changed_updates_props(self):
+        controls, _, _ = self.controls()
+        await controls.ensure_bus()
+        seen = []
+        controls.on_properties = seen.append
+        controls._on_signal(_signal(
+            'PropertiesChanged', 'sa{sv}as', (plugin.IFACE, {'MicMuted': True, 'Panic': True}, []),
+            plugin.PROPS_IFACE, sender=':1.42', path=plugin.OBJECT))
+        self.assertTrue(controls.props['MicMuted'])
+        self.assertTrue(controls.props['Panic'])
+        self.assertEqual(seen[-1]['MicMuted'], True)
+
+        def explode(_props):
+            raise RuntimeError('property callback')
+
+        controls.on_properties = explode
+        controls._on_signal(_signal(
+            'PropertiesChanged', 'sa{sv}as', (plugin.IFACE, {'MicFilters': True}, []),
+            plugin.PROPS_IFACE, sender=':1.42', path=plugin.OBJECT))
+        self.assertTrue(controls.props['MicFilters'])
+        controls._on_signal(_signal(
+            'PropertiesChanged', 'sa{sv}as', (plugin.IFACE, {'MicMuted': False}, []),
+            plugin.PROPS_IFACE, sender=':1.7', path=plugin.OBJECT))
+        self.assertTrue(controls.props['MicMuted'])
+        await controls.close()
+
+    async def test_master_cli_actions(self):
+        controls, _, runner = self.controls(connect=False)
+        await controls.snapshot()
+        await controls.toggle('stream')
+        await controls.toggle('phones')
+        self.assertIn(['/test/rostrum', '--no-start', '--action', 'mute_stream'], runner.commands)
+        self.assertIn(['/test/rostrum', '--no-start', '--action', 'mute_headphones'], runner.commands)
+        self.assertTrue(all(command[:2] == ['/test/rostrum', '--no-start'] for command in runner.commands))
+        await controls.close()
+
+    async def test_timeout_does_not_toggle_twice(self):
+        controls, bus, runner = self.controls()
+        bus.failures['ToggleBusMuted'] = TimeoutError
+        await controls.snapshot()
+        with self.assertRaises(plugin.Unavailable):
+            await controls.toggle('mic')
+        self.assertEqual(runner.commands, [])
+        self.assertFalse(controls.cli_only)
+        await controls.close()
+
+    async def test_bus_connect_fail_uses_cli(self):
+        commands = []
+
+        def run(command, **kwargs):
+            commands.append(list(command))
+            return subprocess.CompletedProcess(command, 2, '', '')
+
+        controls = plugin.Controls(run=run, executable='/test/rostrum', bus_factory=refuse_bus)
+        with self.assertRaises(plugin.Unavailable):
+            await controls.snapshot()
+        self.assertTrue(controls.cli_only)
+        self.assertEqual(commands[-1], ['/test/rostrum', '--no-start', '--list-buses'])
+        self.assertTrue(all(command[0] != 'gdbus' for command in commands))
+        await controls.close()
+
+    async def test_press_and_release_have_no_cli_fallback(self):
+        controls, _, runner = self.controls(connect=False)
+        with self.assertRaises(plugin.Unavailable):
+            await controls.press('push_to_talk')
+        with self.assertRaises(plugin.Unavailable):
+            await controls.release('push_to_talk')
+        self.assertEqual(runner.commands, [])
+        await controls.close()
+
+    async def test_interface_error_is_value_error(self):
+        controls, bus, runner = self.controls()
+        bus.failures['SwitchScene'] = plugin.DBusError(plugin.IFACE + '.Error.NoSuchScene', 'gone')
+        await controls.snapshot()
+        with self.assertRaises(ValueError):
+            await controls.scene('Gone')
+        self.assertEqual(runner.commands, [])
+        self.assertFalse(controls.cli_only)
+        await controls.close()
 
 
 class MicFeedbackTest(unittest.TestCase):

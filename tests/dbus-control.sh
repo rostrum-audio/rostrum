@@ -129,32 +129,48 @@ check "mic filters saved" "1" "$(sed -n '/^\[mic_filters\]/,/^\[/p' "$XDG_CONFIG
 # fallback. No physical deck, live session bus or mixer graph is involved.
 if command -v python3 >/dev/null 2>&1; then
     python3 -B - "$B" "$(dirname "$0")/../tools/opendeck/dev.getrostrum.Rostrum.sdPlugin/plugin.py" <<'PYPLUGIN'
+import asyncio
 import importlib.util
-import subprocess
 import sys
 spec = importlib.util.spec_from_file_location('rostrum_plugin', sys.argv[2])
 plugin = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(plugin)
-direct = plugin.Controls(executable=sys.argv[1])
-def without_gdbus(command, **kwargs):
-    if command[0] == 'gdbus':
-        raise FileNotFoundError()
-    return subprocess.run(command, **kwargs)
-fallback = plugin.Controls(run=without_gdbus, executable=sys.argv[1])
-for controls in (direct, fallback):
-    buses, scenes = controls.snapshot()
-    assert 'Live' in scenes and 'mic' in buses
-    controls.scene('Live')
+
+async def exercise(controls, observe):
+    await controls.ensure_bus()
+    buses, scenes = await controls.snapshot()
+    assert 'Live' in scenes and 'mic' in buses, (scenes, list(buses))
+    if not controls.cli_only:
+        for key in ('MicMuted', 'Panic', 'CurrentScene', 'MicFilters'):
+            assert key in controls.props, controls.props
+    await controls.scene('Live')
     for bus in ('mic', 'game', 'stream', 'phones'):
-        before = direct.snapshot()[0][bus]['muted']
-        controls.toggle(bus)
-        assert direct.snapshot()[0][bus]['muted'] != before, bus
-        controls.toggle(bus)
-    controls.panic()
-    assert direct.snapshot()[0]['stream']['muted']
-    controls.panic()
-direct.release('push_to_talk')
-print('ok   OpenDeck D-Bus and CLI adapters')
+        before = (await observe.snapshot())[0][bus]['muted']
+        await controls.toggle(bus)
+        assert (await observe.snapshot())[0][bus]['muted'] != before, bus
+        await controls.toggle(bus)
+    await controls.panic()
+    assert (await observe.snapshot())[0]['stream']['muted']
+    await controls.panic()
+
+async def main():
+    direct = plugin.Controls(executable=sys.argv[1])
+    await direct.ensure_bus()
+    assert direct.owner and direct.owner.startswith(':'), (direct.owner, direct.cli_only)
+    assert not direct.cli_only
+    await exercise(direct, direct)
+    await direct.release('push_to_talk')
+
+    async def fail_bus(address=None):
+        raise OSError('no session bus')
+
+    fallback = plugin.Controls(executable=sys.argv[1], bus_factory=fail_bus)
+    await exercise(fallback, direct)
+    await fallback.close()
+    await direct.close()
+    print('ok   OpenDeck D-Bus and CLI adapters')
+
+asyncio.run(main())
 PYPLUGIN
     check "OpenDeck adapters" "0" "$?"
 fi

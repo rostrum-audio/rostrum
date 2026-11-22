@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """OpenAction client; only Python's standard library and local Rostrum controls."""
 import argparse
-import ast
 import asyncio
 import base64
 import hashlib
-import io
+import inspect
 import json
 import math
 import os
@@ -13,37 +12,40 @@ from pathlib import Path
 import shutil
 import struct
 import subprocess
+import sys
 import time
-import tokenize
+
+_PLUGIN_DIR = Path(__file__).resolve().parent
+if str(_PLUGIN_DIR) not in sys.path:
+    sys.path.insert(0, str(_PLUGIN_DIR))
+from dbus_client import DBusError, SessionBus, decode_body
 
 SERVICE = 'dev.getrostrum.Rostrum'
 IFACE = SERVICE + '1'
 OBJECT = '/dev/getrostrum/Rostrum/Control'
 PREFIX = SERVICE + '.'
+BUS_SERVICE = 'org.freedesktop.DBus'
+BUS_PATH = '/org/freedesktop/DBus'
+BUS_IFACE = 'org.freedesktop.DBus'
+PROPS_IFACE = 'org.freedesktop.DBus.Properties'
+_NAME_OWNER_MATCH = (
+    "type='signal',sender='org.freedesktop.DBus',path='/org/freedesktop/DBus',"
+    "interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0='dev.getrostrum.Rostrum'"
+)
+_PROPS_MATCH = (
+    "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',"
+    "path='/dev/getrostrum/Rostrum/Control',arg0='dev.getrostrum.Rostrum1'"
+)
+_LIST_METHODS = frozenset({'ListBuses', 'ListScenes'})
 
 
-def variant(text):
-    """Decode gdbus's tuple/array output without evaluating code or string contents."""
-    source = list(tokenize.generate_tokens(io.StringIO(text).readline))
-    tokens = []
-    index = 0
-    while index < len(source):
-        token = source[index]
-        if token.string == '@' and token.type == tokenize.OP:
-            # Empty GVariant arrays carry a type annotation, e.g. @as or @a(ssdb).
-            index += 2
-            if index < len(source) and source[index].string == '(':
-                depth = 1
-                index += 1
-                while index < len(source) and depth:
-                    depth += (source[index].string == '(') - (source[index].string == ')')
-                    index += 1
-            continue
-        if token.type == tokenize.NAME and token.string in ('true', 'false'):
-            token = token._replace(string={'true': 'True', 'false': 'False'}[token.string])
-        tokens.append(token)
-        index += 1
-    return ast.literal_eval(tokenize.untokenize(tokens))
+def _drive(coro):
+    """Run a coroutine from the still-sync Plugin. A live loop is given the coroutine to await."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    return coro
 
 
 class Unavailable(Exception):
@@ -55,11 +57,18 @@ class CommandMissing(Unavailable):
 
 
 class Controls:
-    def __init__(self, run=subprocess.run, executable=None):
+    def __init__(self, run=subprocess.run, executable=None, bus_factory=None):
         self.run = run
         self.executable = executable or shutil.which('rostrum') or str(Path.home() / '.local/bin/rostrum')
+        self.bus_factory = bus_factory or SessionBus.connect
+        self.bus = None
         self.owner = None
         self.cli_only = False
+        self.props = {}
+        self.on_properties = None
+        self.on_owner = None
+        self._closed = False
+        self._tasks = set()
 
     def command(self, args):
         try:
@@ -69,76 +78,261 @@ class Controls:
         except (OSError, subprocess.TimeoutExpired) as error:
             raise Unavailable() from error
 
-    def dbus(self, destination, method, *args):
-        return self.command(['gdbus', 'call', '--session', '--dest', destination,
-                             '--object-path', '/org/freedesktop/DBus' if destination == 'org.freedesktop.DBus' else OBJECT,
-                             '--method', method, *(json.dumps(arg, ensure_ascii=False) for arg in args)])
+    async def ensure_bus(self):
+        if self._closed or self.bus is not None or self.cli_only:
+            return
+        bus = None
+        try:
+            bus = await self.bus_factory()
+            bus.on_signal = self._on_signal
+            self.bus = bus
+            await self._subscribe()
+            await self._refresh_owner()
+        except TimeoutError:
+            # Connect or the first daemon call never answered. Lists may use the CLI.
+            await self._abandon(bus)
+        except (ConnectionError, OSError, ValueError, DBusError):
+            await self._abandon(bus)
 
-    def call(self, method, args=(), cli=None):
-        if self.owner and not self.cli_only:
+    async def close(self):
+        if self._closed:
+            return
+        self._closed = True
+        bus = self.bus
+        self.bus = None
+        self.owner = None
+        if bus is not None:
+            bus.on_signal = None
+            await _await_close(bus)
+        pending = [task for task in list(self._tasks) if not task.done()]
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
+
+    async def call(self, method, signature='', *args, cli=None):
+        await self.ensure_bus()
+        if self.bus is not None and self.owner and not self.cli_only:
             try:
-                result = self.dbus(self.owner, IFACE + '.' + method, *args)
-                if result.returncode == 0:
-                    return variant(result.stdout)
-                if IFACE + '.Error.' in result.stderr:
-                    raise ValueError(result.stderr)
-                if method not in ('ListBuses', 'ListScenes'):
-                    # A lost reply may follow an applied toggle; do not apply it again.
-                    raise Unavailable()
+                return await self.bus.call(self.owner, OBJECT, IFACE, method, signature, *args)
+            except DBusError as error:
+                if error.name.startswith(IFACE + '.Error.'):
+                    raise ValueError(str(error)) from error
+                if method not in _LIST_METHODS:
+                    raise Unavailable() from error
                 self.cli_only = True
-            except CommandMissing:
+            except TimeoutError as error:
+                # asyncio.TimeoutError subclasses OSError. A lost reply may mean the
+                # toggle already applied, so never repeat it through the CLI.
+                if method not in _LIST_METHODS:
+                    raise Unavailable() from error
                 self.cli_only = True
-        # --no-start makes this safe even if the owner disappeared since the last poll.
+            except OSError as error:
+                if method not in _LIST_METHODS:
+                    raise Unavailable() from error
+                self.cli_only = True
         if cli is None:
             raise Unavailable()
-        result = self.command([self.executable, '--no-start', *cli])
+        # --no-start makes this safe even if the owner disappeared since the last poll.
+        result = await asyncio.to_thread(self.command, [self.executable, '--no-start', *cli])
         if result.returncode == 2:
             raise Unavailable()
-        if result.returncode == 1 and method not in ('ListBuses', 'ListScenes'):
+        if result.returncode == 1 and method not in _LIST_METHODS:
             raise ValueError(result.stderr)
         if result.returncode:
             # Older Rostrum installs do not know --no-start; never retry without it.
             raise Unavailable()
         return result.stdout
 
-    def snapshot(self):
-        self.owner = None
-        self.cli_only = False
-        try:
-            result = self.dbus('org.freedesktop.DBus', 'org.freedesktop.DBus.GetNameOwner', SERVICE)
-        except CommandMissing:
-            # A guarded CLI query also works when gdbus is not installed.
-            result = None
-            self.cli_only = True
-        if result is not None:
-            if result.returncode:
-                raise Unavailable()
-            self.owner = variant(result.stdout)[0]
-        buses = self.call('ListBuses', cli=['--list-buses'])
-        scenes = self.call('ListScenes', cli=['--list-scenes'])
-        if isinstance(buses, str):
-            rows = []
-            for line in buses.splitlines():
-                bus_id, level, muted, name = line.split('\t', 3)
-                rows.append((bus_id, name, float(level), muted == 'muted'))
-        else:
-            rows = buses[0]
-        return {row[0]: {'id': row[0], 'name': row[1], 'muted': row[3]} for row in rows}, \
-            scenes.splitlines() if isinstance(scenes, str) else scenes[0]
+    async def snapshot(self):
+        await self.ensure_bus()
+        # The bus is up and Rostrum is not on it. Do not query through the CLI either:
+        # an absent owner is Unavailable, not a prompt to start an instance.
+        if not self.cli_only and not self.owner:
+            raise Unavailable()
+        buses = await self.call('ListBuses', '', cli=['--list-buses'])
+        scenes = await self.call('ListScenes', '', cli=['--list-scenes'])
+        return _bus_map(buses), _scene_list(scenes)
 
-    def toggle(self, bus):
+    async def toggle(self, bus):
         action = {'stream': 'mute_stream', 'phones': 'mute_headphones'}.get(bus, 'mute_bus_' + bus)
-        self.call('ToggleBusMuted', [bus], ['--toggle-mic'] if bus == 'mic' else ['--action', action])
+        cli = ['--toggle-mic'] if bus == 'mic' else ['--action', action]
+        await self.call('ToggleBusMuted', 's', bus, cli=cli)
 
-    def panic(self):
-        self.call('TriggerAction', ['panic_mute'], ['--action', 'panic_mute'])
+    async def panic(self):
+        await self.trigger('panic_mute')
 
-    def scene(self, name):
-        self.call('SwitchScene', [name], ['--scene', name])
+    async def trigger(self, action):
+        await self.call('TriggerAction', 's', action, cli=['--action', action])
 
-    def release(self, action):
+    async def scene(self, name):
+        await self.call('SwitchScene', 's', name, cli=['--scene', name])
+
+    async def press(self, action):
+        # Holds have no CLI equivalent. A short-lived process would release them on exit.
+        await self.call('PressAction', 's', action)
+
+    async def release(self, action):
         # The CLI exposes no hold actions. D-Bus also releases holds when a caller exits.
-        self.call('ReleaseAction', [action])
+        await self.call('ReleaseAction', 's', action)
+
+    def _on_signal(self, message):
+        # Runs on the bus reader. Decode and return; never raise, never block.
+        if self._closed or self.bus is None:
+            return
+        try:
+            if message.member == 'NameOwnerChanged':
+                self._signal_owner(message)
+            elif message.member == 'PropertiesChanged':
+                self._signal_properties(message)
+        except Exception:
+            return
+
+    def _signal_owner(self, message):
+        if message.interface not in (None, BUS_IFACE):
+            return
+        name, old, new = decode_body(message.signature or 'sss', message.body)
+        if name != SERVICE:
+            return
+        self._spawn(self._handle_owner(old, new))
+
+    def _signal_properties(self, message):
+        if message.path not in (None, OBJECT):
+            return
+        if message.sender and self.owner and message.sender != self.owner:
+            return
+        iface, changed, invalidated = decode_body(message.signature or 'sa{sv}as', message.body)
+        if iface != IFACE or not isinstance(changed, dict):
+            return
+        if changed:
+            self.props.update(changed)
+        if invalidated:
+            self._spawn(self._load_props())
+            return
+        if changed:
+            self._notify_properties()
+
+    async def _subscribe(self):
+        await self._daemon('Hello', '')
+        await self._daemon('AddMatch', 's', _NAME_OWNER_MATCH)
+        await self._daemon('AddMatch', 's', _PROPS_MATCH)
+
+    async def _refresh_owner(self):
+        try:
+            body = await self._daemon('GetNameOwner', 's', SERVICE)
+        except DBusError as error:
+            if error.name == 'org.freedesktop.DBus.Error.NameHasNoOwner':
+                await self._handle_owner(self.owner or '', '')
+                return
+            raise
+        owner = body[0] if body else ''
+        await self._handle_owner(self.owner or '', owner)
+
+    async def _handle_owner(self, _old, new):
+        # `_old` is NameOwnerChanged's previous unique name. Availability follows `new`.
+        if self._closed:
+            return
+        try:
+            owner = new if isinstance(new, str) and new.startswith(':') else None
+            if owner is not None and owner == self.owner:
+                return
+            self.owner = owner
+            self.props = {}
+            if self._closed:
+                return
+            if self.owner is None:
+                self._notify_owner()
+                return
+            await self._load_props()
+            if not self._closed:
+                self._notify_owner()
+        except Exception:
+            return
+
+    def _spawn(self, coro):
+        # The reader only holds a weak reference to tasks it creates. Keep one here.
+        try:
+            task = asyncio.get_running_loop().create_task(coro)
+        except RuntimeError:
+            coro.close()
+            return None
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+        return task
+
+    async def _load_props(self):
+        if self.bus is None or not self.owner or self._closed:
+            return
+        try:
+            body = await self.bus.call(self.owner, OBJECT, PROPS_IFACE, 'GetAll', 's', IFACE)
+        except TimeoutError:
+            return
+        except (OSError, DBusError, ValueError):
+            return
+        props = body[0] if body else {}
+        if isinstance(props, dict):
+            self.props = dict(props)
+            self._notify_properties()
+
+    async def _daemon(self, member, signature, *args):
+        return await self.bus.call(BUS_SERVICE, BUS_PATH, BUS_IFACE, member, signature, *args)
+
+    async def _abandon(self, bus):
+        self.cli_only = True
+        self.bus = None
+        self.owner = None
+        self.props = {}
+        if bus is None:
+            return
+        bus.on_signal = None
+        await _await_close(bus)
+
+    def _notify_owner(self):
+        _notify(self.on_owner, self.owner)
+
+    def _notify_properties(self):
+        _notify(self.on_properties, self.props)
+
+
+def _notify(callback, value):
+    if callback is None:
+        return
+    try:
+        callback(value)
+    except Exception:
+        return
+
+
+async def _await_close(bus):
+    close = getattr(bus, 'close', None)
+    if close is None:
+        return
+    try:
+        result = close()
+        if inspect.isawaitable(result):
+            await result
+    except TimeoutError:
+        pass
+    except OSError:
+        pass
+
+
+def _bus_map(payload):
+    if isinstance(payload, str):
+        rows = []
+        for line in payload.splitlines():
+            if not line:
+                continue
+            bus_id, _level, muted, name = line.split('\t', 3)
+            rows.append((bus_id, name, 0.0, muted == 'muted'))
+    else:
+        rows = payload[0] if isinstance(payload, tuple) else payload
+    return {row[0]: {'id': row[0], 'name': row[1], 'muted': bool(row[3])} for row in rows}
+
+
+def _scene_list(payload):
+    if isinstance(payload, str):
+        return payload.splitlines()
+    names = payload[0] if isinstance(payload, tuple) else payload
+    return list(names)
 
 
 class Feedback:
@@ -193,13 +387,22 @@ class Plugin:
         self.last_poll = float('-inf')
 
     def poll(self, force=False):
+        return _drive(self._poll(force))
+
+    async def _invoke(self, func, *args):
+        result = func(*args)
+        if inspect.isawaitable(result):
+            return await result
+        return result
+
+    async def _poll(self, force=False):
         self.feedback.reap()
         now = time.monotonic()
         if not self.keys or (not force and now - self.last_poll < 1):
             return
         self.last_poll = now
         try:
-            self.buses, self.scenes = self.controls.snapshot()
+            self.buses, self.scenes = await self._invoke(self.controls.snapshot)
             self.available = True
         except (Unavailable, ValueError, SyntaxError, IndexError, TypeError):
             self.available = False
@@ -236,20 +439,37 @@ class Plugin:
         self.send({'event': 'setTitle', 'context': context, 'payload': {'title': title, 'target': 0}})
 
     def release(self, context):
+        return _drive(self._release(context))
+
+    async def _release(self, context):
         action = self.held.pop(context, None)
         if action:
             try:
-                self.controls.release(action)
+                await self._invoke(self.controls.release, action)
             except (Unavailable, ValueError):
                 pass
 
     def close(self):
+        return _drive(self._close())
+
+    async def _close(self):
         for context in list(self.held):
-            self.release(context)
+            await self._release(context)
         self.pending_feedback.clear()
         self.feedback.close()
+        closer = getattr(self.controls, 'close', None)
+        if closer is not None:
+            try:
+                await self._invoke(closer)
+            except TimeoutError:
+                pass
+            except (Unavailable, OSError):
+                pass
 
     def handle(self, event):
+        return _drive(self._handle(event))
+
+    async def _handle(self, event):
         kind, context = event.get('event'), event.get('context')
         payload = event.get('payload', {})
         if kind == 'willAppear':
@@ -257,27 +477,27 @@ class Plugin:
             if action not in ('mic', 'panic', 'scene', 'bus'):
                 return
             self.keys[context] = {'action': action, 'settings': payload.get('settings', {})}
-            self.poll()
+            await self._poll()
             self.render(context)
         elif kind == 'willDisappear':
             self.pending_feedback.discard(context)
-            self.release(context)
+            await self._release(context)
             self.keys.pop(context, None)
         elif kind == 'keyUp':
-            self.release(context)
-            self.poll(force=True)
+            await self._release(context)
+            await self._poll(force=True)
         elif context in self.keys:
             if kind == 'didReceiveSettings':
                 self.keys[context]['settings'] = payload.get('settings', {})
                 self.render(context)
             elif kind in ('sendToPlugin', 'propertyInspectorDidAppear'):
-                self.poll()
+                await self._poll()
                 self.send({'event': 'sendToPropertyInspector', 'action': PREFIX + self.keys[context]['action'],
                            'context': context, 'payload': {'available': self.available, 'scenes': self.scenes,
                                                          'buses': list(self.buses.values()),
                                                          'settings': self.keys[context]['settings']}})
             elif kind == 'keyDown':
-                self.poll()
+                await self._poll()
                 if not self.available:
                     self.render(context)
                     return
@@ -285,14 +505,14 @@ class Plugin:
                 action, settings = key['action'], key['settings']
                 try:
                     if action == 'mic' and 'mic' in self.buses:
-                        self.controls.toggle('mic')
+                        await self._invoke(self.controls.toggle, 'mic')
                         self.pending_feedback.add(context)
                     elif action == 'panic':
-                        self.controls.panic()
+                        await self._invoke(self.controls.panic)
                     elif action == 'scene' and settings.get('scene') in self.scenes:
-                        self.controls.scene(settings['scene'])
+                        await self._invoke(self.controls.scene, settings['scene'])
                     elif action == 'bus' and settings.get('bus') in self.buses:
-                        self.controls.toggle(settings['bus'])
+                        await self._invoke(self.controls.toggle, settings['bus'])
                 except Unavailable:
                     self.available = False
                 except ValueError:
@@ -378,12 +598,12 @@ async def main(args):
             done, _ = await asyncio.wait([receiving], timeout=0.1)
             # Control calls stay on this thread: sends and socket frames cannot interleave.
             if done:
-                plugin.handle(receiving.result())
+                await plugin.handle(receiving.result())
                 receiving = asyncio.create_task(socket.receive())
-            plugin.poll()
+            await plugin.poll()
             await socket.writer.drain()
     finally:
-        plugin.close()
+        await plugin.close()
         receiving.cancel()
         socket.writer.close()
         await socket.writer.wait_closed()
