@@ -16,6 +16,9 @@ ROOT = Path(__file__).parent / 'dev.getrostrum.Rostrum.sdPlugin'
 spec = importlib.util.spec_from_file_location('plugin', ROOT / 'plugin.py')
 plugin = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(plugin)
+dbus_spec = importlib.util.spec_from_file_location('dbus_client', ROOT / 'dbus_client.py')
+plugin_dbus = importlib.util.module_from_spec(dbus_spec)
+dbus_spec.loader.exec_module(plugin_dbus)
 
 
 class Runner:
@@ -447,6 +450,145 @@ class SocketTest(unittest.IsolatedAsyncioTestCase):
                 if process.returncode is None:
                     process.kill()
                     await process.wait()
+
+
+# Captured from the D-Bus little-endian layout (header field codes 1–8, 8-byte body align).
+_PRESS_ACTION = bytes.fromhex(
+    '6c01020111000000070000007700000001016f001f0000002f6465762f676574726f737472756d2f'
+    '526f737472756d2f436f6e74726f6c0002017300170000006465762e676574726f737472756d2e52'
+    '6f737472756d3100030173000b0000005072657373416374696f6e00000000000601730005000000'
+    '3a312e343200000008016700017300000c000000707573685f746f5f74616c6b00')
+_LIST_BUSES_BODY = bytes.fromhex(
+    '1c00000000000000030000006d696300030000004d696300000000000000f03f00000000')
+
+
+class DbusCodecTest(unittest.TestCase):
+    def test_round_trip_string_call(self):
+        body = plugin_dbus.encode_body('s', 'push_to_talk')
+        raw = plugin_dbus.encode_message(
+            'l', 1, 0x02, 7,
+            {'path': '/dev/getrostrum/Rostrum/Control',
+             'interface': 'dev.getrostrum.Rostrum1',
+             'member': 'PressAction',
+             'destination': ':1.42',
+             'signature': 's'},
+            body)
+        n, msg = plugin_dbus.decode_message(raw)
+        self.assertEqual(n, len(raw))
+        self.assertEqual(msg.member, 'PressAction')
+        self.assertEqual(plugin_dbus.decode_body(msg.signature, msg.body), ('push_to_talk',))
+
+    def test_rejects_oversized(self):
+        with self.assertRaises(ValueError):
+            plugin_dbus.decode_message(b'l' + b'\x00' * (plugin_dbus.MAX_MESSAGE + 8))
+
+    def test_properties_changed_signal_shape(self):
+        # sa{sv}as with one boolean entry MicMuted=true
+        body = plugin_dbus.encode_body(
+            'sa{sv}as', 'dev.getrostrum.Rostrum1', {'MicMuted': True}, [])
+        n, msg = plugin_dbus.decode_message(plugin_dbus.encode_message(
+            'l', 4, 0, 1,
+            {'path': '/dev/getrostrum/Rostrum/Control',
+             'interface': 'org.freedesktop.DBus.Properties',
+             'member': 'PropertiesChanged',
+             'signature': 'sa{sv}as'},
+            body))
+        iface, changed, invalidated = plugin_dbus.decode_body(msg.signature, msg.body)
+        self.assertEqual(iface, 'dev.getrostrum.Rostrum1')
+        self.assertEqual(changed['MicMuted'], True)
+        self.assertEqual(invalidated, [])
+        self.assertEqual(body, bytes.fromhex(
+            '170000006465762e676574726f737472756d2e526f737472756d31001400000008000000'
+            '4d69634d75746564000162000100000000000000'))
+
+    def test_press_action_matches_wire_layout(self):
+        body = plugin_dbus.encode_body('s', 'push_to_talk')
+        raw = plugin_dbus.encode_message(
+            'l', 1, 0x02, 7,
+            {'path': '/dev/getrostrum/Rostrum/Control',
+             'interface': 'dev.getrostrum.Rostrum1',
+             'member': 'PressAction',
+             'destination': ':1.42',
+             'signature': 's'},
+            body)
+        self.assertEqual(raw, _PRESS_ACTION)
+        n, msg = plugin_dbus.decode_message(_PRESS_ACTION)
+        self.assertEqual(n, len(_PRESS_ACTION))
+        self.assertEqual(msg.type, 1)
+        self.assertEqual(msg.flags, 0x02)
+        self.assertEqual(msg.serial, 7)
+        self.assertEqual(msg.path, '/dev/getrostrum/Rostrum/Control')
+        self.assertEqual(msg.interface, 'dev.getrostrum.Rostrum1')
+        self.assertEqual(msg.destination, ':1.42')
+        self.assertEqual(msg.signature, 's')
+        self.assertIsNone(msg.reply_serial)
+        self.assertEqual(plugin_dbus.decode_body(msg.signature, msg.body), ('push_to_talk',))
+
+    def test_round_trip_call_and_reply_signatures(self):
+        arguments = plugin_dbus.encode_body('ss', 'org.freedesktop.DBus.Properties', 'MicMuted')
+        self.assertEqual(plugin_dbus.decode_body('ss', arguments),
+                         ('org.freedesktop.DBus.Properties', 'MicMuted'))
+        buses = [('mic', 'Mic', 1.0, False)]
+        bus_body = plugin_dbus.encode_body('a(ssdb)', buses)
+        self.assertEqual(bus_body, _LIST_BUSES_BODY)
+        self.assertEqual(plugin_dbus.decode_body('a(ssdb)', bus_body), (buses,))
+        scenes = plugin_dbus.encode_body('as', ['Live', 'Just Chatting'])
+        self.assertEqual(plugin_dbus.decode_body('as', scenes), (['Live', 'Just Chatting'],))
+        props = plugin_dbus.encode_body('a{sv}', {'MicMuted': False, 'CurrentScene': 'Live'})
+        decoded, = plugin_dbus.decode_body('a{sv}', props)
+        self.assertEqual(decoded, {'MicMuted': False, 'CurrentScene': 'Live'})
+        self.assertIs(decoded['MicMuted'], False)
+
+    def test_name_owner_changed_and_reply_serial(self):
+        body = plugin_dbus.encode_body('sss', 'dev.getrostrum.Rostrum', '', ':1.42')
+        raw = plugin_dbus.encode_message(
+            'l', 4, 0, 4,
+            {'path': '/org/freedesktop/DBus',
+             'interface': 'org.freedesktop.DBus',
+             'member': 'NameOwnerChanged',
+             'signature': 'sss'},
+            body)
+        n, msg = plugin_dbus.decode_message(raw)
+        self.assertEqual(n, len(raw))
+        self.assertEqual(plugin_dbus.decode_body(msg.signature, msg.body),
+                         ('dev.getrostrum.Rostrum', '', ':1.42'))
+        reply = plugin_dbus.encode_message(
+            'l', 2, 0, 9,
+            {'reply_serial': 7, 'sender': ':1.42', 'signature': 's'},
+            plugin_dbus.encode_body('s', 'ok'))
+        n, msg = plugin_dbus.decode_message(reply + b'trailing')
+        self.assertEqual(n, len(reply))
+        self.assertEqual(msg.reply_serial, 7)
+        self.assertEqual(msg.sender, ':1.42')
+        self.assertEqual(msg.error_name, None)
+        self.assertEqual(plugin_dbus.decode_body(msg.signature, msg.body), ('ok',))
+
+    def test_rejects_declared_oversize_and_incomplete(self):
+        declared = struct.pack('<cBBBIII', b'l', 1, 0, 1, plugin_dbus.MAX_MESSAGE + 1, 1, 0)
+        with self.assertRaises(ValueError):
+            plugin_dbus.decode_message(declared)
+        n, msg = plugin_dbus.decode_message(b'l')
+        self.assertEqual(n, 0)
+        self.assertIsNone(msg)
+
+    def test_rejects_fds_and_unknown_signatures(self):
+        with self.assertRaises(ValueError):
+            plugin_dbus.encode_body('h', 0)
+        with self.assertRaises(ValueError):
+            plugin_dbus.encode_body('i', 1)
+        with self.assertRaises(ValueError):
+            plugin_dbus.decode_body('v', b'')
+        with self.assertRaises(ValueError):
+            plugin_dbus.encode_body('a{sv}', {'MicMuted': 1})
+        with self.assertRaises(ValueError):
+            plugin_dbus.encode_message(
+                'l', 1, 0, 1,
+                {'path': '/dev/getrostrum/Rostrum/Control', 'member': 'Nope', 'signature': 'h'},
+                b'')
+        raw = bytearray(_PRESS_ACTION)
+        raw[3] = 0
+        with self.assertRaises(ValueError):
+            plugin_dbus.decode_message(bytes(raw))
 
 
 if __name__ == '__main__':
