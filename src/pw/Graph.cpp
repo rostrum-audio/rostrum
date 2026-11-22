@@ -41,6 +41,12 @@ const Node *Graph::nodeByName(const QString &name) const
     return nullptr;
 }
 
+const Device *Graph::device(uint32_t id) const
+{
+    auto it = devices.constFind(id);
+    return it == devices.cend() ? nullptr : &it.value();
+}
+
 namespace {
 
 QList<Port> sortedPorts(QList<Port> ports)

@@ -11,6 +11,9 @@ QQC2.Pane {
     padding: Kirigami.Units.largeSpacing
     focusPolicy: Qt.NoFocus
 
+    // Session-only dismiss for the Bluetooth Stream-only hint; shows again next launch if needed.
+    property bool streamOnlyBtHintDismissed: false
+
     // Strips share the row between a narrow and a wide width; below the narrow one the row scrolls.
     readonly property real stripNarrow: Kirigami.Units.gridUnit * 8
     readonly property real stripWide: Kirigami.Units.gridUnit * 10
@@ -104,6 +107,32 @@ QQC2.Pane {
             visible: Mixer.perMixUnavailable.length > 0
             type: Kirigami.MessageType.Warning
             text: Mixer.perMixUnavailable
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: !page.streamOnlyBtHintDismissed
+                     && Devices.headphonesAreBluetooth
+                     && Mixer.streamOnlyPlaybackBusNames.length > 0
+            type: Kirigami.MessageType.Information
+            text: {
+                const names = Mixer.streamOnlyPlaybackBusNames
+                if (names.length === 1)
+                    return i18n("%1 is set to Stream only, so it will not play in your headphones.", names[0])
+                return i18n("%1 are set to Stream only, so they will not play in your headphones.",
+                            names.join(i18nc("list separator", ", ")))
+            }
+            actions: [
+                Kirigami.Action {
+                    text: i18nc("@action:button", "Include in headphones")
+                    icon.name: "audio-headphones"
+                    onTriggered: Mixer.includeStreamOnlyBusesInHeadphones()
+                },
+                Kirigami.Action {
+                    text: i18nc("@action:button", "Dismiss")
+                    onTriggered: page.streamOnlyBtHintDismissed = true
+                }
+            ]
         }
 
         RowLayout {

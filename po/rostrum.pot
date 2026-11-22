@@ -6,9 +6,9 @@
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: rostrum 0.3.0\n"
+"Project-Id-Version: rostrum 0.4.0\n"
 "Report-Msgid-Bugs-To: https://github.com/rostrum-audio/rostrum/issues\n"
-"POT-Creation-Date: 2026-11-18 19:17-0500\n"
+"POT-Creation-Date: 2026-11-21 21:06-0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,162 +18,162 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
 
-#: src/app/AppController.cpp:184
+#: src/app/AppController.cpp:195
 #, kde-format
-msgid "PipeWire %1 is too old. Rostrum needs PipeWire 1.4 or newer."
+msgid "PipeWire %1 is too old. Rostrum needs PipeWire %2 or newer."
 msgstr ""
 
-#: src/app/AppController.cpp:193
+#: src/app/AppController.cpp:207
 #, kde-format
 msgid "The session manager is not WirePlumber."
 msgstr ""
 
-#: src/app/AppController.cpp:195
+#: src/app/AppController.cpp:209
 #, kde-format
 msgid "WirePlumber %1 is older than 0.5."
 msgstr ""
 
-#: src/app/AppController.cpp:201
+#: src/app/AppController.cpp:215
 #, kde-format
 msgid "The saved headphones are not connected."
 msgstr ""
 
-#: src/app/AppController.cpp:204
+#: src/app/AppController.cpp:218
 #, kde-format
 msgid "The saved mic is not connected, so the stream mic is silent."
 msgstr ""
 
-#: src/app/AppController.cpp:206
+#: src/app/AppController.cpp:220
 #, kde-format
 msgid "The saved mic is not connected."
 msgstr ""
 
-#: src/app/AppController.cpp:227
+#: src/app/AppController.cpp:241
 #, kde-format
 msgid "PipeWire OK"
 msgstr ""
 
-#: src/app/AppController.cpp:230
+#: src/app/AppController.cpp:244
 #, kde-format
 msgid "PipeWire degraded"
 msgstr ""
 
-#: src/app/AppController.cpp:233
+#: src/app/AppController.cpp:247
 #, kde-format
 msgid "Connecting to PipeWire…"
 msgstr ""
 
-#: src/app/AppController.cpp:235
+#: src/app/AppController.cpp:249
 #, kde-format
 msgid "PipeWire missing"
 msgstr ""
 
-#: src/app/AppController.cpp:241
+#: src/app/AppController.cpp:255
 #, kde-format
 msgid "PipeWire is not running."
 msgstr ""
 
-#: src/app/AppController.cpp:245
+#: src/app/AppController.cpp:259
 #, kde-format
 msgid ""
 "PipeWire is not running in your session, so there is no audio server to "
 "connect to."
 msgstr ""
 
-#: src/app/AppController.cpp:247
+#: src/app/AppController.cpp:261
 #, kde-format
 msgid "PipeWire is not answering. The service may have stopped or crashed."
 msgstr ""
 
-#: src/app/AppController.cpp:249
+#: src/app/AppController.cpp:263
 #, kde-format
 msgid ""
 "Rostrum is not allowed to connect to PipeWire. Run it as your own user, not "
 "with sudo."
 msgstr ""
 
-#: src/app/AppController.cpp:253
+#: src/app/AppController.cpp:267
 #, kde-format
 msgid "Could not connect to PipeWire: %1"
 msgstr ""
 
-#: src/app/AppController.cpp:287 src/app/AppController.cpp:296
+#: src/app/AppController.cpp:301 src/app/AppController.cpp:310
 #, kde-format
 msgid "Unknown"
 msgstr ""
 
-#: src/app/AppController.cpp:290 src/app/AppController.cpp:302
+#: src/app/AppController.cpp:304 src/app/AppController.cpp:316
 #, kde-format
 msgid "None"
 msgstr ""
 
-#: src/app/AppController.cpp:299
+#: src/app/AppController.cpp:313
 #, kde-format
 msgctxt "@info mic device that is not plugged in"
 msgid "%1 (unplugged)"
 msgstr ""
 
-#: src/app/AppController.cpp:390
+#: src/app/AppController.cpp:404
 #, kde-format
 msgid "There is no scene %1"
 msgstr ""
 
-#: src/app/AppController.cpp:395
+#: src/app/AppController.cpp:409
 #, kde-format
 msgid "This scene has no bus “%1”"
 msgstr ""
 
-#: src/app/AppController.cpp:444
+#: src/app/AppController.cpp:458
 #, kde-format
 msgid "Panic mute: mic and stream muted"
 msgstr ""
 
-#: src/app/AppController.cpp:445
+#: src/app/AppController.cpp:459
 #, kde-format
 msgid "Panic mute off: mic and stream restored"
 msgstr ""
 
-#: src/app/AppController.cpp:447
+#: src/app/AppController.cpp:461
 #, kde-format
 msgid "Scene: %1"
 msgstr ""
 
-#: src/app/AppController.cpp:451
+#: src/app/AppController.cpp:465
 #, kde-format
 msgid "Mic muted"
 msgstr ""
 
-#: src/app/AppController.cpp:451
+#: src/app/AppController.cpp:465
 #, kde-format
 msgid "Mic live"
 msgstr ""
 
-#: src/app/AppController.cpp:455
+#: src/app/AppController.cpp:469
 #, kde-format
 msgid "Stream muted"
 msgstr ""
 
-#: src/app/AppController.cpp:455
+#: src/app/AppController.cpp:469
 #, kde-format
 msgid "Stream unmuted"
 msgstr ""
 
-#: src/app/AppController.cpp:458
+#: src/app/AppController.cpp:472
 #, kde-format
 msgid "Studio Voice on"
 msgstr ""
 
-#: src/app/AppController.cpp:458
+#: src/app/AppController.cpp:472
 #, kde-format
 msgid "Studio Voice off"
 msgstr ""
 
-#: src/app/AppController.cpp:467 src/app/Scenes.cpp:195
+#: src/app/AppController.cpp:481 src/app/Scenes.cpp:195
 #, kde-format
 msgid "Scene saved"
 msgstr ""
 
-#: src/app/AppController.cpp:512
+#: src/app/AppController.cpp:526
 #, kde-format
 msgid "Copied"
 msgstr ""
@@ -553,33 +553,54 @@ msgid ""
 "filters; you can turn Studio Voice on again on its page."
 msgstr ""
 
-#: src/app/Devices.cpp:31
+#: src/app/Devices.cpp:30
 #, kde-format
 msgctxt "bluetooth profile"
 msgid "Headset (HSP/HFP)"
 msgstr ""
 
-#: src/app/Devices.cpp:34
+#: src/app/Devices.cpp:32
 #, kde-format
 msgctxt "bluetooth profile"
 msgid "A2DP"
 msgstr ""
 
-#: src/app/Devices.cpp:37
+#: src/app/Devices.cpp:34
 #, kde-format
 msgctxt "bluetooth profile"
 msgid "LE Audio"
 msgstr ""
 
-#: src/app/Devices.cpp:119
+#: src/app/Devices.cpp:178
 #, kde-format
 msgctxt "device subtitle: Bluetooth, profile"
 msgid "Bluetooth, %1"
 msgstr ""
 
-#: src/app/Devices.cpp:260
+#: src/app/Devices.cpp:329
 #, kde-format
 msgid "Could not play a test tone on that device."
+msgstr ""
+
+#: src/app/Devices.cpp:354
+#, kde-format
+msgid "Could not find that Bluetooth device. Open Sound Settings to switch it."
+msgstr ""
+
+#: src/app/Devices.cpp:359
+#, kde-format
+msgid "High quality mode is not available. Open Sound Settings to switch it."
+msgstr ""
+
+#: src/app/Devices.cpp:363
+#, kde-format
+msgid ""
+"Could not switch to high quality mode. Open Sound Settings to try again."
+msgstr ""
+
+#: src/app/Devices.cpp:366
+#, kde-format
+msgid "Requested high quality Bluetooth audio."
 msgstr ""
 
 #: src/app/History.cpp:85 src/app/History.cpp:89
@@ -3090,7 +3111,7 @@ msgctxt "@label accessible"
 msgid "Send to bus"
 msgstr ""
 
-#: src/app/qml/Banners.qml:20 src/app/qml/Wizard.qml:399
+#: src/app/qml/Banners.qml:20 src/app/qml/Wizard.qml:422
 #, kde-format
 msgctxt "@action:button"
 msgid "Unmute Mic"
@@ -3787,7 +3808,7 @@ msgctxt "@info:tooltip"
 msgid "Rostrum plays your headphone mix here"
 msgstr ""
 
-#: src/app/qml/DeviceList.qml:230 src/app/qml/DevicesPage.qml:188
+#: src/app/qml/DeviceList.qml:230 src/app/qml/DevicesPage.qml:194
 #, kde-format
 msgctxt "@info node name and id"
 msgid "%1 (#%2)"
@@ -3811,83 +3832,89 @@ msgctxt "@info:tooltip"
 msgid "Play a short chime: left, right, then both"
 msgstr ""
 
-#: src/app/qml/DevicesPage.qml:28
+#: src/app/qml/DevicesPage.qml:28 src/app/qml/Wizard.qml:378
 #, kde-format
 msgid ""
-"A Bluetooth headset is in headset mode (HSP/HFP), which sounds muffled. "
-"Switch it to A2DP in the desktop sound settings when you do not need its mic."
+"Your Bluetooth headphones are in headset mode (HSP/HFP), which sounds "
+"muffled. Switch to high quality when you do not need the headset mic."
 msgstr ""
 
-#: src/app/qml/DevicesPage.qml:31
+#: src/app/qml/DevicesPage.qml:31 src/app/qml/Wizard.qml:381
+#, kde-format
+msgctxt "@action:button"
+msgid "Use high quality"
+msgstr ""
+
+#: src/app/qml/DevicesPage.qml:37 src/app/qml/Wizard.qml:387
 #, kde-format
 msgctxt "@action:button"
 msgid "Open Sound Settings"
 msgstr ""
 
-#: src/app/qml/DevicesPage.qml:53 src/app/qml/DevicesPage.qml:64
-#: src/app/qml/Wizard.qml:373
+#: src/app/qml/DevicesPage.qml:59 src/app/qml/DevicesPage.qml:70
+#: src/app/qml/Wizard.qml:395
 #, kde-format
 msgctxt "@title"
 msgid "Headphones"
 msgstr ""
 
-#: src/app/qml/DevicesPage.qml:59
+#: src/app/qml/DevicesPage.qml:65
 #, kde-format
 msgid "Where you hear the mix. Buses set to Headphones or Both play here."
 msgstr ""
 
-#: src/app/qml/DevicesPage.qml:74
+#: src/app/qml/DevicesPage.qml:80
 #, kde-format
 msgctxt "@option:check"
 msgid "Mono headphones"
 msgstr ""
 
-#: src/app/qml/DevicesPage.qml:85
+#: src/app/qml/DevicesPage.qml:91
 #, kde-format
 msgid ""
 "Both ears hear the whole mix, for one earbud or hearing on one side. Only "
 "your headphones change; the stream stays stereo."
 msgstr ""
 
-#: src/app/qml/DevicesPage.qml:96 src/app/qml/DevicesPage.qml:107
-#: src/app/qml/MicButton.qml:106 src/app/qml/Wizard.qml:385
+#: src/app/qml/DevicesPage.qml:102 src/app/qml/DevicesPage.qml:113
+#: src/app/qml/MicButton.qml:106 src/app/qml/Wizard.qml:408
 #, kde-format
 msgctxt "@title"
 msgid "Mic"
 msgstr ""
 
-#: src/app/qml/DevicesPage.qml:102
+#: src/app/qml/DevicesPage.qml:108
 #, kde-format
 msgid "Speak and watch the meters to find the right one."
 msgstr ""
 
-#: src/app/qml/DevicesPage.qml:121
+#: src/app/qml/DevicesPage.qml:127
 #, kde-format
 msgctxt "@option:check"
 msgid "Use another mic while mine is unplugged"
 msgstr ""
 
-#: src/app/qml/DevicesPage.qml:133
+#: src/app/qml/DevicesPage.qml:139
 #, kde-format
 msgid ""
 "If your mic is unplugged, the system default mic goes to stream until it "
 "comes back. That can be a webcam or laptop mic."
 msgstr ""
 
-#: src/app/qml/DevicesPage.qml:134
+#: src/app/qml/DevicesPage.qml:140
 #, kde-format
 msgid ""
 "If your mic is unplugged, the stream mic stays silent until it comes back, "
 "so no other mic goes live by surprise."
 msgstr ""
 
-#: src/app/qml/DevicesPage.qml:151
+#: src/app/qml/DevicesPage.qml:157
 #, kde-format
 msgctxt "@action:button"
 msgid "Advanced nodes"
 msgstr ""
 
-#: src/app/qml/DevicesPage.qml:153 src/app/qml/HotkeyList.qml:108
+#: src/app/qml/DevicesPage.qml:159 src/app/qml/HotkeyList.qml:108
 #: src/app/qml/MicFiltersPage.qml:338 src/app/qml/MicFiltersPage.qml:432
 #: src/app/qml/MicFiltersPage.qml:559 src/app/qml/ObsPage.qml:446
 #: src/app/qml/ReadinessPanel.qml:320 src/app/qml/RecordingTracks.qml:32
@@ -3895,7 +3922,7 @@ msgstr ""
 msgid "Expanded"
 msgstr ""
 
-#: src/app/qml/DevicesPage.qml:153 src/app/qml/HotkeyList.qml:108
+#: src/app/qml/DevicesPage.qml:159 src/app/qml/HotkeyList.qml:108
 #: src/app/qml/MicFiltersPage.qml:338 src/app/qml/MicFiltersPage.qml:559
 #: src/app/qml/ObsPage.qml:446 src/app/qml/ReadinessPanel.qml:320
 #: src/app/qml/RecordingTracks.qml:32
@@ -3903,28 +3930,28 @@ msgstr ""
 msgid "Collapsed"
 msgstr ""
 
-#: src/app/qml/DevicesPage.qml:169
+#: src/app/qml/DevicesPage.qml:175
 #, kde-format
 msgid "The virtual devices Rostrum created. Other apps can use these names."
 msgstr ""
 
-#: src/app/qml/DevicesPage.qml:170
+#: src/app/qml/DevicesPage.qml:176
 #, kde-format
 msgid "Rostrum has not created its virtual devices yet."
 msgstr ""
 
-#: src/app/qml/DevicesPage.qml:199
+#: src/app/qml/DevicesPage.qml:205
 #, kde-format
 msgctxt "@action:button"
 msgid "Copy name"
 msgstr ""
 
-#: src/app/qml/DevicesPage.qml:201 src/app/qml/ObsPage.qml:67
+#: src/app/qml/DevicesPage.qml:207 src/app/qml/ObsPage.qml:67
 #, kde-format
 msgid "Copied node name"
 msgstr ""
 
-#: src/app/qml/DevicesPage.qml:202 src/app/qml/ObsPage.qml:68
+#: src/app/qml/DevicesPage.qml:208 src/app/qml/ObsPage.qml:68
 #, kde-format
 msgctxt "@action:button accessible"
 msgid "Copy %1"
@@ -4470,7 +4497,7 @@ msgctxt "@option:check"
 msgid "Studio Voice"
 msgstr ""
 
-#: src/app/qml/MicFiltersPage.qml:168 src/app/qml/Wizard.qml:616
+#: src/app/qml/MicFiltersPage.qml:168 src/app/qml/Wizard.qml:639
 #, kde-format
 msgctxt "@label"
 msgid "Mic"
@@ -4718,13 +4745,13 @@ msgctxt "@label accessible"
 msgid "%1 stream level"
 msgstr ""
 
-#: src/app/qml/MixFaders.qml:124
+#: src/app/qml/MixFaders.qml:128
 #, kde-format
 msgctxt "@action:button"
 msgid "Unlink"
 msgstr ""
 
-#: src/app/qml/MixFaders.qml:125
+#: src/app/qml/MixFaders.qml:129
 #, kde-format
 msgctxt "@action:button"
 msgid "Link Headphones and Stream"
@@ -4742,7 +4769,7 @@ msgid "Create the mix to add Rostrum's buses to PipeWire."
 msgstr ""
 
 #: src/app/qml/MixerPage.qml:60 src/app/qml/ObsPage.qml:122
-#: src/app/qml/Wizard.qml:711
+#: src/app/qml/Wizard.qml:734
 #, kde-format
 msgctxt "@action:button"
 msgid "Create Mix"
@@ -4894,13 +4921,13 @@ msgctxt "@info OBS state"
 msgid "Needs setup"
 msgstr ""
 
-#: src/app/qml/ObsPage.qml:252 src/app/qml/Wizard.qml:586
+#: src/app/qml/ObsPage.qml:252 src/app/qml/Wizard.qml:609
 #, kde-format
 msgctxt "@action:button"
 msgid "Fix OBS…"
 msgstr ""
 
-#: src/app/qml/ObsPage.qml:253 src/app/qml/Wizard.qml:586
+#: src/app/qml/ObsPage.qml:253 src/app/qml/Wizard.qml:609
 #, kde-format
 msgctxt "@action:button"
 msgid "Set Up OBS…"
@@ -5388,7 +5415,7 @@ msgid ""
 "out and links to what changed."
 msgstr ""
 
-#: src/app/qml/PrivacyChoices.qml:174 src/app/qml/Wizard.qml:624
+#: src/app/qml/PrivacyChoices.qml:174 src/app/qml/Wizard.qml:647
 #, kde-format
 msgctxt "@label"
 msgid "Updates"
@@ -6202,7 +6229,7 @@ msgid "At login, start with the window hidden. Click the tray icon to show it."
 msgstr ""
 
 #: src/app/qml/SettingsPage.qml:102 src/app/qml/SettingsPage.qml:121
-#: src/app/qml/Wizard.qml:501
+#: src/app/qml/Wizard.qml:524
 #, kde-format
 msgid "Needs a system tray, and this desktop does not show one."
 msgstr ""
@@ -7380,248 +7407,248 @@ msgstr ""
 msgid "OBS records one clean stream mix and your mic."
 msgstr ""
 
-#: src/app/qml/Wizard.qml:399
+#: src/app/qml/Wizard.qml:422
 #, kde-format
 msgctxt "@action:button"
 msgid "Mute Mic"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:406
+#: src/app/qml/Wizard.qml:429
 #, kde-format
 msgid "The mic button in the header does the same, any time. Ctrl+M too."
 msgstr ""
 
-#: src/app/qml/Wizard.qml:417
+#: src/app/qml/Wizard.qml:440
 #, kde-format
 msgctxt "@option:check"
 msgid "Put apps on buses automatically"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:418
+#: src/app/qml/Wizard.qml:441
 #, kde-format
 msgid ""
 "Discord goes to Voice, Spotify to Music, Steam games to Game. OBS and audio "
 "tools are never moved, and your own choices always win."
 msgstr ""
 
-#: src/app/qml/Wizard.qml:424
+#: src/app/qml/Wizard.qml:447
 #, kde-format
 msgctxt "@title:group"
 msgid "Your buses"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:439
+#: src/app/qml/Wizard.qml:462
 #, kde-format
 msgctxt "@info bus receives"
 msgid "Games"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:440
+#: src/app/qml/Wizard.qml:463
 #, kde-format
 msgctxt "@info bus receives"
 msgid "Voice chat"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:441
+#: src/app/qml/Wizard.qml:464
 #, kde-format
 msgctxt "@info bus receives"
 msgid "Music players"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:442
+#: src/app/qml/Wizard.qml:465
 #, kde-format
 msgctxt "@info bus receives"
 msgid "Stream alerts"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:443
+#: src/app/qml/Wizard.qml:466
 #, kde-format
 msgctxt "@info bus receives"
 msgid "Everything else"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:468
+#: src/app/qml/Wizard.qml:491
 #, kde-format
 msgctxt "@info"
 msgid "Your mic"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:470
+#: src/app/qml/Wizard.qml:493
 #, kde-format
 msgctxt "@info %1 is a kind of app"
 msgid "Receives %1"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:471
+#: src/app/qml/Wizard.qml:494
 #, kde-format
 msgctxt "@info"
 msgid "Apps you drag here"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:475
+#: src/app/qml/Wizard.qml:498
 #, kde-format
 msgctxt "destination"
 msgid "Headphones"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:476
+#: src/app/qml/Wizard.qml:499
 #, kde-format
 msgctxt "destination"
 msgid "Stream"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:477
+#: src/app/qml/Wizard.qml:500
 #, kde-format
 msgctxt "destination"
 msgid "Headphones and stream"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:492
+#: src/app/qml/Wizard.qml:515
 #, kde-format
 msgctxt "@option:check"
 msgid "Launch Rostrum at login"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:493
+#: src/app/qml/Wizard.qml:516
 #, kde-format
 msgid ""
 "Recommended. The mix is ready before Discord or OBS start, and apps land on "
 "their bus from the first second."
 msgstr ""
 
-#: src/app/qml/Wizard.qml:499
+#: src/app/qml/Wizard.qml:522
 #, kde-format
 msgctxt "@option:check"
 msgid "Start hidden in the tray"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:500
+#: src/app/qml/Wizard.qml:523
 #, kde-format
 msgid "At login, Rostrum waits in the tray instead of opening its window."
 msgstr ""
 
-#: src/app/qml/Wizard.qml:508
+#: src/app/qml/Wizard.qml:531
 #, kde-format
 msgctxt "@title:group"
 msgid "Hotkeys"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:519
+#: src/app/qml/Wizard.qml:542
 #, kde-format
 msgctxt "@info no shortcut"
 msgid "None"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:526
+#: src/app/qml/Wizard.qml:549
 #, kde-format
 msgid ""
 "These work in any app while Rostrum runs. Change them in Settings → Hotkeys."
 msgstr ""
 
-#: src/app/qml/Wizard.qml:553
+#: src/app/qml/Wizard.qml:576
 #, kde-format
 msgid "Checking OBS"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:594
+#: src/app/qml/Wizard.qml:617
 #, kde-format
 msgid ""
 "Rostrum creates its devices first, so OBS can find them. You see every "
 "change before it is made."
 msgstr ""
 
-#: src/app/qml/Wizard.qml:600
+#: src/app/qml/Wizard.qml:623
 #, kde-format
 msgctxt "@title:group"
 msgid "While you stream"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:615
+#: src/app/qml/Wizard.qml:638
 #, kde-format
 msgctxt "@label"
 msgid "Headphones"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:617
+#: src/app/qml/Wizard.qml:640
 #, kde-format
 msgctxt "@label"
 msgid "Apps"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:618
+#: src/app/qml/Wizard.qml:641
 #, kde-format
 msgctxt "@info"
 msgid "Put on buses automatically"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:618
+#: src/app/qml/Wizard.qml:641
 #, kde-format
 msgctxt "@info"
 msgid "You put them on buses"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:619
+#: src/app/qml/Wizard.qml:642
 #, kde-format
 msgctxt "@label"
 msgid "Startup"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:620
+#: src/app/qml/Wizard.qml:643
 #, kde-format
 msgctxt "@info"
 msgid "When you open it"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:621
+#: src/app/qml/Wizard.qml:644
 #, kde-format
 msgctxt "@info"
 msgid "At login, in the tray"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:622
+#: src/app/qml/Wizard.qml:645
 #, kde-format
 msgctxt "@info"
 msgid "At login"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:623
+#: src/app/qml/Wizard.qml:646
 #, kde-format
 msgctxt "@label"
 msgid "Crash reports"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:625
+#: src/app/qml/Wizard.qml:648
 #, kde-format
 msgctxt "@label"
 msgid "OBS"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:634
+#: src/app/qml/Wizard.qml:657
 #, kde-format
 msgctxt "@info accessible"
 msgid "Change"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:642
+#: src/app/qml/Wizard.qml:665
 #, kde-format
 msgid ""
 "PipeWire did not create the mix: %1 Check that PipeWire and WirePlumber are "
 "running, then try again."
 msgstr ""
 
-#: src/app/qml/Wizard.qml:664
+#: src/app/qml/Wizard.qml:687
 #, kde-format
 msgctxt "@action:button skip the whole setup"
 msgid "Skip setup, just create the mix"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:666
+#: src/app/qml/Wizard.qml:689
 #, kde-format
 msgctxt "@action:button skip the rest of the setup"
 msgid "Skip Setup"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:671
+#: src/app/qml/Wizard.qml:694
 #, kde-format
 msgctxt "@info:tooltip"
 msgid ""
@@ -7629,36 +7656,36 @@ msgid ""
 "Mixer"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:676
+#: src/app/qml/Wizard.qml:699
 #, kde-format
 msgctxt "@action:button"
 msgid "Back"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:684
+#: src/app/qml/Wizard.qml:707
 #, kde-format
 msgctxt "@info wizard progress"
 msgid "Step %1 of %2"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:694
+#: src/app/qml/Wizard.qml:717
 #, kde-format
 msgid "Creating the mix"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:702
+#: src/app/qml/Wizard.qml:725
 #, kde-format
 msgctxt "@action:button"
 msgid "Get Started"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:702
+#: src/app/qml/Wizard.qml:725
 #, kde-format
 msgctxt "@action:button"
 msgid "Next"
 msgstr ""
 
-#: src/app/qml/Wizard.qml:711
+#: src/app/qml/Wizard.qml:734
 #, kde-format
 msgctxt "@action:button"
 msgid "Creating…"

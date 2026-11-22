@@ -128,7 +128,14 @@ struct Settings
     QStringList sceneOrder; // scene names in the user's order; scenes not listed follow by file name
     // Devices (PipeWire node.name; empty = system default)
     QString headphones;
+    // Bluetooth headphones: api.bluez5.address so reconnect/profile flips find the same buds when
+    // node.name changes. Empty for non-Bluetooth; may be set while headphones is empty when
+    // following a Bluetooth system default.
+    QString headphonesBtAddress;
     QString mic;
+    // Bluetooth mic: api.bluez5.address for an explicit mic pick. Never learned from the system
+    // default source (that would pin a headset mic by surprise).
+    QString micBtAddress;
     bool micFallback = false; // another mic stands in while the saved one is unplugged
     bool monoHeadphones = false;
     // Mic filters

@@ -416,6 +416,18 @@ void Engine::setHeadphoneDevice(const QString &nodeName)
     scheduleReconcile();
 }
 
+void Engine::setHeadphonesBtAddress(const QString &address)
+{
+    if (m_headphonesBtAddress == address) {
+        return;
+    }
+    m_headphonesBtAddress = address;
+    m_headphonesWereMissing = false;
+    Q_EMIT devicesChanged();
+    publishMissingLabels();
+    scheduleReconcile();
+}
+
 void Engine::setMicDevice(const QString &nodeName)
 {
     if (m_micDevice == nodeName) {
@@ -424,6 +436,18 @@ void Engine::setMicDevice(const QString &nodeName)
     m_micDevice = nodeName;
     m_micWasMissing = false;
     m_lastSourceDescription.clear();
+    Q_EMIT devicesChanged();
+    publishMissingLabels();
+    scheduleReconcile();
+}
+
+void Engine::setMicBtAddress(const QString &address)
+{
+    if (m_micBtAddress == address) {
+        return;
+    }
+    m_micBtAddress = address;
+    m_micWasMissing = false;
     Q_EMIT devicesChanged();
     publishMissingLabels();
     scheduleReconcile();
@@ -451,20 +475,104 @@ bool usableSource(const pw::Node &n)
     return n.isSource() && !n.isRostrum();
 }
 
+// Higher is better for listening to the mix. Headset/HFP is last.
+int bluetoothSinkScore(const pw::Node &n)
+{
+    const QString p = n.prop("api.bluez5.profile").toLower();
+    if (p.contains(QLatin1String("a2dp"))) {
+        return 3;
+    }
+    if (p.contains(QLatin1String("bap"))) {
+        return 2;
+    }
+    if (p.contains(QLatin1String("head")) || p.contains(QLatin1String("hfp")) ||
+        p.contains(QLatin1String("hsp"))) {
+        return 0;
+    }
+    return 1;
+}
+
+bool isBluetoothNode(const pw::Node &n)
+{
+    return n.prop("device.api") == QLatin1String("bluez5") || n.name.startsWith(QLatin1String("bluez_"));
+}
+
+const pw::Node *resolveByBluetoothAddress(const pw::Graph &g, const QString &address, bool sink)
+{
+    if (address.isEmpty()) {
+        return nullptr;
+    }
+    const pw::Node *best = nullptr;
+    int bestScore = -1;
+    int bestPriority = -1;
+    for (const auto &n : g.nodes) {
+        if (n.prop("api.bluez5.address") != address) {
+            continue;
+        }
+        if (sink) {
+            if (!usableSink(n)) {
+                continue;
+            }
+            const int score = bluetoothSinkScore(n);
+            const int priority = n.prop("priority.session").toInt();
+            if (!best || score > bestScore || (score == bestScore && priority > bestPriority)) {
+                best = &n;
+                bestScore = score;
+                bestPriority = priority;
+            }
+            continue;
+        }
+        if (!usableSource(n) || n.mediaClass.contains(QLatin1String("Monitor"))) {
+            continue;
+        }
+        const int priority = n.prop("priority.session").toInt();
+        if (!best || priority > bestPriority) {
+            best = &n;
+            bestPriority = priority;
+        }
+    }
+    return best;
+}
+
 } // namespace
 
+QStringList streamOnlyPlaybackBusNames(const Scene &scene)
+{
+    QStringList names;
+    for (const Bus &b : scene.buses) {
+        if (!b.isInput() && b.destination == Destination::Stream) {
+            names << b.name;
+        }
+    }
+    return names;
+}
+
 const pw::Node *resolveDevice(const pw::Graph &g, const QString &saved, const QString &systemDefault,
-                              bool sink, bool fallback)
+                              bool sink, bool fallback, const QString &btAddress)
 {
     auto usable = [sink](const pw::Node &n) { return sink ? usableSink(n) : usableSource(n); };
     if (const pw::Node *n = g.nodeByName(saved); n && usable(*n)) {
         return n;
     }
+    // Explicit saved pick: address recovers the same device when node.name flipped.
+    if (!saved.isEmpty() && !btAddress.isEmpty()) {
+        if (const pw::Node *n = resolveByBluetoothAddress(g, btAddress, sink)) {
+            return n;
+        }
+    }
+    // No exact name and no Bluetooth address match. Mic with fallback off stays silent;
+    // headphones always fall through (callers pass fallback=true).
     if (!saved.isEmpty() && !fallback) {
         return nullptr;
     }
     if (const pw::Node *n = g.nodeByName(systemDefault); n && usable(*n)) {
         return n;
+    }
+    // Follow-default with a learned headphones address: only after the default is missing.
+    if (saved.isEmpty() && sink && !btAddress.isEmpty()) {
+        if (const pw::Node *n = resolveByBluetoothAddress(g, btAddress, sink)) {
+            return n;
+        }
     }
     const pw::Node *best = nullptr;
     for (const auto &n : g.nodes) {
@@ -478,14 +586,16 @@ const pw::Node *resolveDevice(const pw::Graph &g, const QString &saved, const QS
 
 const pw::Node *Engine::resolveSink() const
 {
-    return resolveDevice(m_pw->graph(), m_headphones, m_pw->defaultSinkName(), true, true);
+    return resolveDevice(m_pw->graph(), m_headphones, m_pw->defaultSinkName(), true, true,
+                         m_headphonesBtAddress);
 }
 
 // A missing saved mic leaves rostrum.mic unlinked unless the user opted into a fallback: a webcam
 // or laptop mic going live on stream by surprise is worse than silence.
 const pw::Node *Engine::resolveSource() const
 {
-    return resolveDevice(m_pw->graph(), m_micDevice, m_pw->defaultSourceName(), false, m_micFallback);
+    return resolveDevice(m_pw->graph(), m_micDevice, m_pw->defaultSourceName(), false, m_micFallback,
+                         m_micBtAddress);
 }
 
 QString Engine::resolvedSinkName() const
@@ -502,20 +612,26 @@ QString Engine::resolvedSourceName() const
 
 bool Engine::headphonesMissing() const
 {
-    if (m_headphones.isEmpty() || m_pw->state() != pw::PwContext::State::Ready) {
+    if ((m_headphones.isEmpty() && m_headphonesBtAddress.isEmpty()) ||
+        m_pw->state() != pw::PwContext::State::Ready) {
         return false;
     }
-    const pw::Node *n = m_pw->graph().nodeByName(m_headphones);
-    return !n || !usableSink(*n);
+    if (const pw::Node *n = m_pw->graph().nodeByName(m_headphones); n && usableSink(*n)) {
+        return false;
+    }
+    return !resolveByBluetoothAddress(m_pw->graph(), m_headphonesBtAddress, true);
 }
 
 bool Engine::micMissing() const
 {
-    if (m_micDevice.isEmpty() || m_pw->state() != pw::PwContext::State::Ready) {
+    if ((m_micDevice.isEmpty() && m_micBtAddress.isEmpty()) ||
+        m_pw->state() != pw::PwContext::State::Ready) {
         return false;
     }
-    const pw::Node *n = m_pw->graph().nodeByName(m_micDevice);
-    return !n || !usableSource(*n);
+    if (const pw::Node *n = m_pw->graph().nodeByName(m_micDevice); n && usableSource(*n)) {
+        return false;
+    }
+    return !resolveByBluetoothAddress(m_pw->graph(), m_micBtAddress, false);
 }
 
 bool Engine::micSilenced() const
@@ -565,8 +681,76 @@ void Engine::publishMissingLabels()
 
 void Engine::reconcileDevices()
 {
+    bool identityChanged = false;
+    if (m_headphones.isEmpty()) {
+        // Follow system default: learn a Bluetooth address from the default sink, or clear it when
+        // the default is not Bluetooth. Never write the BT node.name into m_headphones.
+        const pw::Node *def =
+            resolveDevice(m_pw->graph(), QString(), m_pw->defaultSinkName(), true, true, QString());
+        if (def && isBluetoothNode(*def)) {
+            const QString addr = def->prop("api.bluez5.address");
+            if (!addr.isEmpty() && addr != m_headphonesBtAddress) {
+                m_headphonesBtAddress = addr;
+                identityChanged = true;
+                qCInfo(lcEngine) << "headphones Bluetooth address" << addr << "from system default"
+                                 << def->name;
+            }
+        } else if (!m_headphonesBtAddress.isEmpty()) {
+            qCInfo(lcEngine) << "clearing headphones Bluetooth address; system default is not Bluetooth";
+            m_headphonesBtAddress.clear();
+            identityChanged = true;
+        }
+    } else {
+        // Legacy / explicit pick: learn the address once the sink is present.
+        if (m_headphonesBtAddress.isEmpty()) {
+            if (const pw::Node *n = m_pw->graph().nodeByName(m_headphones)) {
+                const QString addr = n->prop("api.bluez5.address");
+                if (!addr.isEmpty()) {
+                    m_headphonesBtAddress = addr;
+                    identityChanged = true;
+                    qCInfo(lcEngine) << "headphones Bluetooth address" << addr << "from" << m_headphones;
+                }
+            }
+        }
+        // Same buds under a new node.name after reconnect or A2DP/HFP flip: refresh the saved name.
+        if (!m_headphonesBtAddress.isEmpty()) {
+            if (const pw::Node *n = resolveByBluetoothAddress(m_pw->graph(), m_headphonesBtAddress, true);
+                n && n->name != m_headphones) {
+                qCInfo(lcEngine) << "headphones node.name" << m_headphones << "-> " << n->name
+                                 << "for Bluetooth" << m_headphonesBtAddress;
+                m_headphones = n->name;
+                m_lastSinkDescription = n->label();
+                identityChanged = true;
+            }
+        }
+    }
+    // Explicit mic pick only: backfill and migrate address. Never learn from the system default.
+    if (!m_micDevice.isEmpty()) {
+        if (m_micBtAddress.isEmpty()) {
+            if (const pw::Node *n = m_pw->graph().nodeByName(m_micDevice)) {
+                const QString addr = n->prop("api.bluez5.address");
+                if (!addr.isEmpty()) {
+                    m_micBtAddress = addr;
+                    identityChanged = true;
+                    qCInfo(lcEngine) << "mic Bluetooth address" << addr << "from" << m_micDevice;
+                }
+            }
+        }
+        if (!m_micBtAddress.isEmpty()) {
+            if (const pw::Node *n = resolveByBluetoothAddress(m_pw->graph(), m_micBtAddress, false);
+                n && n->name != m_micDevice) {
+                qCInfo(lcEngine) << "mic node.name" << m_micDevice << "-> " << n->name << "for Bluetooth"
+                                 << m_micBtAddress;
+                m_micDevice = n->name;
+                m_lastSourceDescription = n->label();
+                identityChanged = true;
+            }
+        }
+    }
     const bool missing = headphonesMissing();
     if (const pw::Node *n = m_pw->graph().nodeByName(m_headphones)) {
+        m_lastSinkDescription = n->label();
+    } else if (const pw::Node *n = resolveByBluetoothAddress(m_pw->graph(), m_headphonesBtAddress, true)) {
         m_lastSinkDescription = n->label();
     }
     if (missing && !m_headphonesWereMissing) {
@@ -580,6 +764,8 @@ void Engine::reconcileDevices()
     }
     const bool micGone = micMissing();
     if (const pw::Node *n = m_pw->graph().nodeByName(m_micDevice)) {
+        m_lastSourceDescription = n->label();
+    } else if (const pw::Node *n = resolveByBluetoothAddress(m_pw->graph(), m_micBtAddress, false)) {
         m_lastSourceDescription = n->label();
     }
     if (micGone && !m_micWasMissing) {
@@ -595,11 +781,34 @@ void Engine::reconcileDevices()
         qCInfo(lcEngine) << "mic back:" << m_micDevice;
         Q_EMIT micRestored();
     }
+    // Soft flag when a Bluetooth headphone sink sits in PipeWire ERROR (dead transport).
+    bool unhealthy = m_headphonesTransportUnhealthy;
+    if (const pw::Node *sink = resolveSink(); sink && isBluetoothNode(*sink) && sink->error) {
+        if (!m_headphonesErrorSince.isValid()) {
+            m_headphonesErrorSince.start();
+            // Re-check after the debounce window even if the graph stays quiet.
+            QTimer::singleShot(2100, this, [this] { scheduleReconcile(); });
+        } else if (m_headphonesErrorSince.elapsed() >= 2000) {
+            unhealthy = true;
+        }
+    } else {
+        m_headphonesErrorSince.invalidate();
+        unhealthy = false;
+    }
+    if (unhealthy != m_headphonesTransportUnhealthy) {
+        m_headphonesTransportUnhealthy = unhealthy;
+        identityChanged = true;
+        if (unhealthy) {
+            qCInfo(lcEngine) << "headphones Bluetooth transport unhealthy:" << resolvedSinkName();
+        }
+    }
     publishMissingLabels();
     const QString sig = QStringList{resolvedSinkName(), resolvedSourceName(), missing ? QStringLiteral("1") : QString(),
-                                    micGone ? QStringLiteral("1") : QString(), micMeterNode()}
+                                    micGone ? QStringLiteral("1") : QString(), micMeterNode(),
+                                    m_headphonesBtAddress, m_micBtAddress,
+                                    unhealthy ? QStringLiteral("1") : QString()}
                             .join(QLatin1Char('|'));
-    if (sig != m_devicesSignature) {
+    if (identityChanged || sig != m_devicesSignature) {
         m_devicesSignature = sig;
         Q_EMIT devicesChanged();
     }

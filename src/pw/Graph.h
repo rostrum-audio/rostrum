@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <optional>
 
 namespace rostrum::pw {
 
@@ -30,6 +31,7 @@ struct Node
     QList<float> volumes;
     QVariantMap params; // the Props "params" struct (audioconvert settings, filter-graph controls)
     bool running = false; // processing audio, for nodes Rostrum binds
+    bool error = false;   // PW_NODE_STATE_ERROR (e.g. dead Bluetooth transport)
 
     QString prop(const char *key) const { return props.value(QString::fromUtf8(key)); }
     QString label() const;
@@ -72,17 +74,46 @@ struct Client
     QString version;
 };
 
+// A PipeWire Device (card): Bluetooth profiles live here, not on the sink node.
+struct DeviceProfile
+{
+    uint32_t index = 0;
+    QString name;
+    QString description;
+    int priority = 0;
+    bool available = true;
+};
+
+struct Device
+{
+    uint32_t id = 0;
+    QString name; // device.name
+    QString description;
+    QMap<QString, QString> props;
+    QList<DeviceProfile> profiles;
+    std::optional<uint32_t> currentProfile; // SPA_PARAM_Profile index when known
+
+    QString prop(const char *key) const { return props.value(QString::fromUtf8(key)); }
+    QString bluezAddress() const { return prop("api.bluez5.address"); }
+    bool isBluetooth() const
+    {
+        return prop("device.api") == QLatin1String("bluez5") || name.startsWith(QLatin1String("bluez_"));
+    }
+};
+
 struct Graph
 {
     QHash<uint32_t, Node> nodes;
     QHash<uint32_t, Port> ports;
     QHash<uint32_t, Link> links;
     QHash<uint32_t, Client> clients;
+    QHash<uint32_t, Device> devices;
     QHash<uint32_t, QString> factories; // global id -> factory.name
 
     bool hasFactory(const QString &name) const { return std::find(factories.cbegin(), factories.cend(), name) != factories.cend(); }
     const Node *node(uint32_t id) const;
     const Node *nodeByName(const QString &name) const;
+    const Device *device(uint32_t id) const;
     // Ports carrying the node's audio out: monitor ports for sinks, capture ports otherwise.
     QList<Port> outputPorts(uint32_t nodeId) const;
     QList<Port> inputPorts(uint32_t nodeId) const;

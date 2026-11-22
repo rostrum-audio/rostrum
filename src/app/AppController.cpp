@@ -53,6 +53,17 @@ AppController::AppController(QObject *parent)
     });
     connect(&m_engine, &engine::Engine::devicesChanged, this, [this] {
         updateStatus();
+        // Bluetooth reconnect may refresh headphones node.name; keep settings.toml in sync.
+        if (m_settings.headphones != m_engine.headphoneDevice() ||
+            m_settings.headphonesBtAddress != m_engine.headphonesBtAddress() ||
+            m_settings.mic != m_engine.micDevice() ||
+            m_settings.micBtAddress != m_engine.micBtAddress()) {
+            m_settings.headphones = m_engine.headphoneDevice();
+            m_settings.headphonesBtAddress = m_engine.headphonesBtAddress();
+            m_settings.mic = m_engine.micDevice();
+            m_settings.micBtAddress = m_engine.micBtAddress();
+            saveSettingsSoon();
+        }
         Q_EMIT devicesChanged();
     });
     connect(&m_engine, &engine::Engine::levelsChanged, this, &AppController::levelsChanged);
@@ -117,7 +128,9 @@ void AppController::start()
         qCWarning(lcApp) << "Settings file could not be read, using defaults." << err;
     }
     m_engine.setHeadphoneDevice(m_settings.headphones);
+    m_engine.setHeadphonesBtAddress(m_settings.headphonesBtAddress);
     m_engine.setMicDevice(m_settings.mic);
+    m_engine.setMicBtAddress(m_settings.micBtAddress);
     m_engine.setMicFallback(m_settings.micFallback);
     m_engine.setMonoHeadphones(m_settings.monoHeadphones);
     m_engine.setSceneFadeMs(m_settings.sceneFadeMs);
@@ -606,7 +619,9 @@ bool AppController::writeBackup(const QString &path, QString *error)
 {
     m_scenes.flush();
     m_settings.headphones = m_engine.headphoneDevice();
+    m_settings.headphonesBtAddress = m_engine.headphonesBtAddress();
     m_settings.mic = m_engine.micDevice();
+    m_settings.micBtAddress = m_engine.micBtAddress();
     const QString text = backup::serialize(m_settings, m_scenes.scenes(), QDateTime::currentDateTimeUtc());
     return SceneStore::writeFile(path, text, error);
 }
@@ -642,7 +657,9 @@ bool AppController::restoreBackup(const QString &path, QString *safetyCopy, QStr
     m_scenes.restoreScenes(bundle->scenes);
     m_settings = backup::restoredSettings(m_settings, bundle->settings);
     m_engine.setHeadphoneDevice(m_settings.headphones);
+    m_engine.setHeadphonesBtAddress(m_settings.headphonesBtAddress);
     m_engine.setMicDevice(m_settings.mic);
+    m_engine.setMicBtAddress(m_settings.micBtAddress);
     m_engine.setMicFallback(m_settings.micFallback);
     m_engine.setMonoHeadphones(m_settings.monoHeadphones);
     m_engine.setSceneFadeMs(m_settings.sceneFadeMs);
@@ -665,7 +682,9 @@ void AppController::saveSettingsNow()
 {
     m_saveTimer.stop();
     m_settings.headphones = m_engine.headphoneDevice();
+    m_settings.headphonesBtAddress = m_engine.headphonesBtAddress();
     m_settings.mic = m_engine.micDevice();
+    m_settings.micBtAddress = m_engine.micBtAddress();
     QString err;
     if (!saveSettings(paths::settingsFile(), m_settings, &err)) {
         qCWarning(lcApp) << "Could not save settings:" << err;

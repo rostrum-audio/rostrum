@@ -63,8 +63,16 @@ struct MicApp
 // otherwise the system default, otherwise the highest priority.session. With `fallback` off, a
 // saved device that is missing resolves to nothing. An empty `saved` always follows the default.
 // Rostrum nodes are never candidates.
+//
+// For Bluetooth, `btAddress` (api.bluez5.address) matches when node.name changed after a reconnect
+// or profile flip. Among headphone sinks, A2DP and LE Audio (BAP) beat headset mode. With an empty
+// `saved` (follow default), the system default wins over the address; the address is only tried
+// when the default is missing.
 const pw::Node *resolveDevice(const pw::Graph &graph, const QString &saved, const QString &systemDefault,
-                              bool sink, bool fallback);
+                              bool sink, bool fallback, const QString &btAddress = QString());
+
+// Playback buses whose destination is Stream only (not the mic). Used for the Mixer Bluetooth hint.
+QStringList streamOnlyPlaybackBusNames(const Scene &scene);
 
 // Owns the desired Rostrum graph for the current scene and reconciles PipeWire toward it
 // whenever either side changes. The engine never deletes the scene because a device vanished.
@@ -151,13 +159,19 @@ public:
 
     // Devices. Empty name = follow the system default.
     void setHeadphoneDevice(const QString &nodeName);
+    void setHeadphonesBtAddress(const QString &address);
     void setMicDevice(const QString &nodeName);
+    void setMicBtAddress(const QString &address);
     QString headphoneDevice() const { return m_headphones; }
+    QString headphonesBtAddress() const { return m_headphonesBtAddress; }
     QString micDevice() const { return m_micDevice; }
+    QString micBtAddress() const { return m_micBtAddress; }
     QString resolvedSinkName() const;
     QString resolvedSourceName() const;
     bool headphonesMissing() const;
     bool micMissing() const;
+    // Resolved BlueZ headphone sink stayed in PipeWire ERROR for ~2s.
+    bool headphonesTransportUnhealthy() const { return m_headphonesTransportUnhealthy; }
     bool hasMic() const { return !resolvedSourceName().isEmpty(); }
     // Off by default: while the saved mic is unplugged, rostrum.mic stays unlinked and muted.
     // On: another mic stands in, the way headphones fall back. Never rewrites the saved mic.
@@ -353,9 +367,13 @@ protected:
     bool m_panicStream = false;
     void holdsChanged();
     QString m_headphones;
+    QString m_headphonesBtAddress;
     QString m_micDevice;
+    QString m_micBtAddress;
     QString m_lastSinkDescription;
     bool m_headphonesWereMissing = false;
+    bool m_headphonesTransportUnhealthy = false;
+    QElapsedTimer m_headphonesErrorSince;
     QString m_lastSourceDescription;
     bool m_micWasMissing = false;
     QString m_publishedMissingMicLabel;

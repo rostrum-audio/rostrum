@@ -369,12 +369,54 @@ QQC2.Pane {
                             }
 
                             // 2. Headphones
-                            DeviceList {
-                                groupName: i18nc("@title", "Headphones")
-                                devices: Devices.outputs
-                                selected: Devices.headphones
-                                inUse: Devices.headphonesInUse
-                                onPicked: name => Devices.headphones = name
+                            ColumnLayout {
+                                spacing: Kirigami.Units.smallSpacing
+                                Kirigami.InlineMessage {
+                                    Layout.fillWidth: true
+                                    visible: Devices.headphonesTransportUnhealthy
+                                    type: Kirigami.MessageType.Warning
+                                    text: i18n("Bluetooth headphones may have lost their audio link. Try high quality mode, or reconnect in Sound Settings.")
+                                    actions: [
+                                        Kirigami.Action {
+                                            text: i18nc("@action:button", "Use high quality")
+                                            icon.name: "audio-headphones"
+                                            enabled: Devices.canPreferHighQualityHeadphones
+                                            onTriggered: Devices.preferHighQualityHeadphones()
+                                        },
+                                        Kirigami.Action {
+                                            text: i18nc("@action:button", "Open Sound Settings")
+                                            icon.name: "audio-volume-high"
+                                            onTriggered: Devices.openSoundSettings()
+                                        }
+                                    ]
+                                }
+                                Kirigami.InlineMessage {
+                                    Layout.fillWidth: true
+                                    visible: Devices.headphonesHeadsetProfile && !Devices.headphonesTransportUnhealthy
+                                    type: Kirigami.MessageType.Information
+                                    text: i18n("Your Bluetooth headphones are in headset mode (HSP/HFP), which sounds muffled. Switch to high quality when you do not need the headset mic.")
+                                    actions: [
+                                        Kirigami.Action {
+                                            text: i18nc("@action:button", "Use high quality")
+                                            icon.name: "audio-headphones"
+                                            enabled: Devices.canPreferHighQualityHeadphones
+                                            onTriggered: Devices.preferHighQualityHeadphones()
+                                        },
+                                        Kirigami.Action {
+                                            text: i18nc("@action:button", "Open Sound Settings")
+                                            icon.name: "audio-volume-high"
+                                            onTriggered: Devices.openSoundSettings()
+                                        }
+                                    ]
+                                }
+                                DeviceList {
+                                    Layout.fillWidth: true
+                                    groupName: i18nc("@title", "Headphones")
+                                    devices: Devices.outputs
+                                    selected: Devices.headphones
+                                    inUse: Devices.headphonesInUse
+                                    onPicked: name => Devices.headphones = name
+                                }
                             }
 
                             // 3. Mic

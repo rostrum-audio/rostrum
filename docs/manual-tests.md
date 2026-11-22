@@ -106,6 +106,29 @@ also captures `Rostrum Mic`. Run this with the real mic and OBS.
 3. Plug it back in (or recreate the fake). It prints `Headphones back`, `rostrum.phones` is linked
    to the headset again, and the fallback links are removed. The scene was never modified.
 
+## 5b. Bluetooth headphones (real buds)
+
+Needs a Bluetooth headset or earbuds (for example Sennheiser Momentum TW 5) already paired in
+Plasma. Not covered by automated tests.
+
+1. Connect the buds. On Devices, pick the A2DP (or LE Audio) sink. `settings.toml` stores both
+   `headphones` (`node.name`) and `headphones_bt_address` (`api.bluez5.address`). Leaving headphones
+   on system default while the buds are the default should still write `headphones_bt_address`
+   without pinning `headphones` to the BT `node.name`.
+2. Disconnect the buds (case lid or Bluetooth off). Rostrum falls back like test 5; the saved
+   address is unchanged when headphones were an explicit pick.
+3. Reconnect. Without re-picking, `rostrum.phones` links to the buds again even if PipeWire gave
+   them a new `node.name`. The log may show `headphones node.name … -> … for Bluetooth …`.
+4. Force headset mode (take a call, or switch to HSP/HFP in Sound Settings). Devices shows the
+   muffled-mode banner with **Use high quality**. Press it: Rostrum prefers AAC before aptX when
+   both exist; the buds return to a working high-quality profile and the mix sounds clear again.
+   Do not expect Rostrum to switch automatically after a call.
+5. Optional: with Music (or another bus) set to Stream only, the Mixer shows a hint while headphones
+   are Bluetooth; **Include in headphones** sets those buses to Both.
+6. Optional: with one bud in, Mono headphones still sums both channels into both ears.
+7. Optional: if the buds' sink sits in PipeWire ERROR (dead transport), Devices shows a warning with
+   **Use high quality** and Sound Settings after about two seconds.
+
 ## 6. Quitting Rostrum falls back to the default sink
 
 1. Assign Discord (or any playing app) to Voice with "Always". Check that

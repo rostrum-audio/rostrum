@@ -341,7 +341,9 @@ QString serializeSettings(const Settings &s)
         {"devices",
          toml::table{
              {"headphones", s.headphones.toStdString()},
+             {"headphones_bt_address", s.headphonesBtAddress.toStdString()},
              {"mic", s.mic.toStdString()},
+             {"mic_bt_address", s.micBtAddress.toStdString()},
              {"mic_fallback", s.micFallback},
              {"mono_headphones", s.monoHeadphones},
          }},
@@ -474,7 +476,9 @@ Settings parseSettings(const QString &text, QString *error)
         s.sceneOrder.removeDuplicates();
     }
     s.headphones = getStr(t, "devices", "headphones", s.headphones);
+    s.headphonesBtAddress = getStr(t, "devices", "headphones_bt_address", s.headphonesBtAddress);
     s.mic = getStr(t, "devices", "mic", s.mic);
+    s.micBtAddress = getStr(t, "devices", "mic_bt_address", s.micBtAddress);
     s.micFallback = get(t, "devices", "mic_fallback", s.micFallback);
     s.monoHeadphones = get(t, "devices", "mono_headphones", s.monoHeadphones);
     s.micFilters = parseMicFilters(t);

@@ -30,7 +30,14 @@ class Devices : public QObject
     Q_PROPERTY(QVariantList inputs READ inputs NOTIFY listsChanged)
     // Rows: {name, description, id}
     Q_PROPERTY(QVariantList virtualNodes READ virtualNodes NOTIFY listsChanged)
-    Q_PROPERTY(bool anyHeadsetProfile READ anyHeadsetProfile NOTIFY listsChanged)
+    // True when the headphones in use (or the saved Bluetooth buds) are in HSP/HFP.
+    Q_PROPERTY(bool headphonesHeadsetProfile READ headphonesHeadsetProfile NOTIFY listsChanged)
+    // True when PipeWire lists an A2DP or BAP sink profile for the saved Bluetooth headphones.
+    Q_PROPERTY(bool canPreferHighQualityHeadphones READ canPreferHighQualityHeadphones NOTIFY listsChanged)
+    // Resolved headphone sink is BlueZ (for Mixer Stream-only hint).
+    Q_PROPERTY(bool headphonesAreBluetooth READ headphonesAreBluetooth NOTIFY listsChanged)
+    // BlueZ headphone sink stayed in PipeWire ERROR ~2s (soft warning; no auto switch).
+    Q_PROPERTY(bool headphonesTransportUnhealthy READ headphonesTransportUnhealthy NOTIFY listsChanged)
     // Saved choice (node.name); empty = follow the system default.
     Q_PROPERTY(QString headphones READ headphones WRITE setHeadphones NOTIFY choiceChanged)
     Q_PROPERTY(QString mic READ mic WRITE setMic NOTIFY choiceChanged)
@@ -55,7 +62,10 @@ public:
     QVariantList outputs() const { return m_outputs; }
     QVariantList inputs() const { return m_inputs; }
     QVariantList virtualNodes() const { return m_virtual; }
-    bool anyHeadsetProfile() const { return m_anyHeadset; }
+    bool headphonesHeadsetProfile() const { return m_headphonesHeadset; }
+    bool canPreferHighQualityHeadphones() const;
+    bool headphonesAreBluetooth() const { return m_headphonesAreBluetooth; }
+    bool headphonesTransportUnhealthy() const;
     QString headphones() const;
     void setHeadphones(const QString &nodeName);
     QString mic() const;
@@ -74,6 +84,8 @@ public:
     Q_INVOKABLE void refresh();
     Q_INVOKABLE bool playTone(const QString &nodeName);
     Q_INVOKABLE void openSoundSettings();
+    // Ask PipeWire to switch the Bluetooth device to A2DP (or BAP). Never automatic.
+    Q_INVOKABLE bool preferHighQualityHeadphones();
 
 Q_SIGNALS:
     void listsChanged();
@@ -97,7 +109,10 @@ private:
     QVariantList m_outputs;
     QVariantList m_inputs;
     QVariantList m_virtual;
-    bool m_anyHeadset = false;
+    bool m_headphonesHeadset = false;
+    bool m_canPreferHighQuality = false;
+    bool m_headphonesAreBluetooth = false;
+    bool m_headphonesTransportUnhealthy = false;
     QStringList m_inputNames;
     QHash<QString, meters::State> m_state;
     QVariantMap m_levels;

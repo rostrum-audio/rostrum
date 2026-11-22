@@ -287,16 +287,34 @@ Rostrum accepts those ports when a non-sink node has no other outputs.
 
 ### Devices
 
-The headphone target is the saved `node.name` if present, otherwise the system default sink
-(`default.audio.sink` metadata), otherwise the highest `priority.session` sink. Rostrum nodes are
-never candidates. The mic works the same way with sources, except when a saved mic goes missing
-(below). With no saved mic, Rostrum follows the system default source. The choice is a pure
-function of the graph (`engine::resolveDevice`), covered by `tests/tst_engine.cpp`.
+The headphone target is the saved `node.name` if present, otherwise (for an explicit Bluetooth pick)
+a sink with the same `api.bluez5.address` (`[devices] headphones_bt_address`), preferring A2DP or
+LE Audio (BAP) over HSP/HFP, otherwise the system default sink (`default.audio.sink` metadata),
+otherwise the highest `priority.session` sink. With an empty headphones choice (follow default),
+Rostrum follows the system default first; a learned Bluetooth address is only used when that
+default is missing. While following a Bluetooth default, Rostrum stores `headphones_bt_address`
+without writing the BT `node.name` into `headphones`; a non-Bluetooth default clears the address.
+Rostrum nodes are never candidates. When the same Bluetooth buds reappear under a new `node.name`
+after a reconnect or profile flip, Rostrum updates the saved name (identity correction) and does
+not treat that as a fallback onto speakers. The mic mirrors address identity for an **explicit**
+mic pick (`[devices] mic_bt_address`); it is never learned from the system default source. With no
+saved mic, Rostrum follows the system default source. The choice is a pure function of the graph
+(`engine::resolveDevice`), covered by `tests/tst_engine.cpp`.
 
-If the saved headphones disappear, the scene is held unchanged. `rostrum.phones` is relinked to the
-fallback, the UI shows a banner, and one desktop notification is sent ("Headphones disconnected,
-scene held"). When a node with the saved `node.name` returns, Rostrum relinks to it. The saved
-device is never rewritten by a fallback.
+If the saved headphones disappear (neither the saved `node.name` nor the Bluetooth address matches),
+the scene is held unchanged. `rostrum.phones` is relinked to the fallback, the UI shows a banner, and
+one desktop notification is sent ("Headphones disconnected, scene held"). When a matching node
+returns, Rostrum relinks to it. The saved device is never rewritten by a fallback onto another
+speaker.
+
+Bluetooth headset mode (HSP/HFP) sounds muffled. Devices and the wizard show a banner when the
+headphones in use (or the saved buds) are in that mode. **Use high quality** asks PipeWire to set
+the BlueZ device profile, trying AAC, then SBC-XQ, then SBC, then other A2DP (aptX/vendor), then
+BAP, and retries the next profile if the sink stays in headset mode or ERROR; it never switches
+automatically, so a call that needs HFP is not fought. Sound Settings remains as a fallback. If the
+resolved Bluetooth headphone sink stays in PipeWire ERROR for about two seconds, Devices shows a
+soft warning (same actions) without disconnecting or auto-switching profiles. When headphones are
+Bluetooth and a playback bus is Stream only, the Mixer offers to include those buses in headphones.
 
 If the saved mic disappears, the stream mic goes silent instead of falling back. Nothing is linked
 into `rostrum.mic` or `rostrum.sidetone`, and both nodes are muted, so a webcam or laptop mic never

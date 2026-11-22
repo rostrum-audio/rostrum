@@ -63,6 +63,9 @@ public:
     void setNodeVolumes(uint32_t nodeId, const QList<float> &perChannel, bool mute); // the last repeats
     void setNodeVolume(uint32_t nodeId, float linear); // leaves mute alone
     void setNodeMute(uint32_t nodeId, bool mute);      // leaves volume alone
+    // Sets a Device's SPA_PARAM_Profile by EnumProfile index (Bluetooth A2DP/BAP switch).
+    // Returns false if the device is unknown or there is no daemon connection.
+    bool setDeviceProfile(uint32_t deviceId, uint32_t profileIndex, bool save = true);
     // Blocks until the daemon has handled every request sent so far, or the timeout passes.
     bool roundtrip(int timeoutMs);
     // Both return false, and send nothing, while there is no "default" metadata (WirePlumber is
@@ -75,6 +78,8 @@ public:
 
     // Unit tests only: install a stand-in graph without a daemon. Refuses if connected.
     void testingInstallGraph(const Graph &graph, State state = State::Ready);
+    // Unit tests only: override defaults after testingInstallGraph. Refuses if connected.
+    void testingSetDefaults(const QString &sink, const QString &source);
     // Unit tests only: the object IDs destroyObject() or destroyLink() was asked to remove while there
     // is no daemon.
     QList<uint32_t> testingDestroyRequests() const;

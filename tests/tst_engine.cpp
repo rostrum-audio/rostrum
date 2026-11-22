@@ -6,6 +6,7 @@
 #include "engine/MixPlan.h"
 #include "engine/NodeSpecs.h"
 #include "engine/SceneManager.h"
+#include "pw/BluetoothProfiles.h"
 #include "pw/Graph.h"
 #include "pw/MicCheck.h"
 #include "pw/PortConfig.h"
@@ -549,6 +550,267 @@ private Q_SLOTS:
                  QStringLiteral("alsa_output.speakers"));
         QCOMPARE(nameOf(engine::resolveDevice(g, QString(), QString(), true, true)),
                  QStringLiteral("alsa_output.speakers"));
+    }
+
+    void bluetoothHeadphonesPreferA2dpByAddress()
+    {
+        pw::Graph g = devices();
+        const QString addr = QStringLiteral("AA:BB:CC:DD:EE:FF");
+        auto bluez = [&](uint32_t id, const char *name, const char *profile, int priority) {
+            pw::Node n = node(id, name, "Audio/Sink", priority);
+            n.props.insert(QStringLiteral("device.api"), QStringLiteral("bluez5"));
+            n.props.insert(QStringLiteral("api.bluez5.address"), addr);
+            n.props.insert(QStringLiteral("api.bluez5.profile"), QString::fromLatin1(profile));
+            return n;
+        };
+        g.nodes.insert(20, bluez(20, "bluez_output.AA_BB_CC_DD_EE_FF.headset-head-unit", "headset-head-unit", 2000));
+        g.nodes.insert(21, bluez(21, "bluez_output.AA_BB_CC_DD_EE_FF.a2dp-sink", "a2dp-sink", 1500));
+        // Saved A2DP name is gone; address still finds A2DP over HFP even when HFP has higher priority.
+        QCOMPARE(nameOf(engine::resolveDevice(g, QStringLiteral("bluez_output.AA_BB_CC_DD_EE_FF.a2dp-sink"),
+                                              QStringLiteral("alsa_output.speakers"), true, true, addr)),
+                 QStringLiteral("bluez_output.AA_BB_CC_DD_EE_FF.a2dp-sink"));
+        g.nodes.remove(21);
+        QCOMPARE(nameOf(engine::resolveDevice(g, QStringLiteral("bluez_output.AA_BB_CC_DD_EE_FF.a2dp-sink"),
+                                              QStringLiteral("alsa_output.speakers"), true, true, addr)),
+                 QStringLiteral("bluez_output.AA_BB_CC_DD_EE_FF.headset-head-unit"));
+        g.nodes.remove(20);
+        QCOMPARE(nameOf(engine::resolveDevice(g, QStringLiteral("bluez_output.AA_BB_CC_DD_EE_FF.a2dp-sink"),
+                                              QStringLiteral("alsa_output.speakers"), true, true, addr)),
+                 QStringLiteral("alsa_output.speakers"));
+    }
+
+    void bluetoothHeadphonesMigrateNodeName()
+    {
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        auto flush = [] {
+            QCoreApplication::processEvents();
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::Timer);
+            QCoreApplication::processEvents();
+        };
+        const QString addr = QStringLiteral("11:22:33:44:55:66");
+        pw::Graph g = devices();
+        pw::Node a2dp = node(30, "bluez_output.old.a2dp-sink", "Audio/Sink", 1500);
+        a2dp.description = QStringLiteral("TW 5");
+        a2dp.props.insert(QStringLiteral("device.api"), QStringLiteral("bluez5"));
+        a2dp.props.insert(QStringLiteral("api.bluez5.address"), addr);
+        a2dp.props.insert(QStringLiteral("api.bluez5.profile"), QStringLiteral("a2dp-sink"));
+        g.nodes.insert(30, a2dp);
+        pw.testingInstallGraph(g);
+        engine.setHeadphoneDevice(QStringLiteral("bluez_output.old.a2dp-sink"));
+        engine.setHeadphonesBtAddress(addr);
+        flush();
+        QVERIFY(!engine.headphonesMissing());
+
+        pw::Graph flipped = devices();
+        pw::Node hfp = node(31, "bluez_output.new.headset-head-unit", "Audio/Sink", 2000);
+        hfp.description = QStringLiteral("TW 5");
+        hfp.props.insert(QStringLiteral("device.api"), QStringLiteral("bluez5"));
+        hfp.props.insert(QStringLiteral("api.bluez5.address"), addr);
+        hfp.props.insert(QStringLiteral("api.bluez5.profile"), QStringLiteral("headset-head-unit"));
+        flipped.nodes.insert(31, hfp);
+        pw.testingInstallGraph(flipped);
+        flush();
+
+        QVERIFY(!engine.headphonesMissing());
+        QCOMPARE(engine.headphoneDevice(), QStringLiteral("bluez_output.new.headset-head-unit"));
+        QCOMPARE(engine.resolvedSinkName(), QStringLiteral("bluez_output.new.headset-head-unit"));
+        QCOMPARE(engine.headphonesBtAddress(), addr);
+    }
+
+    void headphonesBtAddressRoundTripsInSettings()
+    {
+        Settings s = defaultSettings();
+        s.headphones = QStringLiteral("bluez_output.AA_BB.a2dp-sink");
+        s.headphonesBtAddress = QStringLiteral("AA:BB:CC:DD:EE:FF");
+        QCOMPARE(parseSettings(serializeSettings(s)), s);
+        QVERIFY(serializeSettings(s).contains(QStringLiteral("headphones_bt_address")));
+        QVERIFY(parseSettings(QStringLiteral("[devices]\nheadphones = 'x'\n")).headphonesBtAddress.isEmpty());
+    }
+
+    void followDefaultLearnsAndClearsHeadphonesBtAddress()
+    {
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        auto flush = [] {
+            QCoreApplication::processEvents();
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::Timer);
+            QCoreApplication::processEvents();
+        };
+        const QString addr = QStringLiteral("80:C3:BA:BB:34:03");
+        pw::Graph g = devices();
+        pw::Node buds = node(40, "bluez_output.buds.a2dp-sink", "Audio/Sink", 2000);
+        buds.props.insert(QStringLiteral("device.api"), QStringLiteral("bluez5"));
+        buds.props.insert(QStringLiteral("api.bluez5.address"), addr);
+        buds.props.insert(QStringLiteral("api.bluez5.profile"), QStringLiteral("a2dp-sink"));
+        g.nodes.insert(40, buds);
+        pw.testingInstallGraph(g);
+        pw.testingSetDefaults(QStringLiteral("bluez_output.buds.a2dp-sink"), QStringLiteral("alsa_input.webcam"));
+        engine.setHeadphoneDevice(QString());
+        engine.setHeadphonesBtAddress(QString());
+        flush();
+        QCOMPARE(engine.headphonesBtAddress(), addr);
+        QVERIFY(engine.headphoneDevice().isEmpty());
+        QCOMPARE(engine.resolvedSinkName(), QStringLiteral("bluez_output.buds.a2dp-sink"));
+
+        pw.testingSetDefaults(QStringLiteral("alsa_output.speakers"), QStringLiteral("alsa_input.webcam"));
+        flush();
+        QVERIFY(engine.headphonesBtAddress().isEmpty());
+        QVERIFY(engine.headphoneDevice().isEmpty());
+        QCOMPARE(engine.resolvedSinkName(), QStringLiteral("alsa_output.speakers"));
+    }
+
+    void highQualityProfileScorePrefersAacOverAptx()
+    {
+        QCOMPARE(pw::highQualityProfileScore(QStringLiteral("a2dp-sink-aac")), 50);
+        QCOMPARE(pw::highQualityProfileScore(QStringLiteral("a2dp-sink-sbc_xq")), 40);
+        QCOMPARE(pw::highQualityProfileScore(QStringLiteral("a2dp-sink-sbc")), 30);
+        QCOMPARE(pw::highQualityProfileScore(QStringLiteral("a2dp-sink")), 20);
+        QCOMPARE(pw::highQualityProfileScore(QStringLiteral("a2dp-sink-aptx")), 20);
+        QCOMPARE(pw::highQualityProfileScore(QStringLiteral("bap-sink")), 10);
+        QCOMPARE(pw::highQualityProfileScore(QStringLiteral("headset-head-unit")), 0);
+
+        pw::Device device;
+        device.profiles = {
+            {0, QStringLiteral("off"), QString(), 0, true},
+            {1, QStringLiteral("a2dp-sink"), QStringLiteral("aptX"), 0, true},
+            {2, QStringLiteral("a2dp-sink-aac"), QStringLiteral("AAC"), 0, true},
+            {3, QStringLiteral("headset-head-unit"), QString(), 0, true},
+            {4, QStringLiteral("a2dp-sink-sbc"), QStringLiteral("SBC"), 0, false},
+        };
+        QCOMPARE(pw::rankedHighQualityProfiles(device), (QList<uint32_t>{2, 1}));
+
+        pw::Device aptxOnly;
+        aptxOnly.profiles = {{1, QStringLiteral("a2dp-sink"), QStringLiteral("High Fidelity Playback (aptX)"), 0, true}};
+        QCOMPARE(pw::rankedHighQualityProfiles(aptxOnly), (QList<uint32_t>{1}));
+
+        pw::Device sbcOnly;
+        sbcOnly.profiles = {{1, QStringLiteral("a2dp-sink-sbc"), QStringLiteral("SBC"), 0, true}};
+        QCOMPARE(pw::rankedHighQualityProfiles(sbcOnly), (QList<uint32_t>{1}));
+    }
+
+    void streamOnlyPlaybackBusNamesListsMusic()
+    {
+        Scene scene = defaults::scene();
+        Bus *music = scene.bus(QStringLiteral("music"));
+        QVERIFY(music);
+        music->destination = Destination::Stream;
+        QCOMPARE(engine::streamOnlyPlaybackBusNames(scene), QStringList{music->name});
+        music->destination = Destination::Both;
+        QVERIFY(engine::streamOnlyPlaybackBusNames(scene).isEmpty());
+    }
+
+    void micBtAddressResolvesAndMigrates()
+    {
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        auto flush = [] {
+            QCoreApplication::processEvents();
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::Timer);
+            QCoreApplication::processEvents();
+        };
+        const QString addr = QStringLiteral("AA:BB:CC:DD:EE:01");
+        pw::Graph g = devices();
+        pw::Node mic = node(50, "bluez_input.old.headset-head-unit", "Audio/Source", 1800);
+        mic.props.insert(QStringLiteral("device.api"), QStringLiteral("bluez5"));
+        mic.props.insert(QStringLiteral("api.bluez5.address"), addr);
+        mic.props.insert(QStringLiteral("api.bluez5.profile"), QStringLiteral("headset-head-unit"));
+        g.nodes.insert(50, mic);
+        pw.testingInstallGraph(g);
+        engine.setMicDevice(QStringLiteral("bluez_input.old.headset-head-unit"));
+        engine.setMicBtAddress(addr);
+        engine.setMicFallback(false);
+        flush();
+        QVERIFY(!engine.micMissing());
+
+        pw::Graph flipped = devices();
+        pw::Node renamed = node(51, "bluez_input.new.headset-head-unit", "Audio/Source", 1800);
+        renamed.props.insert(QStringLiteral("device.api"), QStringLiteral("bluez5"));
+        renamed.props.insert(QStringLiteral("api.bluez5.address"), addr);
+        renamed.props.insert(QStringLiteral("api.bluez5.profile"), QStringLiteral("headset-head-unit"));
+        flipped.nodes.insert(51, renamed);
+        pw.testingInstallGraph(flipped);
+        flush();
+        QVERIFY(!engine.micMissing());
+        QCOMPARE(engine.micDevice(), QStringLiteral("bluez_input.new.headset-head-unit"));
+        QCOMPARE(engine.resolvedSourceName(), QStringLiteral("bluez_input.new.headset-head-unit"));
+
+        pw::Graph gone = devices();
+        pw.testingInstallGraph(gone);
+        flush();
+        QVERIFY(engine.micMissing());
+        QVERIFY(engine.micSilenced());
+        QVERIFY(engine.resolvedSourceName().isEmpty());
+    }
+
+    void micBtAddressNotLearnedFromSystemDefault()
+    {
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        auto flush = [] {
+            QCoreApplication::processEvents();
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::Timer);
+            QCoreApplication::processEvents();
+        };
+        const QString addr = QStringLiteral("11:22:33:44:55:66");
+        pw::Graph g = devices();
+        pw::Node mic = node(52, "bluez_input.buds.headset-head-unit", "Audio/Source", 2500);
+        mic.props.insert(QStringLiteral("device.api"), QStringLiteral("bluez5"));
+        mic.props.insert(QStringLiteral("api.bluez5.address"), addr);
+        g.nodes.insert(52, mic);
+        pw.testingInstallGraph(g);
+        pw.testingSetDefaults(QStringLiteral("alsa_output.speakers"),
+                              QStringLiteral("bluez_input.buds.headset-head-unit"));
+        engine.setMicDevice(QString());
+        engine.setMicBtAddress(QString());
+        flush();
+        QVERIFY(engine.micBtAddress().isEmpty());
+        QCOMPARE(engine.resolvedSourceName(), QStringLiteral("bluez_input.buds.headset-head-unit"));
+    }
+
+    void micBtAddressRoundTripsInSettings()
+    {
+        Settings s = defaultSettings();
+        s.mic = QStringLiteral("bluez_input.AA_BB.headset-head-unit");
+        s.micBtAddress = QStringLiteral("AA:BB:CC:DD:EE:FF");
+        QCOMPARE(parseSettings(serializeSettings(s)), s);
+        QVERIFY(serializeSettings(s).contains(QStringLiteral("mic_bt_address")));
+    }
+
+    void headphonesTransportUnhealthyAfterErrorDebounce()
+    {
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        auto flush = [] {
+            QCoreApplication::processEvents();
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::Timer);
+            QCoreApplication::processEvents();
+        };
+        const QString addr = QStringLiteral("DE:AD:BE:EF:00:01");
+        pw::Graph g = devices();
+        pw::Node buds = node(60, "bluez_output.dead.a2dp-sink", "Audio/Sink", 2000);
+        buds.props.insert(QStringLiteral("device.api"), QStringLiteral("bluez5"));
+        buds.props.insert(QStringLiteral("api.bluez5.address"), addr);
+        buds.props.insert(QStringLiteral("api.bluez5.profile"), QStringLiteral("a2dp-sink"));
+        buds.error = true;
+        g.nodes.insert(60, buds);
+        pw.testingInstallGraph(g);
+        pw.testingSetDefaults(QStringLiteral("bluez_output.dead.a2dp-sink"), QStringLiteral("alsa_input.webcam"));
+        engine.setHeadphoneDevice(QStringLiteral("bluez_output.dead.a2dp-sink"));
+        engine.setHeadphonesBtAddress(addr);
+        flush();
+        QVERIFY(!engine.headphonesTransportUnhealthy());
+        QTest::qWait(2200);
+        flush();
+        QVERIFY(engine.headphonesTransportUnhealthy());
+
+        buds.error = false;
+        buds.running = true;
+        g.nodes.insert(60, buds);
+        pw.testingInstallGraph(g);
+        pw.testingSetDefaults(QStringLiteral("bluez_output.dead.a2dp-sink"), QStringLiteral("alsa_input.webcam"));
+        flush();
+        QVERIFY(!engine.headphonesTransportUnhealthy());
     }
 
     void appMuteIsSavedLikeTheVolume()

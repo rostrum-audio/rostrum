@@ -7,11 +7,13 @@
 #include <QLoggingCategory>
 #include <QTimer>
 
+#include <pipewire/device.h>
 #include <pipewire/extensions/metadata.h>
 #include <pipewire/pipewire.h>
 #include <spa/param/audio/format-utils.h>
 #include <spa/param/audio/raw.h>
 #include <spa/param/port-config.h>
+#include <spa/param/profile.h>
 #include <spa/param/props.h>
 #include <spa/pod/builder.h>
 #include <spa/pod/iter.h>
@@ -92,6 +94,15 @@ struct BoundLink
     spa_hook listener{};
 };
 
+struct BoundDevice
+{
+    PwContext::Impl *impl = nullptr;
+    uint32_t id = 0;
+    pw_device *proxy = nullptr;
+    spa_hook listener{};
+    bool subscribed = false;
+};
+
 struct CreatedProxy
 {
     PwContext::Impl *impl = nullptr;
@@ -122,6 +133,7 @@ struct PwContext::Impl
     spa_hook wpClientListener{};
     std::unordered_map<uint32_t, std::unique_ptr<BoundNode>> boundNodes;
     std::unordered_map<uint32_t, std::unique_ptr<BoundLink>> boundLinks;
+    std::unordered_map<uint32_t, std::unique_ptr<BoundDevice>> boundDevices;
     std::list<std::unique_ptr<CreatedProxy>> created;
     int initialSeq = -1;
     int bindSeq = -1; // after the objects bound while the registry was first listed report in
@@ -164,12 +176,18 @@ void onNodeInfo(void *data, const pw_node_info *info)
     if (info->change_mask & PW_NODE_CHANGE_MASK_STATE) {
         const uint32_t id = b->id;
         const bool running = info->state == PW_NODE_STATE_RUNNING;
-        impl->post([impl, id, running] {
+        const bool error = info->state == PW_NODE_STATE_ERROR;
+        impl->post([impl, id, running, error] {
             auto it = impl->graph.nodes.find(id);
-            if (it != impl->graph.nodes.end() && it->running != running) {
-                it->running = running;
-                impl->q->scheduleChanged();
+            if (it == impl->graph.nodes.end()) {
+                return;
             }
+            if (it->running == running && it->error == error) {
+                return;
+            }
+            it->running = running;
+            it->error = error;
+            impl->q->scheduleChanged();
         });
     }
     if (!(info->change_mask & PW_NODE_CHANGE_MASK_PROPS)) {
@@ -438,6 +456,137 @@ void onLinkInfo(void *data, const pw_link_info *info)
 }
 const pw_link_events kLinkEvents = {.version = PW_VERSION_LINK_EVENTS, .info = onLinkInfo};
 
+void fillDevice(Device &d, const QMap<QString, QString> &p)
+{
+    d.props.insert(p);
+    d.name = p.value(QStringLiteral(PW_KEY_DEVICE_NAME));
+    d.description = p.value(QStringLiteral(PW_KEY_DEVICE_DESCRIPTION));
+    if (d.description.isEmpty()) {
+        d.description = p.value(QStringLiteral(PW_KEY_DEVICE_NICK));
+    }
+}
+
+DeviceProfile parseProfilePod(const spa_pod *param)
+{
+    DeviceProfile out;
+    if (!param || !spa_pod_is_object(param)) {
+        return out;
+    }
+    const auto *obj = reinterpret_cast<const spa_pod_object *>(param);
+    const spa_pod_prop *prop;
+    SPA_POD_OBJECT_FOREACH(obj, prop)
+    {
+        if (prop->key == SPA_PARAM_PROFILE_index) {
+            int32_t v = 0;
+            if (spa_pod_get_int(&prop->value, &v) >= 0) {
+                out.index = uint32_t(v);
+            }
+        } else if (prop->key == SPA_PARAM_PROFILE_name) {
+            const char *s = nullptr;
+            if (spa_pod_get_string(&prop->value, &s) >= 0) {
+                out.name = QString::fromUtf8(s);
+            }
+        } else if (prop->key == SPA_PARAM_PROFILE_description) {
+            const char *s = nullptr;
+            if (spa_pod_get_string(&prop->value, &s) >= 0) {
+                out.description = QString::fromUtf8(s);
+            }
+        } else if (prop->key == SPA_PARAM_PROFILE_priority) {
+            int32_t v = 0;
+            if (spa_pod_get_int(&prop->value, &v) >= 0) {
+                out.priority = v;
+            }
+        } else if (prop->key == SPA_PARAM_PROFILE_available) {
+            uint32_t id = 0;
+            if (spa_pod_get_id(&prop->value, &id) >= 0) {
+                out.available = id != SPA_PARAM_AVAILABILITY_no;
+            }
+        }
+    }
+    return out;
+}
+
+void onDeviceInfo(void *data, const pw_device_info *info)
+{
+    auto *b = static_cast<BoundDevice *>(data);
+    auto *impl = b->impl;
+    if (info->change_mask & PW_DEVICE_CHANGE_MASK_PROPS) {
+        const auto props = toMap(info->props);
+        const uint32_t id = b->id;
+        impl->post([impl, id, props] {
+            auto it = impl->graph.devices.find(id);
+            if (it == impl->graph.devices.end()) {
+                return;
+            }
+            fillDevice(it.value(), props);
+            impl->q->scheduleChanged();
+        });
+    }
+    if (!(info->change_mask & PW_DEVICE_CHANGE_MASK_PARAMS) || !b->proxy) {
+        return;
+    }
+    if (!b->subscribed) {
+        uint32_t ids[] = {SPA_PARAM_EnumProfile, SPA_PARAM_Profile};
+        pw_device_subscribe_params(b->proxy, ids, 2);
+        b->subscribed = true;
+    }
+    // Fresh EnumProfile list: clear before the param events refill it.
+    const uint32_t id = b->id;
+    impl->post([impl, id] {
+        auto it = impl->graph.devices.find(id);
+        if (it != impl->graph.devices.end()) {
+            it->profiles.clear();
+            it->currentProfile.reset();
+        }
+    });
+    pw_device_enum_params(b->proxy, 0, SPA_PARAM_EnumProfile, 0, UINT32_MAX, nullptr);
+    pw_device_enum_params(b->proxy, 0, SPA_PARAM_Profile, 0, UINT32_MAX, nullptr);
+}
+
+void onDeviceParam(void *data, int, uint32_t id, uint32_t, uint32_t, const spa_pod *param)
+{
+    auto *b = static_cast<BoundDevice *>(data);
+    auto *impl = b->impl;
+    if (!param) {
+        return;
+    }
+    const uint32_t deviceId = b->id;
+    if (id == SPA_PARAM_EnumProfile) {
+        const DeviceProfile profile = parseProfilePod(param);
+        impl->post([impl, deviceId, profile] {
+            auto it = impl->graph.devices.find(deviceId);
+            if (it == impl->graph.devices.end()) {
+                return;
+            }
+            for (auto &existing : it->profiles) {
+                if (existing.index == profile.index) {
+                    existing = profile;
+                    impl->q->scheduleChanged();
+                    return;
+                }
+            }
+            it->profiles.append(profile);
+            impl->q->scheduleChanged();
+        });
+    } else if (id == SPA_PARAM_Profile) {
+        const DeviceProfile profile = parseProfilePod(param);
+        impl->post([impl, deviceId, profile] {
+            auto it = impl->graph.devices.find(deviceId);
+            if (it == impl->graph.devices.end()) {
+                return;
+            }
+            it->currentProfile = profile.index;
+            impl->q->scheduleChanged();
+        });
+    }
+}
+
+const pw_device_events kDeviceEvents = {
+    .version = PW_VERSION_DEVICE_EVENTS,
+    .info = onDeviceInfo,
+    .param = onDeviceParam,
+};
+
 void onGlobal(void *data, uint32_t id, uint32_t, const char *type, uint32_t, const spa_dict *dict)
 {
     auto *impl = static_cast<PwContext::Impl *>(data);
@@ -494,6 +643,22 @@ void onGlobal(void *data, uint32_t id, uint32_t, const char *type, uint32_t, con
             pw_link_add_listener(b->proxy, &b->listener, &kLinkEvents, b.get());
             impl->boundLinks[id] = std::move(b);
         }
+    } else if (std::strcmp(type, PW_TYPE_INTERFACE_Device) == 0) {
+        auto b = std::make_unique<BoundDevice>();
+        b->impl = impl;
+        b->id = id;
+        b->proxy = static_cast<pw_device *>(pw_registry_bind(impl->registry, id, type, PW_VERSION_DEVICE, 0));
+        if (b->proxy) {
+            pw_device_add_listener(b->proxy, &b->listener, &kDeviceEvents, b.get());
+            impl->boundDevices[id] = std::move(b);
+        }
+        impl->post([impl, id, props] {
+            Device d;
+            d.id = id;
+            fillDevice(d, props);
+            impl->graph.devices.insert(id, d);
+            impl->q->scheduleChanged();
+        });
     } else if (std::strcmp(type, PW_TYPE_INTERFACE_Client) == 0) {
         Client c;
         c.id = id;
@@ -558,6 +723,11 @@ void onGlobalRemove(void *data, uint32_t id)
         pw_proxy_destroy(reinterpret_cast<pw_proxy *>(it->second->proxy));
         impl->boundLinks.erase(it);
     }
+    if (auto it = impl->boundDevices.find(id); it != impl->boundDevices.end()) {
+        spa_hook_remove(&it->second->listener);
+        pw_proxy_destroy(reinterpret_cast<pw_proxy *>(it->second->proxy));
+        impl->boundDevices.erase(it);
+    }
     const bool metadataGone = id == impl->metadataId && impl->metadata;
     if (metadataGone) {
         spa_hook_remove(&impl->metadataListener);
@@ -594,6 +764,7 @@ void onGlobalRemove(void *data, uint32_t id)
         g.ports.remove(id);
         g.links.remove(id);
         g.clients.remove(id);
+        g.devices.remove(id);
         g.factories.remove(id);
         Q_EMIT impl->q->objectRemoved(id);
         impl->q->scheduleChanged();
@@ -679,6 +850,11 @@ void PwContext::Impl::teardownLocked()
         pw_proxy_destroy(reinterpret_cast<pw_proxy *>(b->proxy));
     }
     boundNodes.clear();
+    for (auto &[id, b] : boundDevices) {
+        spa_hook_remove(&b->listener);
+        pw_proxy_destroy(reinterpret_cast<pw_proxy *>(b->proxy));
+    }
+    boundDevices.clear();
     while (!created.empty()) {
         // Lingering objects stay in the daemon; only the local proxy goes away.
         pw_proxy_destroy(created.front()->proxy);
@@ -833,6 +1009,20 @@ void PwContext::testingInstallGraph(const Graph &graph, State state)
         Q_EMIT this->stateChanged();
     }
     Q_EMIT graphChanged();
+    Q_EMIT defaultsChanged();
+}
+
+void PwContext::testingSetDefaults(const QString &sink, const QString &source)
+{
+    if (d->loop) {
+        qCWarning(lcPw) << "testingSetDefaults refused: a real PipeWire connection is up";
+        return;
+    }
+    if (d->defaultSink == sink && d->defaultSource == source) {
+        return;
+    }
+    d->defaultSink = sink;
+    d->defaultSource = source;
     Q_EMIT defaultsChanged();
 }
 
@@ -1069,6 +1259,34 @@ void PwContext::setNodeVolume(uint32_t nodeId, float linear)
 void PwContext::setNodeMute(uint32_t nodeId, bool mute)
 {
     sendProps(nodeId, {}, mute ? 1 : 0);
+}
+
+bool PwContext::setDeviceProfile(uint32_t deviceId, uint32_t profileIndex, bool save)
+{
+    if (!d->loop) {
+        return false;
+    }
+    pw_thread_loop_lock(d->loop);
+    const auto it = d->boundDevices.find(deviceId);
+    if (it == d->boundDevices.end() || !it->second->proxy) {
+        pw_thread_loop_unlock(d->loop);
+        return false;
+    }
+    uint8_t buffer[1024];
+    spa_pod_builder b = SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
+    spa_pod_frame f;
+    spa_pod_builder_push_object(&b, &f, SPA_TYPE_OBJECT_ParamProfile, SPA_PARAM_Profile);
+    spa_pod_builder_add(&b, SPA_PARAM_PROFILE_index, SPA_POD_Int(int32_t(profileIndex)), 0);
+    spa_pod_builder_add(&b, SPA_PARAM_PROFILE_save, SPA_POD_Bool(save), 0);
+    spa_pod *pod = static_cast<spa_pod *>(spa_pod_builder_pop(&b, &f));
+    const int res = pw_device_set_param(it->second->proxy, SPA_PARAM_Profile, 0, pod);
+    pw_thread_loop_unlock(d->loop);
+    if (res < 0) {
+        qCWarning(lcPw) << "setDeviceProfile" << deviceId << profileIndex << "failed:" << spa_strerror(res);
+        return false;
+    }
+    qCInfo(lcPw) << "set device" << deviceId << "profile index" << profileIndex;
+    return true;
 }
 
 void PwContext::sendProps(uint32_t nodeId, const QList<float> &volumes, int mute)

@@ -96,6 +96,8 @@ class Mixer : public QObject
     Q_PROPERTY(bool scrollToAdjust READ scrollToAdjust NOTIFY settingsChanged)
     Q_PROPERTY(bool perMixLevels READ perMixLevels NOTIFY perMixLevelsChanged)
     Q_PROPERTY(QString perMixUnavailable READ perMixUnavailable NOTIFY perMixLevelsChanged)
+    // Names of playback buses set to Stream only; empty when none (for Bluetooth headphones hint).
+    Q_PROPERTY(QStringList streamOnlyPlaybackBusNames READ streamOnlyPlaybackBusNames NOTIFY structureChanged)
 
 public:
     // Destination indices used by QML, in the order of the segmented control.
@@ -130,8 +132,11 @@ public:
     bool scrollToAdjust() const;
     bool perMixLevels() const;
     QString perMixUnavailable() const;
+    QStringList streamOnlyPlaybackBusNames() const;
     void notifySettingsChanged() { Q_EMIT settingsChanged(); }
 
+    // Set every Stream-only playback bus to Both (Mixer Bluetooth headphones hint).
+    Q_INVOKABLE void includeStreamOnlyBusesInHeadphones();
     Q_INVOKABLE void setVolume(const QString &busId, double position);
     // mix is "phones" or "stream". A linked bus moves the other level by the same amount.
     Q_INVOKABLE void setMixVolume(const QString &busId, const QString &mix, double position);

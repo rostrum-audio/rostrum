@@ -30,6 +30,7 @@ Engine::Engine(pw::PwContext *pw, QObject *parent)
     , m_scene(defaults::scene())
 {
     connect(m_pw, &pw::PwContext::graphChanged, this, &Engine::scheduleReconcile);
+    connect(m_pw, &pw::PwContext::defaultsChanged, this, &Engine::scheduleReconcile);
     connect(m_pw, &pw::PwContext::stateChanged, this, &Engine::connectionChanged);
     connect(m_pw, &pw::PwContext::stateChanged, this, &Engine::scheduleReconcile);
     connect(m_pw, &pw::PwContext::stateChanged, this, &Engine::micFxConnectionChanged);

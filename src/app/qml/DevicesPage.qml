@@ -23,10 +23,38 @@ QQC2.ScrollView {
             Layout.fillWidth: true
             Layout.margins: Kirigami.Units.largeSpacing
             Layout.bottomMargin: 0
-            visible: Devices.anyHeadsetProfile
-            type: Kirigami.MessageType.Information
-            text: i18n("A Bluetooth headset is in headset mode (HSP/HFP), which sounds muffled. Switch it to A2DP in the desktop sound settings when you do not need its mic.")
+            visible: Devices.headphonesTransportUnhealthy
+            type: Kirigami.MessageType.Warning
+            text: i18n("Bluetooth headphones may have lost their audio link. Try high quality mode, or reconnect in Sound Settings.")
             actions: [
+                Kirigami.Action {
+                    text: i18nc("@action:button", "Use high quality")
+                    icon.name: "audio-headphones"
+                    enabled: Devices.canPreferHighQualityHeadphones
+                    onTriggered: Devices.preferHighQualityHeadphones()
+                },
+                Kirigami.Action {
+                    text: i18nc("@action:button", "Open Sound Settings")
+                    icon.name: "audio-volume-high"
+                    onTriggered: Devices.openSoundSettings()
+                }
+            ]
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            Layout.margins: Kirigami.Units.largeSpacing
+            Layout.bottomMargin: 0
+            visible: Devices.headphonesHeadsetProfile && !Devices.headphonesTransportUnhealthy
+            type: Kirigami.MessageType.Information
+            text: i18n("Your Bluetooth headphones are in headset mode (HSP/HFP), which sounds muffled. Switch to high quality when you do not need the headset mic.")
+            actions: [
+                Kirigami.Action {
+                    text: i18nc("@action:button", "Use high quality")
+                    icon.name: "audio-headphones"
+                    enabled: Devices.canPreferHighQualityHeadphones
+                    onTriggered: Devices.preferHighQualityHeadphones()
+                },
                 Kirigami.Action {
                     text: i18nc("@action:button", "Open Sound Settings")
                     icon.name: "audio-volume-high"

@@ -379,6 +379,21 @@ void Mixer::setVolumeTogether(const QString &busId, double streamPosition)
 
 bool Mixer::perMixLevels() const { return m_engine->perMixLevels(); }
 QString Mixer::perMixUnavailable() const { return m_engine->perMixUnavailable(); }
+
+QStringList Mixer::streamOnlyPlaybackBusNames() const
+{
+    return engine::streamOnlyPlaybackBusNames(m_engine->scene());
+}
+
+void Mixer::includeStreamOnlyBusesInHeadphones()
+{
+    for (const Bus &b : m_engine->scene().buses) {
+        if (!b.isInput() && b.destination == Destination::Stream) {
+            m_engine->setBusDestination(b.id, Destination::Both);
+        }
+    }
+}
+
 void Mixer::setMuted(const QString &busId, bool muted) { m_engine->setBusMuted(busId, muted); }
 void Mixer::setBalance(const QString &busId, double balance) { m_engine->setBusBalance(busId, balance); }
 

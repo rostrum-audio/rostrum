@@ -168,7 +168,8 @@ bool Engine::micFxReleaseHeld() const
 
 const pw::Node *Engine::appsMic() const
 {
-    return resolveDevice(m_pw->graph(), m_micDevice, m_pw->defaultSourceName(), false, true);
+    return resolveDevice(m_pw->graph(), m_micDevice, m_pw->defaultSourceName(), false, true,
+                         m_micBtAddress);
 }
 
 QString Engine::micMeterNode() const
