@@ -394,9 +394,8 @@ class Plugin:
 
     def _on_owner(self, owner):
         if owner:
-            self.available = True
+            # The forced poll paints. An early render would show the previous process's buses.
             if self._polled:
-                self._render_all()
                 self._schedule(self.poll(force=True))
             return
         # CLI mode has no owner. An empty owner there is not a quit.
@@ -425,6 +424,18 @@ class Plugin:
         props = getattr(self.controls, 'props', None)
         return props if isinstance(props, dict) else {}
 
+    def _snapshot_available(self):
+        """True when a returned list still belongs to a live owner, or to CLI-only mode.
+
+        The mic-feedback fake has neither attribute; a snapshot that returned means it is up.
+        """
+        controls = self.controls
+        if not hasattr(controls, 'owner') and not hasattr(controls, 'cli_only'):
+            return True
+        if getattr(controls, 'cli_only', False):
+            return True
+        return bool(getattr(controls, 'owner', None))
+
     def _props_fresh(self):
         # A live owner with properties is enough to act. Lists stay on the 1 s poll.
         return bool(getattr(self.controls, 'owner', None)) and bool(self._props())
@@ -449,7 +460,8 @@ class Plugin:
         self.last_poll = now
         try:
             self.buses, self.scenes = await self._invoke(self.controls.snapshot)
-            self.available = True
+            # A list that is still in flight after the owner leaves must not mark the deck live.
+            self.available = self._snapshot_available()
         except (Unavailable, ValueError, SyntaxError, IndexError, TypeError):
             self.available = False
         # Start the interval after the query, too, if an unavailable service took time to answer.
@@ -490,11 +502,17 @@ class Plugin:
                 state = int(bool(bus['muted']))
                 return state, 'Mic muted' if state else 'Mic live'
             return 0, 'Missing'
-        bus = self.buses.get(settings.get('bus', ''))
+        bus_id = settings.get('bus', '')
+        bus = self.buses.get(bus_id)
+        # Signals drive the stream master. Other buses have no mute property.
+        if bus_id == 'stream' and 'StreamMuted' in props:
+            state = int(bool(props['StreamMuted']))
+            name = bus['name'] if bus else 'Stream'
+            return state, name + (' muted' if state else ' live')
         if bus:
             state = int(bool(bus['muted']))
             return state, bus['name'] + (' muted' if state else ' live')
-        return 0, 'Missing' if settings.get('bus') else 'Toggle bus mute'
+        return 0, 'Missing' if bus_id else 'Toggle bus mute'
 
     def _alert(self, context):
         self.send({'event': 'showAlert', 'context': context})
@@ -620,7 +638,10 @@ class Plugin:
                 self.scenes = [name for name in self.scenes if name != settings.get('scene')]
             elif action in ('bus', 'mic'):
                 self.buses.pop('mic' if action == 'mic' else settings.get('bus'), None)
-        if not acted:
+        if acted:
+            # A press that ran means the service answered, even if an earlier poll latched Unavailable.
+            self.available = True
+        else:
             self._alert_if_still_down(context)
         self._paint(context)
 

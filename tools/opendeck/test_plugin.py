@@ -46,6 +46,7 @@ class FakeBus:
         self.on_signal = None
         self.failures = {}
         self.props = {'MicMuted': False, 'Panic': False, 'CurrentScene': 'Live', 'MicFilters': False}
+        self.list_buses = [('mic', 'Mic', 1.0, False), ('game', 'Game', 1.0, True)]
         self.closed = False
 
     async def call(self, destination, path, interface, member, signature='', *args, timeout=2.0):
@@ -68,7 +69,7 @@ class FakeBus:
         if member == 'GetAll':
             return (dict(self.props),)
         if member == 'ListBuses':
-            return ([('mic', 'Mic', 1.0, False), ('game', 'Game', 1.0, True)],)
+            return (list(self.list_buses),)
         if member == 'ListScenes':
             return (['Live', 'Just Chatting'],)
         if member in ('ToggleBusMuted', 'TriggerAction', 'SwitchScene', 'PressAction', 'ReleaseAction'):
@@ -292,6 +293,20 @@ class PluginTest(unittest.IsolatedAsyncioTestCase):
         bus.props['MicMuted'] = True
         await self.appear(app, 'mic')
         self.assertEqual(self.titles(events)[-1], 'Mic muted')
+        self.assertEqual(app.keys['key']['state'], 1)
+
+    async def test_stream_bus_follows_stream_muted_signal(self):
+        app, bus, _, events = self.setup_plugin()
+        bus.list_buses = [('mic', 'Mic', 1.0, False), ('stream', 'Stream', 1.0, False)]
+        await self.appear(app, 'bus', {'bus': 'stream'})
+        self.assertEqual(self.titles(events)[-1], 'Stream live')
+        self.assertEqual(app.keys['key']['state'], 0)
+        before = len(bus.calls)
+        app.controls._on_signal(_signal(
+            'PropertiesChanged', 'sa{sv}as', (plugin.IFACE, {'StreamMuted': True}, []),
+            plugin.PROPS_IFACE, sender=':1.42', path=plugin.OBJECT))
+        self.assertNotIn('ListBuses', [call['member'] for call in bus.calls[before:]])
+        self.assertEqual(self.titles(events)[-1], 'Stream muted')
         self.assertEqual(app.keys['key']['state'], 1)
 
     async def test_properties_signal_rerenders(self):
