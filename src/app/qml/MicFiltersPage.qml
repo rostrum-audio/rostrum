@@ -525,11 +525,13 @@ QQC2.ScrollView {
                                 }
                                 QQC2.Label {
                                     visible: moduleCard.primaryParam !== null
+                                    // revision is listed so the label updates when the slider moves.
                                     text: moduleCard.primaryParam
                                           ? MicFilters.format(moduleCard.moduleId,
                                                               moduleCard.primaryParam.key,
-                                                              MicFilters.value(moduleCard.moduleId,
-                                                                               moduleCard.primaryParam.key))
+                                                              (MicFilters.revision,
+                                                               MicFilters.value(moduleCard.moduleId,
+                                                                                moduleCard.primaryParam.key)))
                                           : ""
                                     font.features: { "tnum": 1 }
                                     opacity: 0.8
