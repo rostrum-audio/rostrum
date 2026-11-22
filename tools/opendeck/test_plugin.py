@@ -96,7 +96,7 @@ def _signal(member, signature, values, interface, sender=None, path=None):
                                sender=sender, signature=signature)
 
 
-class PluginTest(unittest.TestCase):
+class PluginTest(unittest.IsolatedAsyncioTestCase):
     def setup_plugin(self, *, owner=':1.42', connect=True, run=None):
         bus = FakeBus(owner=owner)
         runner = run or CliRunner()
@@ -106,27 +106,30 @@ class PluginTest(unittest.TestCase):
         app = plugin.Plugin(backend, events.append)
         return app, bus, runner, events
 
-    def appear(self, app, action='mic', settings=None):
-        app.handle({'event': 'willAppear', 'context': 'key',
-                    'action': plugin.PREFIX + action, 'payload': {'settings': settings or {}}})
+    async def appear(self, app, action='mic', settings=None, context='key'):
+        await app.handle({'event': 'willAppear', 'context': context,
+                          'action': plugin.PREFIX + action, 'payload': {'settings': settings or {}}})
 
-    def down(self, app):
-        app.handle({'event': 'keyDown', 'context': 'key'})
+    async def down(self, app, context='key'):
+        await app.handle({'event': 'keyDown', 'context': context})
 
-    def test_absent_does_not_launch(self):
+    def titles(self, events):
+        return [event['payload']['title'] for event in events if event.get('event') == 'setTitle']
+
+    async def test_absent_does_not_launch(self):
         app, bus, runner, events = self.setup_plugin(owner=None)
-        self.appear(app)
-        self.down(app)
-        self.assertEqual(events[-1]['payload']['title'], 'Unavailable')
+        await self.appear(app)
+        await self.down(app)
+        self.assertEqual(self.titles(events)[-1], 'Unavailable')
         self.assertEqual(runner.commands, [])
         self.assertTrue(any(call['member'] == 'GetNameOwner' and call['args'] == (plugin.SERVICE,)
                             for call in bus.calls))
         self.assertFalse(any(call['member'] in ('ListBuses', 'ToggleBusMuted') for call in bus.calls))
 
-    def test_mic_command_and_state(self):
+    async def test_mic_command_and_state(self):
         app, bus, runner, events = self.setup_plugin()
-        self.appear(app)
-        self.down(app)
+        await self.appear(app)
+        await self.down(app)
         toggles = [call for call in bus.calls if call['member'] == 'ToggleBusMuted']
         self.assertEqual(toggles[-1]['args'], ('mic',))
         self.assertEqual(toggles[-1]['destination'], ':1.42')
@@ -135,82 +138,82 @@ class PluginTest(unittest.TestCase):
         self.assertTrue(any(event['payload'].get('title') == 'Mic live' for event in events))
         self.assertEqual(runner.commands, [])
 
-    def test_named_scene(self):
+    async def test_named_scene(self):
         app, bus, runner, _ = self.setup_plugin()
-        self.appear(app, 'scene', {'scene': 'Just Chatting'})
-        self.down(app)
+        await self.appear(app, 'scene', {'scene': 'Just Chatting'})
+        await self.down(app)
         self.assertTrue(any(call['member'] == 'SwitchScene' and call['args'] == ('Just Chatting',)
                             and call['destination'] == ':1.42' for call in bus.calls))
         self.assertEqual(runner.commands, [])
 
-    def test_bus_id(self):
+    async def test_bus_id(self):
         app, bus, runner, events = self.setup_plugin()
-        self.appear(app, 'bus', {'bus': 'game'})
-        self.down(app)
+        await self.appear(app, 'bus', {'bus': 'game'})
+        await self.down(app)
         self.assertTrue(any(call['member'] == 'ToggleBusMuted' and call['args'] == ('game',)
                             and call['destination'] == ':1.42' for call in bus.calls))
         self.assertTrue(any(event['payload'].get('title') == 'Game muted' for event in events))
         self.assertEqual(runner.commands, [])
 
-    def test_panic(self):
+    async def test_panic(self):
         app, bus, runner, _ = self.setup_plugin()
-        self.appear(app, 'panic')
-        self.down(app)
+        await self.appear(app, 'panic')
+        await self.down(app)
         self.assertTrue(any(call['member'] == 'TriggerAction' and call['args'] == ('panic_mute',)
                             and call['destination'] == ':1.42' for call in bus.calls))
         self.assertEqual(runner.commands, [])
 
-    def test_key_up_releases_and_refreshes(self):
+    async def test_key_up_releases_and_refreshes(self):
         app, bus, _, _ = self.setup_plugin()
-        self.appear(app)
+        await self.appear(app)
         # No hold action is exposed. Exercise cleanup if a future action records a press.
         app.held['key'] = 'push_to_talk'
         before = len(bus.calls)
-        app.handle({'event': 'keyUp', 'context': 'key'})
+        await app.handle({'event': 'keyUp', 'context': 'key'})
         self.assertEqual(app.held, {})
         later = bus.calls[before:]
         self.assertTrue(any(call['member'] == 'ReleaseAction' and call['args'] == ('push_to_talk',)
                             and call['destination'] == ':1.42' for call in later))
         self.assertTrue(any(call['member'] == 'ListBuses' for call in later))
 
-    def test_cli_fallback_never_starts(self):
+    async def test_cli_fallback_never_starts(self):
         app, _, runner, _ = self.setup_plugin(connect=False)
         for action, settings, args in [('mic', {}, ['--toggle-mic']),
                                        ('scene', {'scene': 'Just Chatting'}, ['--scene', 'Just Chatting']),
                                        ('bus', {'bus': 'game'}, ['--action', 'mute_bus_game']),
                                        ('panic', {}, ['--action', 'panic_mute'])]:
-            self.appear(app, action, settings)
-            self.down(app)
+            await self.appear(app, action, settings)
+            await self.down(app)
             self.assertIn(['/test/rostrum', '--no-start'] + args, runner.commands)
         self.assertTrue(app.controls.cli_only)
         self.assertTrue(all(command[:2] == ['/test/rostrum', '--no-start'] for command in runner.commands))
 
-    def test_missing_and_empty_choices(self):
+    async def test_missing_and_empty_choices(self):
         for action, settings in [('scene', {'scene': 'Gone'}), ('bus', {'bus': 'gone'})]:
             app, bus, _, events = self.setup_plugin()
-            self.appear(app, action, settings)
+            await self.appear(app, action, settings)
             before = len(bus.calls)
-            self.down(app)
+            await self.down(app)
             self.assertEqual(len(bus.calls), before)
-            self.assertEqual(events[-1]['payload']['title'], 'Missing')
+            self.assertEqual(self.titles(events)[-1], 'Missing')
         app, bus, _, _ = self.setup_plugin()
-        self.appear(app, 'scene')
+        await self.appear(app, 'scene')
         before = len(bus.calls)
-        self.down(app)
+        await self.down(app)
         self.assertEqual(len(bus.calls), before)
 
-    def test_poll_rate_and_profile_closed(self):
+    async def test_poll_rate_and_profile_closed(self):
         app, bus, _, _ = self.setup_plugin()
-        self.appear(app)
+        await self.appear(app)
         before = len(bus.calls)
         for _ in range(10):
-            app.poll()
+            await app.poll()
         self.assertEqual(len(bus.calls), before)
-        app.handle({'event': 'willDisappear', 'context': 'key'})
-        app.poll(force=True)
+        await app.handle({'event': 'willDisappear', 'context': 'key'})
+        await app.poll(force=True)
         self.assertEqual(len(bus.calls), before)
 
-    def test_disappeared_choice_in_cli_fallback(self):
+    async def test_disappeared_choice_in_cli_fallback(self):
         runner = CliRunner()
 
         def run(command, **kwargs):
@@ -220,10 +223,110 @@ class PluginTest(unittest.TestCase):
             return runner(command, **kwargs)
 
         app, _, _, events = self.setup_plugin(connect=False, run=run)
-        self.appear(app, 'scene', {'scene': 'Just Chatting'})
-        self.down(app)
-        self.assertEqual(events[-1]['payload']['title'], 'Missing')
+        await self.appear(app, 'scene', {'scene': 'Just Chatting'})
+        await self.down(app)
+        self.assertEqual(self.titles(events)[-1], 'Missing')
         self.assertTrue(any(command[:2] == ['/test/rostrum', '--no-start'] for command in runner.commands))
+
+    async def test_render_skips_unchanged(self):
+        app, _, _, events = self.setup_plugin()
+        await app.handle({'event': 'willAppear', 'context': 'key',
+                          'action': plugin.PREFIX + 'mic', 'payload': {'settings': {}}})
+        n = len(events)
+        await app.render('key')
+        self.assertEqual(len(events), n)
+        self.assertEqual(app.keys['key']['title'], 'Mic live')
+        self.assertEqual(app.keys['key']['state'], 0)
+
+    async def test_show_alert_when_bus_unset(self):
+        app, bus, _, events = self.setup_plugin()
+        await self.appear(app, 'bus', {})
+        before = len(bus.calls)
+        await self.down(app)
+        self.assertTrue(any(event['event'] == 'showAlert' and event['context'] == 'key' for event in events))
+        self.assertFalse(any(call['member'] == 'ToggleBusMuted' for call in bus.calls[before:]))
+        self.assertFalse(any(event['event'] == 'showOk' for event in events))
+
+    async def test_no_show_ok_on_mic(self):
+        app, _, _, events = self.setup_plugin()
+        await self.appear(app, 'mic')
+        await self.down(app)
+        self.assertTrue(any(event['payload'].get('title') == 'Mic live' for event in events))
+        self.assertFalse(any(event['event'] == 'showOk' for event in events))
+
+    async def test_name_owner_lost_marks_unavailable(self):
+        app, _, _, events = self.setup_plugin()
+        await self.appear(app)
+        await app.controls._handle_owner('', '')
+        self.assertEqual(events[-1]['payload']['title'], 'Unavailable')
+        self.assertTrue(any(event['event'] == 'showAlert' for event in events))
+        self.assertFalse(app.available)
+
+    async def test_panic_state_from_props(self):
+        app, bus, _, events = self.setup_plugin()
+        bus.props['Panic'] = True
+        await self.appear(app, 'panic')
+        self.assertTrue(any(event['event'] == 'setState' and event['payload']['state'] == 1
+                            for event in events))
+        self.assertEqual(self.titles(events)[-1], 'Panic on')
+        bus.props['Panic'] = False
+        app.controls._on_signal(_signal(
+            'PropertiesChanged', 'sa{sv}as', (plugin.IFACE, {'Panic': False}, []),
+            plugin.PROPS_IFACE, sender=':1.42', path=plugin.OBJECT))
+        self.assertEqual(self.titles(events)[-1], 'Panic mute')
+        self.assertEqual(app.keys['key']['state'], 0)
+
+    async def test_scene_active_when_current(self):
+        app, _, _, events = self.setup_plugin()
+        await self.appear(app, 'scene', {'scene': 'Live'})
+        self.assertEqual(self.titles(events)[-1], 'Live')
+        self.assertEqual(app.keys['key']['state'], 1)
+        await self.appear(app, 'scene', {'scene': 'Just Chatting'}, context='other')
+        self.assertEqual(app.keys['other']['title'], 'Just Chatting')
+        self.assertEqual(app.keys['other']['state'], 0)
+        await self.appear(app, 'scene', {'scene': 'Gone'}, context='missing')
+        self.assertEqual(app.keys['missing']['title'], 'Missing')
+
+    async def test_mic_title_prefers_props_over_buses(self):
+        app, bus, _, events = self.setup_plugin()
+        bus.props['MicMuted'] = True
+        await self.appear(app, 'mic')
+        self.assertEqual(self.titles(events)[-1], 'Mic muted')
+        self.assertEqual(app.keys['key']['state'], 1)
+
+    async def test_properties_signal_rerenders(self):
+        app, _, _, events = self.setup_plugin()
+        await self.appear(app, 'mic')
+        n = len(events)
+        app.controls._on_signal(_signal(
+            'PropertiesChanged', 'sa{sv}as', (plugin.IFACE, {'MicMuted': True}, []),
+            plugin.PROPS_IFACE, sender=':1.42', path=plugin.OBJECT))
+        self.assertGreater(len(events), n)
+        self.assertEqual(self.titles(events)[-1], 'Mic muted')
+        self.assertEqual(app.keys['key']['state'], 1)
+
+    async def test_poll_lists_even_when_props_are_live(self):
+        app, bus, _, _ = self.setup_plugin()
+        await self.appear(app)
+        self.assertTrue(app.controls.props)
+        before = len(bus.calls)
+        app.last_poll = 0
+        await app.poll()
+        members = [call['member'] for call in bus.calls[before:]]
+        self.assertIn('ListBuses', members)
+        self.assertIn('ListScenes', members)
+
+    async def test_keydown_skips_refresh_when_props_are_fresh(self):
+        app, bus, _, events = self.setup_plugin()
+        await self.appear(app, 'mic')
+        app.last_poll = 0
+        before = len(bus.calls)
+        await self.down(app)
+        members = [call['member'] for call in bus.calls[before:]]
+        self.assertNotIn('ListBuses', members)
+        self.assertNotIn('ListScenes', members)
+        self.assertIn('ToggleBusMuted', members)
+        self.assertFalse(any(event['event'] == 'showOk' for event in events))
 
     @unittest.skipUnless(plugin.shutil.which('node'), 'optional inspector check requires Node.js')
     def test_inspector_settings_round_trip(self):
@@ -426,7 +529,7 @@ class ControlsTest(unittest.IsolatedAsyncioTestCase):
         await controls.close()
 
 
-class MicFeedbackTest(unittest.TestCase):
+class MicFeedbackTest(unittest.IsolatedAsyncioTestCase):
     class Backend:
         def __init__(self):
             self.muted = False
@@ -450,69 +553,70 @@ class MicFeedbackTest(unittest.TestCase):
         def reap(self): pass
         def close(self): pass
 
-    def setUp(self):
+    async def asyncSetUp(self):
         self.backend = self.Backend()
         self.app = plugin.Plugin(self.backend, lambda event: None)
         self.feedback = self.Feedback()
         self.app.feedback = self.feedback
-        self.app.handle({'event': 'willAppear', 'context': 'mic-key',
-                         'action': plugin.PREFIX + 'mic', 'payload': {'settings': {}}})
+        await self.app.handle({'event': 'willAppear', 'context': 'mic-key',
+                               'action': plugin.PREFIX + 'mic', 'payload': {'settings': {}}})
 
-    def event(self, kind): self.app.handle({'event': kind, 'context': 'mic-key'})
+    async def event(self, kind):
+        await self.app.handle({'event': kind, 'context': 'mic-key'})
 
-    def test_feedback_follows_confirmed_mute_and_unmute(self):
-        self.event('keyDown')
+    async def test_feedback_follows_confirmed_mute_and_unmute(self):
+        await self.event('keyDown')
         self.assertEqual(self.feedback.states, [], 'wait for the confirmed state')
-        self.event('keyUp')
+        await self.event('keyUp')
         self.assertEqual(self.feedback.states, [True])
-        self.event('keyDown'); self.event('keyUp')
+        await self.event('keyDown'); await self.event('keyUp')
         self.assertEqual(self.feedback.states, [True, False])
-        self.app.poll(force=True); self.event('keyUp')
+        await self.app.poll(force=True); await self.event('keyUp')
         self.assertEqual(self.feedback.states, [True, False], 'polling never repeats a cue')
 
-    def test_feedback_uses_actual_state_instead_of_assuming_toggle(self):
-        self.event('keyDown')
+    async def test_feedback_uses_actual_state_instead_of_assuming_toggle(self):
+        await self.event('keyDown')
         self.backend.muted = False  # Another control changed it before confirmation.
-        self.event('keyUp')
+        await self.event('keyUp')
         self.assertEqual(self.feedback.states, [False])
 
-    def test_per_key_volume_is_used_on_both_cues(self):
-        self.app.handle({'event': 'didReceiveSettings', 'context': 'mic-key',
-                         'payload': {'settings': {'soundVolume': 25}}})
-        self.event('keyDown'); self.event('keyUp')
-        self.event('keyDown'); self.event('keyUp')
+    async def test_per_key_volume_is_used_on_both_cues(self):
+        await self.app.handle({'event': 'didReceiveSettings', 'context': 'mic-key',
+                               'payload': {'settings': {'soundVolume': 25}}})
+        await self.event('keyDown'); await self.event('keyUp')
+        await self.event('keyDown'); await self.event('keyUp')
         self.assertEqual(self.feedback.states, [True, False])
         self.assertEqual(self.feedback.volumes, [25, 25])
 
-    def test_disabled_feedback_still_toggles(self):
-        self.app.handle({'event': 'didReceiveSettings', 'context': 'mic-key',
-                         'payload': {'settings': {'playSound': False}}})
-        self.event('keyDown'); self.event('keyUp')
+    async def test_disabled_feedback_still_toggles(self):
+        await self.app.handle({'event': 'didReceiveSettings', 'context': 'mic-key',
+                               'payload': {'settings': {'playSound': False}}})
+        await self.event('keyDown'); await self.event('keyUp')
         self.assertTrue(self.backend.muted)
         self.assertEqual(self.feedback.states, [])
 
-    def test_zero_volume_does_not_block_mic_control(self):
-        self.app.handle({'event': 'didReceiveSettings', 'context': 'mic-key',
-                         'payload': {'settings': {'soundVolume': 0}}})
-        self.event('keyDown'); self.event('keyUp')
+    async def test_zero_volume_does_not_block_mic_control(self):
+        await self.app.handle({'event': 'didReceiveSettings', 'context': 'mic-key',
+                               'payload': {'settings': {'soundVolume': 0}}})
+        await self.event('keyDown'); await self.event('keyUp')
         self.assertTrue(self.backend.muted)
         self.assertEqual(self.feedback.volumes, [0])
 
-    def test_unreachable_after_toggle_discards_feedback(self):
-        self.event('keyDown'); self.backend.absent = True
-        self.event('keyUp')
+    async def test_unreachable_after_toggle_discards_feedback(self):
+        await self.event('keyDown'); self.backend.absent = True
+        await self.event('keyUp')
         self.backend.absent = False
-        self.app.poll(force=True)
+        await self.app.poll(force=True)
         self.assertEqual(self.feedback.states, [])
 
-    def test_failed_toggle_has_no_feedback(self):
+    async def test_failed_toggle_has_no_feedback(self):
         self.backend.fail_toggle = True
-        self.event('keyDown'); self.event('keyUp')
+        await self.event('keyDown'); await self.event('keyUp')
         self.assertEqual(self.feedback.states, [])
 
-    def test_disappearing_key_discards_feedback(self):
-        self.event('keyDown'); self.event('willDisappear')
-        self.app.poll(force=True)
+    async def test_disappearing_key_discards_feedback(self):
+        await self.event('keyDown'); await self.event('willDisappear')
+        await self.app.poll(force=True)
         self.assertEqual(self.feedback.states, [])
 
 

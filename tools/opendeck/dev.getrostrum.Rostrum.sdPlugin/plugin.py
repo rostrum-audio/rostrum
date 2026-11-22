@@ -39,15 +39,6 @@ _PROPS_MATCH = (
 _LIST_METHODS = frozenset({'ListBuses', 'ListScenes'})
 
 
-def _drive(coro):
-    """Run a coroutine from the still-sync Plugin. A live loop is given the coroutine to await."""
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
-    return coro
-
-
 class Unavailable(Exception):
     pass
 
@@ -389,9 +380,40 @@ class Plugin:
         self.buses, self.scenes = {}, []
         self.available = False
         self.last_poll = float('-inf')
+        self._tasks = set()
+        self._polled = False
+        # Signals redraw every key. main assigns the same callbacks so the wiring stays visible.
+        controls.on_properties = self._on_properties
+        controls.on_owner = self._on_owner
 
-    def poll(self, force=False):
-        return _drive(self._poll(force))
+    def _on_properties(self, _props):
+        # GetAll during the first poll must not paint before lists and availability settle.
+        if not self._polled:
+            return
+        self._render_all()
+
+    def _on_owner(self, owner):
+        if owner:
+            self.available = True
+            if self._polled:
+                self._render_all()
+                self._schedule(self.poll(force=True))
+            return
+        # CLI mode has no owner. An empty owner there is not a quit.
+        if getattr(self.controls, 'cli_only', False):
+            return
+        self.available = False
+        self._render_all()
+
+    def _schedule(self, coro):
+        try:
+            task = asyncio.get_running_loop().create_task(coro)
+        except RuntimeError:
+            coro.close()
+            return None
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+        return task
 
     async def _invoke(self, func, *args):
         result = func(*args)
@@ -399,7 +421,27 @@ class Plugin:
             return await result
         return result
 
-    async def _poll(self, force=False):
+    def _props(self):
+        props = getattr(self.controls, 'props', None)
+        return props if isinstance(props, dict) else {}
+
+    def _props_fresh(self):
+        # A live owner with properties is enough to act. Lists stay on the 1 s poll.
+        return bool(getattr(self.controls, 'owner', None)) and bool(self._props())
+
+    async def _ready(self):
+        """Cheap presence check. Does not list buses or scenes."""
+        controls = self.controls
+        if not hasattr(controls, 'owner') and not hasattr(controls, 'cli_only'):
+            return self.available
+        ensure = getattr(controls, 'ensure_bus', None)
+        if ensure is not None:
+            await self._invoke(ensure)
+        if getattr(controls, 'cli_only', False):
+            return True
+        return bool(getattr(controls, 'owner', None))
+
+    async def poll(self, force=False):
         self.feedback.reap()
         now = time.monotonic()
         if not self.keys or (not force and now - self.last_poll < 1):
@@ -412,40 +454,78 @@ class Plugin:
             self.available = False
         # Start the interval after the query, too, if an unavailable service took time to answer.
         self.last_poll = time.monotonic()
+        self._polled = True
         pending, self.pending_feedback = self.pending_feedback, set()
         for context in pending:
             key = self.keys.get(context)
             if (self.available and 'mic' in self.buses and key
                     and key['settings'].get('playSound', True) is not False):
                 self.feedback.play(self.buses['mic']['muted'], key['settings'].get('soundVolume', 50))
-        for context in self.keys:
-            self.render(context)
+        self._render_all()
 
-    def render(self, context):
-        key = self.keys[context]
+    def _appearance(self, key):
         action, settings = key['action'], key['settings']
-        state = 0
+        props = self._props()
         if not self.available:
-            title = 'Unavailable'
-        elif action == 'panic':
-            title = 'Panic mute'
-        elif action == 'scene':
+            return 0, 'Unavailable'
+        if action == 'panic':
+            if 'Panic' in props:
+                state = int(bool(props['Panic']))
+                return state, 'Panic on' if state else 'Panic mute'
+            return 0, 'Panic mute'
+        if action == 'scene':
             name = settings.get('scene', '')
-            title = name if name in self.scenes else ('Missing' if name else 'Switch scene')
-        else:
-            bus = self.buses.get('mic' if action == 'mic' else settings.get('bus', ''))
+            if not name:
+                return 0, 'Switch scene'
+            current = props.get('CurrentScene')
+            if name in self.scenes or current == name:
+                return int(current == name), name
+            return 0, 'Missing'
+        if action == 'mic':
+            if 'MicMuted' in props:
+                state = int(bool(props['MicMuted']))
+                return state, 'Mic muted' if state else 'Mic live'
+            bus = self.buses.get('mic')
             if bus:
-                state = int(bus['muted'])
-                title = ('Mic' if action == 'mic' else bus['name']) + (' muted' if state else ' live')
-            else:
-                title = 'Missing' if action == 'mic' or settings.get('bus') else 'Toggle bus mute'
-        self.send({'event': 'setState', 'context': context, 'payload': {'state': state}})
-        self.send({'event': 'setTitle', 'context': context, 'payload': {'title': title, 'target': 0}})
+                state = int(bool(bus['muted']))
+                return state, 'Mic muted' if state else 'Mic live'
+            return 0, 'Missing'
+        bus = self.buses.get(settings.get('bus', ''))
+        if bus:
+            state = int(bool(bus['muted']))
+            return state, bus['name'] + (' muted' if state else ' live')
+        return 0, 'Missing' if settings.get('bus') else 'Toggle bus mute'
 
-    def release(self, context):
-        return _drive(self._release(context))
+    def _alert(self, context):
+        self.send({'event': 'showAlert', 'context': context})
 
-    async def _release(self, context):
+    def _paint(self, context):
+        key = self.keys.get(context)
+        if key is None:
+            return
+        state, title = self._appearance(key)
+        same_state = 'state' in key and key['state'] == state
+        same_title = 'title' in key and key['title'] == title
+        if same_state and same_title:
+            return
+        # One alert when a key becomes Unavailable, not on every later redraw.
+        if title == 'Unavailable' and key.get('title') != 'Unavailable':
+            self._alert(context)
+        if not same_state:
+            key['state'] = state
+            self.send({'event': 'setState', 'context': context, 'payload': {'state': state}})
+        if not same_title:
+            key['title'] = title
+            self.send({'event': 'setTitle', 'context': context, 'payload': {'title': title, 'target': 0}})
+
+    def _render_all(self):
+        for context in list(self.keys):
+            self._paint(context)
+
+    async def render(self, context):
+        self._paint(context)
+
+    async def release(self, context):
         action = self.held.pop(context, None)
         if action:
             try:
@@ -453,14 +533,15 @@ class Plugin:
             except (Unavailable, ValueError):
                 pass
 
-    def close(self):
-        return _drive(self._close())
-
-    async def _close(self):
+    async def close(self):
         for context in list(self.held):
-            await self._release(context)
+            await self.release(context)
         self.pending_feedback.clear()
         self.feedback.close()
+        for task in list(self._tasks):
+            task.cancel()
+        if self._tasks:
+            await asyncio.gather(*self._tasks, return_exceptions=True)
         closer = getattr(self.controls, 'close', None)
         if closer is not None:
             try:
@@ -470,10 +551,7 @@ class Plugin:
             except (Unavailable, OSError):
                 pass
 
-    def handle(self, event):
-        return _drive(self._handle(event))
-
-    async def _handle(self, event):
+    async def handle(self, event):
         kind, context = event.get('event'), event.get('context')
         payload = event.get('payload', {})
         if kind == 'willAppear':
@@ -481,51 +559,79 @@ class Plugin:
             if action not in ('mic', 'panic', 'scene', 'bus'):
                 return
             self.keys[context] = {'action': action, 'settings': payload.get('settings', {})}
-            await self._poll()
-            self.render(context)
+            await self.poll()
+            await self.render(context)
         elif kind == 'willDisappear':
             self.pending_feedback.discard(context)
-            await self._release(context)
+            await self.release(context)
             self.keys.pop(context, None)
         elif kind == 'keyUp':
-            await self._release(context)
-            await self._poll(force=True)
+            await self.release(context)
+            await self.poll(force=True)
         elif context in self.keys:
             if kind == 'didReceiveSettings':
                 self.keys[context]['settings'] = payload.get('settings', {})
-                self.render(context)
+                await self.render(context)
             elif kind in ('sendToPlugin', 'propertyInspectorDidAppear'):
-                await self._poll()
+                await self.poll()
                 self.send({'event': 'sendToPropertyInspector', 'action': PREFIX + self.keys[context]['action'],
                            'context': context, 'payload': {'available': self.available, 'scenes': self.scenes,
                                                          'buses': list(self.buses.values()),
                                                          'settings': self.keys[context]['settings']}})
             elif kind == 'keyDown':
-                await self._poll()
-                if not self.available:
-                    self.render(context)
-                    return
-                key = self.keys[context]
-                action, settings = key['action'], key['settings']
-                try:
-                    if action == 'mic' and 'mic' in self.buses:
-                        await self._invoke(self.controls.toggle, 'mic')
-                        self.pending_feedback.add(context)
-                    elif action == 'panic':
-                        await self._invoke(self.controls.panic)
-                    elif action == 'scene' and settings.get('scene') in self.scenes:
-                        await self._invoke(self.controls.scene, settings['scene'])
-                    elif action == 'bus' and settings.get('bus') in self.buses:
-                        await self._invoke(self.controls.toggle, settings['bus'])
-                except Unavailable:
-                    self.available = False
-                except ValueError:
-                    # The choice can disappear between the poll and the command.
-                    if action == 'scene':
-                        self.scenes = [name for name in self.scenes if name != settings.get('scene')]
-                    elif action in ('bus', 'mic'):
-                        self.buses.pop('mic' if action == 'mic' else settings.get('bus'), None)
-                self.render(context)
+                await self._key_down(context)
+
+    async def _key_down(self, context):
+        # Do not poll(force=True) here. Push-to-talk (Task 7) must not wait on a full refresh.
+        if not await self._ready():
+            self.available = False
+            self._alert_if_still_down(context)
+            self._paint(context)
+            return
+        if not self._props_fresh():
+            await self.poll()
+            if not self.available:
+                self._alert_if_still_down(context)
+                self._paint(context)
+                return
+        key = self.keys[context]
+        action, settings = key['action'], key['settings']
+        props = self._props()
+        acted = False
+        try:
+            if action == 'mic' and ('MicMuted' in props or 'mic' in self.buses):
+                await self._invoke(self.controls.toggle, 'mic')
+                self.pending_feedback.add(context)
+                acted = True
+            elif action == 'panic':
+                await self._invoke(self.controls.panic)
+                acted = True
+            elif action == 'scene' and settings.get('scene') in self.scenes:
+                await self._invoke(self.controls.scene, settings['scene'])
+                acted = True
+            elif action == 'bus' and settings.get('bus') in self.buses:
+                await self._invoke(self.controls.toggle, settings['bus'])
+                acted = True
+        except Unavailable:
+            self.available = False
+        except ValueError:
+            # The choice can disappear between the snapshot and the command.
+            if action == 'scene':
+                self.scenes = [name for name in self.scenes if name != settings.get('scene')]
+            elif action in ('bus', 'mic'):
+                self.buses.pop('mic' if action == 'mic' else settings.get('bus'), None)
+        if not acted:
+            self._alert_if_still_down(context)
+        self._paint(context)
+
+    def _alert_if_still_down(self, context):
+        """Alert a press that did not run. The Unavailable transition alerts inside _paint."""
+        key = self.keys.get(context)
+        if key is None:
+            return
+        if not self.available and key.get('title') != 'Unavailable':
+            return
+        self._alert(context)
 
 
 class WebSocket:
@@ -595,7 +701,10 @@ class WebSocket:
 async def main(args):
     socket = await WebSocket.connect(args.port)
     socket.send({'event': args.registerEvent, 'uuid': args.pluginUUID})
-    plugin = Plugin(Controls(), socket.send)
+    controls = Controls()
+    plugin = Plugin(controls, socket.send)
+    controls.on_properties = plugin._on_properties
+    controls.on_owner = plugin._on_owner
     receiving = asyncio.create_task(socket.receive())
     try:
         while True:
