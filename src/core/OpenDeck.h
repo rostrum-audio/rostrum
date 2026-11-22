@@ -17,6 +17,7 @@ enum class State
     Absent,
     Matches,
     Newer,
+    InstalledNewer,
     Incomplete
 };
 enum class Error

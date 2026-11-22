@@ -3,6 +3,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
@@ -183,6 +184,40 @@ private Q_SLOTS:
         QCOMPARE(inspect(target), State::Incomplete);
         QCOMPARE(install(target, true).error, Error::None);
         QCOMPARE(inspect(target), State::Matches);
+    }
+    void installedNewerSkipsFileMatch()
+    {
+        QTemporaryDir temp;
+        Target target{QStringLiteral("custom"), temp.path()};
+        QCOMPARE(install(target, true).error, Error::None);
+        const QString root = temp.path() + QLatin1Char('/') + pluginId();
+        auto object = QJsonDocument::fromJson(read(root + QStringLiteral("/manifest.json"))).object();
+        // Simulate a future plugin (e.g. 1.4) with a renamed asset missing from this bundle's files().
+        object.insert(QStringLiteral("Version"), QStringLiteral("99.0.0"));
+        write(root + QStringLiteral("/manifest.json"), QJsonDocument(object).toJson());
+        QVERIFY(QFile::remove(root + QStringLiteral("/images/mic.svg")));
+        QCOMPARE(inspect(target), State::InstalledNewer);
+    }
+    void sixActionsDoNotForceIncompleteByCount()
+    {
+        // After Task 6 ships six bundled actions, Matches covers the happy path.
+        // This test proves an older tree that *only* differs by Actions length is not
+        // rejected in identityValid: bump Actions on an installed copy that still
+        // byte-matches every file except manifest.json → Incomplete from mismatch,
+        // not from actions.size()!=4 (which used to fail valid() before inspect ran).
+        QTemporaryDir temp;
+        Target target{QStringLiteral("custom"), temp.path()};
+        QCOMPARE(install(target, true).error, Error::None);
+        const QString root = temp.path() + QLatin1Char('/') + pluginId();
+        auto object = QJsonDocument::fromJson(read(root + QStringLiteral("/manifest.json"))).object();
+        auto actions = object.value(QStringLiteral("Actions")).toArray();
+        QVERIFY(actions.size() >= 1);
+        actions.append(actions.first());
+        object.insert(QStringLiteral("Actions"), actions);
+        write(root + QStringLiteral("/manifest.json"), QJsonDocument(object).toJson());
+        QCOMPARE(inspect(target), State::Incomplete);
+        // Identity still parses: re-read Name/CodePathLin/Version would succeed;
+        // Incomplete is solely because matches() fails on manifest bytes.
     }
     void customSettingsRoundTrip()
     {

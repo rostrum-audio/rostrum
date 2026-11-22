@@ -28,21 +28,29 @@ QByteArray read(const QString &path)
     QFile file(path);
     return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
 }
-bool valid(const QString &root)
+bool identityValid(const QString &root)
 {
     const auto manifest = QJsonDocument::fromJson(read(root + QStringLiteral("/manifest.json"))).object();
-    const auto actions = manifest.value(QStringLiteral("Actions")).toArray();
-    if (manifest.value(QStringLiteral("Name")).toString() != QLatin1String("Rostrum") ||
-        manifest.value(QStringLiteral("CodePathLin")).toString() != QLatin1String("plugin.sh") ||
-        QVersionNumber::fromString(manifest.value(QStringLiteral("Version")).toString()).isNull() ||
-        actions.size() != 4 || !read(root + QStringLiteral("/plugin.sh")).startsWith("#!/bin/sh\n"))
-        return false;
+    return manifest.value(QStringLiteral("Name")).toString() == QLatin1String("Rostrum")
+        && manifest.value(QStringLiteral("CodePathLin")).toString() == QLatin1String("plugin.sh")
+        && !QVersionNumber::fromString(manifest.value(QStringLiteral("Version")).toString()).isNull()
+        && read(root + QStringLiteral("/plugin.sh")).startsWith("#!/bin/sh\n");
+}
+
+bool treeComplete(const QString &root)
+{
     for (const auto &name : files()) {
         const QFileInfo file(root + QLatin1Char('/') + name);
         if (file.isSymLink() || !file.isFile() || !file.isReadable() || file.size() == 0)
             return false;
     }
     return true;
+}
+
+bool valid(const QString &root)
+{
+    // Bundle / stage gate: identity + every embedded file present (no action count).
+    return identityValid(root) && treeComplete(root);
 }
 bool matches(const QString &root)
 {
@@ -101,18 +109,24 @@ State inspect(const Target &target)
         return State::Incomplete;
     if (!QFileInfo::exists(root))
         return State::Absent;
-    if (!valid(root))
+    if (!identityValid(root))
         return State::Incomplete;
-    if (matches(root))
-        return State::Matches;
-    const auto version = [](const QString &path) {
+    const auto versionOf = [](const QString &path) {
         return QVersionNumber::fromString(
             QJsonDocument::fromJson(read(path + QStringLiteral("/manifest.json")))
                 .object()
                 .value(QStringLiteral("Version"))
                 .toString());
     };
-    return version(resource) > version(root) ? State::Newer : State::Incomplete;
+    const auto installed = versionOf(root);
+    const auto bundled = versionOf(resource);
+    if (installed > bundled)
+        return State::InstalledNewer; // before file match / Missing asset checks
+    if (matches(root))
+        return State::Matches;
+    if (bundled > installed)
+        return State::Newer;
+    return State::Incomplete;
 }
 
 Result install(const Target &target, bool pythonAvailable, const Rename &operation)

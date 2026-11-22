@@ -82,6 +82,11 @@ QString OpenDeckSetup::status() const
     case opendeck::State::Newer:
         return i18nc("@info", "The bundled copy is newer. Update the Rostrum plugin in %1.",
                      m_target.plugins);
+    case opendeck::State::InstalledNewer:
+        return i18nc("@info",
+                     "The installed plugin is newer than this Rostrum. Leave it as-is unless you "
+                     "intentionally want to downgrade. Plugins folder: %1",
+                     m_target.plugins);
     case opendeck::State::Incomplete:
         return i18nc(
             "@info",
@@ -105,6 +110,8 @@ QString OpenDeckSetup::actionText() const
         return i18nc("@action:button", "Repair");
     case opendeck::State::Matches:
         return i18nc("@action:button", "Installed");
+    case opendeck::State::InstalledNewer:
+        return i18nc("@action:button", "Installed (newer)");
     }
     return {};
 }
@@ -114,7 +121,7 @@ bool OpenDeckSetup::actionEnabled() const
         return false;
     if (m_state == opendeck::State::NotFound)
         return true;
-    return m_state != opendeck::State::Matches && m_python &&
+    return m_state != opendeck::State::Matches && m_state != opendeck::State::InstalledNewer && m_python &&
            (!custom() || (QDir::isAbsolutePath(m_target.plugins) && QFileInfo(m_target.plugins).isDir()));
 }
 void OpenDeckSetup::selectInstallation(int index)
