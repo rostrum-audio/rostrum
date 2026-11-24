@@ -230,7 +230,8 @@ private Q_SLOTS:
         QJsonArray actions;
         for (const auto &action : object.value(QStringLiteral("Actions")).toArray()) {
             const QString uuid = action.toObject().value(QStringLiteral("UUID")).toString();
-            if (!uuid.endsWith(QLatin1String(".studioVoice")) && !uuid.endsWith(QLatin1String(".pushToTalk")))
+            if (!uuid.endsWith(QLatin1String(".studioVoice")) && !uuid.endsWith(QLatin1String(".pushToTalk")) &&
+                !uuid.endsWith(QLatin1String(".volumeDown")) && !uuid.endsWith(QLatin1String(".volumeUp")))
                 actions.append(action);
         }
         QCOMPARE(actions.size(), 4);
@@ -240,6 +241,31 @@ private Q_SLOTS:
                                  "images/bus-muted.svg", "images/studio-voice.svg",
                                  "images/studio-voice-off.svg", "images/push-to-talk.svg",
                                  "images/push-to-talk-active.svg"})
+            QVERIFY(QFile::remove(root + QLatin1Char('/') + QLatin1String(name)));
+        QCOMPARE(inspect(target), State::Newer);
+        QVERIFY(install(target, true).changed);
+        QCOMPARE(inspect(target), State::Matches);
+    }
+    void releasedOneThreePluginOffersUpdate()
+    {
+        // The shape 0.5 installed: Version 1.3.0, six actions, none of the volume art.
+        QTemporaryDir temp;
+        Target target{QStringLiteral("custom"), temp.path()};
+        QCOMPARE(install(target, true).error, Error::None);
+        const QString root = temp.path() + QLatin1Char('/') + pluginId();
+        auto object = QJsonDocument::fromJson(read(root + QStringLiteral("/manifest.json"))).object();
+        object.insert(QStringLiteral("Version"), QStringLiteral("1.3.0"));
+        QJsonArray actions;
+        for (const auto &action : object.value(QStringLiteral("Actions")).toArray()) {
+            const QString uuid = action.toObject().value(QStringLiteral("UUID")).toString();
+            if (!uuid.endsWith(QLatin1String(".volumeDown")) && !uuid.endsWith(QLatin1String(".volumeUp")))
+                actions.append(action);
+        }
+        QCOMPARE(actions.size(), 6);
+        object.insert(QStringLiteral("Actions"), actions);
+        write(root + QStringLiteral("/manifest.json"), QJsonDocument(object).toJson());
+        for (const char *name : {"images/volume-down.svg", "images/volume-down-muted.svg", "images/volume-up.svg",
+                                 "images/volume-up-muted.svg"})
             QVERIFY(QFile::remove(root + QLatin1Char('/') + QLatin1String(name)));
         QCOMPARE(inspect(target), State::Newer);
         QVERIFY(install(target, true).changed);

@@ -794,8 +794,8 @@ No physical deck is needed for the install checks.
 2. Record the plugins and profiles before pressing Install. If Rostrum's plugin is already
    installed, back up only `dev.getrostrum.Rostrum.sdPlugin` outside the plugins folder first.
    Press Install: only that directory is created under the selected config's `plugins` folder.
-   It contains `manifest.json` (Version 1.3.0, six actions), executable `plugin.sh`, `plugin.py`,
-   `dbus_client.py`, `inspector.html`, the two cue sounds in `sounds/`, and twelve SVG icons in
+   It contains `manifest.json` (Version 1.4.0, eight actions), executable `plugin.sh`, `plugin.py`,
+   `dbus_client.py`, `inspector.html`, the two cue sounds in `sounds/`, and sixteen SVG icons in
    `images/`. None is a symlink into a checkout or an AppImage mount. Other plugins and profiles
    remain unchanged. Stop OpenDeck during the comparison so its own writes do not obscure the
    install's changes.
@@ -815,8 +815,9 @@ No physical deck is needed for the install checks.
    own config directory. Restart OpenDeck, then drag an action onto a key.
 6. Flatpak OpenDeck, with no `flatpak override` for Rostrum: the Rostrum keys follow Rostrum.
    `plugin.sh` starts the plugin on the host through `flatpak-spawn --host`.
-7. Separately, when a deck is available, with OpenDeck and Rostrum running. The six actions are
-   Toggle mic, Panic mute, Switch scene, Toggle bus mute, Studio Voice, and Push to talk. Select
+7. Separately, when a deck is available, with OpenDeck and Rostrum running. The eight actions are
+   Toggle mic, Panic mute, Switch scene, Toggle bus mute, Volume down, Volume up, Studio Voice,
+   and Push to talk. Select
    a scene or bus in the property inspector. These hardware checks are not part of the install
    checks above.
    - Press Toggle mic and confirm the mixer strip matches Mic live / Mic muted.
@@ -829,6 +830,13 @@ No physical deck is needed for the install checks.
      and the mic stays muted.
    - Quit Rostrum from the tray: every Rostrum key shows Unavailable with one alert. Start it
      again: the keys return within a few seconds of it starting, with no press.
+   - With Spotify on the Music bus (linked), hold a Volume down key set to Stream: only the
+     Stream level falls, repeating while held and stopping on release; the Headphones level does
+     not move.
+   - A Toggle bus mute key on Music set to Stream reads "on stream"; press it: the mixer shows
+     Headphones only, the key reads "off stream", and Spotify still plays in your headphones.
+   - Mute Music fully, then press a "for me" key on Music: you hear it, and the stream does not
+     get it (the mixer shows Headphones only).
 
 ## 32. Separate OBS recording tracks
 

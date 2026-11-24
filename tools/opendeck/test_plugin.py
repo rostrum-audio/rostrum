@@ -89,6 +89,10 @@ class FakeBus:
             return (self.owner,)
         if interface == plugin.IFACE or member == 'GetAll':
             if destination != self.owner:
+                # A unique name that left gets ServiceUnknown from the bus; anything else (the
+                # well-known name) is a plugin bug.
+                if isinstance(destination, str) and destination.startswith(':'):
+                    raise plugin.DBusError('org.freedesktop.DBus.Error.ServiceUnknown', destination)
                 raise AssertionError(destination)
         if member == 'GetAll':
             return (dict(self.props),)
@@ -651,6 +655,180 @@ class PluginTest(unittest.IsolatedAsyncioTestCase):
         await self.down(app)
         self.assertEqual(self.calls_of(bus, 'ToggleBusMuted'), [('game',)])
 
+    VOLUME_LEVELS = [('stream', 'Stream', 1.0, 1.0, False, ''), ('mic', 'Mic', 1.5, 1.5, False, ''),
+                     ('game', 'Game', 0.5, 0.8, False, 'both')]
+
+    def volume_plugin(self, **kwargs):
+        app, bus, runner, events = self.setup_plugin(**kwargs)
+        bus.list_levels = list(self.VOLUME_LEVELS)
+        return app, bus, runner, events
+
+    def steps(self, bus):
+        return self.calls_of(bus, 'StepBusVolume')
+
+    def fast_repeat(self):
+        delay = patch.object(plugin, 'REPEAT_DELAY', 0.02)
+        interval = patch.object(plugin, 'REPEAT_INTERVAL', 0.01)
+        delay.start()
+        interval.start()
+        self.addCleanup(delay.stop)
+        self.addCleanup(interval.stop)
+
+    async def test_volume_down_steps_once_per_press(self):
+        app, bus, _, _ = self.volume_plugin()
+        await self.appear(app, 'volumeDown', {'bus': 'game', 'side': 'stream'})
+        await self.down(app)
+        await self.up(app)
+        self.assertEqual(self.steps(bus), [('game', 'stream', -0.05)])
+        self.assertEqual(self.shown(app)[1], 'Game\nStream 45%')
+
+    async def test_volume_hold_repeats_until_key_up(self):
+        self.fast_repeat()
+        app, bus, _, _ = self.volume_plugin()
+        await self.appear(app, 'volumeUp', {'bus': 'game', 'side': 'phones'})
+        await self.down(app)
+        await asyncio.sleep(0.1)
+        self.assertGreaterEqual(len(self.steps(bus)), 3)
+        await self.up(app)
+        count = len(self.steps(bus))
+        await asyncio.sleep(0.05)
+        self.assertEqual(len(self.steps(bus)), count)
+
+    async def test_volume_hold_stops_when_key_disappears(self):
+        self.fast_repeat()
+        app, bus, _, _ = self.volume_plugin()
+        await self.appear(app, 'volumeUp', {'bus': 'game', 'side': 'phones'})
+        await self.down(app)
+        await asyncio.sleep(0.1)
+        self.assertGreaterEqual(len(self.steps(bus)), 3)
+        await app.handle({'event': 'willDisappear', 'context': 'key'})
+        count = len(self.steps(bus))
+        await asyncio.sleep(0.05)
+        self.assertEqual(len(self.steps(bus)), count)
+
+    async def test_slow_step_drops_repeats(self):
+        self.fast_repeat()
+        app, bus, _, _ = self.volume_plugin()
+        bus.step_delay = 0.05
+        await self.appear(app, 'volumeDown', {'bus': 'game', 'side': 'both'})
+        await self.down(app)
+        await asyncio.sleep(0.2)
+        await self.up(app)
+        self.assertEqual(bus.in_flight_max, 1)
+        self.assertLessEqual(len(self.steps(bus)), 6)
+
+    async def test_volume_titles_for_each_side(self):
+        app, bus, _, _ = self.volume_plugin()
+        for context, action, settings in (('s', 'volumeDown', {'bus': 'game', 'side': 'stream'}),
+                                          ('p', 'volumeDown', {'bus': 'game', 'side': 'phones'}),
+                                          ('b', 'volumeUp', {'bus': 'game', 'side': 'both'}),
+                                          ('m', 'volumeUp', {'bus': 'mic'}),
+                                          ('u', 'volumeUp', {})):
+            await self.appear(app, action, settings, context=context)
+        self.assertEqual(self.shown(app, 's')[1], 'Game\nStream 50%')
+        self.assertEqual(self.shown(app, 'p')[1], 'Game\nMe 80%')
+        self.assertEqual(self.shown(app, 'b')[1], 'Game\nS50 Me80')
+        self.assertEqual(self.shown(app, 'm')[1], 'Mic\n150%')
+        self.assertEqual(self.shown(app, 'u')[1], 'Volume up')
+        bus.list_levels[-1] = ('game', 'Game', 0.5, 0.5, False, 'both')
+        await app.poll(force=True)
+        self.assertEqual(self.shown(app, 'b')[1], 'Game\n50%')
+
+    async def test_volume_state_when_side_is_silent(self):
+        app, bus, _, _ = self.volume_plugin()
+        bus.list_levels[-1] = ('game', 'Game', 0.5, 0.8, False, 'phones')
+        await self.appear(app, 'volumeDown', {'bus': 'game', 'side': 'stream'}, context='s')
+        await self.appear(app, 'volumeDown', {'bus': 'game', 'side': 'phones'}, context='p')
+        await self.appear(app, 'volumeDown', {'bus': 'game', 'side': 'both'}, context='b')
+        self.assertEqual(self.shown(app, 's')[0], 1)
+        self.assertEqual(self.shown(app, 'p')[0], 0)
+        self.assertEqual(self.shown(app, 'b')[0], 0)
+        bus.list_levels[-1] = ('game', 'Game', 0.5, 0.8, True, 'both')
+        await app.poll(force=True)
+        self.assertEqual(self.shown(app, 'b')[0], 1)
+
+    async def test_volume_keys_unavailable_in_cli_mode(self):
+        app, _, runner, events = self.setup_plugin(connect=False)
+        await self.appear(app, 'volumeDown', {'bus': 'game', 'side': 'both'})
+        self.assertEqual(self.shown(app)[1], 'Unavailable')
+        await self.down(app)
+        self.assertEqual(self.alerts(events), 1)
+        self.assertTrue(all('--list-buses' in command or '--list-scenes' in command
+                            for command in runner.commands), runner.commands)
+
+    async def test_volume_needs_update_on_older_rostrum(self):
+        app, bus, _, events = self.setup_plugin()
+        await self.appear(app, 'mic', context='mic')
+        await self.appear(app, 'volumeDown', {'bus': 'game', 'side': 'both'})
+        self.assertEqual(self.shown(app)[1], 'Needs update')
+        await self.down(app)
+        self.assertEqual(self.alerts(events), 1)
+        self.assertEqual(self.steps(bus), [])
+        self.assertEqual(self.shown(app, 'mic')[1], 'Mic live')
+
+    async def test_side_volume_one_level_without_per_mix_levels(self):
+        app, bus, _, events = self.volume_plugin()
+        bus.props['PerMixLevels'] = False
+        await self.appear(app, 'volumeDown', {'bus': 'game', 'side': 'stream'}, context='s')
+        await self.appear(app, 'volumeDown', {'bus': 'game', 'side': 'both'}, context='b')
+        self.assertEqual(self.shown(app, 's')[1], 'Game\nOne level')
+        await self.down(app, 's')
+        self.assertEqual(self.alerts(events), 1)
+        self.assertEqual(self.steps(bus), [])
+        await self.down(app, 'b')
+        await self.up(app, 'b')
+        self.assertEqual(self.steps(bus), [('game', 'both', -0.05)])
+
+    async def test_owner_change_stops_repeating(self):
+        self.fast_repeat()
+        app, bus, _, _ = self.volume_plugin()
+        await self.appear(app, 'volumeDown', {'bus': 'game', 'side': 'stream'})
+        await self.down(app)
+        await asyncio.sleep(0.05)
+        bus.owner = ':1.77'
+        app.controls._on_signal(_signal('NameOwnerChanged', 'sss', (plugin.SERVICE, ':1.42', ':1.77'),
+                                        plugin.BUS_IFACE, sender=plugin.BUS_SERVICE, path=plugin.BUS_PATH))
+        await asyncio.gather(*app.controls._tasks)
+        self.assertEqual(app.stepping, {})
+        count = len(self.steps(bus))
+        await asyncio.sleep(0.05)
+        self.assertEqual(len(self.steps(bus)), count)
+        self.assertFalse(any(call['member'] == 'StepBusVolume' and call['destination'] == ':1.77'
+                             for call in bus.calls))
+
+    async def test_missing_bus_stops_repeating(self):
+        self.fast_repeat()
+        app, bus, _, events = self.volume_plugin()
+        bus.failures['StepBusVolume'] = plugin.DBusError(plugin.IFACE + '.Error.NoSuchBus', 'gone')
+        await self.appear(app, 'volumeDown', {'bus': 'game', 'side': 'stream'})
+        await self.down(app)
+        self.assertEqual(len(self.steps(bus)), 1)
+        self.assertEqual(self.alerts(events), 1)
+        self.assertEqual(self.shown(app)[1], 'Missing')
+        await asyncio.sleep(0.05)
+        self.assertEqual(len(self.steps(bus)), 1)
+
+    async def test_second_key_down_does_not_start_a_second_repeat(self):
+        self.fast_repeat()
+        app, bus, _, _ = self.volume_plugin()
+        await self.appear(app, 'volumeDown', {'bus': 'game', 'side': 'stream'})
+        await self.down(app)
+        await self.down(app)
+        self.assertEqual(len(self.steps(bus)), 1)
+        self.assertEqual(len(app.stepping), 1)
+        await self.up(app)
+        await asyncio.sleep(0.05)
+        self.assertEqual(len(self.steps(bus)), 1)
+
+    async def test_step_setting_is_clamped(self):
+        app, bus, _, _ = self.volume_plugin()
+        for index, step in enumerate(('5', 0, 400, True, 12.4)):
+            context = f'k{index}'
+            await self.appear(app, 'volumeDown', {'bus': 'game', 'side': 'stream', 'step': step}, context=context)
+            await self.down(app, context)
+            await self.up(app, context)
+        self.assertEqual([args[2] for args in self.steps(bus)], [-0.05, -0.01, -0.25, -0.05, -0.12])
+
     @unittest.skipUnless(plugin.shutil.which('node'), 'optional inspector check requires Node.js')
     def test_inspector_settings_round_trip(self):
         result = subprocess.run(['node', str(ROOT.parent / 'test_inspector.js')], capture_output=True, text=True)
@@ -666,13 +844,14 @@ class PluginTest(unittest.IsolatedAsyncioTestCase):
 
     def test_manifest_assets(self):
         manifest = json.loads((ROOT / 'manifest.json').read_text())
-        # The installer offers Update only when the bundle is newer than the last release (1.2.0).
-        self.assertGreater(tuple(int(part) for part in manifest['Version'].split('.')), (1, 2, 0))
+        # The installer offers Update only when the bundle is newer than the last release (1.3.0).
+        self.assertGreater(tuple(int(part) for part in manifest['Version'].split('.')), (1, 3, 0))
         actions = {action['UUID'].removeprefix(plugin.PREFIX): action for action in manifest['Actions']}
-        self.assertEqual(set(actions), {'mic', 'panic', 'scene', 'bus', 'studioVoice', 'pushToTalk'})
+        self.assertEqual(set(actions), {'mic', 'panic', 'scene', 'bus', 'volumeDown', 'volumeUp', 'studioVoice',
+                                        'pushToTalk'})
         # The plugin sends setState 1 for each of these; OpenDeck ignores a state the manifest
         # lacks, and two states with one image look the same on the key.
-        for name in ('mic', 'panic', 'scene', 'bus', 'studioVoice', 'pushToTalk'):
+        for name in ('mic', 'panic', 'scene', 'bus', 'volumeDown', 'volumeUp', 'studioVoice', 'pushToTalk'):
             images = [state['Image'] for state in actions[name]['States']]
             self.assertEqual(len(images), 2, name)
             self.assertNotEqual(images[0], images[1], name)

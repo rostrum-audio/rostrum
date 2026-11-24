@@ -323,7 +323,7 @@ Flatpak configuration folders, and asks which to use if both exist. Choose plugi
 available for a custom location; it stays selected until cleared. Update and Repair replace only
 Rostrum's plugin, preserving your OpenDeck profiles and other plugins. Python 3 is required.
 Restart OpenDeck, then drag an action onto a key: Toggle mic, Panic mute, Switch scene, Toggle bus
-mute, Studio Voice or Push to talk. Choose a scene or bus in the property inspector and keep
+mute, Volume down, Volume up, Studio Voice or Push to talk. Choose a scene or bus in the property inspector and keep
 Rostrum running. Toggle mic has a
 Play sound option, enabled by default: a short descending cue confirms muted, and an ascending
 cue confirms live. Cues use `pw-play` and go only to Rostrum's headphones mix; muted headphones
@@ -337,6 +337,12 @@ filters on or off; Voice on means switched on, and the Studio Voice page says wh
 running. Push to talk keeps the mic live while the key is held and shows Talking. If panic or
 push to mute keeps the mic muted anyway, the key shows Blocked. The deck and the Push to talk
 hotkey share one hold, so releasing either one ends it.
+
+Volume down and Volume up step a bus by the key's Step (5% by default) and repeat while held. The
+Side setting (Both, Stream, My headphones) on them and on Toggle bus mute moves or mutes one side
+only: a Stream key never changes what you hear, and a "for me" key never puts a muted bus back on
+the stream. Keys show percent of fader travel. These need Rostrum on D-Bus; in CLI mode they show
+Unavailable.
 
 The plugin keeps its own connection to the session D-Bus, so a hold ends if the plugin stops. When
 it cannot connect, it uses `rostrum --no-start` instead and tries D-Bus again every 5 seconds.
@@ -354,7 +360,7 @@ Push to talk. Newer versions show Installed (newer) and leave it alone.
 
 Manual copy fallback: copy `tools/opendeck/dev.getrostrum.Rostrum.sdPlugin` into the plugins
 folder shown by OpenDeck settings: **Open config directory**, then `plugins`. Flatpak OpenDeck
-uses its own config directory. Restart OpenDeck and drag one of the six actions onto a key.
+uses its own config directory. Restart OpenDeck and drag one of the eight actions onto a key.
 
 Test without hardware: `python3 -B tools/opendeck/test_plugin.py`.
 Manual check: with OpenDeck and Rostrum running, press a Toggle mic key and confirm that the

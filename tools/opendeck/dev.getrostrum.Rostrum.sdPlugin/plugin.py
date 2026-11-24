@@ -42,6 +42,9 @@ BUS_CONNECT_TIMEOUT = 2.0
 # CLI mode tries the session bus again this often, so one lost connection is not permanent.
 BUS_RETRY_SECONDS = 5.0
 UNKNOWN_METHOD = 'org.freedesktop.DBus.Error.UnknownMethod'
+# A held volume key repeats after REPEAT_DELAY, then every REPEAT_INTERVAL after each reply.
+REPEAT_DELAY = 0.4
+REPEAT_INTERVAL = 0.15
 
 
 class Unavailable(Exception):
@@ -393,6 +396,18 @@ def _side(settings):
     return side if isinstance(side, str) and side in ('stream', 'phones', 'both') else 'both'
 
 
+def _step_setting(settings):
+    """The key's step in percent of fader travel: 1-25, 5 when unset or not a number."""
+    step = settings.get('step')
+    if isinstance(step, bool) or not isinstance(step, (int, float)) or not math.isfinite(step):
+        return 5
+    return min(25, max(1, round(step)))
+
+
+def _percent(level):
+    return round(level * 100)
+
+
 def _scene_list(payload):
     if isinstance(payload, str):
         return payload.splitlines()
@@ -446,6 +461,8 @@ class Plugin:
     def __init__(self, controls, send):
         self.controls, self.send = controls, send
         self.keys, self.held = {}, {}
+        # Volume keys being held: context -> the task that repeats their step.
+        self.stepping = {}
         self.feedback, self.pending_feedback = Feedback(), set()
         self.buses, self.scenes = {}, []
         self.available = False
@@ -466,6 +483,7 @@ class Plugin:
         # Holds lived on the previous instance (Rostrum releases them when it quits, and a
         # new instance starts with none). Forget them; never press again on someone's behalf.
         self.held.clear()
+        self.stepping.clear()
         if owner:
             # The forced poll paints. An early render would show the previous process's buses.
             if self._polled:
@@ -591,6 +609,8 @@ class Plugin:
                 state = int(bool(bus['muted']))
                 return state, 'Mic muted' if state else 'Mic live'
             return 0, 'Missing'
+        if action in ('volumeDown', 'volumeUp'):
+            return self._volume_view(key)[:2]
         if action == 'bus':
             side_mute = self._side_mute(settings)
             if side_mute is not None:
@@ -606,6 +626,42 @@ class Plugin:
             state = int(bool(bus['muted']))
             return state, bus['name'] + (' muted' if state else ' live')
         return 0, 'Missing' if bus_id else 'Toggle bus mute'
+
+    def _volume_view(self, key):
+        """(state, title, side to step) for a volume key; the side is None when a press cannot step."""
+        settings = key['settings']
+        # StepBusVolume has no command-line equivalent; --set-volume would flatten the two levels.
+        if getattr(self.controls, 'cli_only', False):
+            return 0, 'Unavailable', None
+        bus_id = settings.get('bus', '')
+        if not bus_id:
+            return 0, 'Volume down' if key['action'] == 'volumeDown' else 'Volume up', None
+        bus = self.buses.get(bus_id)
+        if not bus:
+            return 0, 'Missing', None
+        if 'stream' not in bus:
+            return 0, 'Needs update', None  # this Rostrum has no ListBusLevels
+        name, props = bus['name'], self._props()
+        if not bus['destination']:
+            # The mic or a master: one level, so the side does not apply.
+            muted = bus['muted']
+            if bus_id == 'stream' and 'StreamMuted' in props:
+                muted = props['StreamMuted']
+            elif bus_id == 'mic' and 'MicMuted' in props:
+                muted = props['MicMuted']
+            return int(bool(muted)), f"{name}\n{_percent(bus['stream'])}%", 'both'
+        side = _side(settings)
+        if side != 'both' and props.get('PerMixLevels') is False:
+            return 0, f'{name}\nOne level', None
+        stream, phones = _percent(bus['stream']), _percent(bus['phones'])
+        if side == 'stream':
+            title = f'{name}\nStream {stream}%'
+        elif side == 'phones':
+            title = f'{name}\nMe {phones}%'
+        else:
+            title = f'{name}\n{stream}%' if stream == phones else f'{name}\nS{stream} Me{phones}'
+        plays = not bus['muted'] and (side == 'both' or bus['destination'] in (side, 'both'))
+        return int(not plays), title, side
 
     def _side_mute(self, settings):
         """(state, title, pressable) for a bus key on one side, or None when it mutes the whole bus."""
@@ -669,6 +725,7 @@ class Plugin:
                 pass
 
     async def close(self):
+        self.stepping.clear()
         for context in list(self.held):
             await self.release(context)
         self.pending_feedback.clear()
@@ -691,16 +748,19 @@ class Plugin:
         payload = event.get('payload', {})
         if kind == 'willAppear':
             action = event.get('action', '').removeprefix(PREFIX)
-            if action not in ('mic', 'panic', 'scene', 'bus', 'studioVoice', 'pushToTalk'):
+            if action not in ('mic', 'panic', 'scene', 'bus', 'volumeDown', 'volumeUp', 'studioVoice',
+                              'pushToTalk'):
                 return
             self.keys[context] = {'action': action, 'settings': payload.get('settings', {})}
             await self.poll()
             await self.render(context)
         elif kind == 'willDisappear':
+            self.stepping.pop(context, None)
             self.pending_feedback.discard(context)
             self.keys.pop(context, None)
             await self.release(context)
         elif kind == 'keyUp':
+            self.stepping.pop(context, None)
             await self.release(context)
             await self.poll(force=True)
         elif context in self.keys:
@@ -751,10 +811,87 @@ class Plugin:
         self.available = True
         self._paint(context)
 
+    async def _volume(self, context):
+        # No poll first, as for push to talk: the step runs on the levels Rostrum holds.
+        if context in self.stepping:
+            return
+        if not await self._ready():
+            self.available = False
+            self._alert_if_still_down(context)
+            self._paint(context)
+            return
+        if await self._step(context):
+            self.stepping[context] = self._schedule(self._repeat(context))
+
+    async def _repeat(self, context):
+        # One step at a time: a slow reply delays the next step, and nothing queues behind it.
+        task = asyncio.current_task()
+        await asyncio.sleep(REPEAT_DELAY)
+        while self.stepping.get(context) is task and await self._step(context):
+            await asyncio.sleep(REPEAT_INTERVAL)
+        if self.stepping.get(context) is task:
+            del self.stepping[context]
+
+    async def _step(self, context):
+        """Step once. False when the key cannot step or the step failed (already alerted)."""
+        key = self.keys.get(context)
+        if key is None:
+            return False
+        _, _, side = self._volume_view(key)
+        if side is None:
+            self._alert(context)
+            self._paint(context)
+            return False
+        bus_id = key['settings']['bus']
+        delta = _step_setting(key['settings']) / 100
+        if key['action'] == 'volumeDown':
+            delta = -delta
+        try:
+            level = await self._invoke(self.controls.step, bus_id, side, delta)
+        except Unsupported:
+            self._alert(context)
+            self._paint(context)
+            return False
+        except Unavailable:
+            self.available = False
+            self._alert_if_still_down(context)
+            self._paint(context)
+            return False
+        except ValueError:
+            # The bus went away (a scene switch) or Rostrum refused this side.
+            self.buses.pop(bus_id, None)
+            self._alert(context)
+            self._paint(context)
+            return False
+        self._store_level(bus_id, side, level)
+        self.available = True
+        self._render_all()
+        return True
+
+    def _store_level(self, bus_id, side, level):
+        bus = self.buses.get(bus_id)
+        if not bus or 'stream' not in bus:
+            return
+        if not bus['destination']:
+            bus['stream'] = bus['phones'] = level
+        elif side == 'stream':
+            bus['stream'] = level
+        elif side == 'phones':
+            bus['phones'] = level
+        else:
+            # Both: Headphones moved by what the Stream level actually moved.
+            moved = level - bus['stream']
+            bus['stream'] = level
+            bus['phones'] = min(1.0, max(0.0, bus['phones'] + moved))
+
     async def _key_down(self, context):
         # Do not poll(force=True) here; keys act on the state signals already delivered.
-        if self.keys[context]['action'] == 'pushToTalk':
+        action = self.keys[context]['action']
+        if action == 'pushToTalk':
             await self._push_to_talk(context)
+            return
+        if action in ('volumeDown', 'volumeUp'):
+            await self._volume(context)
             return
         if not await self._ready():
             self.available = False

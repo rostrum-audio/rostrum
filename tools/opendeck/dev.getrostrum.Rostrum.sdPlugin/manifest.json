@@ -1,7 +1,7 @@
 {
   "Name": "Rostrum",
   "Author": "Rostrum contributors",
-  "Version": "1.3.0",
+  "Version": "1.4.0",
   "Icon": "images/mic",
   "Category": "Rostrum",
   "CodePath": "plugin.sh",
@@ -105,6 +105,56 @@
         {
           "Image": "images/bus-muted",
           "Title": "Toggle bus mute",
+          "TitleAlignment": "bottom",
+          "FontSize": "12"
+        }
+      ],
+      "PropertyInspectorPath": "inspector.html"
+    },
+    {
+      "UUID": "dev.getrostrum.Rostrum.volumeDown",
+      "Name": "Volume down",
+      "Icon": "images/volume-down",
+      "Controllers": [
+        "Keypad"
+      ],
+      "DisableAutomaticStates": true,
+      "SupportedInMultiActions": false,
+      "States": [
+        {
+          "Image": "images/volume-down",
+          "Title": "Volume down",
+          "TitleAlignment": "bottom",
+          "FontSize": "12"
+        },
+        {
+          "Image": "images/volume-down-muted",
+          "Title": "Volume down",
+          "TitleAlignment": "bottom",
+          "FontSize": "12"
+        }
+      ],
+      "PropertyInspectorPath": "inspector.html"
+    },
+    {
+      "UUID": "dev.getrostrum.Rostrum.volumeUp",
+      "Name": "Volume up",
+      "Icon": "images/volume-up",
+      "Controllers": [
+        "Keypad"
+      ],
+      "DisableAutomaticStates": true,
+      "SupportedInMultiActions": false,
+      "States": [
+        {
+          "Image": "images/volume-up",
+          "Title": "Volume up",
+          "TitleAlignment": "bottom",
+          "FontSize": "12"
+        },
+        {
+          "Image": "images/volume-up-muted",
+          "Title": "Volume up",
           "TitleAlignment": "bottom",
           "FontSize": "12"
         }
