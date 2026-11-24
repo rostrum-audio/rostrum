@@ -4,7 +4,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const elements = {};
-for (const id of ['label', 'choice', 'status', 'playSound', 'feedback', 'soundVolume', 'volumeValue'])
+for (const id of ['label', 'choice', 'status', 'playSound', 'feedback', 'soundVolume', 'volumeValue',
+                  'sideBlock', 'side', 'stepBlock', 'step', 'stepValue'])
     elements[id] = {replaceChildren() {}, add() {}, setAttribute() {}};
 const messages = [];
 class Socket {
@@ -54,4 +55,50 @@ for (const [value, expected] of [[null,50], ['loud',50], [true,50], [150,100], [
 connect({scene:'Live'}, 'scene');
 assert.equal(elements.feedback.hidden, true);
 assert.equal(elements.choice.hidden, false);
-console.log('PASS: sound volume defaults, round-trip, bounds, disabled state; scene selector preserved');
+// Side and Step for the bus and volume keys.
+connect({}, 'volumeDown');
+assert.equal(elements.sideBlock.hidden, false);
+assert.equal(elements.stepBlock.hidden, false);
+assert.equal(elements.side.value, 'both');
+assert.equal(Number(elements.step.value), 5);
+assert.equal(elements.stepValue.textContent, '5%');
+for (const [value, expected] of [[null, 5], ['5', 5], [true, 5], [0, 1], [400, 25], [12.4, 12]]) {
+    connect({step: value}, 'volumeUp');
+    assert.equal(Number(elements.step.value), expected);
+}
+connect({side: 'left'}, 'volumeUp');
+assert.equal(elements.side.value, 'both');
+connect({}, 'bus');
+assert.equal(elements.stepBlock.hidden, true);
+assert.equal(elements.sideBlock.hidden, false);
+assert.equal(elements.label.textContent, 'Bus');
+const added = [];
+elements.choice.add = option => added.push(option.id);
+const levels = [{id: 'mic', name: 'Mic', destination: ''}, {id: 'game', name: 'Game', destination: 'both'}];
+Socket.instance.onmessage({data: JSON.stringify({event: 'sendToPropertyInspector',
+    payload: {settings: {}, available: true, scenes: [], buses: levels}})});
+assert.deepEqual(added, ['mic', 'game']);
+added.length = 0;
+elements.side.value = 'stream'; elements.side.onchange();
+assert.equal(messages.at(-1).payload.side, 'stream');
+assert.deepEqual(added, ['game']); // one side: playback buses only
+added.length = 0;
+Socket.instance.onmessage({data: JSON.stringify({event: 'sendToPropertyInspector',
+    payload: {settings: {side: 'stream'}, available: true, scenes: [],
+              buses: [{id: 'mic', name: 'Mic'}, {id: 'game', name: 'Game'}]}})});
+assert.deepEqual(added, ['mic', 'game']); // an older Rostrum lists no destinations: show them all
+connect({}, 'volumeDown');
+elements.step.value = '12'; elements.step.oninput();
+assert.equal(elements.stepValue.textContent, '12%');
+elements.step.onchange();
+assert.equal(messages.at(-1).payload.step, 12);
+// A background refresh must not move a step slider being dragged.
+sandbox.document.activeElement = elements.step;
+Socket.instance.onmessage({data: JSON.stringify({event: 'sendToPropertyInspector',
+    payload: {settings: {step: 5}, available: true, scenes: [], buses: []}})});
+assert.equal(Number(elements.step.value), 12);
+sandbox.document.activeElement = null;
+connect({}, 'mic');
+assert.equal(elements.sideBlock.hidden, true);
+assert.equal(elements.stepBlock.hidden, true);
+console.log('PASS: sound volume defaults, round-trip, bounds, disabled state; scene selector preserved; side and step');

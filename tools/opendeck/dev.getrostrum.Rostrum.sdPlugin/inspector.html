@@ -12,6 +12,19 @@ select { margin-top: 8px; padding: 6px; background: #333; color: #eee; }
 </style>
 <label id="label" for="choice">Choose a scene or bus</label>
 <select id="choice" disabled><option value="">Choose…</option></select>
+<div id="sideBlock" hidden>
+  <label for="side">Side</label>
+  <select id="side" aria-describedby="sideHelp">
+    <option value="both">Both</option>
+    <option value="stream">Stream</option>
+    <option value="phones">My headphones</option>
+  </select>
+  <p id="sideHelp">Stream or My headphones changes that side only.</p>
+</div>
+<div id="stepBlock" hidden>
+  <label for="step">Step <output id="stepValue" for="step">5%</output></label>
+  <input id="step" type="range" min="1" max="25" step="1" value="5">
+</div>
 <div id="feedback" hidden>
   <label for="playSound"><input id="playSound" type="checkbox" checked> Play sound</label>
   <label for="soundVolume">Sound volume <output id="volumeValue" for="soundVolume">50%</output></label>
@@ -28,6 +41,23 @@ const status = document.getElementById('status');
 const playSound = document.getElementById('playSound');
 const soundVolume = document.getElementById('soundVolume');
 const volumeValue = document.getElementById('volumeValue');
+const sideBlock = document.getElementById('sideBlock');
+const stepBlock = document.getElementById('stepBlock');
+const side = document.getElementById('side');
+const step = document.getElementById('step');
+const stepValue = document.getElementById('stepValue');
+let lastPayload = null;
+// The plugin applies the same defaults: Both, and a 5% step within 1-25%.
+function sideSetting(value) {
+    return ['both', 'stream', 'phones'].includes(value) ? value : 'both';
+}
+function stepSetting(value) {
+    return typeof value === 'number' && Number.isFinite(value) ? Math.max(1, Math.min(25, Math.round(value))) : 5;
+}
+function showStep() {
+    stepValue.textContent = step.value + '%';
+    step.setAttribute('aria-valuetext', stepValue.textContent);
+}
 function volumeSetting(value) {
     return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 50;
 }
@@ -45,6 +75,33 @@ function showSettings() {
         soundVolume.value = volumeSetting(settings.soundVolume);
     soundVolume.disabled = !playSound.checked;
     showVolume();
+    const isVolume = Boolean(action) && (action.endsWith('.volumeDown') || action.endsWith('.volumeUp'));
+    sideBlock.hidden = !(isVolume || (Boolean(action) && action.endsWith('.bus')));
+    stepBlock.hidden = !isVolume;
+    side.value = sideSetting(settings.side);
+    if (document.activeElement !== step)
+        step.value = stepSetting(settings.step);
+    showStep();
+    showChoices();
+}
+function showChoices() {
+    if (!lastPayload || !action)
+        return;
+    const isScene = action.endsWith('.scene');
+    const field = isScene ? 'scene' : 'bus';
+    document.getElementById('label').textContent = isScene ? 'Scene' : 'Bus';
+    let rows = isScene ? lastPayload.scenes.map(name => ({id: name, name})) : lastPayload.buses;
+    // One side applies to playback buses only. An older Rostrum sends no destinations: list all.
+    if (!isScene && !sideBlock.hidden && sideSetting(settings.side) !== 'both' && rows.some(row => 'destination' in row))
+        rows = rows.filter(row => (typeof row.destination === 'string' && row.destination !== '')
+                                  || row.id === settings[field]);
+    choice.replaceChildren(new Option('Choose…', ''));
+    for (const row of rows) choice.add(new Option(row.name, row.id));
+    if (settings[field] && !rows.some(row => row.id === settings[field]))
+        choice.add(new Option('Missing: ' + settings[field], settings[field]));
+    choice.value = settings[field] || '';
+    choice.disabled = !lastPayload.available;
+    status.textContent = lastPayload.available ? '' : 'Unavailable — start Rostrum';
 }
 function send(event, payload) {
     if (socket && socket.readyState === WebSocket.OPEN)
@@ -74,18 +131,8 @@ function connectOpenActionSocket(port, uuid, registerEvent, info, actionInfo) {
             requestChoices();
         } else if (data.event === 'sendToPropertyInspector') {
             settings = data.payload.settings || settings;
+            lastPayload = data.payload;
             showSettings();
-            const isScene = action.endsWith('.scene');
-            const field = isScene ? 'scene' : 'bus';
-            document.getElementById('label').textContent = isScene ? 'Scene' : 'Bus';
-            const rows = isScene ? data.payload.scenes.map(name => ({id: name, name})) : data.payload.buses;
-            choice.replaceChildren(new Option('Choose…', ''));
-            for (const row of rows) choice.add(new Option(row.name, row.id));
-            if (settings[field] && !rows.some(row => row.id === settings[field]))
-                choice.add(new Option('Missing: ' + settings[field], settings[field]));
-            choice.value = settings[field] || '';
-            choice.disabled = !data.payload.available;
-            status.textContent = data.payload.available ? '' : 'Unavailable — start Rostrum';
         }
     };
     socket.onclose = () => { choice.disabled = true; status.textContent = 'Disconnected'; };
@@ -99,6 +146,16 @@ playSound.onchange = () => {
 soundVolume.oninput = showVolume;
 soundVolume.onchange = () => {
     settings.soundVolume = volumeSetting(Number(soundVolume.value));
+    send('setSettings', settings);
+};
+side.onchange = () => {
+    settings.side = sideSetting(side.value);
+    send('setSettings', settings);
+    showChoices();
+};
+step.oninput = showStep;
+step.onchange = () => {
+    settings.step = stepSetting(Number(step.value));
     send('setSettings', settings);
 };
 choice.onchange = () => {
