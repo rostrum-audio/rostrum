@@ -130,7 +130,9 @@ class SessionBus:
         except asyncio.IncompleteReadError:
             self._fail_pending(ConnectionError('D-Bus connection closed'))
         except Exception as exc:
-            self._fail_pending(exc)
+            # The stream is out of step (wrong byte order, oversize) and the writer closes
+            # below. Callers see a lost connection, not a bad argument of their own.
+            self._fail_pending(ConnectionError(f'D-Bus connection closed: {exc}'))
         finally:
             self._fail_pending(ConnectionError('D-Bus connection closed'))
             self._close_writer()

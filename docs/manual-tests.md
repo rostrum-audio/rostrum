@@ -828,7 +828,7 @@ No physical deck is needed for the install checks.
      release and the mic is muted again. With panic on, holding shows Blocked with one alert,
      and the mic stays muted.
    - Quit Rostrum from the tray: every Rostrum key shows Unavailable with one alert. Start it
-     again: the keys return within about a second, with no press.
+     again: the keys return within a few seconds of it starting, with no press.
 
 ## 32. Separate OBS recording tracks
 

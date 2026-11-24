@@ -365,6 +365,29 @@ class PluginTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.ptt_calls(bus, 'ReleaseAction'), 1)
         self.assertEqual(app.held, {})
 
+    async def test_key_that_appears_while_rostrum_is_absent_does_not_alert(self):
+        # OpenDeck often starts before Rostrum, and page flips re-send willAppear.
+        # Nothing was pressed, so no warning: the title already says Unavailable.
+        app, _, _, events = self.setup_plugin(owner='')
+        await self.appear(app, 'mic', context='a')
+        await self.appear(app, 'pushToTalk', context='b')
+        self.assertEqual(app.keys['a']['title'], 'Unavailable')
+        self.assertEqual(app.keys['b']['title'], 'Unavailable')
+        self.assertEqual(self.alerts(events), 0)
+        await self.down(app, 'a')
+        self.assertEqual(self.alerts(events), 1)  # a press still gets its alert
+
+    async def test_owner_change_from_another_client_is_ignored(self):
+        # Only the bus daemon announces owners. A unicast fake must not clear holds.
+        app, bus, _, _ = self.setup_plugin()
+        await self.appear(app, 'pushToTalk')
+        await self.down(app)
+        app.controls._on_signal(_signal('NameOwnerChanged', 'sss', (plugin.SERVICE, ':1.42', ''),
+                                        plugin.BUS_IFACE, sender=':1.66', path=plugin.BUS_PATH))
+        await asyncio.gather(*app.controls._tasks)
+        self.assertEqual(app.controls.owner, ':1.42')
+        self.assertEqual(app.held, {'key': 'push_to_talk'})
+
     async def test_ptt_press_that_timed_out_is_released_with_the_key(self):
         # A stalled Rostrum can still run the PressAction after the plugin stopped waiting.
         # The hold would then outlive the key, so keyUp releases it on the same connection.
@@ -584,7 +607,7 @@ class ControlsTest(unittest.IsolatedAsyncioTestCase):
 
         controls._on_signal(_signal(
             'NameOwnerChanged', 'sss', (plugin.SERVICE, ':1.42', ''),
-            plugin.BUS_IFACE, path=plugin.BUS_PATH))
+            plugin.BUS_IFACE, sender=plugin.BUS_SERVICE, path=plugin.BUS_PATH))
         for _ in range(3):
             await asyncio.sleep(0)
         self.assertIsNone(controls.owner)
@@ -593,7 +616,7 @@ class ControlsTest(unittest.IsolatedAsyncioTestCase):
         controls.on_owner = explode
         controls._on_signal(_signal(
             'NameOwnerChanged', 'sss', (plugin.SERVICE, '', ''),
-            plugin.BUS_IFACE))
+            plugin.BUS_IFACE, sender=plugin.BUS_SERVICE))
         for _ in range(3):
             await asyncio.sleep(0)
         self.assertIsNone(controls.owner)
@@ -1464,7 +1487,26 @@ class SessionBusTest(unittest.IsolatedAsyncioTestCase):
         async with server:
             bus = await plugin_dbus.SessionBus.connect(
                 address=f'unix:path={self._sock_path}')
-            with self.assertRaises(ValueError):
+            with self.assertRaises(ConnectionError):
+                await bus.call(':1.1', '/x', 'x.Y', 'Ping', '', timeout=0.5)
+            await bus.close()
+
+    async def _big_endian_peer(self, reader, writer):
+        try:
+            await self._sasl(reader, writer)
+            await self._read_message(reader)
+            writer.write(struct.pack('>cBBBIII', b'B', 2, 1, 1, 0, 9, 0))
+            await writer.drain()
+            await self._finish(reader, writer)
+        except (asyncio.IncompleteReadError, ConnectionError, BrokenPipeError):
+            writer.close()
+
+    async def test_reader_rejects_big_endian_frame(self):
+        # Rostrum's bus is little-endian; a big-endian frame cannot be skipped in step.
+        server = await self._serve(self._big_endian_peer)
+        async with server:
+            bus = await plugin_dbus.SessionBus.connect(address=f'unix:path={self._sock_path}')
+            with self.assertRaises(ConnectionError):
                 await bus.call(':1.1', '/x', 'x.Y', 'Ping', '', timeout=0.5)
             await bus.close()
 

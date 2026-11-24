@@ -196,7 +196,8 @@ class Controls:
             return
 
     def _signal_owner(self, message):
-        if message.interface not in (None, BUS_IFACE):
+        # Only the bus daemon announces owners; any client can send us a unicast lookalike.
+        if message.sender != BUS_SERVICE or message.interface not in (None, BUS_IFACE):
             return
         name, old, new = decode_body(message.signature or 'sss', message.body)
         if name != SERVICE:
@@ -570,8 +571,9 @@ class Plugin:
         same_title = 'title' in key and key['title'] == title
         if same_state and same_title:
             return
-        # One alert when a key becomes Unavailable or Blocked, not on every later redraw.
-        if title in ('Unavailable', 'Blocked') and key.get('title') != title:
+        # One alert when a key becomes Unavailable or Blocked, not on every later redraw, and
+        # none when it first appears that way: OpenDeck starting first is not a failed press.
+        if title in ('Unavailable', 'Blocked') and 'title' in key and key['title'] != title:
             self._alert(context)
         if not same_state:
             key['state'] = state
@@ -662,8 +664,9 @@ class Plugin:
                 await self._invoke(self.controls.press, 'push_to_talk')
             except Unavailable:
                 # The press may still run (a reply that timed out, a stalled Rostrum that
-                # catches up). Treat the key as held so keyUp releases it on this connection;
-                # a release Rostrum does not need is harmless.
+                # catches up). Treat the key as held so keyUp releases it on this connection.
+                # If the press never ran, that release ends only the shared hold, the same as
+                # any deck key's release.
                 self.held[context] = 'push_to_talk'
                 self.available = False
                 self._alert_if_still_down(context)
