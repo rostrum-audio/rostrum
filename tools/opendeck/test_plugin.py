@@ -52,18 +52,28 @@ class FakeBus:
         # Rostrum emits PropertiesChanged inside the method's slot, so it reaches the plugin
         # before the reply. member -> props that change before replying.
         self.changes_before_reply = {}
+        # A change sent just after the reply, read from the same socket buffer before the
+        # caller resumes. member -> props that change after the reply is built.
+        self.changes_after_reply = {}
+
+    def _changed(self, changed):
+        if changed and self.on_signal is not None:
+            self.props.update(changed)
+            self.on_signal(_signal('PropertiesChanged', 'sa{sv}as', (plugin.IFACE, dict(changed), []),
+                                   plugin.PROPS_IFACE, sender=self.owner, path=plugin.OBJECT))
 
     async def call(self, destination, path, interface, member, signature='', *args, timeout=2.0):
+        result = await self._reply(destination, path, interface, member, signature, *args)
+        self._changed(self.changes_after_reply.get(member))
+        return result
+
+    async def _reply(self, destination, path, interface, member, signature='', *args):
         self.calls.append({'destination': destination, 'path': path, 'interface': interface,
                            'member': member, 'signature': signature, 'args': args})
         failure = self.failures.get(member)
         if failure is not None:
             raise failure() if isinstance(failure, type) else failure
-        changed = self.changes_before_reply.get(member)
-        if changed and self.on_signal is not None:
-            self.props.update(changed)
-            self.on_signal(_signal('PropertiesChanged', 'sa{sv}as', (plugin.IFACE, dict(changed), []),
-                                   plugin.PROPS_IFACE, sender=self.owner, path=plugin.OBJECT))
+        self._changed(self.changes_before_reply.get(member))
         if member == 'Hello':
             return (':1.99',)
         if member == 'AddMatch':
@@ -354,6 +364,29 @@ class PluginTest(unittest.IsolatedAsyncioTestCase):
         await app.handle({'event': 'willDisappear', 'context': 'key'})
         self.assertEqual(self.ptt_calls(bus, 'ReleaseAction'), 1)
         self.assertEqual(app.held, {})
+
+    async def test_ptt_press_that_timed_out_is_released_with_the_key(self):
+        # A stalled Rostrum can still run the PressAction after the plugin stopped waiting.
+        # The hold would then outlive the key, so keyUp releases it on the same connection.
+        app, bus, _, _ = self.setup_plugin()
+        await self.appear(app, 'pushToTalk')
+        bus.failures['PressAction'] = TimeoutError
+        await self.down(app)
+        self.assertEqual(app.keys['key']['title'], 'Unavailable')
+        del bus.failures['PressAction']
+        await self.up(app)
+        self.assertEqual(self.ptt_calls(bus, 'ReleaseAction'), 1)
+        self.assertEqual(app.held, {})
+        self.assertEqual(app.keys['key']['title'], 'Push to talk')
+
+    async def test_ptt_refused_press_is_not_released(self):
+        # Rostrum's own error means it ran nothing, so there is no hold to end.
+        app, bus, _, _ = self.setup_plugin()
+        await self.appear(app, 'pushToTalk')
+        bus.failures['PressAction'] = plugin.DBusError(plugin.IFACE + '.Error.NoSuchAction', 'no')
+        await self.down(app)
+        await self.up(app)
+        self.assertEqual(self.ptt_calls(bus, 'ReleaseAction'), 0)
 
     async def test_ptt_refcount_releases_once(self):
         app, bus, _, _ = self.setup_plugin()
@@ -719,6 +752,52 @@ class ControlsTest(unittest.IsolatedAsyncioTestCase):
             await controls.snapshot()
         self.assertFalse(controls.cli_only)
         self.assertEqual(runner.commands, [])
+        await controls.close()
+
+    async def test_cli_mode_returns_to_the_bus(self):
+        # One lost connection must not leave push to talk Unavailable until OpenDeck restarts.
+        bus = FakeBus()
+        attempts = []
+
+        async def flaky(address=None):
+            attempts.append(address)
+            if len(attempts) == 1:
+                raise OSError('bus restarting')
+            return bus
+
+        controls = plugin.Controls(run=CliRunner(), executable='/test/rostrum', bus_factory=flaky)
+        clock = [100.0]
+        with patch.object(plugin.time, 'monotonic', lambda: clock[0]):
+            await controls.ensure_bus()
+            self.assertTrue(controls.cli_only)
+            await controls.ensure_bus()
+            self.assertEqual(len(attempts), 1)  # one try per interval, not one per call
+            clock[0] += plugin.BUS_RETRY_SECONDS
+            await controls.ensure_bus()
+        self.assertEqual(len(attempts), 2)
+        self.assertFalse(controls.cli_only)
+        self.assertEqual(controls.owner, ':1.42')
+        self.assertIs(controls.props['MicMuted'], False)
+        await controls.close()
+
+    async def test_bus_connect_that_never_answers_gives_up(self):
+        # A socket that accepts and never speaks would otherwise stall every key.
+        async def hang(address=None):
+            await asyncio.Event().wait()
+
+        controls = plugin.Controls(run=CliRunner(), executable='/test/rostrum', bus_factory=hang)
+        with patch.object(plugin, 'BUS_CONNECT_TIMEOUT', 0.05):
+            await asyncio.wait_for(controls.ensure_bus(), 1)
+        self.assertTrue(controls.cli_only)
+
+    async def test_signal_newer_than_get_all_wins(self):
+        # The reader can dispatch a PropertiesChanged sent after GetAll's reply before
+        # _load_props resumes. The older snapshot must not overwrite it.
+        controls, bus, _ = self.controls()
+        bus.changes_after_reply = {'GetAll': {'MicMuted': True}}
+        await controls.ensure_bus()
+        self.assertIs(controls.props['MicMuted'], True)
+        self.assertEqual(controls.props['CurrentScene'], 'Live')
         await controls.close()
 
     async def test_lost_bus_moves_to_cli_and_drops_stale_props(self):

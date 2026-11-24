@@ -37,6 +37,10 @@ _PROPS_MATCH = (
     "path='/dev/getrostrum/Rostrum/Control',arg0='dev.getrostrum.Rostrum1'"
 )
 _LIST_METHODS = frozenset({'ListBuses', 'ListScenes'})
+# Connecting covers the socket and SASL; every later call has its own 2 s reply timeout.
+BUS_CONNECT_TIMEOUT = 2.0
+# CLI mode tries the session bus again this often, so one lost connection is not permanent.
+BUS_RETRY_SECONDS = 5.0
 
 
 class Unavailable(Exception):
@@ -60,6 +64,9 @@ class Controls:
         self.on_owner = None
         self._closed = False
         self._tasks = set()
+        self._retry_at = float('-inf')
+        # One dict per GetAll in flight: changes signalled while it waits, which are newer.
+        self._newer_than_get_all = []
 
     def command(self, args):
         try:
@@ -70,13 +77,18 @@ class Controls:
             raise Unavailable() from error
 
     async def ensure_bus(self):
-        if self._closed or self.bus is not None or self.cli_only:
+        if self._closed or self.bus is not None:
+            return
+        # CLI mode is a fallback, not a verdict: try the bus again now and then.
+        if self.cli_only and time.monotonic() < self._retry_at:
             return
         bus = None
         try:
-            bus = await self.bus_factory()
+            bus = await asyncio.wait_for(self.bus_factory(), BUS_CONNECT_TIMEOUT)
             bus.on_signal = self._on_signal
             self.bus = bus
+            # Before the owner lookup, so "no owner" on this bus reads as a quit, not CLI mode.
+            self.cli_only = False
             await self._subscribe()
             await self._refresh_owner()
         except TimeoutError:
@@ -201,6 +213,8 @@ class Controls:
             return
         if changed:
             self.props.update(changed)
+            for newer in self._newer_than_get_all:
+                newer.update(changed)
         if invalidated:
             self._spawn(self._load_props())
             return
@@ -259,17 +273,22 @@ class Controls:
         if self.bus is None or not self.owner or self._closed:
             return
         owner = self.owner
+        # The reader can dispatch a change sent after the reply before this resumes.
+        newer = {}
+        self._newer_than_get_all.append(newer)
         try:
             body = await self.bus.call(owner, OBJECT, PROPS_IFACE, 'GetAll', 's', IFACE)
         except TimeoutError:
             return
         except (OSError, DBusError, ValueError):
             return
+        finally:
+            self._newer_than_get_all.remove(newer)
         if self.owner != owner:
             return
         props = body[0] if body else {}
         if isinstance(props, dict):
-            self.props = dict(props)
+            self.props = {**props, **newer}
             self._notify_properties()
 
     async def _daemon(self, member, signature, *args):
@@ -277,6 +296,7 @@ class Controls:
 
     async def _abandon(self, bus):
         self.cli_only = True
+        self._retry_at = time.monotonic() + BUS_RETRY_SECONDS
         self.bus = None
         self.owner = None
         self.props = {}
@@ -641,6 +661,10 @@ class Plugin:
             try:
                 await self._invoke(self.controls.press, 'push_to_talk')
             except Unavailable:
+                # The press may still run (a reply that timed out, a stalled Rostrum that
+                # catches up). Treat the key as held so keyUp releases it on this connection;
+                # a release Rostrum does not need is harmless.
+                self.held[context] = 'push_to_talk'
                 self.available = False
                 self._alert_if_still_down(context)
                 self._paint(context)
