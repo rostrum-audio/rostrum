@@ -322,19 +322,41 @@ Settings → Integrations → OpenDeck → Install. Rostrum extracts its bundled
 Flatpak configuration folders, and asks which to use if both exist. Choose plugins folder… is
 available for a custom location; it stays selected until cleared. Update and Repair replace only
 Rostrum's plugin, preserving your OpenDeck profiles and other plugins. Python 3 is required.
-Restart OpenDeck, then drag Toggle mic, Panic mute, Switch scene, or Toggle bus mute onto a key.
-Choose a scene or bus in the property inspector and keep Rostrum running. Toggle mic has a
+Restart OpenDeck, then drag an action onto a key: Toggle mic, Panic mute, Switch scene, Toggle bus
+mute, Studio Voice or Push to talk. Choose a scene or bus in the property inspector and keep
+Rostrum running. Toggle mic has a
 Play sound option, enabled by default: a short descending cue confirms muted, and an ascending
 cue confirms live. Cues use `pw-play` and go only to Rostrum's headphones mix; muted headphones
 also mute the cues. No cue plays if Rostrum cannot confirm the state. Disable Play sound in the
 key's property inspector for silent operation. Sound volume adjusts just the cues from 0–100%;
-50% matches the original level, and the setting is saved per key. The plugin uses
-session D-Bus (`gdbus`) first, with `rostrum --no-start` as a fallback; it never opens the deck or
-starts Rostrum. Older Rostrum versions without `--no-start` cannot use the CLI fallback.
+50% matches the original level, and the setting is saved per key.
+
+Keys follow Rostrum as it changes. Panic mute shows when panic is on, Switch scene shows when its
+scene is live, and Toggle bus mute has separate live and muted art. Studio Voice switches the mic
+filters on or off; Voice on means switched on, and the Studio Voice page says whether they are
+running. Push to talk keeps the mic live while the key is held and shows Talking. If panic or
+push to mute keeps the mic muted anyway, the key shows Blocked. The deck and the Push to talk
+hotkey share one hold, so releasing either one ends it.
+
+The plugin keeps its own connection to the session D-Bus, so a hold ends if the plugin stops. When
+it cannot connect, it falls back to `rostrum --no-start` for everything except Push to talk, which
+then shows Unavailable. It never opens the deck or starts Rostrum. Older Rostrum versions without
+`--no-start` cannot use the CLI fallback.
+
+Flatpak OpenDeck from Flathub has no D-Bus access to Rostrum, so its keys show Unavailable. Allow
+it, then restart OpenDeck:
+
+```sh
+flatpak override --user --talk-name=dev.getrostrum.Rostrum me.amankhanna.opendeck
+```
+
+Rostrum 0.4.0 and older bundle plugin 1.2.0. If a newer Rostrum installed plugin 1.3.0, those
+versions report it as incomplete, and Repair replaces it with 1.2.0, which has no Studio Voice or
+Push to talk. Newer versions show Installed (newer) and leave it alone.
 
 Manual copy fallback: copy `tools/opendeck/dev.getrostrum.Rostrum.sdPlugin` into the plugins
 folder shown by OpenDeck settings: **Open config directory**, then `plugins`. Flatpak OpenDeck
-uses its own config directory. Restart OpenDeck and drag one of the four actions onto a key.
+uses its own config directory. Restart OpenDeck and drag one of the six actions onto a key.
 
 Test without hardware: `python3 -B tools/opendeck/test_plugin.py`.
 Manual check: with OpenDeck and Rostrum running, press a Toggle mic key and confirm that the

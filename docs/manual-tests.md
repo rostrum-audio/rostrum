@@ -794,23 +794,42 @@ No physical deck is needed for the install checks.
 2. Record the plugins and profiles before pressing Install. If Rostrum's plugin is already
    installed, back up only `dev.getrostrum.Rostrum.sdPlugin` outside the plugins folder first.
    Press Install: only that directory is created under the selected config's `plugins` folder.
-   It contains `manifest.json`, executable `plugin.sh`, `plugin.py`, `inspector.html`, and the
-   five built-in SVG icons. None is a symlink into a checkout or an AppImage mount. Other plugins
-   and profiles remain unchanged. Stop OpenDeck during the comparison so its own writes do not
-   obscure the install's changes.
+   It contains `manifest.json` (Version 1.3.0, six actions), executable `plugin.sh`, `plugin.py`,
+   `dbus_client.py`, `inspector.html`, the two cue sounds in `sounds/`, and twelve SVG icons in
+   `images/`. None is a symlink into a checkout or an AppImage mount. Other plugins and profiles
+   remain unchanged. Stop OpenDeck during the comparison so its own writes do not obscure the
+   install's changes.
 3. The status says the plugin matches this release and tells the user to restart OpenDeck.
    It does not say the plugin loaded. Try the Installed button again: it is disabled, and the
    file contents and modification times do not change. An older copy offers Update; an
    incomplete copy offers Repair. A failed replacement retains the previous copy.
+   Raise `Version` in the installed `manifest.json` above the bundled one (for example 9.0.0):
+   the status says the installed plugin is newer, the button reads Installed (newer) and is
+   disabled, and the folder does not change. Restore the backup afterward.
+   Known caveat: Rostrum 0.4.0 and older bundle 1.2.0 and report an installed 1.3.0 as
+   incomplete; their Repair replaces it with 1.2.0.
 4. Start a test instance with a PATH containing no `python3`: the page reports Python 3 was
    not found, Install is disabled, and no plugin is installed. Restore the normal PATH afterward.
 5. Manual copy fallback: in OpenDeck settings choose Open config directory, then copy
    `tools/opendeck/dev.getrostrum.Rostrum.sdPlugin` into `plugins`. Flatpak OpenDeck uses its
    own config directory. Restart OpenDeck, then drag an action onto a key.
-6. Separately, when a deck is available: with OpenDeck and Rostrum running, press Toggle mic
-   and confirm the mixer strip matches Mic live / Mic muted. The four actions are Toggle mic,
-   Panic mute, Switch scene, and Toggle bus mute. Select a scene or bus in the property inspector.
-   This hardware check is not part of the install checks above.
+6. Flatpak OpenDeck: without an override its Rostrum keys show Unavailable. Run
+   `flatpak override --user --talk-name=dev.getrostrum.Rostrum me.amankhanna.opendeck`, restart
+   OpenDeck, and the keys follow Rostrum.
+7. Separately, when a deck is available, with OpenDeck and Rostrum running. The six actions are
+   Toggle mic, Panic mute, Switch scene, Toggle bus mute, Studio Voice, and Push to talk. Select
+   a scene or bus in the property inspector. These hardware checks are not part of the install
+   checks above.
+   - Press Toggle mic and confirm the mixer strip matches Mic live / Mic muted.
+   - Toggle a bus, Panic mute and Studio Voice from the Rostrum window: each key changes art and
+     title within about a second, with no press. Studio Voice reads Voice on / Voice off and matches
+     the Studio Voice page.
+   - The Switch scene key for the live scene shows the filled art; switching scenes moves it.
+   - Mute the mic, then hold Push to talk: the key shows Talking and the Mic strip is live;
+     release and the mic is muted again. With panic on, holding shows Blocked with one alert,
+     and the mic stays muted.
+   - Quit Rostrum from the tray: every Rostrum key shows Unavailable with one alert. Start it
+     again: the keys return within about a second, with no press.
 
 ## 32. Separate OBS recording tracks
 
