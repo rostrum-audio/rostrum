@@ -48,7 +48,8 @@ public Q_SLOTS:
 Q_SIGNALS:
     void changed();
     void updateAvailable(const QString &bundled, const QString &installed);
-    // An activate() finished: the install ran, or nothing could be done (feedback says why).
+    // Ends every activate(), once: succeeded when the installed plugin is now current, otherwise
+    // feedback says why not. A press while an install runs is answered by that install's.
     void finished(bool succeeded, const QString &feedback);
 
 private:

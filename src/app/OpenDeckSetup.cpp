@@ -167,8 +167,14 @@ void OpenDeckSetup::checkForUpdate()
 }
 void OpenDeckSetup::activate()
 {
+    // An install already running answers this press with its own finished().
+    if (m_busy)
+        return;
     if (!actionEnabled()) {
-        Q_EMIT finished(false, status());
+        // Matches or InstalledNewer: nothing older is left to replace, which is what Update wanted.
+        const bool current =
+            m_state == opendeck::State::Matches || m_state == opendeck::State::InstalledNewer;
+        Q_EMIT finished(current, status());
         return;
     }
     if (m_state == opendeck::State::NotFound) {
@@ -176,6 +182,7 @@ void OpenDeckSetup::activate()
             m_feedback = i18nc("@info", "Could not open the OpenDeck website.");
             Q_EMIT changed();
         }
+        Q_EMIT finished(false, m_feedback.isEmpty() ? status() : m_feedback);
         return;
     }
     m_busy = true;

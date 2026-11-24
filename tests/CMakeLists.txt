@@ -47,6 +47,16 @@ target_include_directories(tst_updater PRIVATE ${PROJECT_SOURCE_DIR}/src)
 target_compile_definitions(tst_updater PRIVATE ROSTRUM_UPDATE_URL="https://localhost/unused.json")
 find_package(Qt6 REQUIRED COMPONENTS Network)
 target_link_libraries(tst_updater PRIVATE rostrum_obs Qt6::Gui Qt6::Qml Qt6::Network KF6::I18n)
+rostrum_add_test(tst_opendecksetup)
+rostrum_embed_opendeck(tst_opendecksetup)
+target_sources(tst_opendecksetup PRIVATE
+    ../src/app/AppController.cpp
+    ../src/app/OpenDeckSetup.cpp
+)
+target_include_directories(tst_opendecksetup PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(tst_opendecksetup PRIVATE rostrum_obs Qt6::Gui Qt6::Qml KF6::I18n)
+set_tests_properties(tst_opendecksetup PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;PIPEWIRE_REMOTE=rostrum-test-none")
 rostrum_add_test(tst_capturewatch)
 target_link_libraries(tst_capturewatch PRIVATE rostrum_obs)
 rostrum_add_test(tst_readiness)
