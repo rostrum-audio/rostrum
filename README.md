@@ -339,16 +339,14 @@ push to mute keeps the mic muted anyway, the key shows Blocked. The deck and the
 hotkey share one hold, so releasing either one ends it.
 
 The plugin keeps its own connection to the session D-Bus, so a hold ends if the plugin stops. When
-it cannot connect, it falls back to `rostrum --no-start` for everything except Push to talk, which
-then shows Unavailable. It never opens the deck or starts Rostrum. Older Rostrum versions without
-`--no-start` cannot use the CLI fallback.
+it cannot connect, it uses `rostrum --no-start` instead and tries D-Bus again every 5 seconds.
+Until then Push to talk shows Unavailable, and Panic mute, Switch scene and Studio Voice show plain
+titles, since the command line reports no live state. It never opens the deck or starts Rostrum.
+Older Rostrum versions without `--no-start` cannot use the CLI fallback.
 
-Flatpak OpenDeck from Flathub has no D-Bus access to Rostrum, so its keys show Unavailable. Allow
-it, then restart OpenDeck:
-
-```sh
-flatpak override --user --talk-name=dev.getrostrum.Rostrum me.amankhanna.opendeck
-```
+Flatpak OpenDeck starts the plugin outside its sandbox with `flatpak-spawn --host`, which the
+Flathub build allows. The plugin then uses the desktop's session bus like a native install, so no
+`flatpak override` is needed. Python 3 must be installed on the host.
 
 Rostrum 0.4.0 and older bundle plugin 1.2.0. If a newer Rostrum installed plugin 1.3.0, those
 versions report it as incomplete, and Repair replaces it with 1.2.0, which has no Studio Voice or

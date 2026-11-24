@@ -813,9 +813,8 @@ No physical deck is needed for the install checks.
 5. Manual copy fallback: in OpenDeck settings choose Open config directory, then copy
    `tools/opendeck/dev.getrostrum.Rostrum.sdPlugin` into `plugins`. Flatpak OpenDeck uses its
    own config directory. Restart OpenDeck, then drag an action onto a key.
-6. Flatpak OpenDeck: without an override its Rostrum keys show Unavailable. Run
-   `flatpak override --user --talk-name=dev.getrostrum.Rostrum me.amankhanna.opendeck`, restart
-   OpenDeck, and the keys follow Rostrum.
+6. Flatpak OpenDeck, with no `flatpak override` for Rostrum: the Rostrum keys follow Rostrum.
+   `plugin.sh` starts the plugin on the host through `flatpak-spawn --host`.
 7. Separately, when a deck is available, with OpenDeck and Rostrum running. The six actions are
    Toggle mic, Panic mute, Switch scene, Toggle bus mute, Studio Voice, and Push to talk. Select
    a scene or bus in the property inspector. These hardware checks are not part of the install
