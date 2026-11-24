@@ -41,10 +41,15 @@ _LIST_METHODS = frozenset({'ListBuses', 'ListScenes'})
 BUS_CONNECT_TIMEOUT = 2.0
 # CLI mode tries the session bus again this often, so one lost connection is not permanent.
 BUS_RETRY_SECONDS = 5.0
+UNKNOWN_METHOD = 'org.freedesktop.DBus.Error.UnknownMethod'
 
 
 class Unavailable(Exception):
     pass
+
+
+class Unsupported(Unavailable):
+    """Rostrum answered, but has no such method: it predates the key that needs it."""
 
 
 class CommandMissing(Unavailable):
@@ -60,6 +65,8 @@ class Controls:
         self.owner = None
         self.cli_only = False
         self.props = {}
+        # ListBusLevels on this owner: None until asked, then True, or False on an older Rostrum.
+        self.levels = None
         self.on_properties = None
         self.on_owner = None
         self._closed = False
@@ -120,6 +127,8 @@ class Controls:
             except DBusError as error:
                 if error.name.startswith(IFACE + '.Error.'):
                     raise ValueError(str(error)) from error
+                if error.name == UNKNOWN_METHOD:
+                    raise Unsupported() from error
                 # Rostrum answered but cannot serve this yet: it claims its name before it
                 # registers the Control object (UnknownObject), or it is leaving. The CLI
                 # would reach the same instance over the same bus; the next poll retries.
@@ -153,7 +162,19 @@ class Controls:
         # an absent owner is Unavailable, not a prompt to start an instance.
         if not self.cli_only and not self.owner:
             raise Unavailable()
-        buses = await self.call('ListBuses', '', cli=['--list-buses'])
+        buses = None
+        if not self.cli_only and self.levels is not False:
+            try:
+                buses = await self.call('ListBusLevels')
+                self.levels = True
+            except Unsupported:
+                self.levels = False
+            except Unavailable:
+                # A lost connection drops to CLI mode, where ListBuses still answers.
+                if not self.cli_only:
+                    raise
+        if buses is None:
+            buses = await self.call('ListBuses', '', cli=['--list-buses'])
         scenes = await self.call('ListScenes', '', cli=['--list-scenes'])
         if not self.cli_only and self.owner and not self.props:
             # GetAll on NameOwnerChanged can beat the Control object's registration, and
@@ -165,6 +186,14 @@ class Controls:
         action = {'stream': 'mute_stream', 'phones': 'mute_headphones'}.get(bus, 'mute_bus_' + bus)
         cli = ['--toggle-mic'] if bus == 'mic' else ['--action', action]
         await self.call('ToggleBusMuted', 's', bus, cli=cli)
+
+    async def step(self, bus, side, delta):
+        # No CLI equivalent: --set-volume is absolute and would flatten the two levels.
+        result = await self.call('StepBusVolume', 'ssd', bus, side, float(delta))
+        return float(result[0] if isinstance(result, (tuple, list)) else result)
+
+    async def toggle_in_mix(self, bus, side):
+        await self.call('ToggleBusInMix', 'ss', bus, side)
 
     async def panic(self):
         await self.trigger('panic_mute')
@@ -248,6 +277,7 @@ class Controls:
                 return
             self.owner = owner
             self.props = {}
+            self.levels = None  # a new instance may be newer or older
             if self._closed:
                 return
             if self.owner is None:
@@ -346,7 +376,15 @@ def _bus_map(payload):
             rows.append((bus_id, name, 0.0, muted == 'muted'))
     else:
         rows = payload[0] if isinstance(payload, tuple) else payload
-    return {row[0]: {'id': row[0], 'name': row[1], 'muted': bool(row[3])} for row in rows}
+    buses = {}
+    for row in rows:
+        if len(row) == 6:
+            # ListBusLevels: (id, name, stream, phones, muted, destination).
+            buses[row[0]] = {'id': row[0], 'name': row[1], 'muted': bool(row[4]), 'stream': float(row[2]),
+                             'phones': float(row[3]), 'destination': row[5]}
+        else:
+            buses[row[0]] = {'id': row[0], 'name': row[1], 'muted': bool(row[3])}
+    return buses
 
 
 def _scene_list(payload):

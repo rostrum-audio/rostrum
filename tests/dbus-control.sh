@@ -217,6 +217,20 @@ async def hold_and_release(controls):
     await asyncio.sleep(0.1)
     assert controls.props['MicMuted'] is True, controls.props
 
+async def mix_controls(controls):
+    buses, _ = await controls.snapshot()
+    assert controls.levels is True, controls.levels
+    start = buses['game']
+    level = await controls.step('game', 'stream', -0.1)
+    game = (await controls.snapshot())[0]['game']
+    assert abs(level - max(0.0, start['stream'] - 0.1)) < 1e-9, (level, start)
+    assert abs(game['stream'] - level) < 1e-9 and game['phones'] == start['phones'], game
+    await controls.toggle_in_mix('game', 'stream')
+    toggled = (await controls.snapshot())[0]['game']
+    await controls.toggle_in_mix('game', 'stream')
+    assert toggled['destination'] != game['destination'], (game, toggled)
+    assert (await controls.snapshot())[0]['game']['destination'] == game['destination']
+
 async def main():
     direct = plugin.Controls(executable=sys.argv[1])
     await direct.ensure_bus()
@@ -225,6 +239,7 @@ async def main():
     await exercise(direct, direct)
     await properties_follow_signals(direct)
     await hold_and_release(direct)
+    await mix_controls(direct)
 
     async def fail_bus(address=None):
         raise OSError('no session bus')

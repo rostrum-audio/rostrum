@@ -48,6 +48,11 @@ class FakeBus:
         self.failures = {}
         self.props = {'MicMuted': False, 'Panic': False, 'CurrentScene': 'Live', 'MicFilters': False}
         self.list_buses = [('mic', 'Mic', 1.0, False), ('game', 'Game', 1.0, True)]
+        # None answers ListBusLevels as Rostrum 0.5 does (UnknownMethod), so tests keep ListBuses.
+        self.list_levels = None
+        self.step_delay = 0
+        self.in_flight = 0
+        self.in_flight_max = 0
         self.closed = False
         # Rostrum emits PropertiesChanged inside the method's slot, so it reaches the plugin
         # before the reply. member -> props that change before replying.
@@ -91,9 +96,44 @@ class FakeBus:
             return (list(self.list_buses),)
         if member == 'ListScenes':
             return (['Live', 'Just Chatting'],)
-        if member in ('ToggleBusMuted', 'TriggerAction', 'SwitchScene', 'PressAction', 'ReleaseAction'):
+        if member == 'ListBusLevels':
+            if self.list_levels is None:
+                raise plugin.DBusError('org.freedesktop.DBus.Error.UnknownMethod', 'No such method')
+            return (list(self.list_levels),)
+        if member == 'StepBusVolume':
+            return await self._step(*args)
+        if member in ('ToggleBusMuted', 'ToggleBusInMix', 'TriggerAction', 'SwitchScene', 'PressAction',
+                      'ReleaseAction'):
             return ()
         raise AssertionError(member)
+
+    async def _step(self, bus_id, side, delta):
+        # Rostrum's rules: one side alone, or both by the Stream level's actual change.
+        self.in_flight += 1
+        self.in_flight_max = max(self.in_flight_max, self.in_flight)
+        try:
+            if self.step_delay:
+                await asyncio.sleep(self.step_delay)
+            rows = self.list_levels or []
+            for index, (row_id, name, stream, phones, muted, destination) in enumerate(rows):
+                if row_id != bus_id:
+                    continue
+                top = 1.5 if row_id == 'mic' else 1.0
+                if not destination:
+                    stream = phones = new = min(top, max(0.0, stream + delta))
+                elif side == 'phones':
+                    phones = new = min(1.0, max(0.0, phones + delta))
+                elif side == 'stream':
+                    stream = new = min(1.0, max(0.0, stream + delta))
+                else:
+                    new = min(1.0, max(0.0, stream + delta))
+                    phones = min(1.0, max(0.0, phones + (new - stream)))
+                    stream = new
+                rows[index] = (row_id, name, stream, phones, muted, destination)
+                return (new,)
+            raise plugin.DBusError(plugin.IFACE + '.Error.NoSuchBus', bus_id)
+        finally:
+            self.in_flight -= 1
 
     async def close(self):
         self.closed = True
@@ -563,12 +603,89 @@ class PluginTest(unittest.IsolatedAsyncioTestCase):
 
 
 class ControlsTest(unittest.IsolatedAsyncioTestCase):
+    LEVELS = [('mic', 'Mic', 1.0, 1.0, False, ''), ('game', 'Game', 0.5, 0.8, True, 'both')]
+
     def controls(self, *, owner=':1.42', connect=True, run=None):
         bus = FakeBus(owner=owner)
         runner = run or CliRunner()
         factory = fake_connect(bus) if connect else refuse_bus
         backend = plugin.Controls(run=runner, executable='/test/rostrum', bus_factory=factory)
         return backend, bus, runner
+
+    def members(self, bus):
+        return [call['member'] for call in bus.calls]
+
+    async def test_snapshot_reads_both_levels(self):
+        controls, bus, _ = self.controls()
+        bus.list_levels = list(self.LEVELS)
+        buses, _ = await controls.snapshot()
+        self.assertEqual(buses['game'], {'id': 'game', 'name': 'Game', 'muted': True, 'stream': 0.5,
+                                         'phones': 0.8, 'destination': 'both'})
+        self.assertIs(controls.levels, True)
+        self.assertNotIn('ListBuses', self.members(bus))
+
+    async def test_snapshot_falls_back_to_list_buses_on_older_rostrum(self):
+        controls, bus, _ = self.controls()
+        buses, _ = await controls.snapshot()
+        self.assertNotIn('stream', buses['game'])
+        self.assertTrue(buses['game']['muted'])
+        self.assertIs(controls.levels, False)
+        await controls.snapshot()
+        self.assertEqual(self.members(bus).count('ListBusLevels'), 1)
+
+    async def test_new_owner_is_probed_again(self):
+        # Rostrum upgraded while OpenDeck keeps running: the new instance has the new keys.
+        controls, bus, _ = self.controls()
+        await controls.snapshot()
+        self.assertIs(controls.levels, False)
+        bus.owner = ':1.77'
+        bus.list_levels = list(self.LEVELS)
+        controls._on_signal(_signal('NameOwnerChanged', 'sss', (plugin.SERVICE, ':1.42', ':1.77'),
+                                    plugin.BUS_IFACE, sender=plugin.BUS_SERVICE, path=plugin.BUS_PATH))
+        await asyncio.gather(*controls._tasks)
+        self.assertEqual(controls.owner, ':1.77')
+        buses, _ = await controls.snapshot()
+        self.assertIs(controls.levels, True)
+        self.assertEqual(buses['game']['destination'], 'both')
+
+    async def test_step_sends_a_double_and_returns_the_level(self):
+        controls, bus, _ = self.controls()
+        bus.list_levels = list(self.LEVELS)
+        await controls.ensure_bus()
+        self.assertEqual(await controls.step('game', 'stream', -0.05), 0.45)
+        call = next(call for call in bus.calls if call['member'] == 'StepBusVolume')
+        self.assertEqual((call['signature'], call['args']), ('ssd', ('game', 'stream', -0.05)))
+        self.assertEqual(call['destination'], ':1.42')
+
+    async def test_step_and_in_mix_have_no_cli_fallback(self):
+        controls, _, runner = self.controls(connect=False)
+        with self.assertRaises(plugin.Unavailable):
+            await controls.step('game', 'stream', -0.05)
+        with self.assertRaises(plugin.Unavailable):
+            await controls.toggle_in_mix('game', 'stream')
+        self.assertEqual(runner.commands, [])
+
+    async def test_toggle_in_mix_call(self):
+        controls, bus, _ = self.controls()
+        await controls.ensure_bus()
+        await controls.toggle_in_mix('game', 'phones')
+        call = next(call for call in bus.calls if call['member'] == 'ToggleBusInMix')
+        self.assertEqual((call['signature'], call['args']), ('ss', ('game', 'phones')))
+
+    async def test_unknown_method_is_unsupported(self):
+        controls, bus, _ = self.controls()
+        bus.failures['StepBusVolume'] = plugin.DBusError(plugin.UNKNOWN_METHOD, 'x')
+        with self.assertRaises(plugin.Unsupported) as caught:
+            await controls.step('game', 'stream', -0.05)
+        self.assertIsInstance(caught.exception, plugin.Unavailable)
+
+    async def test_lost_connection_during_levels_uses_cli(self):
+        controls, bus, runner = self.controls()
+        bus.failures['ListBusLevels'] = ConnectionResetError
+        buses, _ = await controls.snapshot()
+        self.assertTrue(controls.cli_only)
+        self.assertTrue(buses['game']['muted'])
+        self.assertTrue(any('--list-buses' in command for command in runner.commands))
 
     async def test_subscribes_and_loads_properties_from_unique_owner(self):
         controls, bus, runner = self.controls()
@@ -1147,6 +1264,13 @@ class DbusCodecTest(unittest.TestCase):
         self.assertEqual(msg.signature, 's')
         self.assertIsNone(msg.reply_serial)
         self.assertEqual(plugin_dbus.decode_body(msg.signature, msg.body), ('push_to_talk',))
+
+    def test_codec_round_trips_mix_signatures(self):
+        encode, decode = plugin_dbus.encode_body, plugin_dbus.decode_body
+        self.assertEqual(decode('ssd', encode('ssd', 'game', 'stream', -0.05)), ('game', 'stream', -0.05))
+        rows = [('mic', 'Mic', 1.0, 1.0, False, ''), ('game', 'Game', 0.5, 0.8, True, 'both')]
+        self.assertEqual(decode('a(ssddbs)', encode('a(ssddbs)', rows)), (rows,))
+        self.assertEqual(decode('d', encode('d', 0.45)), (0.45,))
 
     def test_round_trip_call_and_reply_signatures(self):
         arguments = plugin_dbus.encode_body('ss', 'org.freedesktop.DBus.Properties', 'MicMuted')
