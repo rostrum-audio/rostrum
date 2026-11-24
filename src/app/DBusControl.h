@@ -30,6 +30,19 @@ struct BusInfo
 };
 using BusInfoList = QList<BusInfo>;
 
+// ListBusLevels: both levels of each fader. The mic and the masters have one level, repeated, and
+// no destination.
+struct BusLevels
+{
+    QString id;
+    QString name;
+    double stream = 0.0;
+    double phones = 0.0;
+    bool muted = false;
+    QString destination; // "both", "stream", "phones", or empty
+};
+using BusLevelsList = QList<BusLevels>;
+
 struct ActionInfo
 {
     QString id;
@@ -39,6 +52,8 @@ using ActionInfoList = QList<ActionInfo>;
 
 QDBusArgument &operator<<(QDBusArgument &arg, const BusInfo &b);
 const QDBusArgument &operator>>(const QDBusArgument &arg, BusInfo &b);
+QDBusArgument &operator<<(QDBusArgument &arg, const BusLevels &b);
+const QDBusArgument &operator>>(const QDBusArgument &arg, BusLevels &b);
 QDBusArgument &operator<<(QDBusArgument &arg, const ActionInfo &a);
 const QDBusArgument &operator>>(const QDBusArgument &arg, ActionInfo &a);
 
@@ -56,6 +71,7 @@ class DBusControl : public QObject, protected QDBusContext
     Q_PROPERTY(QString CurrentScene READ currentScene)
     Q_PROPERTY(bool Connected READ connected)
     Q_PROPERTY(bool MicFilters READ micFilters)
+    Q_PROPERTY(bool PerMixLevels READ perMixLevels)
 
 public:
     // An error to send back, or to print when the command line runs in this process.
@@ -77,18 +93,27 @@ public:
     QString currentScene() const;
     bool connected() const;
     bool micFilters() const;
+    // False only when Rostrum knows this system has one level per bus. Before PipeWire connects
+    // nothing is known, and nothing is applied either.
+    bool perMixLevels() const;
 
     Error triggerAction(const QString &id);
     Error switchScene(const QString &name);
     Error setBusVolume(const QString &busId, double position);
     Error setBusMuted(const QString &busId, bool muted);
     Error toggleBusMuted(const QString &busId);
+    // Moves a level from where it is. "stream" or "phones" moves only that level, even on a linked
+    // bus; "both" moves both by the same amount. *position is the new level (Stream for "both").
+    Error stepBusVolume(const QString &busText, const QString &mix, double delta, double *position);
+    // Takes a playback bus off one mix or puts it back, never changing the other (remote::toggledInMix).
+    Error toggleBusInMix(const QString &busText, const QString &mix);
     void setMicMuted(bool muted);
     void toggleMicMute();
     void setMicFilters(bool on);
     // Stream and Headphones masters, the mic, then the playback buses, as saved in `scene`.
     static BusInfoList busesOf(const Scene &scene);
     BusInfoList buses() const; // the live scene, with holds and panic applied
+    BusLevelsList busLevels() const; // buses() with both levels and the destination
     ActionInfoList actionList() const;
 
 public Q_SLOTS:
@@ -99,11 +124,14 @@ public Q_SLOTS:
     void SetBusVolume(const QString &busId, double position);
     void SetBusMuted(const QString &busId, bool muted);
     void ToggleBusMuted(const QString &busId);
+    double StepBusVolume(const QString &busId, const QString &mix, double delta);
+    void ToggleBusInMix(const QString &busId, const QString &mix);
     void SetMicMuted(bool muted);
     void ToggleMicMute();
     void SetMicFilters(bool on);
     QStringList ListScenes();
     rostrum::app::BusInfoList ListBuses();
+    rostrum::app::BusLevelsList ListBusLevels();
     rostrum::app::ActionInfoList ListActions();
 
 private:
@@ -123,4 +151,5 @@ private:
 } // namespace rostrum::app
 
 Q_DECLARE_METATYPE(rostrum::app::BusInfo)
+Q_DECLARE_METATYPE(rostrum::app::BusLevels)
 Q_DECLARE_METATYPE(rostrum::app::ActionInfo)

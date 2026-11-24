@@ -32,6 +32,22 @@ const QDBusArgument &operator>>(const QDBusArgument &arg, BusInfo &b)
     return arg;
 }
 
+QDBusArgument &operator<<(QDBusArgument &arg, const BusLevels &b)
+{
+    arg.beginStructure();
+    arg << b.id << b.name << b.stream << b.phones << b.muted << b.destination;
+    arg.endStructure();
+    return arg;
+}
+
+const QDBusArgument &operator>>(const QDBusArgument &arg, BusLevels &b)
+{
+    arg.beginStructure();
+    arg >> b.id >> b.name >> b.stream >> b.phones >> b.muted >> b.destination;
+    arg.endStructure();
+    return arg;
+}
+
 QDBusArgument &operator<<(QDBusArgument &arg, const ActionInfo &a)
 {
     arg.beginStructure();
@@ -59,12 +75,15 @@ DBusControl::DBusControl(AppController *app, QObject *parent) : QObject(parent),
 {
     qDBusRegisterMetaType<BusInfo>();
     qDBusRegisterMetaType<BusInfoList>();
+    qDBusRegisterMetaType<BusLevels>();
+    qDBusRegisterMetaType<BusLevelsList>();
     qDBusRegisterMetaType<ActionInfo>();
     qDBusRegisterMetaType<ActionInfoList>();
     for (auto sig : {&AppController::levelsChanged, &AppController::scenesChanged, &AppController::statusChanged,
                      &AppController::settingsChanged}) {
         connect(m_app, sig, this, &DBusControl::publishChanges);
     }
+    connect(m_app->engine(), &engine::Engine::perMixLevelsChanged, this, &DBusControl::publishChanges);
 }
 
 DBusControl::~DBusControl() = default;
@@ -111,6 +130,11 @@ bool DBusControl::micFilters() const
     return m_app->engine()->micFilters().enabled;
 }
 
+bool DBusControl::perMixLevels() const
+{
+    return m_app->engine()->perMixUnavailable().isEmpty();
+}
+
 // The PropertiesChanged signal for the properties above, sent only when one changed.
 void DBusControl::publishChanges()
 {
@@ -119,7 +143,8 @@ void DBusControl::publishChanges()
                           {QStringLiteral("Panic"), panic()},
                           {QStringLiteral("CurrentScene"), currentScene()},
                           {QStringLiteral("Connected"), connected()},
-                          {QStringLiteral("MicFilters"), micFilters()}};
+                          {QStringLiteral("MicFilters"), micFilters()},
+                          {QStringLiteral("PerMixLevels"), perMixLevels()}};
     QVariantMap changed;
     for (auto it = now.cbegin(); it != now.cend(); ++it) {
         if (m_published.value(it.key()) != it.value()) {
@@ -268,6 +293,84 @@ DBusControl::Error DBusControl::toggleBusMuted(const QString &busText)
     return setBusMuted(busId, !muted);
 }
 
+DBusControl::Error DBusControl::stepBusVolume(const QString &busText, const QString &mix, double delta,
+                                              double *position)
+{
+    auto *engine = m_app->engine();
+    const auto target = remote::resolveStep(engine->scene(), busText, mix, delta, perMixLevels());
+    const QString &busId = target.busId;
+    switch (target.problem) {
+    case remote::StepProblem::None:
+        break;
+    case remote::StepProblem::NoSuchBus:
+        return error(remote::kErrorNoSuchBus, i18n("The live scene has no bus “%1”.", busText));
+    case remote::StepProblem::BadSide:
+        return error(remote::kErrorInvalidValue,
+                     i18n("The mix must be “stream”, “phones” or “both”, not “%1”.", mix));
+    case remote::StepProblem::OneLevelBus:
+        return error(remote::kErrorInvalidValue, busId == QLatin1String(kMicBusId)
+                                                     ? i18n("The mic has one level.")
+                                                     : i18n("The %1 master has one level.", busId));
+    case remote::StepProblem::BadDelta:
+        return error(remote::kErrorInvalidValue, i18n("The step must be between -1 and 1."));
+    case remote::StepProblem::NoPerMixLevels:
+        return error(remote::kErrorInvalidValue,
+                     i18n("This system has one level per bus, so “%1” cannot move one mix alone.", busText));
+    }
+    const Scene &s = engine->scene();
+    if (busId == QLatin1String(remote::kStreamId)) {
+        engine->setMasterStream(s.masterStream + delta);
+        *position = engine->scene().masterStream;
+    } else if (busId == QLatin1String(remote::kPhonesId)) {
+        engine->setMasterPhones(s.masterPhones + delta);
+        *position = engine->scene().masterPhones;
+    } else {
+        const Bus &b = *s.bus(busId);
+        if (b.isInput()) {
+            engine->setBusVolume(busId, b.volume + delta);
+        } else if (target.side == remote::Side::Both) {
+            engine->setBusMixVolumeTogether(busId, Mix::Stream, b.volume + delta);
+        } else if (target.side == remote::Side::Phones) {
+            engine->setBusMixVolumeAlone(busId, Mix::Phones, b.phonesVolume + delta);
+        } else {
+            engine->setBusMixVolumeAlone(busId, Mix::Stream, b.volume + delta);
+        }
+        const Bus &after = *engine->scene().bus(busId);
+        *position = target.side == remote::Side::Phones ? after.phonesVolume : after.volume;
+    }
+    return {};
+}
+
+DBusControl::Error DBusControl::toggleBusInMix(const QString &busText, const QString &mix)
+{
+    auto *engine = m_app->engine();
+    const auto target = remote::resolveInMix(engine->scene(), busText, mix);
+    switch (target.problem) {
+    case remote::InMixProblem::None:
+        break;
+    case remote::InMixProblem::NoSuchBus:
+        return error(remote::kErrorNoSuchBus, i18n("The live scene has no bus “%1”.", busText));
+    case remote::InMixProblem::BadSide:
+        return error(remote::kErrorInvalidValue, i18n("The mix must be “stream” or “phones”, not “%1”.", mix));
+    case remote::InMixProblem::NotPlaybackBus:
+        return error(remote::kErrorInvalidValue,
+                     i18n("“%1” is not a playback bus, so it has no destination.", busText));
+    }
+    const Bus &b = *engine->scene().bus(target.busId);
+    const remote::InMix to = remote::toggledInMix(b.destination, b.muted, target.mix);
+    const bool destinationChanges = to.destination != b.destination;
+    const bool muteChanges = to.muted != b.muted;
+    const auto before = m_app->snapshot();
+    if (destinationChanges) {
+        engine->setBusDestination(target.busId, to.destination);
+    }
+    if (muteChanges) {
+        engine->setBusMuted(target.busId, to.muted);
+    }
+    m_app->reportChange(before);
+    return {};
+}
+
 void DBusControl::setMicMuted(bool muted)
 {
     const auto before = m_app->snapshot();
@@ -318,6 +421,21 @@ BusInfoList DBusControl::buses() const
         } else if (b.id == QLatin1String(kMicBusId)) {
             b.muted = engine->effectiveMicMuted();
         }
+    }
+    return out;
+}
+
+BusLevelsList DBusControl::busLevels() const
+{
+    const Scene &s = m_app->engine()->scene();
+    BusLevelsList out;
+    for (const BusInfo &row : buses()) {
+        BusLevels levels{row.id, row.name, row.position, row.position, row.muted, QString()};
+        if (const Bus *b = s.bus(row.id); b && !b->isInput()) {
+            levels.phones = b->phonesVolume;
+            levels.destination = destinationName(b->destination);
+        }
+        out.append(levels);
     }
     return out;
 }
@@ -391,6 +509,16 @@ void DBusControl::ToggleBusMuted(const QString &busId)
 {
     reply(toggleBusMuted(busId));
 }
+double DBusControl::StepBusVolume(const QString &busId, const QString &mix, double delta)
+{
+    double position = 0.0;
+    reply(stepBusVolume(busId, mix, delta, &position));
+    return position;
+}
+void DBusControl::ToggleBusInMix(const QString &busId, const QString &mix)
+{
+    reply(toggleBusInMix(busId, mix));
+}
 void DBusControl::SetMicMuted(bool muted)
 {
     setMicMuted(muted);
@@ -410,6 +538,10 @@ QStringList DBusControl::ListScenes()
 BusInfoList DBusControl::ListBuses()
 {
     return buses();
+}
+BusLevelsList DBusControl::ListBusLevels()
+{
+    return busLevels();
 }
 ActionInfoList DBusControl::ListActions()
 {

@@ -1022,10 +1022,13 @@ it.
 | `SwitchScene(s name)` | Switches at once, name matched without case |
 | `SetBusVolume(s bus, d position)` | A playback bus sets both levels. `bus.phones` or `bus.stream` sets one; a linked bus moves the other by the same amount. A mix suffix on the mic or a master is `InvalidValue`. Fader travel 0–1, mic gain 0–1.5. `ListBuses` still reports the Stream level |
 | `SetBusMuted(s bus, b)`, `ToggleBusMuted(s bus)` | Mute a bus, the mic or a master |
+| `StepBusVolume(s bus, s mix, d delta) → d` | Moves a level by `delta` (−1..1) and returns it. `stream` or `phones` moves only that level of a playback bus, even when linked; `both` moves both by the same amount. The mic and masters take only `both`; without `PerMixLevels`, only `both` works |
+| `ToggleBusInMix(s bus, s mix)` | Takes a playback bus off `stream` or `phones`, or puts it back, through its destination and mute. Whether it plays in the other mix never changes |
 | `SetMicMuted(b)`, `ToggleMicMute()` | The mic, as the header button |
 | `SetMicFilters(b)` | Mic filters on or off, saved (`toggle_mic_filters` toggles) |
 | `ListScenes() → as`, `ListBuses() → a(ssdb)`, `ListActions() → a(ss)` | Scene names; id, name, position, muted; id, label |
-| Properties `MicMuted`, `StreamMuted`, `Panic`, `CurrentScene`, `Connected`, `MicFilters` | Read-only, with `PropertiesChanged` |
+| `ListBusLevels() → a(ssddbs)` | `ListBuses` with both levels and the destination: id, name, stream, phones, muted, destination (empty for the mic and masters) |
+| Properties `MicMuted`, `StreamMuted`, `Panic`, `CurrentScene`, `Connected`, `MicFilters`, `PerMixLevels` | Read-only, with `PropertiesChanged` |
 
 Bus arguments take a bus id or a bus name (any case), `mic`, and `stream` or `phones` for the
 masters; those two can never be bus ids. Errors are `dev.getrostrum.Rostrum1.Error.UnknownAction`,

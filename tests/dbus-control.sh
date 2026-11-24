@@ -48,6 +48,9 @@ check() { # description, expected, actual
 }
 status() { "$@" >/dev/null 2>&1; echo $?; }
 prop() { gdbus call --session --dest $DEST --object-path $OBJ --method org.freedesktop.DBus.Properties.Get $IFACE "$1"; }
+call() { m=$1; shift; gdbus call --session --dest $DEST --object-path $OBJ --method "$IFACE.$m" "$@" 2>&1; }
+level() { call ListBusLevels | grep -oE "\('$1'[^)]*\)"; }
+err() { "$@" | grep -o 'GDBus.Error:[A-Za-z0-9.]*'; }
 
 # Guarded deck commands must exit without starting an instance, even without a display.
 check "no-start absent control" "2" "$(status env -u DISPLAY -u WAYLAND_DISPLAY -u QT_QPA_PLATFORM "$B" --no-start --toggle-mic)"
@@ -124,6 +127,36 @@ check "MicFilters after toggle" "(<false>,)" "$(prop MicFilters)"
 "$B" --action toggle_mic_filters
 sleep 0.8
 check "mic filters saved" "1" "$(sed -n '/^\[mic_filters\]/,/^\[/p' "$XDG_CONFIG_HOME/rostrum/settings.toml" | grep -c '^enabled = true')"
+
+# Deck keys: step one mix, read both levels, take a bus off one side.
+"$B" --set-volume game=50%
+call SetBusMuted game true >/dev/null
+call SetBusMuted stream false >/dev/null
+call SetBusVolume stream 1.0 >/dev/null
+"$B" --set-volume mic=1.5
+check "PerMixLevels without PipeWire" "(<true>,)" "$(prop PerMixLevels)"
+check "bus levels" "('game', 'Game', 0.5, 0.5, true, 'both')" "$(level game)"
+check "master levels" "('stream', 'Stream', 1.0, 1.0, false, '')" "$(level stream)"
+check "step one mix" "(0.75,)" "$(call StepBusVolume game stream 0.25)"
+check "linked headphones stay" "('game', 'Game', 0.75, 0.5, true, 'both')" "$(level game)"
+check "step both keeps the gap" "(1.0,)" "$(call StepBusVolume game both 0.25)"
+check "gap kept" "('game', 'Game', 1.0, 0.75, true, 'both')" "$(level game)"
+check "both stops at the top" "('game', 'Game', 1.0, 0.75, true, 'both')" "$(call StepBusVolume game both 0.1 >/dev/null; level game)"
+check "mic stays at 150 %" "(1.5,)" "$(call StepBusVolume mic both 0.5)"
+check "step on the mic's mix" "GDBus.Error:dev.getrostrum.Rostrum1.Error.InvalidValue" "$(err call StepBusVolume mic stream 0.1)"
+check "step with an unknown mix" "GDBus.Error:dev.getrostrum.Rostrum1.Error.InvalidValue" "$(err call StepBusVolume game sideways 0.1)"
+check "step too large" "GDBus.Error:dev.getrostrum.Rostrum1.Error.InvalidValue" "$(err call StepBusVolume game both 1.5)"
+check "step on an unknown bus" "GDBus.Error:dev.getrostrum.Rostrum1.Error.NoSuchBus" "$(err call StepBusVolume nowhere both 0.1)"
+"$B" --set-volume game=50%
+call ToggleBusInMix game phones >/dev/null
+check "on for me from muted" "('game', 'Game', 0.5, 0.5, false, 'phones')" "$(level game)"
+call ToggleBusInMix game stream >/dev/null
+check "back on stream" "('game', 'Game', 0.5, 0.5, false, 'both')" "$(level game)"
+call ToggleBusInMix game stream >/dev/null
+check "off stream" "('game', 'Game', 0.5, 0.5, false, 'phones')" "$(level game)"
+call ToggleBusInMix game stream >/dev/null
+check "in-mix toggle on a master" "GDBus.Error:dev.getrostrum.Rostrum1.Error.InvalidValue" "$(err call ToggleBusInMix stream stream)"
+check "in-mix toggle needs one mix" "GDBus.Error:dev.getrostrum.Rostrum1.Error.InvalidValue" "$(err call ToggleBusInMix game both)"
 
 # Exercise the plugin adapter against this private running instance, including its safe CLI
 # fallback. No physical deck, live session bus or mixer graph is involved.

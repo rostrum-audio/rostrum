@@ -42,6 +42,12 @@
     <property name="MicFilters" type="b" access="read">
       <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
     </property>
+    <!-- Each playback bus has its own Stream and Headphones levels. False only when Rostrum knows
+         this system has one level per bus (PipeWire without spa-node-factory); then the Stream
+         level applies to both mixes and StepBusVolume moves only "both". -->
+    <property name="PerMixLevels" type="b" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
+    </property>
 
     <!-- Runs a hotkey action by id, as if its shortcut was pressed. See ListActions. -->
     <method name="TriggerAction">
@@ -72,6 +78,26 @@
     <method name="ToggleBusMuted">
       <arg name="busId" type="s" direction="in"/>
     </method>
+    <!-- Moves a level by delta (-1..1) from where it is and returns the new level, clamped to 0..1
+         (the mic to 1.5). mix "stream" or "phones" moves only that level of a playback bus, even
+         when it is linked; unlike SetBusVolume("<bus>.stream"), the other level stays. "both"
+         moves both levels by the same amount, as a linked fader does, and returns the Stream
+         level. The mic and the masters take only "both". A mix other than "both" without
+         PerMixLevels is InvalidValue. -->
+    <method name="StepBusVolume">
+      <arg name="busId" type="s" direction="in"/>
+      <arg name="mix" type="s" direction="in"/>
+      <arg name="delta" type="d" direction="in"/>
+      <arg name="position" type="d" direction="out"/>
+    </method>
+    <!-- Takes a playback bus off one mix ("stream" or "phones") or puts it back, through its
+         destination and mute, and never changes whether it plays in the other mix. On Both it
+         becomes the other mix only; on this mix only it is muted. Off this mix, a muted bus is
+         unmuted to this mix only, and one on the other mix only becomes Both. -->
+    <method name="ToggleBusInMix">
+      <arg name="busId" type="s" direction="in"/>
+      <arg name="mix" type="s" direction="in"/>
+    </method>
     <method name="SetMicMuted">
       <arg name="muted" type="b" direction="in"/>
     </method>
@@ -86,6 +112,13 @@
     <method name="ListBuses">
       <arg type="a(ssdb)" direction="out"/>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="rostrum::app::BusInfoList"/>
+    </method>
+    <!-- (id, name, stream, phones, muted, destination) for each ListBuses row, in the same order.
+         The mic and the masters repeat their one level and have no destination; playback buses
+         have "both", "stream" or "phones". -->
+    <method name="ListBusLevels">
+      <arg type="a(ssddbs)" direction="out"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="rostrum::app::BusLevelsList"/>
     </method>
     <!-- (id, name) for each action: the fixed ones, then mute_bus_<id> for every playback bus
          in any scene. -->
