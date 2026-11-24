@@ -387,6 +387,12 @@ def _bus_map(payload):
     return buses
 
 
+def _side(settings):
+    """The key's side: 'stream', 'phones' or 'both'. Keys saved by 1.3.0 have none: both."""
+    side = settings.get('side')
+    return side if isinstance(side, str) and side in ('stream', 'phones', 'both') else 'both'
+
+
 def _scene_list(payload):
     if isinstance(payload, str):
         return payload.splitlines()
@@ -585,6 +591,10 @@ class Plugin:
                 state = int(bool(bus['muted']))
                 return state, 'Mic muted' if state else 'Mic live'
             return 0, 'Missing'
+        if action == 'bus':
+            side_mute = self._side_mute(settings)
+            if side_mute is not None:
+                return side_mute[:2]
         bus_id = settings.get('bus', '')
         bus = self.buses.get(bus_id)
         # Signals drive the stream master. Other buses have no mute property.
@@ -596,6 +606,28 @@ class Plugin:
             state = int(bool(bus['muted']))
             return state, bus['name'] + (' muted' if state else ' live')
         return 0, 'Missing' if bus_id else 'Toggle bus mute'
+
+    def _side_mute(self, settings):
+        """(state, title, pressable) for a bus key on one side, or None when it mutes the whole bus."""
+        side = _side(settings)
+        if side == 'both':
+            return None
+        # ToggleBusInMix has no command-line equivalent.
+        if getattr(self.controls, 'cli_only', False):
+            return 0, 'Unavailable', False
+        bus_id = settings.get('bus', '')
+        if not bus_id:
+            return 0, 'Toggle bus mute', False
+        bus = self.buses.get(bus_id)
+        if not bus:
+            return 0, 'Missing', False
+        if 'destination' not in bus:
+            return 0, 'Needs update', False  # this Rostrum has no ListBusLevels
+        if not bus['destination']:
+            return None  # the mic or a master: one level, no destination
+        plays = not bus['muted'] and bus['destination'] in (side, 'both')
+        where = 'stream' if side == 'stream' else 'for me'
+        return int(not plays), f"{bus['name']}\n{'on' if plays else 'off'} {where}", True
 
     def _alert(self, context):
         self.send({'event': 'showAlert', 'context': context})
@@ -754,9 +786,15 @@ class Plugin:
             elif action == 'scene' and settings.get('scene') in self.scenes:
                 await self._invoke(self.controls.scene, settings['scene'])
                 acted = True
+            elif action == 'bus' and (side_mute := self._side_mute(settings)) is not None:
+                if side_mute[2]:
+                    await self._invoke(self.controls.toggle_in_mix, settings['bus'], _side(settings))
+                    acted = True
             elif action == 'bus' and settings.get('bus') in self.buses:
                 await self._invoke(self.controls.toggle, settings['bus'])
                 acted = True
+        except Unsupported:
+            pass  # an older Rostrum took over between polls; the next poll shows Needs update
         except Unavailable:
             self.available = False
         except ValueError:

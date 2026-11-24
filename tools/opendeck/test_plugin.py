@@ -569,6 +569,88 @@ class PluginTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('ToggleBusMuted', members)
         self.assertFalse(any(event['event'] == 'showOk' for event in events))
 
+    SIDE_LEVELS = [('stream', 'Stream', 1.0, 1.0, False, ''), ('mic', 'Mic', 1.0, 1.0, False, ''),
+                   ('game', 'Game', 0.5, 0.5, False, 'both')]
+
+    def with_levels(self, bus, game=None):
+        bus.list_levels = list(self.SIDE_LEVELS)
+        if game is not None:
+            bus.list_levels[-1] = game
+
+    def shown(self, app, context='key'):
+        key = app.keys[context]
+        return key['state'], key['title']
+
+    def calls_of(self, bus, member):
+        return [call['args'] for call in bus.calls if call['member'] == member]
+
+    async def test_side_mute_takes_bus_off_stream(self):
+        app, bus, _, _ = self.setup_plugin()
+        self.with_levels(bus)
+        await self.appear(app, 'bus', {'bus': 'game', 'side': 'stream'})
+        self.assertEqual(self.shown(app), (0, 'Game\non stream'))
+        await self.down(app)
+        self.assertEqual(self.calls_of(bus, 'ToggleBusInMix'), [('game', 'stream')])
+        self.assertEqual(self.calls_of(bus, 'ToggleBusMuted'), [])
+        bus.list_levels[-1] = ('game', 'Game', 0.5, 0.5, False, 'phones')
+        await self.up(app)
+        self.assertEqual(self.shown(app), (1, 'Game\noff stream'))
+
+    async def test_side_mute_for_me_titles(self):
+        app, bus, _, _ = self.setup_plugin()
+        self.with_levels(bus, ('game', 'Game', 0.5, 0.5, False, 'stream'))
+        await self.appear(app, 'bus', {'bus': 'game', 'side': 'phones'})
+        self.assertEqual(self.shown(app), (1, 'Game\noff for me'))
+        bus.list_levels[-1] = ('game', 'Game', 0.5, 0.5, True, 'both')
+        await app.poll(force=True)
+        self.assertEqual(self.shown(app), (1, 'Game\noff for me'))
+        bus.list_levels[-1] = ('game', 'Game', 0.5, 0.5, False, 'both')
+        await app.poll(force=True)
+        self.assertEqual(self.shown(app), (0, 'Game\non for me'))
+
+    async def test_side_mute_unavailable_in_cli_mode(self):
+        app, _, runner, events = self.setup_plugin(connect=False)
+        await self.appear(app, 'bus', {'bus': 'game', 'side': 'stream'})
+        self.assertEqual(self.shown(app)[1], 'Unavailable')
+        await self.down(app)
+        self.assertEqual(self.alerts(events), 1)
+        self.assertTrue(all('--list-buses' in command or '--list-scenes' in command
+                            for command in runner.commands), runner.commands)
+
+    async def test_side_mute_needs_update_on_older_rostrum(self):
+        app, bus, _, events = self.setup_plugin()
+        await self.appear(app, 'mic', context='mic')
+        await self.appear(app, 'bus', {'bus': 'game', 'side': 'phones'})
+        self.assertEqual(self.shown(app), (0, 'Needs update'))
+        await self.down(app)
+        self.assertEqual(self.alerts(events), 1)
+        self.assertEqual(self.calls_of(bus, 'ToggleBusInMix') + self.calls_of(bus, 'ToggleBusMuted'), [])
+        self.assertEqual(self.shown(app, 'mic')[1], 'Mic live')
+
+    async def test_bus_key_saved_by_1_3_has_no_side_and_still_mutes(self):
+        app, bus, _, _ = self.setup_plugin()
+        self.with_levels(bus)
+        await self.appear(app, 'bus', {'bus': 'game'})
+        self.assertEqual(self.shown(app), (0, 'Game live'))
+        await self.down(app)
+        self.assertEqual(self.calls_of(bus, 'ToggleBusMuted'), [('game',)])
+
+    async def test_side_mute_on_a_master_behaves_as_both(self):
+        app, bus, _, _ = self.setup_plugin()
+        self.with_levels(bus)
+        await self.appear(app, 'bus', {'bus': 'stream', 'side': 'stream'})
+        await self.down(app)
+        self.assertEqual(self.calls_of(bus, 'ToggleBusMuted'), [('stream',)])
+        self.assertEqual(self.calls_of(bus, 'ToggleBusInMix'), [])
+
+    async def test_unknown_side_is_both(self):
+        app, bus, _, _ = self.setup_plugin()
+        self.with_levels(bus)
+        await self.appear(app, 'bus', {'bus': 'game', 'side': 'left'})
+        self.assertEqual(self.shown(app), (0, 'Game live'))
+        await self.down(app)
+        self.assertEqual(self.calls_of(bus, 'ToggleBusMuted'), [('game',)])
+
     @unittest.skipUnless(plugin.shutil.which('node'), 'optional inspector check requires Node.js')
     def test_inspector_settings_round_trip(self):
         result = subprocess.run(['node', str(ROOT.parent / 'test_inspector.js')], capture_output=True, text=True)
