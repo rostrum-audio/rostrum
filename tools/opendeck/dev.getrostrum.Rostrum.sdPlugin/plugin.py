@@ -108,19 +108,20 @@ class Controls:
             except DBusError as error:
                 if error.name.startswith(IFACE + '.Error.'):
                     raise ValueError(str(error)) from error
-                if method not in _LIST_METHODS:
-                    raise Unavailable() from error
-                self.cli_only = True
+                # Rostrum answered but cannot serve this yet: it claims its name before it
+                # registers the Control object (UnknownObject), or it is leaving. The CLI
+                # would reach the same instance over the same bus; the next poll retries.
+                raise Unavailable() from error
             except TimeoutError as error:
                 # asyncio.TimeoutError subclasses OSError. A lost reply may mean the
-                # toggle already applied, so never repeat it through the CLI.
-                if method not in _LIST_METHODS:
-                    raise Unavailable() from error
-                self.cli_only = True
+                # toggle already applied, and a hung instance would hang the CLI too.
+                raise Unavailable() from error
             except OSError as error:
+                # The connection itself is gone. Its properties would go stale, so drop
+                # them; lists continue through the CLI. A toggle may already have applied.
+                await self._abandon(self.bus)
                 if method not in _LIST_METHODS:
                     raise Unavailable() from error
-                self.cli_only = True
         if cli is None:
             raise Unavailable()
         # --no-start makes this safe even if the owner disappeared since the last poll.
@@ -142,6 +143,10 @@ class Controls:
             raise Unavailable()
         buses = await self.call('ListBuses', '', cli=['--list-buses'])
         scenes = await self.call('ListScenes', '', cli=['--list-scenes'])
+        if not self.cli_only and self.owner and not self.props:
+            # GetAll on NameOwnerChanged can beat the Control object's registration, and
+            # Rostrum's first publish sends no PropertiesChanged. Load them once lists work.
+            await self._load_props()
         return _bus_map(buses), _scene_list(scenes)
 
     async def toggle(self, bus):

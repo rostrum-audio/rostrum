@@ -11,7 +11,8 @@ import struct
 
 MAX_MESSAGE = 1024 * 1024
 
-# Call args s/ss; replies a(ssdb), as, a{sv}; signals sa{sv}as and sss.
+# Call args s/ss; replies a(ssdb), as, a{sv}; signals sa{sv}as and sss. decode_body
+# enforces this; a message outside it is skipped by the reader, not fatal.
 # 's' is also the usual error and method-return body.
 _ALLOWED = frozenset({
     's', 'ss', 'sss', 'as', 'a{sv}', 'a(ssdb)', 'sa{sv}as',
@@ -122,7 +123,8 @@ class SessionBus:
         try:
             while True:
                 message = await self._read_frame()
-                self._dispatch(message)
+                if message is not None:
+                    self._dispatch(message)
         except asyncio.CancelledError:
             raise
         except asyncio.IncompleteReadError:
@@ -148,15 +150,24 @@ class SessionBus:
             raise ValueError('message exceeds maximum size')
         rest = await self.reader.readexactly(total - 16) if total > 16 else b''
         frame = header + rest
-        consumed, message = decode_message(frame)
+        try:
+            consumed, message = decode_message(frame)
+        except ValueError:
+            # The fixed header framed it, so the stream is still in step. Skip only this one.
+            return None
         if message is None or consumed != len(frame):
             raise ValueError('truncated D-Bus message')
         return message
 
     def _dispatch(self, message):
+        # One message the plugin cannot use must never close the connection: that would
+        # release a held push to talk and stop every signal.
         if message.type == 4:
             if self.on_signal is not None:
-                self.on_signal(message)
+                try:
+                    self.on_signal(message)
+                except Exception:
+                    pass
             return
         if message.type not in (2, 3):
             return
@@ -166,12 +177,18 @@ class SessionBus:
         if message.type == 3:
             text = ''
             if message.signature == 's':
-                text, = decode_body('s', message.body)
-            elif message.signature:
-                raise ValueError('unsupported error body')
+                try:
+                    text, = decode_body('s', message.body)
+                except ValueError:
+                    pass
             fut.set_exception(DBusError(message.error_name or '', text))
             return
-        fut.set_result(decode_body(message.signature, message.body))
+        try:
+            result = decode_body(message.signature, message.body)
+        except ValueError as error:
+            fut.set_exception(DBusError('', f'unsupported reply: {error}'))
+            return
+        fut.set_result(result)
 
     def _fail_pending(self, exc):
         pending = list(self._pending.values())
@@ -199,16 +216,27 @@ def _copy_error(exc):
 def _session_socket_path(address):
     if address is None:
         address = os.environ.get('DBUS_SESSION_BUS_ADDRESS')
+        if not address:
+            # libdbus, GDBus and so the rostrum CLI fall back to the user bus socket.
+            runtime = os.environ.get('XDG_RUNTIME_DIR')
+            if runtime and os.path.exists(os.path.join(runtime, 'bus')):
+                return os.path.join(runtime, 'bus')
     if not isinstance(address, str) or not address:
         raise ValueError('DBUS_SESSION_BUS_ADDRESS is not set')
     for entry in address.split(';'):
         if not entry.startswith('unix:'):
             continue
+        keys = {}
         for part in entry[len('unix:'):].split(','):
             key, sep, value = part.partition('=')
-            if sep and key == 'path' and value:
-                return _unescape_address(value)
-    raise ValueError('session bus address has no unix path')
+            if sep and value:
+                keys[key] = value
+        if 'path' in keys:
+            return _unescape_address(keys['path'])
+        if 'abstract' in keys:
+            # Linux abstract namespace, as dbus-launch sessions use.
+            return '\0' + _unescape_address(keys['abstract'])
+    raise ValueError('session bus address has no unix path or abstract socket')
 
 
 def _unescape_address(value):
@@ -709,7 +737,9 @@ def decode_message(buf):
     if len(buf) < total:
         return 0, None
     fields = _read_headers(buf, fields_len)
-    signature = _check_signature(fields.get(8, ''))
+    # Keep the body undecoded. decode_body applies the allow-list, so the reader can still
+    # match an unusable reply to its caller instead of leaving it to time out.
+    signature = fields.get(8, '')
     message = Message(
         msg_type, flags, serial, bytes(buf[body_at:total]),
         reply_serial=fields.get(5),

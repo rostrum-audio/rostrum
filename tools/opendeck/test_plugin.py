@@ -6,6 +6,7 @@ import importlib.util
 import os
 import struct
 import json
+import re
 import tempfile
 from pathlib import Path
 import subprocess
@@ -348,6 +349,14 @@ class PluginTest(unittest.IsolatedAsyncioTestCase):
         result = subprocess.run(['node', str(ROOT.parent / 'test_inspector.js')], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_every_plugin_file_is_bundled(self):
+        # Settings → Integrations → OpenDeck installs only the files resources.cmake embeds.
+        listed = set(re.findall(r'"\$\{bundle\}/([^"]+)"', (ROOT.parent / 'resources.cmake').read_text()))
+        present = {path.relative_to(ROOT).as_posix() for path in ROOT.rglob('*')
+                   if path.is_file() and '__pycache__' not in path.parts and path.suffix != '.pyc'}
+        self.assertEqual(present - listed, set(), 'add these to tools/opendeck/resources.cmake')
+        self.assertEqual(listed - present, set(), 'resources.cmake lists files that do not exist')
+
     def test_manifest_assets(self):
         manifest = json.loads((ROOT / 'manifest.json').read_text())
         self.assertEqual(len(manifest['Actions']), 4)
@@ -541,6 +550,51 @@ class ControlsTest(unittest.IsolatedAsyncioTestCase):
             await controls.scene('Gone')
         self.assertEqual(runner.commands, [])
         self.assertFalse(controls.cli_only)
+        await controls.close()
+
+    async def test_starting_rostrum_is_retried_on_the_bus(self):
+        # Rostrum claims its name before it registers the Control object, so the first
+        # calls after NameOwnerChanged can get UnknownObject. That is not a reason for the CLI.
+        controls, bus, runner = self.controls()
+        starting = plugin.DBusError('org.freedesktop.DBus.Error.UnknownObject', 'No such object path')
+        bus.failures['GetAll'] = starting
+        bus.failures['ListBuses'] = starting
+        with self.assertRaises(plugin.Unavailable):
+            await controls.snapshot()
+        self.assertFalse(controls.cli_only)
+        self.assertEqual(controls.props, {})
+        self.assertEqual(runner.commands, [])
+        bus.failures.clear()
+        buses, _ = await controls.snapshot()
+        self.assertIn('mic', buses)
+        # The first publish after startup sends no PropertiesChanged, so the poll loads them.
+        self.assertEqual(controls.props.get('CurrentScene'), 'Live')
+        self.assertFalse(controls.cli_only)
+        self.assertEqual(runner.commands, [])
+        await controls.close()
+
+    async def test_list_timeout_is_unavailable_not_cli(self):
+        controls, bus, runner = self.controls()
+        await controls.snapshot()
+        bus.failures['ListBuses'] = TimeoutError
+        with self.assertRaises(plugin.Unavailable):
+            await controls.snapshot()
+        self.assertFalse(controls.cli_only)
+        self.assertEqual(runner.commands, [])
+        await controls.close()
+
+    async def test_lost_bus_moves_to_cli_and_drops_stale_props(self):
+        controls, bus, runner = self.controls()
+        await controls.snapshot()
+        self.assertTrue(controls.props)
+        bus.failures['ListBuses'] = ConnectionError
+        buses, _ = await controls.snapshot()
+        self.assertIn('mic', buses)
+        self.assertTrue(controls.cli_only)
+        # Properties from a dead connection would freeze the mic key; buses come from the CLI.
+        self.assertEqual(controls.props, {})
+        self.assertTrue(bus.closed)
+        self.assertIn(['/test/rostrum', '--no-start', '--list-buses'], runner.commands)
         await controls.close()
 
 
@@ -924,6 +978,13 @@ class DbusCodecTest(unittest.TestCase):
 _SASL_GUID = '00112233445566778899aabbccddeeff'
 
 
+def _odd_message(msg_type, serial, headers):
+    """A well-framed message with an int32 body, which the plugin never asks for."""
+    with patch.object(plugin_dbus, '_ALLOWED', plugin_dbus._ALLOWED | {'i'}):
+        return plugin_dbus.encode_message('l', msg_type, 0, serial, dict(headers, signature='i'),
+                                          struct.pack('<i', 7))
+
+
 class SessionBusTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self._dir = tempfile.TemporaryDirectory()
@@ -1127,6 +1188,59 @@ class SessionBusTest(unittest.IsolatedAsyncioTestCase):
                     await bus.call(':1.1', '/x', 'x.Y', 'Ping', '', timeout=0.5)
             finally:
                 await bus.close()
+
+    async def _odd_peer(self, reader, writer):
+        # A signal and a reply whose bodies are outside the allow-list, then a good reply.
+        try:
+            await self._sasl(reader, writer)
+            first = await self._read_message(reader)
+            odd_signal = _odd_message(4, 2, {'path': '/x', 'interface': 'x.Y', 'member': 'Odd'})
+            odd_reply = _odd_message(2, 3, {'reply_serial': first.serial, 'sender': ':1.1'})
+            writer.write(odd_signal + odd_reply)
+            await writer.drain()
+            second = await self._read_message(reader)
+            reply = plugin_dbus.encode_message(
+                'l', 2, 0, 4,
+                {'reply_serial': second.serial, 'signature': 's', 'sender': ':1.1'},
+                plugin_dbus.encode_body('s', 'ok'))
+            writer.write(reply)
+            await writer.drain()
+            await self._finish(reader, writer)
+        except (asyncio.IncompleteReadError, ConnectionError, BrokenPipeError):
+            writer.close()
+
+    async def test_message_outside_allow_list_is_skipped_not_fatal(self):
+        server = await self._serve(self._odd_peer)
+        signals = []
+
+        def on_signal(message):
+            signals.append(message.member)
+            raise ValueError('a handler bug must not close the connection either')
+
+        async with server:
+            bus = await plugin_dbus.SessionBus.connect(address=f'unix:path={self._sock_path}')
+            bus.on_signal = on_signal
+            with self.assertRaises(plugin_dbus.DBusError):
+                await bus.call(':1.1', '/x', 'x.Y', 'Ping', '', timeout=1)
+            self.assertEqual(await bus.call(':1.1', '/x', 'x.Y', 'Ping', '', timeout=1), ('ok',))
+            self.assertEqual(signals, ['Odd'])
+            await bus.close()
+
+    async def test_falls_back_to_runtime_dir_bus(self):
+        # libdbus and GDBus use $XDG_RUNTIME_DIR/bus when the variable is unset; so does the CLI.
+        server = await self._serve(self._silent_peer)
+        async with server:
+            with patch.dict(os.environ, {'XDG_RUNTIME_DIR': self._dir.name}, clear=True):
+                bus = await plugin_dbus.SessionBus.connect()
+            await bus.close()
+
+    async def test_connects_to_abstract_address(self):
+        # dbus-launch sessions hand out unix:abstract= addresses.
+        name = f'rostrum-opendeck-test-{os.getpid()}-{id(self)}'
+        self._server = await asyncio.start_unix_server(self._silent_peer, path='\0' + name)
+        async with self._server:
+            bus = await plugin_dbus.SessionBus.connect(address=f'unix:abstract={name},guid={_SASL_GUID}')
+            await bus.close()
 
     async def test_reader_rejects_declared_oversize(self):
         server = await self._serve(self._oversize_peer)

@@ -8,6 +8,7 @@ function(rostrum_embed_opendeck target)
             "${bundle}/manifest.json"
             "${bundle}/plugin.sh"
             "${bundle}/plugin.py"
+            "${bundle}/dbus_client.py"
             "${bundle}/inspector.html"
             "${bundle}/sounds/mic-muted.wav"
             "${bundle}/sounds/mic-live.wav"
