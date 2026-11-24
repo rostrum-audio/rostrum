@@ -7,3 +7,6 @@ compile_commands.json
 __pycache__/
 
 .worktrees/
+
+# Local planning notes; never published.
+/docs/superpowers/
