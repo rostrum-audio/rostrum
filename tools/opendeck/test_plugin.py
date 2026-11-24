@@ -51,6 +51,7 @@ class FakeBus:
         # None answers ListBusLevels as Rostrum 0.5 does (UnknownMethod), so tests keep ListBuses.
         self.list_levels = None
         self.step_delay = 0
+        self.getall_delay = 0
         self.in_flight = 0
         self.in_flight_max = 0
         self.closed = False
@@ -95,6 +96,8 @@ class FakeBus:
                     raise plugin.DBusError('org.freedesktop.DBus.Error.ServiceUnknown', destination)
                 raise AssertionError(destination)
         if member == 'GetAll':
+            if self.getall_delay:
+                await asyncio.sleep(self.getall_delay)
             return (dict(self.props),)
         if member == 'ListBuses':
             return (list(self.list_buses),)
@@ -744,7 +747,8 @@ class PluginTest(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0.05)
         self.assertEqual(len(self.steps(bus)), count)
 
-    async def test_slow_step_drops_repeats(self):
+    async def test_slow_step_delays_the_next_repeat(self):
+        # Repeats wait for each reply: 0.2 s of 0.05 s steps is at most 5 steps, not one every 0.01 s.
         self.fast_repeat()
         app, bus, _, _ = self.volume_plugin()
         bus.step_delay = 0.05
@@ -834,7 +838,7 @@ class PluginTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(any(call['member'] == 'StepBusVolume' and call['destination'] == ':1.77'
                              for call in bus.calls))
 
-    async def test_missing_bus_stops_repeating(self):
+    async def test_missing_bus_on_press_alerts(self):
         self.fast_repeat()
         app, bus, _, events = self.volume_plugin()
         bus.failures['StepBusVolume'] = plugin.DBusError(plugin.IFACE + '.Error.NoSuchBus', 'gone')
@@ -845,6 +849,89 @@ class PluginTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.shown(app)[1], 'Missing')
         await asyncio.sleep(0.05)
         self.assertEqual(len(self.steps(bus)), 1)
+
+    async def wait_for(self, condition):
+        for _ in range(200):
+            if condition():
+                return
+            await asyncio.sleep(0.005)
+        self.fail('condition never held')
+
+    async def test_missing_bus_stops_repeating(self):
+        # A scene switch mid-hold takes the bus away: the next repeat fails, and none follows.
+        self.fast_repeat()
+        app, bus, _, events = self.volume_plugin()
+        await self.appear(app, 'volumeDown', {'bus': 'game', 'side': 'stream'})
+        await self.down(app)
+        await self.wait_for(lambda: len(self.steps(bus)) >= 3)
+        bus.list_levels.pop()  # Game is gone; StepBusVolume answers NoSuchBus
+        count = len(self.steps(bus))
+        await self.wait_for(lambda: self.alerts(events) == 1)
+        await asyncio.sleep(0.05)
+        self.assertEqual(self.shown(app)[1], 'Missing')
+        self.assertEqual(len(self.steps(bus)), count + 1)
+        self.assertEqual(app.stepping, {})
+
+    async def test_refused_step_keeps_the_bus(self):
+        # Only NoSuchBus means the bus is gone. Any other refusal alerts and leaves the key as it was.
+        app, bus, _, events = self.volume_plugin()
+        bus.failures['StepBusVolume'] = plugin.DBusError(plugin.IFACE + '.Error.InvalidValue', 'one level')
+        await self.appear(app, 'volumeDown', {'bus': 'game', 'side': 'stream'})
+        await self.down(app)
+        self.assertEqual(self.alerts(events), 1)
+        self.assertEqual(self.shown(app)[1], 'Game\nStream 50%')
+        self.assertIn('game', app.buses)
+
+    async def test_direct_handover_sends_no_step_to_the_new_owner(self):
+        # A new Rostrum takes the name straight from the old one, and its GetAll is slow: repeats
+        # stop at once, not when the plugin hears about the new owner.
+        self.fast_repeat()
+        app, bus, _, _ = self.volume_plugin()
+        await self.appear(app, 'volumeDown', {'bus': 'game', 'side': 'stream'})
+        await self.down(app)
+        await self.wait_for(lambda: len(self.steps(bus)) >= 2)
+        bus.getall_delay = 0.1
+        bus.owner = ':1.77'
+        app.controls._on_signal(_signal('NameOwnerChanged', 'sss', (plugin.SERVICE, ':1.42', ':1.77'),
+                                        plugin.BUS_IFACE, sender=plugin.BUS_SERVICE, path=plugin.BUS_PATH))
+        await asyncio.sleep(0.06)  # GetAll still in flight
+        await asyncio.gather(*app.controls._tasks)
+        await asyncio.sleep(0.05)
+        self.assertFalse(any(call['member'] == 'StepBusVolume' and call['destination'] == ':1.77'
+                             for call in bus.calls))
+        self.assertEqual(app.stepping, {})
+
+    async def test_quick_re_press_waits_for_the_step_in_flight(self):
+        # Released and pressed again while a repeat's step is still out: one step at a time per key.
+        self.fast_repeat()
+        app, bus, _, _ = self.volume_plugin()
+        bus.step_delay = 0.05
+        await self.appear(app, 'volumeDown', {'bus': 'game', 'side': 'stream'})
+        await self.down(app)
+        await self.wait_for(lambda: bus.in_flight == 1)
+        await self.up(app)
+        await self.down(app)
+        await self.up(app)
+        await asyncio.sleep(0.1)
+        self.assertEqual(bus.in_flight_max, 1)
+        self.assertEqual(len(self.steps(bus)), 3)  # the press, its repeat, the re-press
+
+    async def test_hold_stops_at_the_end_of_travel(self):
+        self.fast_repeat()
+        app, bus, _, events = self.volume_plugin()
+        bus.list_levels[-1] = ('game', 'Game', 0.97, 0.8, False, 'both')
+        await self.appear(app, 'volumeUp', {'bus': 'game', 'side': 'stream'})
+        await self.down(app)
+        await asyncio.sleep(0.1)
+        # 97% to 100%, then one step that moves nothing, and no more.
+        self.assertEqual(len(self.steps(bus)), 2)
+        self.assertEqual(app.stepping, {})
+        self.assertEqual(self.alerts(events), 0)
+        self.assertEqual(self.shown(app)[1], 'Game\nStream 100%')
+        await self.up(app)
+        await self.down(app)  # already at the top: one step, no repeat
+        await asyncio.sleep(0.05)
+        self.assertEqual(len(self.steps(bus)), 3)
 
     async def test_second_key_down_does_not_start_a_second_repeat(self):
         self.fast_repeat()
@@ -860,12 +947,12 @@ class PluginTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_step_setting_is_clamped(self):
         app, bus, _, _ = self.volume_plugin()
-        for index, step in enumerate(('5', 0, 400, True, 12.4)):
+        for index, step in enumerate(('5', 0, 400, True, 12.4, 2.5)):
             context = f'k{index}'
             await self.appear(app, 'volumeDown', {'bus': 'game', 'side': 'stream', 'step': step}, context=context)
             await self.down(app, context)
             await self.up(app, context)
-        self.assertEqual([args[2] for args in self.steps(bus)], [-0.05, -0.01, -0.25, -0.05, -0.12])
+        self.assertEqual([args[2] for args in self.steps(bus)], [-0.05, -0.01, -0.25, -0.05, -0.12, -0.03])
 
     @unittest.skipUnless(plugin.shutil.which('node'), 'optional inspector check requires Node.js')
     def test_inspector_settings_round_trip(self):

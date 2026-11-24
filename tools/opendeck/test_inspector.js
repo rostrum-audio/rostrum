@@ -62,7 +62,7 @@ assert.equal(elements.stepBlock.hidden, false);
 assert.equal(elements.side.value, 'both');
 assert.equal(Number(elements.step.value), 5);
 assert.equal(elements.stepValue.textContent, '5%');
-for (const [value, expected] of [[null, 5], ['5', 5], [true, 5], [0, 1], [400, 25], [12.4, 12]]) {
+for (const [value, expected] of [[null, 5], ['5', 5], [true, 5], [0, 1], [400, 25], [12.4, 12], [2.5, 3]]) {
     connect({step: value}, 'volumeUp');
     assert.equal(Number(elements.step.value), expected);
 }

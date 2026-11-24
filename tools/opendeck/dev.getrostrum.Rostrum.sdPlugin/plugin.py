@@ -51,6 +51,10 @@ class Unavailable(Exception):
     pass
 
 
+class NoSuchBus(ValueError):
+    """Rostrum refused the call because the bus is not in the live scene."""
+
+
 class Unsupported(Unavailable):
     """Rostrum answered, but has no such method: it predates the key that needs it."""
 
@@ -128,6 +132,8 @@ class Controls:
             try:
                 return await self.bus.call(self.owner, OBJECT, IFACE, method, signature, *args)
             except DBusError as error:
+                if error.name == IFACE + '.Error.NoSuchBus':
+                    raise NoSuchBus(str(error)) from error
                 if error.name.startswith(IFACE + '.Error.'):
                     raise ValueError(str(error)) from error
                 if error.name == UNKNOWN_METHOD:
@@ -401,7 +407,8 @@ def _step_setting(settings):
     step = settings.get('step')
     if isinstance(step, bool) or not isinstance(step, (int, float)) or not math.isfinite(step):
         return 5
-    return min(25, max(1, round(step)))
+    # Halves round up, as the inspector's Math.round does (Python's round() goes to even).
+    return min(25, max(1, math.floor(step + 0.5)))
 
 
 def _one_level_side_ok(bus_id, side):
@@ -473,6 +480,8 @@ class Plugin:
         self.keys, self.held = {}, {}
         # Volume keys being held: context -> the task that repeats their step.
         self.stepping = {}
+        # context -> lock held while that key's step call is out, so a quick re-press waits for it.
+        self.step_locks = {}
         self.feedback, self.pending_feedback = Feedback(), set()
         self.buses, self.scenes = {}, []
         self.available = False
@@ -771,6 +780,9 @@ class Plugin:
             await self.render(context)
         elif kind == 'willDisappear':
             self.stepping.pop(context, None)
+            lock = self.step_locks.get(context)
+            if lock is not None and not lock.locked():
+                del self.step_locks[context]
             self.pending_feedback.discard(context)
             self.keys.pop(context, None)
             await self.release(context)
@@ -835,20 +847,31 @@ class Plugin:
             self._alert_if_still_down(context)
             self._paint(context)
             return
+        # The repeat belongs to this Rostrum. A new one, even one that took the name straight
+        # from it, gets no step the user did not press for.
+        owner = getattr(self.controls, 'owner', None)
         if await self._step(context):
-            self.stepping[context] = self._schedule(self._repeat(context))
+            self.stepping[context] = self._schedule(self._repeat(context, owner))
 
-    async def _repeat(self, context):
+    async def _repeat(self, context, owner):
         # One step at a time: a slow reply delays the next step, and nothing queues behind it.
         task = asyncio.current_task()
         await asyncio.sleep(REPEAT_DELAY)
-        while self.stepping.get(context) is task and await self._step(context):
+        while self.stepping.get(context) is task and await self._step(context, owner):
             await asyncio.sleep(REPEAT_INTERVAL)
         if self.stepping.get(context) is task:
             del self.stepping[context]
 
-    async def _step(self, context):
-        """Step once. False when the key cannot step or the step failed (already alerted)."""
+    async def _step(self, context, owner=None):
+        """Step once. False when the key cannot step, the step failed (already alerted), the level
+        is at the end of its travel, or (for a repeat) Rostrum is no longer `owner`."""
+        lock = self.step_locks.setdefault(context, asyncio.Lock())
+        async with lock:
+            if owner is not None and getattr(self.controls, 'owner', None) != owner:
+                return False
+            return await self._step_once(context)
+
+    async def _step_once(self, context):
         key = self.keys.get(context)
         if key is None:
             return False
@@ -861,6 +884,7 @@ class Plugin:
         delta = _step_setting(key['settings']) / 100
         if key['action'] == 'volumeDown':
             delta = -delta
+        before = self._level(bus_id, side)
         try:
             level = await self._invoke(self.controls.step, bus_id, side, delta)
         except Unsupported:
@@ -872,16 +896,29 @@ class Plugin:
             self._alert_if_still_down(context)
             self._paint(context)
             return False
-        except ValueError:
-            # The bus went away (a scene switch) or Rostrum refused this side.
+        except NoSuchBus:
+            # The bus went away (a scene switch).
             self.buses.pop(bus_id, None)
+            self._alert(context)
+            self._paint(context)
+            return False
+        except ValueError:
+            # Rostrum refused this step (one level per bus, for one). The bus is still there.
             self._alert(context)
             self._paint(context)
             return False
         self._store_level(bus_id, side, level)
         self.available = True
         self._render_all()
-        return True
+        # At 0% or the top nothing moved: stop repeating rather than send steps that change nothing.
+        return before is None or abs(level - before) > 1e-9
+
+    def _level(self, bus_id, side):
+        """The cached level a step on this side reports back, or None when not known."""
+        bus = self.buses.get(bus_id)
+        if not bus or 'stream' not in bus:
+            return None
+        return bus['phones'] if side == 'phones' and bus['destination'] else bus['stream']
 
     def _store_level(self, bus_id, side, level):
         bus = self.buses.get(bus_id)
