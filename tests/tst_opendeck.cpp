@@ -198,6 +198,53 @@ private Q_SLOTS:
         QVERIFY(QFile::remove(root + QStringLiteral("/images/mic.svg")));
         QCOMPARE(inspect(target), State::InstalledNewer);
     }
+    void installNeverDowngradesANewerPlugin()
+    {
+        // The button is disabled, but a stale page or a race must not replace a newer copy.
+        QTemporaryDir temp;
+        Target target{QStringLiteral("custom"), temp.path()};
+        QCOMPARE(install(target, true).error, Error::None);
+        const QString manifest =
+            temp.path() + QLatin1Char('/') + pluginId() + QStringLiteral("/manifest.json");
+        auto object = QJsonDocument::fromJson(read(manifest)).object();
+        object.insert(QStringLiteral("Version"), QStringLiteral("99.0.0"));
+        write(manifest, QJsonDocument(object).toJson());
+        const QByteArray newer = read(manifest);
+        QCOMPARE(inspect(target), State::InstalledNewer);
+        const auto result = install(target, true);
+        QCOMPARE(result.error, Error::None);
+        QVERIFY(!result.changed);
+        QCOMPARE(read(manifest), newer);
+        QCOMPARE(inspect(target), State::InstalledNewer);
+    }
+    void releasedOneTwoPluginOffersUpdate()
+    {
+        // The shape 0.4.0 installed: Version 1.2.0, four actions, no dbus_client.py and none
+        // of the 1.3.0 art. That is an upgrade, not a repair.
+        QTemporaryDir temp;
+        Target target{QStringLiteral("custom"), temp.path()};
+        QCOMPARE(install(target, true).error, Error::None);
+        const QString root = temp.path() + QLatin1Char('/') + pluginId();
+        auto object = QJsonDocument::fromJson(read(root + QStringLiteral("/manifest.json"))).object();
+        object.insert(QStringLiteral("Version"), QStringLiteral("1.2.0"));
+        QJsonArray actions;
+        for (const auto &action : object.value(QStringLiteral("Actions")).toArray()) {
+            const QString uuid = action.toObject().value(QStringLiteral("UUID")).toString();
+            if (!uuid.endsWith(QLatin1String(".studioVoice")) && !uuid.endsWith(QLatin1String(".pushToTalk")))
+                actions.append(action);
+        }
+        QCOMPARE(actions.size(), 4);
+        object.insert(QStringLiteral("Actions"), actions);
+        write(root + QStringLiteral("/manifest.json"), QJsonDocument(object).toJson());
+        for (const char *name : {"dbus_client.py", "images/panic-active.svg", "images/scene-active.svg",
+                                 "images/bus-muted.svg", "images/studio-voice.svg",
+                                 "images/studio-voice-off.svg", "images/push-to-talk.svg",
+                                 "images/push-to-talk-active.svg"})
+            QVERIFY(QFile::remove(root + QLatin1Char('/') + QLatin1String(name)));
+        QCOMPARE(inspect(target), State::Newer);
+        QVERIFY(install(target, true).changed);
+        QCOMPARE(inspect(target), State::Matches);
+    }
     void sixActionsDoNotForceIncompleteByCount()
     {
         // After Task 6 ships six bundled actions, Matches covers the happy path.

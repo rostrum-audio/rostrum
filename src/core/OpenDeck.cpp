@@ -6,7 +6,6 @@
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
-#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
@@ -143,7 +142,9 @@ Result install(const Target &target, bool pythonAvailable, const Rename &operati
     const QString root = target.plugins + QLatin1Char('/') + pluginId();
     if (QFileInfo(root).isSymLink() || (QFileInfo::exists(root) && !QFileInfo(root).isDir()))
         return {Error::UnsafeTarget, root};
-    if (inspect(target) == State::Matches)
+    // Nothing to do, and never a downgrade: the page disables Install for a newer copy, but
+    // a stale page or a race must not replace it either.
+    if (const State state = inspect(target); state == State::Matches || state == State::InstalledNewer)
         return {};
     // Detection must still hold when clicked, including after an external uninstall.
     if (!QFileInfo(QFileInfo(target.plugins).absolutePath()).isDir() || !QDir().mkpath(target.plugins))
