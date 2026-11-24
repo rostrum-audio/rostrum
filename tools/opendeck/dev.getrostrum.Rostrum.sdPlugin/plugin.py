@@ -398,6 +398,9 @@ class Plugin:
         self._render_all()
 
     def _on_owner(self, owner):
+        # Holds lived on the previous instance (Rostrum releases them when it quits, and a
+        # new instance starts with none). Forget them; never press again on someone's behalf.
+        self.held.clear()
         if owner:
             # The forced poll paints. An early render would show the previous process's buses.
             if self._polled:
@@ -480,11 +483,21 @@ class Plugin:
                 self.feedback.play(self.buses['mic']['muted'], key['settings'].get('soundVolume', 50))
         self._render_all()
 
-    def _appearance(self, key):
+    def _appearance(self, key, context=None):
         action, settings = key['action'], key['settings']
         props = self._props()
         if not self.available:
             return 0, 'Unavailable'
+        if action == 'pushToTalk':
+            # Holds need this process's own bus connection; the CLI has none.
+            if getattr(self.controls, 'cli_only', False):
+                return 0, 'Unavailable'
+            if context not in self.held:
+                return 0, 'Push to talk'
+            # Panic or push to mute beat push to talk: held, yet the mic stays muted.
+            if props.get('MicMuted') is True:
+                return 0, 'Blocked'
+            return 1, 'Talking'
         if action == 'panic':
             if 'Panic' in props:
                 state = int(bool(props['Panic']))
@@ -504,8 +517,6 @@ class Plugin:
                 state = int(bool(props['MicFilters']))
                 return state, 'Voice on' if state else 'Voice off'
             return 0, 'Studio Voice'
-        if action == 'pushToTalk':
-            return 0, 'Push to talk'
         if action == 'mic':
             if 'MicMuted' in props:
                 state = int(bool(props['MicMuted']))
@@ -534,13 +545,13 @@ class Plugin:
         key = self.keys.get(context)
         if key is None:
             return
-        state, title = self._appearance(key)
+        state, title = self._appearance(key, context)
         same_state = 'state' in key and key['state'] == state
         same_title = 'title' in key and key['title'] == title
         if same_state and same_title:
             return
-        # One alert when a key becomes Unavailable, not on every later redraw.
-        if title == 'Unavailable' and key.get('title') != 'Unavailable':
+        # One alert when a key becomes Unavailable or Blocked, not on every later redraw.
+        if title in ('Unavailable', 'Blocked') and key.get('title') != title:
             self._alert(context)
         if not same_state:
             key['state'] = state
@@ -558,7 +569,8 @@ class Plugin:
 
     async def release(self, context):
         action = self.held.pop(context, None)
-        if action:
+        # Rostrum keeps one flag per hold action, not a count: release only with the last key.
+        if action and action not in self.held.values():
             try:
                 await self._invoke(self.controls.release, action)
             except (Unavailable, ValueError):
@@ -594,8 +606,8 @@ class Plugin:
             await self.render(context)
         elif kind == 'willDisappear':
             self.pending_feedback.discard(context)
-            await self.release(context)
             self.keys.pop(context, None)
+            await self.release(context)
         elif kind == 'keyUp':
             await self.release(context)
             await self.poll(force=True)
@@ -612,8 +624,41 @@ class Plugin:
             elif kind == 'keyDown':
                 await self._key_down(context)
 
+    async def _push_to_talk(self, context):
+        # No poll first: a refresh before PressAction would clip the first syllable.
+        if context in self.held:
+            return
+        if not await self._ready():
+            self.available = False
+            self._alert_if_still_down(context)
+            self._paint(context)
+            return
+        if getattr(self.controls, 'cli_only', False):
+            self._alert(context)  # never a mute toggle in place of a hold
+            self._paint(context)
+            return
+        if 'push_to_talk' not in self.held.values():
+            try:
+                await self._invoke(self.controls.press, 'push_to_talk')
+            except Unavailable:
+                self.available = False
+                self._alert_if_still_down(context)
+                self._paint(context)
+                return
+            except ValueError:
+                self._alert(context)
+                self._paint(context)
+                return
+        # Rostrum publishes MicMuted before it replies, so the props already show the result.
+        self.held[context] = 'push_to_talk'
+        self.available = True
+        self._paint(context)
+
     async def _key_down(self, context):
-        # Do not poll(force=True) here. Push-to-talk (Task 7) must not wait on a full refresh.
+        # Do not poll(force=True) here; keys act on the state signals already delivered.
+        if self.keys[context]['action'] == 'pushToTalk':
+            await self._push_to_talk(context)
+            return
         if not await self._ready():
             self.available = False
             self._alert_if_still_down(context)

@@ -49,6 +49,9 @@ class FakeBus:
         self.props = {'MicMuted': False, 'Panic': False, 'CurrentScene': 'Live', 'MicFilters': False}
         self.list_buses = [('mic', 'Mic', 1.0, False), ('game', 'Game', 1.0, True)]
         self.closed = False
+        # Rostrum emits PropertiesChanged inside the method's slot, so it reaches the plugin
+        # before the reply. member -> props that change before replying.
+        self.changes_before_reply = {}
 
     async def call(self, destination, path, interface, member, signature='', *args, timeout=2.0):
         self.calls.append({'destination': destination, 'path': path, 'interface': interface,
@@ -56,6 +59,11 @@ class FakeBus:
         failure = self.failures.get(member)
         if failure is not None:
             raise failure() if isinstance(failure, type) else failure
+        changed = self.changes_before_reply.get(member)
+        if changed and self.on_signal is not None:
+            self.props.update(changed)
+            self.on_signal(_signal('PropertiesChanged', 'sa{sv}as', (plugin.IFACE, dict(changed), []),
+                                   plugin.PROPS_IFACE, sender=self.owner, path=plugin.OBJECT))
         if member == 'Hello':
             return (':1.99',)
         if member == 'AddMatch':
@@ -314,6 +322,90 @@ class PluginTest(unittest.IsolatedAsyncioTestCase):
         await self.appear(app, 'pushToTalk')
         self.assertEqual(self.titles(events)[-1], 'Push to talk')
         self.assertEqual(app.keys['key']['state'], 0)
+
+    def ptt_calls(self, bus, member):
+        return sum(1 for call in bus.calls if call['member'] == member and call['args'] == ('push_to_talk',))
+
+    def alerts(self, events):
+        return sum(1 for event in events if event['event'] == 'showAlert')
+
+    async def up(self, app, context='key'):
+        await app.handle({'event': 'keyUp', 'context': context})
+
+    async def test_ptt_holds_and_shows_talking(self):
+        app, bus, _, events = self.setup_plugin()
+        bus.props['MicMuted'] = True
+        bus.changes_before_reply = {'PressAction': {'MicMuted': False}, 'ReleaseAction': {'MicMuted': True}}
+        await self.appear(app, 'pushToTalk')
+        await self.down(app)
+        self.assertEqual(self.ptt_calls(bus, 'PressAction'), 1)
+        self.assertEqual((app.keys['key']['state'], app.keys['key']['title']), (1, 'Talking'))
+        self.assertEqual(self.alerts(events), 0)
+        await self.up(app)
+        self.assertEqual(self.ptt_calls(bus, 'ReleaseAction'), 1)
+        self.assertEqual((app.keys['key']['state'], app.keys['key']['title']), (0, 'Push to talk'))
+        self.assertFalse(any(call['member'] in ('ToggleBusMuted', 'TriggerAction') for call in bus.calls))
+
+    async def test_ptt_released_when_key_disappears_mid_hold(self):
+        # Switching deck pages while holding sends willDisappear, not keyUp.
+        app, bus, _, _ = self.setup_plugin()
+        await self.appear(app, 'pushToTalk')
+        await self.down(app)
+        await app.handle({'event': 'willDisappear', 'context': 'key'})
+        self.assertEqual(self.ptt_calls(bus, 'ReleaseAction'), 1)
+        self.assertEqual(app.held, {})
+
+    async def test_ptt_refcount_releases_once(self):
+        app, bus, _, _ = self.setup_plugin()
+        await self.appear(app, 'pushToTalk', context='a')
+        await self.appear(app, 'pushToTalk', context='b')
+        await self.down(app, 'a')
+        await self.down(app, 'b')
+        self.assertEqual(self.ptt_calls(bus, 'PressAction'), 1)
+        await self.up(app, 'a')
+        self.assertEqual(self.ptt_calls(bus, 'ReleaseAction'), 0)
+        await self.up(app, 'b')
+        self.assertEqual(self.ptt_calls(bus, 'ReleaseAction'), 1)
+
+    async def test_ptt_blocked_when_held_but_muted(self):
+        # Panic or push to mute wins over push to talk, so the mic stays muted while held.
+        app, bus, _, events = self.setup_plugin()
+        bus.props['MicMuted'] = True
+        await self.appear(app, 'pushToTalk')
+        await self.down(app)
+        self.assertEqual((app.keys['key']['state'], app.keys['key']['title']), (0, 'Blocked'))
+        self.assertEqual(self.alerts(events), 1)
+        await app.poll(force=True)
+        self.assertEqual(self.alerts(events), 1)  # once per entry into Blocked, not per redraw
+
+    async def test_ptt_unavailable_without_bus(self):
+        # Holds need the plugin's own connection; a toggle is never a substitute.
+        app, _, runner, events = self.setup_plugin(connect=False)
+        await self.appear(app, 'mic', context='mic')
+        await self.appear(app, 'pushToTalk')
+        self.assertEqual(app.keys['key']['title'], 'Unavailable')
+        before = self.alerts(events)
+        await self.down(app)
+        self.assertEqual(self.alerts(events), before + 1)
+        self.assertFalse(any('--toggle-mic' in command or '--action' in command for command in runner.commands))
+        self.assertTrue(app.available)  # the CLI still serves the other keys
+        self.assertEqual(app.keys['mic']['title'], 'Mic live')
+
+    async def test_ptt_owner_change_clears_hold_without_repress(self):
+        app, bus, _, _ = self.setup_plugin()
+        bus.changes_before_reply = {'PressAction': {'MicMuted': False}}
+        bus.props['MicMuted'] = True
+        await self.appear(app, 'pushToTalk')
+        await self.down(app)
+        self.assertEqual(app.keys['key']['title'], 'Talking')
+        bus.owner = ':1.77'  # Rostrum restarted; the new instance holds nothing
+        await app.controls._handle_owner(':1.42', ':1.77')
+        await asyncio.gather(*app._tasks)
+        self.assertEqual(app.held, {})
+        self.assertEqual((app.keys['key']['state'], app.keys['key']['title']), (0, 'Push to talk'))
+        await self.up(app)
+        self.assertEqual(self.ptt_calls(bus, 'PressAction'), 1)
+        self.assertEqual(self.ptt_calls(bus, 'ReleaseAction'), 0)
 
     async def test_scene_active_when_current(self):
         app, _, _, events = self.setup_plugin()
