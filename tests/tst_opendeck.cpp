@@ -292,14 +292,56 @@ private Q_SLOTS:
         // Identity still parses: re-read Name/CodePathLin/Version would succeed;
         // Incomplete is solely because matches() fails on manifest bytes.
     }
+    void noticeOnlyForAnOlderInstalledPlugin()
+    {
+        const NoticeFacts base{State::Newer, QStringLiteral("1.4.0"), QStringLiteral("1.3.0"), QString(), true, true};
+        QVERIFY(shouldNotify(base));
+        for (State other : {State::NotFound, State::Absent, State::Matches, State::InstalledNewer, State::Incomplete}) {
+            NoticeFacts facts = base;
+            facts.state = other;
+            QVERIFY(!shouldNotify(facts));
+        }
+        NoticeFacts facts = base;
+        facts.targetResolved = false;
+        QVERIFY(!shouldNotify(facts));
+        facts = base;
+        facts.python = false;
+        QVERIFY(!shouldNotify(facts));
+        facts = base;
+        facts.notified = QStringLiteral("1.4.0"); // shown once for this bundle
+        QVERIFY(!shouldNotify(facts));
+        facts.notified = QStringLiteral("1.3.0"); // an older notice does not count
+        QVERIFY(shouldNotify(facts));
+        facts = base;
+        facts.bundled.clear();
+        QVERIFY(!shouldNotify(facts));
+    }
+    void versionsComeFromTheManifests()
+    {
+        const auto bundledManifest = QJsonDocument::fromJson(read(QStringLiteral(":/opendeck/manifest.json"))).object();
+        QCOMPARE(bundledVersion(), bundledManifest.value(QStringLiteral("Version")).toString());
+        QCOMPARE(bundledVersion(), QStringLiteral("1.4.0"));
+        QTemporaryDir temp;
+        Target target{QStringLiteral("custom"), temp.path()};
+        QCOMPARE(installedVersion(target), QString());
+        QCOMPARE(install(target, true).error, Error::None);
+        QCOMPARE(installedVersion(target), bundledVersion());
+        const QString manifest = temp.path() + QLatin1Char('/') + pluginId() + QStringLiteral("/manifest.json");
+        auto object = QJsonDocument::fromJson(read(manifest)).object();
+        object.insert(QStringLiteral("Version"), QStringLiteral("1.3.0"));
+        write(manifest, QJsonDocument(object).toJson());
+        QCOMPARE(installedVersion(target), QStringLiteral("1.3.0"));
+    }
     void customSettingsRoundTrip()
     {
         Settings settings = defaultSettings();
         settings.openDeckPluginsFolder = QStringLiteral("/home/person/Custom plugins");
         settings.openDeckInstallation = QStringLiteral("flatpak");
+        settings.openDeckNotifiedVersion = QStringLiteral("1.4.0");
         const auto restored = parseSettings(serializeSettings(settings));
         QCOMPARE(restored.openDeckPluginsFolder, settings.openDeckPluginsFolder);
         QCOMPARE(restored.openDeckInstallation, settings.openDeckInstallation);
+        QCOMPARE(restored.openDeckNotifiedVersion, QStringLiteral("1.4.0"));
         QCOMPARE(parseSettings(QStringLiteral("format = 1\n")).openDeckPluginsFolder, QString());
     }
 };

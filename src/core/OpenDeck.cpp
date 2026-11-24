@@ -51,6 +51,13 @@ bool valid(const QString &root)
     // Bundle / stage gate: identity + every embedded file present (no action count).
     return identityValid(root) && treeComplete(root);
 }
+QVersionNumber versionOf(const QString &root)
+{
+    return QVersionNumber::fromString(QJsonDocument::fromJson(read(root + QStringLiteral("/manifest.json")))
+                                          .object()
+                                          .value(QStringLiteral("Version"))
+                                          .toString());
+}
 bool matches(const QString &root)
 {
     for (const auto &name : files()) {
@@ -99,6 +106,25 @@ Target selectTarget(const QList<Target> &targets, const QString &preferred)
     return targets.size() == 1 ? targets.first() : Target{};
 }
 
+QString bundledVersion()
+{
+    return versionOf(resource).toString();
+}
+QString installedVersion(const Target &target)
+{
+    if (target.plugins.isEmpty())
+        return {};
+    const QString root = target.plugins + QLatin1Char('/') + pluginId();
+    if (QFileInfo(root).isSymLink() || !QFileInfo(root).isDir())
+        return {};
+    const QVersionNumber version = versionOf(root);
+    return version.isNull() ? QString() : version.toString();
+}
+bool shouldNotify(const NoticeFacts &facts)
+{
+    return facts.state == State::Newer && facts.targetResolved && facts.python && !facts.bundled.isEmpty() &&
+           facts.notified != facts.bundled;
+}
 State inspect(const Target &target)
 {
     if (target.plugins.isEmpty())
@@ -110,13 +136,6 @@ State inspect(const Target &target)
         return State::Absent;
     if (!identityValid(root))
         return State::Incomplete;
-    const auto versionOf = [](const QString &path) {
-        return QVersionNumber::fromString(
-            QJsonDocument::fromJson(read(path + QStringLiteral("/manifest.json")))
-                .object()
-                .value(QStringLiteral("Version"))
-                .toString());
-    };
     const auto installed = versionOf(root);
     const auto bundled = versionOf(resource);
     if (installed > bundled)

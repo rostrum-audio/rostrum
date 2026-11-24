@@ -56,6 +56,7 @@ Settings configured()
         {QStringLiteral("scope-keep"), {}}};
     s.openDeckPluginsFolder = QStringLiteral("/home/streamer/.config/opendeck/plugins");
     s.openDeckInstallation = QStringLiteral("flatpak");
+    s.openDeckNotifiedVersion = QStringLiteral("1.4.0");
     s.micFallback = true;
     s.monoHeadphones = true;
     return s;
@@ -113,6 +114,7 @@ private Q_SLOTS:
         QCOMPARE(r.obsRecordingTracks, s.obsRecordingTracks);
         QVERIFY(r.openDeckPluginsFolder.isEmpty());
         QVERIFY(r.openDeckInstallation.isEmpty());
+        QVERIFY(r.openDeckNotifiedVersion.isEmpty());
         QCOMPARE(r.micFallback, true);
         QCOMPARE(r.monoHeadphones, true);
 
@@ -122,6 +124,7 @@ private Q_SLOTS:
         other.windowWidth = 1200;
         other.openDeckPluginsFolder = QStringLiteral("/var/home/other/opendeck/plugins");
         other.openDeckInstallation = QStringLiteral("native");
+        other.openDeckNotifiedVersion = QStringLiteral("1.3.0");
         other.obsRecordingTracks = {
             {QStringLiteral("stale-scope"), {{QStringLiteral("6"), QStringLiteral("music")}}}};
         const Settings merged = backup::restoredSettings(other, r);
@@ -143,6 +146,7 @@ private Q_SLOTS:
         expected.compactHeight = other.compactHeight;
         expected.openDeckPluginsFolder = other.openDeckPluginsFolder;
         expected.openDeckInstallation = other.openDeckInstallation;
+        expected.openDeckNotifiedVersion = other.openDeckNotifiedVersion;
         QCOMPARE(merged, expected);
     }
 
@@ -178,7 +182,7 @@ private Q_SLOTS:
         const QString text = backup::serialize(configured(), scenes(), kNow);
         for (const char *word : {"crash_reports", "privacy", "updates", "skipped_version", "last_check",
                                  "wizard_done", "setup_version", "last_seen", "[window]", "compact",
-                                 "keep_on_top", "solo", "opendeck", "plugins_folder", "installation",
+                                 "keep_on_top", "solo", "opendeck", "plugins_folder", "installation", "notified_version",
                                  "/home/streamer"}) {
             QVERIFY2(!text.contains(QLatin1String(word), Qt::CaseInsensitive), word);
         }

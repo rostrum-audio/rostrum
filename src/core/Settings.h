@@ -115,6 +115,7 @@ struct Settings
     // OpenDeck: an explicit plugins folder overrides detection until cleared.
     QString openDeckPluginsFolder;
     QString openDeckInstallation; // native or flatpak, when both were detected
+    QString openDeckNotifiedVersion; // the bundled plugin version the update notice was shown for
     // OBS
     bool obsBackground = true; // follow OBS over obs-websocket on localhost while OBS runs
     bool obsGoLiveWarnings = true;

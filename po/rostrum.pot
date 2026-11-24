@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: rostrum 0.4.0\n"
 "Report-Msgid-Bugs-To: https://github.com/rostrum-audio/rostrum/issues\n"
-"POT-Creation-Date: 2026-11-23 21:43-0500\n"
+"POT-Creation-Date: 2026-11-23 23:19-0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -427,126 +427,203 @@ msgstr ""
 msgid "Could not reach Rostrum: %1"
 msgstr ""
 
-#: src/app/DBusControl.cpp:157 src/app/DBusControl.cpp:179
+#: src/app/DBusControl.cpp:182 src/app/DBusControl.cpp:204
 #, kde-format
 msgid "There is no action “%1”."
 msgstr ""
 
-#: src/app/DBusControl.cpp:169
+#: src/app/DBusControl.cpp:194
 #, kde-format
 msgid "“%1” acts while held. Use PressAction and ReleaseAction instead."
 msgstr ""
 
-#: src/app/DBusControl.cpp:174
+#: src/app/DBusControl.cpp:199
 #, kde-format
 msgid "There is no scene %1."
 msgstr ""
 
-#: src/app/DBusControl.cpp:177 src/app/DBusControl.cpp:212
-#: src/app/DBusControl.cpp:241 src/app/DBusControl.cpp:260
+#: src/app/DBusControl.cpp:202 src/app/DBusControl.cpp:237
+#: src/app/DBusControl.cpp:266 src/app/DBusControl.cpp:285
+#: src/app/DBusControl.cpp:306 src/app/DBusControl.cpp:352
 #, kde-format
 msgid "The live scene has no bus “%1”."
 msgstr ""
 
-#: src/app/DBusControl.cpp:197
+#: src/app/DBusControl.cpp:222
 #, kde-format
 msgid "There is no scene called “%1”."
 msgstr ""
 
-#: src/app/DBusControl.cpp:216
+#: src/app/DBusControl.cpp:241 src/app/DBusControl.cpp:312
 #, kde-format
 msgid "The mic has one level."
 msgstr ""
 
-#: src/app/DBusControl.cpp:217
+#: src/app/DBusControl.cpp:242 src/app/DBusControl.cpp:313
 #, kde-format
 msgid "The %1 master has one level."
 msgstr ""
 
-#: src/app/DBusControl.cpp:222
+#: src/app/DBusControl.cpp:247
 #, kde-format
 msgid "The volume for “%1” must be between 0 and %2."
 msgstr ""
 
-#: src/app/DBusControl.cpp:295
+#: src/app/DBusControl.cpp:309
+#, kde-format
+msgid "The mix must be “stream”, “phones” or “both”, not “%1”."
+msgstr ""
+
+#: src/app/DBusControl.cpp:315
+#, kde-format
+msgid "The step must be between -1 and 1."
+msgstr ""
+
+#: src/app/DBusControl.cpp:318
+#, kde-format
+msgid "This system has one level per bus, so “%1” cannot move one mix alone."
+msgstr ""
+
+#: src/app/DBusControl.cpp:354
+#, kde-format
+msgid "The mix must be “stream” or “phones”, not “%1”."
+msgstr ""
+
+#: src/app/DBusControl.cpp:357
+#, kde-format
+msgid "“%1” is not a playback bus, so it has no destination."
+msgstr ""
+
+#: src/app/DBusControl.cpp:398
 #, kde-format
 msgctxt "@label master fader"
 msgid "Stream"
 msgstr ""
 
-#: src/app/DBusControl.cpp:297
+#: src/app/DBusControl.cpp:400
 #, kde-format
 msgctxt "@label master fader"
 msgid "Headphones"
 msgstr ""
 
-#: src/app/Desktop.cpp:209
+#: src/app/Desktop.cpp:218
 #, kde-format
 msgid "Could not write %1"
 msgstr ""
 
-#: src/app/Desktop.cpp:213 src/app/main.cpp:45
+#: src/app/Desktop.cpp:222 src/app/main.cpp:45
 #, kde-format
 msgid "A stream mix console for Linux"
 msgstr ""
 
-#: src/app/Desktop.cpp:246
+#: src/app/Desktop.cpp:255
 #, kde-format
 msgid "Could not remove %1"
 msgstr ""
 
-#: src/app/Desktop.cpp:353 src/app/Desktop.cpp:413 src/app/Tray.cpp:33
+#: src/app/Desktop.cpp:362 src/app/Desktop.cpp:504 src/app/Tray.cpp:33
 #: src/app/Tray.cpp:34 src/app/main.cpp:44
 #, kde-format
 msgid "Rostrum"
 msgstr ""
 
-#: src/app/Desktop.cpp:369
+#: src/app/Desktop.cpp:390
 #, kde-format
-msgid "Headphones disconnected, scene held."
-msgstr ""
-
-#: src/app/Desktop.cpp:370
-#, kde-format
-msgid "%1 went away. Plug it back in and routes come back on their own."
-msgstr ""
-
-#: src/app/Desktop.cpp:376
-#, kde-format
-msgid "Check your stream audio"
-msgstr ""
-
-#: src/app/Desktop.cpp:381
-#, kde-format
-msgid "OBS stopped recording Rostrum."
-msgstr ""
-
-#: src/app/Desktop.cpp:387
-#, kde-format
-msgid "Mic disconnected, stream mic silent."
-msgstr ""
-
-#: src/app/Desktop.cpp:388
-#, kde-format
-msgid "%1 went away. Your stream mic stays silent until it comes back."
-msgstr ""
-
-#: src/app/Desktop.cpp:391
-#, kde-format
-msgid "Mic disconnected."
+msgid ""
+"Rostrum includes OpenDeck plugin %1 (installed: %2). Update it, then restart "
+"OpenDeck."
 msgstr ""
 
 #: src/app/Desktop.cpp:392
 #, kde-format
-msgid "%1 went away. Using %2 until it comes back."
+msgid ""
+"Rostrum includes OpenDeck plugin %1 (installed: %2). Update it in Rostrum's "
+"Settings → Integrations, then restart OpenDeck."
+msgstr ""
+
+#: src/app/Desktop.cpp:396
+#, kde-format
+msgctxt "@action:button notification"
+msgid "Update"
+msgstr ""
+
+#: src/app/Desktop.cpp:397
+#, kde-format
+msgctxt "@action notification"
+msgid "Open Settings"
 msgstr ""
 
 #: src/app/Desktop.cpp:399
 #, kde-format
+msgid "OpenDeck plugin update"
+msgstr ""
+
+#: src/app/Desktop.cpp:414
+#, kde-format
+msgid "OpenDeck plugin updated"
+msgstr ""
+
+#: src/app/Desktop.cpp:414
+#, kde-format
+msgid "Restart OpenDeck to load the new Rostrum actions."
+msgstr ""
+
+#: src/app/Desktop.cpp:417
+#, kde-format
+msgid "OpenDeck plugin not updated"
+msgstr ""
+
+#: src/app/Desktop.cpp:418
+#, kde-format
+msgid "See Settings → Integrations → OpenDeck."
+msgstr ""
+
+#: src/app/Desktop.cpp:459
+#, kde-format
+msgid "Headphones disconnected, scene held."
+msgstr ""
+
+#: src/app/Desktop.cpp:460
+#, kde-format
+msgid "%1 went away. Plug it back in and routes come back on their own."
+msgstr ""
+
+#: src/app/Desktop.cpp:466
+#, kde-format
+msgid "Check your stream audio"
+msgstr ""
+
+#: src/app/Desktop.cpp:471
+#, kde-format
+msgid "OBS stopped recording Rostrum."
+msgstr ""
+
+#: src/app/Desktop.cpp:477
+#, kde-format
+msgid "Mic disconnected, stream mic silent."
+msgstr ""
+
+#: src/app/Desktop.cpp:478
+#, kde-format
+msgid "%1 went away. Your stream mic stays silent until it comes back."
+msgstr ""
+
+#: src/app/Desktop.cpp:481
+#, kde-format
+msgid "Mic disconnected."
+msgstr ""
+
+#: src/app/Desktop.cpp:482
+#, kde-format
+msgid "%1 went away. Using %2 until it comes back."
+msgstr ""
+
+#: src/app/Desktop.cpp:489
+#, kde-format
 msgid "Studio Voice turned off"
 msgstr ""
 
-#: src/app/Desktop.cpp:400
+#: src/app/Desktop.cpp:490
 #, kde-format
 msgid ""
 "PipeWire stopped twice right after it started. Your mic works without "
@@ -2253,44 +2330,44 @@ msgctxt "@action:button"
 msgid "Installed (newer)"
 msgstr ""
 
-#: src/app/OpenDeckSetup.cpp:162
+#: src/app/OpenDeckSetup.cpp:176
 #, kde-format
 msgctxt "@info"
 msgid "Could not open the OpenDeck website."
 msgstr ""
 
-#: src/app/OpenDeckSetup.cpp:179
+#: src/app/OpenDeckSetup.cpp:193
 #, kde-format
 msgctxt "@info"
 msgid ""
 "Plugin installed. Restart OpenDeck, then drag a Rostrum action onto a key."
 msgstr ""
 
-#: src/app/OpenDeckSetup.cpp:180
+#: src/app/OpenDeckSetup.cpp:194
 #, kde-format
 msgctxt "@info"
 msgid "The plugin already matches this release. Nothing was changed."
 msgstr ""
 
-#: src/app/OpenDeckSetup.cpp:183
+#: src/app/OpenDeckSetup.cpp:197
 #, kde-format
 msgctxt "@info"
 msgid "Choose an OpenDeck installation or plugins folder first."
 msgstr ""
 
-#: src/app/OpenDeckSetup.cpp:187
+#: src/app/OpenDeckSetup.cpp:201
 #, kde-format
 msgctxt "@info"
 msgid "The plugins folder is missing or could not be created: %1."
 msgstr ""
 
-#: src/app/OpenDeckSetup.cpp:190
+#: src/app/OpenDeckSetup.cpp:204
 #, kde-format
 msgctxt "@info"
 msgid "Python 3 was not found. Install python3 and try again."
 msgstr ""
 
-#: src/app/OpenDeckSetup.cpp:194
+#: src/app/OpenDeckSetup.cpp:208
 #, kde-format
 msgctxt "@info"
 msgid ""
@@ -2298,14 +2375,14 @@ msgid ""
 "replaced."
 msgstr ""
 
-#: src/app/OpenDeckSetup.cpp:198
+#: src/app/OpenDeckSetup.cpp:212
 #, kde-format
 msgctxt "@info"
 msgid ""
 "The plugin destination is a link or is not a folder: %1. It was not replaced."
 msgstr ""
 
-#: src/app/OpenDeckSetup.cpp:203
+#: src/app/OpenDeckSetup.cpp:217
 #, kde-format
 msgctxt "@info"
 msgid ""
@@ -2313,13 +2390,13 @@ msgid ""
 "plugin was not replaced."
 msgstr ""
 
-#: src/app/OpenDeckSetup.cpp:208
+#: src/app/OpenDeckSetup.cpp:222
 #, kde-format
 msgctxt "@info"
 msgid "Could not replace the plugin at %1. The previous copy was kept."
 msgstr ""
 
-#: src/app/OpenDeckSetup.cpp:213
+#: src/app/OpenDeckSetup.cpp:227
 #, kde-format
 msgctxt "@info"
 msgid ""

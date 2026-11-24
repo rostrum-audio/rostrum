@@ -344,6 +344,11 @@ only: a Stream key never changes what you hear, and a "for me" key never puts a 
 the stream. Keys show percent of fader travel. These need Rostrum on D-Bus; in CLI mode they show
 Unavailable.
 
+When a Rostrum update brings a newer plugin and an older one is installed, Rostrum shows one
+notification about 10 seconds after it starts, once per plugin version. Its Update button does what
+Settings → Integrations → OpenDeck → Update does; restart OpenDeck afterwards. Clicking the
+notification opens Settings.
+
 The plugin keeps its own connection to the session D-Bus, so a hold ends if the plugin stops. When
 it cannot connect, it uses `rostrum --no-start` instead and tries D-Bus again every 5 seconds.
 Until then Push to talk shows Unavailable, and Panic mute, Switch scene and Studio Voice show plain

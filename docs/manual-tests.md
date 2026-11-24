@@ -837,6 +837,17 @@ No physical deck is needed for the install checks.
      Headphones only, the key reads "off stream", and Spotify still plays in your headphones.
    - Mute Music fully, then press a "for me" key on Music: you hear it, and the stream does not
      get it (the mixer shows Headphones only).
+8. Update notice, in a test instance with its own config. Install plugin 1.3.0 into the selected
+   OpenDeck config (an older Rostrum's bundle, or `Version` in its `manifest.json` edited to
+   1.3.0), then start Rostrum.
+   - About 10 seconds after start, one "OpenDeck plugin update" notice names 1.4.0 and 1.3.0.
+     Quit and start Rostrum again: no second notice (`[opendeck] notified_version` is 1.4.0).
+   - Clear `notified_version`, start again, and press Update on the notice: the plugin is
+     replaced, and a follow-up notice says to restart OpenDeck.
+   - Repeat with the installed copy back at 1.3.0, and click the notice body instead: Rostrum's
+     window comes forward on the Settings page.
+   - With `notified_version` cleared and a notification server that does not list `actions`, the
+     notice has no buttons and its body names Settings → Integrations.
 
 ## 32. Separate OBS recording tracks
 

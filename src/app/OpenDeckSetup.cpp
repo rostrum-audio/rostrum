@@ -153,10 +153,24 @@ void OpenDeckSetup::clearFolder()
     m_app->saveSettingsSoon();
     Q_EMIT m_app->settingsChanged();
 }
+void OpenDeckSetup::checkForUpdate()
+{
+    refresh();
+    const opendeck::NoticeFacts facts{m_state,
+                                      opendeck::bundledVersion(),
+                                      opendeck::installedVersion(m_target),
+                                      m_app->settings().openDeckNotifiedVersion,
+                                      !needsChoice() && !m_target.plugins.isEmpty(),
+                                      m_python};
+    if (opendeck::shouldNotify(facts))
+        Q_EMIT updateAvailable(facts.bundled, facts.installed);
+}
 void OpenDeckSetup::activate()
 {
-    if (!actionEnabled())
+    if (!actionEnabled()) {
+        Q_EMIT finished(false, status());
         return;
+    }
     if (m_state == opendeck::State::NotFound) {
         if (!QDesktopServices::openUrl(QUrl(QStringLiteral("https://opendeck.nekename.me/")))) {
             m_feedback = i18nc("@info", "Could not open the OpenDeck website.");
@@ -217,6 +231,7 @@ void OpenDeckSetup::activate()
         }
         m_busy = false;
         refresh();
+        Q_EMIT finished(result.error == opendeck::Error::None, m_feedback);
     });
 }
 } // namespace rostrum::app

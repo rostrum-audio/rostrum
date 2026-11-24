@@ -104,6 +104,7 @@ Settings restoredSettings(const Settings &current, const Settings &backup)
     r.lastUpdateCheck = current.lastUpdateCheck;
     r.openDeckPluginsFolder = current.openDeckPluginsFolder;
     r.openDeckInstallation = current.openDeckInstallation;
+    r.openDeckNotifiedVersion = current.openDeckNotifiedVersion;
     r.windowWidth = current.windowWidth;
     r.windowHeight = current.windowHeight;
     r.lastPage = current.lastPage;

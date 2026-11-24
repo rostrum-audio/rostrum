@@ -150,6 +150,14 @@ int main(int argc, char *argv[])
     rostrum::app::Desktop desktop(&controller, nullptr);
     rostrum::app::Preferences preferences(&controller, nullptr);
     rostrum::app::OpenDeckSetup openDeckSetup(&controller, nullptr);
+    // A newer bundled plugin than the installed one: say so once, after login and OpenDeck settle.
+    QObject::connect(&openDeckSetup, &rostrum::app::OpenDeckSetup::updateAvailable, &desktop,
+                     &rostrum::app::Desktop::notifyOpenDeckUpdate);
+    QObject::connect(&desktop, &rostrum::app::Desktop::openDeckUpdateRequested, &openDeckSetup,
+                     &rostrum::app::OpenDeckSetup::activate);
+    QObject::connect(&openDeckSetup, &rostrum::app::OpenDeckSetup::finished, &desktop,
+                     &rostrum::app::Desktop::notifyOpenDeckResult);
+    QTimer::singleShot(std::chrono::seconds(10), &openDeckSetup, &rostrum::app::OpenDeckSetup::checkForUpdate);
     rostrum::app::CrashReports crashReports(&controller, nullptr);
     crashReports.start();
     rostrum::app::Updater updater(&controller, nullptr);

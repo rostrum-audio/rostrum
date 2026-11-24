@@ -102,6 +102,15 @@ Desktop::Desktop(AppController *app, QObject *parent) : QObject(parent), m_app(a
                                               QStringLiteral("StatusNotifierHostRegistered"), this,
                                               SLOT(checkTray()));
         checkTray();
+        const QString service = QStringLiteral("org.freedesktop.Notifications");
+        const QString path = QStringLiteral("/org/freedesktop/Notifications");
+        auto bus = QDBusConnection::sessionBus();
+        bus.connect(service, path, service, QStringLiteral("ActionInvoked"), this,
+                    SLOT(onNotificationAction(uint, QString)));
+        bus.connect(service, path, service, QStringLiteral("NotificationClosed"), this,
+                    SLOT(onNotificationClosed(uint, uint)));
+        bus.connect(service, path, service, QStringLiteral("ActivationToken"), this,
+                    SLOT(onActivationToken(uint, QString)));
     }
     const QStringList args = QCoreApplication::arguments();
     m_startHidden = m_app->settings().wizardDone &&
@@ -364,6 +373,87 @@ void Desktop::notifyFeedback(const QString &iconName, const QString &text)
     });
 }
 
+void Desktop::notifyOpenDeckUpdate(const QString &bundled, const QString &installed)
+{
+    if (!m_enabled) {
+        return;
+    }
+    const QDBusMessage capabilities = QDBusMessage::createMethodCall(
+        QStringLiteral("org.freedesktop.Notifications"), QStringLiteral("/org/freedesktop/Notifications"),
+        QStringLiteral("org.freedesktop.Notifications"), QStringLiteral("GetCapabilities"));
+    auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(capabilities), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this, bundled, installed](QDBusPendingCallWatcher *w) {
+        const QDBusPendingReply<QStringList> reply = *w;
+        w->deleteLater();
+        const bool buttons = reply.isValid() && reply.value().contains(QStringLiteral("actions"));
+        const QString body =
+            buttons ? i18n("Rostrum includes OpenDeck plugin %1 (installed: %2). Update it, then restart OpenDeck.",
+                           bundled, installed)
+                    : i18n("Rostrum includes OpenDeck plugin %1 (installed: %2). Update it in Rostrum's Settings → "
+                           "Integrations, then restart OpenDeck.",
+                           bundled, installed);
+        const QStringList actions =
+            buttons ? QStringList{QStringLiteral("update"), i18nc("@action:button notification", "Update"),
+                                  QStringLiteral("default"), i18nc("@action notification", "Open Settings")}
+                    : QStringList();
+        notify(i18n("OpenDeck plugin update"), body, 1, &m_openDeckNotificationId, actions, [this, bundled] {
+            // Shown: never announce this bundle again, even if the notice is ignored.
+            m_app->settings().openDeckNotifiedVersion = bundled;
+            m_app->saveSettingsSoon();
+        });
+    });
+}
+
+void Desktop::notifyOpenDeckResult(bool succeeded, const QString &feedback)
+{
+    if (!m_openDeckUpdating) {
+        return; // the Settings page shows its own result
+    }
+    m_openDeckUpdating = false;
+    if (succeeded) {
+        notify(i18n("OpenDeck plugin updated"), i18n("Restart OpenDeck to load the new Rostrum actions."), 1,
+               &m_openDeckNotificationId);
+    } else {
+        notify(i18n("OpenDeck plugin not updated"),
+               feedback + QLatin1Char(' ') + i18n("See Settings → Integrations → OpenDeck."), 1,
+               &m_openDeckNotificationId);
+    }
+}
+
+void Desktop::onNotificationAction(uint id, const QString &key)
+{
+    if (id == 0 || id != m_openDeckNotificationId) {
+        return;
+    }
+    if (key == QLatin1String("update")) {
+        m_openDeckUpdating = true;
+        Q_EMIT openDeckUpdateRequested();
+    } else if (key == QLatin1String("default")) {
+        if (!m_activationToken.isEmpty()) {
+            // Qt's Wayland platform takes the token from here when the window asks to be activated.
+            qputenv("XDG_ACTIVATION_TOKEN", m_activationToken.toUtf8());
+            m_activationToken.clear();
+        }
+        m_app->setLastPage(QStringLiteral("settings"));
+        Q_EMIT m_app->raiseRequested();
+    }
+}
+
+void Desktop::onNotificationClosed(uint id, uint /*reason*/)
+{
+    if (id != 0 && id == m_openDeckNotificationId) {
+        m_openDeckNotificationId = 0;
+        m_activationToken.clear();
+    }
+}
+
+void Desktop::onActivationToken(uint id, const QString &token)
+{
+    if (id != 0 && id == m_openDeckNotificationId) {
+        m_activationToken = token;
+    }
+}
+
 void Desktop::notifyHeadphonesLost(const QString &description)
 {
     notify(i18n("Headphones disconnected, scene held."),
@@ -402,7 +492,8 @@ void Desktop::notifyMicFiltersTripped()
            1, &m_micFiltersNotificationId);
 }
 
-void Desktop::notify(const QString &summary, const QString &body, uchar urgency, uint *id)
+void Desktop::notify(const QString &summary, const QString &body, uchar urgency, uint *id,
+                     const QStringList &actions, std::function<void()> shown)
 {
     if (!m_enabled) {
         return;
@@ -410,15 +501,18 @@ void Desktop::notify(const QString &summary, const QString &body, uchar urgency,
     QDBusMessage msg = QDBusMessage::createMethodCall(
         QStringLiteral("org.freedesktop.Notifications"), QStringLiteral("/org/freedesktop/Notifications"),
         QStringLiteral("org.freedesktop.Notifications"), QStringLiteral("Notify"));
-    msg << i18n("Rostrum") << *id << QStringLiteral(ROSTRUM_APP_ID) << summary << body << QStringList()
+    msg << i18n("Rostrum") << *id << QStringLiteral(ROSTRUM_APP_ID) << summary << body << actions
         << QVariantMap{{QStringLiteral("desktop-entry"), QStringLiteral(ROSTRUM_APP_ID)},
                        {QStringLiteral("urgency"), QVariant::fromValue<uchar>(urgency)}}
         << -1;
     auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(msg), this);
-    connect(watcher, &QDBusPendingCallWatcher::finished, this, [id](QDBusPendingCallWatcher *w) {
+    connect(watcher, &QDBusPendingCallWatcher::finished, this, [id, shown](QDBusPendingCallWatcher *w) {
         QDBusPendingReply<uint> reply = *w;
         if (reply.isValid()) {
             *id = reply.value();
+            if (shown) {
+                shown();
+            }
         } else {
             qCWarning(lcDesktop) << "Notification failed:" << reply.error().message();
         }

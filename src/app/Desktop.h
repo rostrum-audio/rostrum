@@ -2,6 +2,9 @@
 
 #include <QObject>
 #include <QPointer>
+#include <QStringList>
+
+#include <functional>
 #include <QtQml/qqmlregistration.h>
 
 class QQmlEngine;
@@ -60,22 +63,35 @@ public:
     // OBS lost Rostrum captures after PipeWire restarted; `urgency` 2 if live, else 1.
     void notifyCaptureLost(const QString &body, uchar urgency);
 
+public Q_SLOTS:
+    // Once per bundled version: an older OpenDeck plugin is installed. Records the version only
+    // when the notification server accepted the notice.
+    void notifyOpenDeckUpdate(const QString &bundled, const QString &installed);
+    // After an update started from that notice: done, or why not.
+    void notifyOpenDeckResult(bool succeeded, const QString &feedback);
+
 Q_SIGNALS:
     void trayChanged();
     void changed();
+    void openDeckUpdateRequested();
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private Q_SLOTS:
     void checkTray();
+    void onNotificationAction(uint id, const QString &key);
+    void onNotificationClosed(uint id, uint reason);
+    void onActivationToken(uint id, const QString &token);
 
 private:
     void hideMinimized();
     void applyHotkeys();
     void notifyHeadphonesLost(const QString &description);
     // Replaces the earlier notification with the same `id`, and stores the new id there.
-    void notify(const QString &summary, const QString &body, uchar urgency, uint *id);
+    // `actions` are key/label pairs; `shown` runs once the server has returned an id.
+    void notify(const QString &summary, const QString &body, uchar urgency, uint *id,
+                const QStringList &actions = {}, std::function<void()> shown = {});
     void showFeedback(const QString &iconName, const QString &text);
     void notifyFeedback(const QString &iconName, const QString &text);
     void notifyMicLost(const QString &description);
@@ -96,6 +112,9 @@ private:
     uint m_feedbackNotificationId = 0;
     uint m_micNotificationId = 0;
     uint m_micFiltersNotificationId = 0;
+    uint m_openDeckNotificationId = 0;
+    bool m_openDeckUpdating = false;
+    QString m_activationToken; // from the OpenDeck notice, used to raise the window on Wayland
 };
 
 } // namespace rostrum::app

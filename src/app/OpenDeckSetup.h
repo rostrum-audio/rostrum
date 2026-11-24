@@ -41,8 +41,15 @@ public:
     Q_INVOKABLE void chooseFolder(const QUrl &folder);
     Q_INVOKABLE void clearFolder();
     Q_INVOKABLE void activate();
+public Q_SLOTS:
+    // Refreshes, then emits updateAvailable when an older plugin is installed and this bundle's
+    // version has not been announced yet (opendeck::shouldNotify).
+    void checkForUpdate();
 Q_SIGNALS:
     void changed();
+    void updateAvailable(const QString &bundled, const QString &installed);
+    // An activate() finished: the install ran, or nothing could be done (feedback says why).
+    void finished(bool succeeded, const QString &feedback);
 
 private:
     static OpenDeckSetup *s_instance;
