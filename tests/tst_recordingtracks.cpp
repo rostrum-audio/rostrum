@@ -1,3 +1,4 @@
+#include "IsolatedHome.h"
 #include "RecordingFixture.h"
 #include "app/AppController.h"
 #include "app/Desktop.h"
@@ -35,6 +36,8 @@ using namespace rostrum::obs;
 class TestRecordingTracks : public QObject
 {
     Q_OBJECT
+    // These tests build an AppController and an Obs, which save settings and OBS state.
+    test::IsolatedHome m_home;
     RecordingSnapshot snapshot() const
     {
         RecordingSnapshot s;
@@ -444,6 +447,9 @@ private Q_SLOTS:
     }
     void initTestCase()
     {
+        // Stop before any app object exists if a save could reach the person's own files.
+        const QString leak = m_home.leak();
+        QVERIFY2(leak.isEmpty(), qPrintable(QStringLiteral("would write outside the test folder: ") + leak));
         KLocalizedString::setApplicationDomain("rostrum");
         QStandardPaths::setTestModeEnabled(true);
     }

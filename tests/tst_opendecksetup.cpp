@@ -1,3 +1,4 @@
+#include "IsolatedHome.h"
 #include "app/AppController.h"
 #include "app/OpenDeckSetup.h"
 #include "core/OpenDeck.h"
@@ -31,7 +32,7 @@ public Q_SLOTS:
 class TestOpenDeckSetup : public QObject
 {
     Q_OBJECT
-    QTemporaryDir m_home;
+    test::IsolatedHome m_home;
     UrlCatcher m_urls;
 
     static void setVersion(const QString &plugins, const QString &version)
@@ -49,13 +50,11 @@ class TestOpenDeckSetup : public QObject
 private Q_SLOTS:
     void initTestCase()
     {
+        // Nothing here may reach the user's home, config, audio session or browser.
+        const QString leak = m_home.leak();
+        QVERIFY2(leak.isEmpty(), qPrintable(QStringLiteral("would write outside the test folder: ") + leak));
         KLocalizedString::setApplicationDomain("rostrum");
         QStandardPaths::setTestModeEnabled(true);
-        QVERIFY(m_home.isValid());
-        // Nothing here may reach the user's home, config, audio session or browser.
-        qputenv("HOME", m_home.path().toUtf8());
-        qputenv("XDG_CONFIG_HOME", (m_home.path() + QStringLiteral("/config")).toUtf8());
-        qputenv("PIPEWIRE_REMOTE", "rostrum-test-none");
         QDesktopServices::setUrlHandler(QStringLiteral("https"), &m_urls, "open");
     }
 
