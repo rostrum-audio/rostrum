@@ -153,13 +153,45 @@ async def exercise(controls, observe):
     assert (await observe.snapshot())[0]['stream']['muted']
     await controls.panic()
 
+async def properties_follow_signals(controls):
+    # MicMuted must change through PropertiesChanged decoded from real bytes, not a new GetAll.
+    gets = []
+    original = controls.bus.call
+    async def counting(destination, path, interface, member, *args, **kwargs):
+        if member == 'GetAll':
+            gets.append(member)
+        return await original(destination, path, interface, member, *args, **kwargs)
+    controls.bus.call = counting
+    before = controls.props['MicMuted']
+    await controls.toggle('mic')
+    for _ in range(20):
+        if controls.props.get('MicMuted') != before:
+            break
+        await asyncio.sleep(0.05)
+    assert controls.props.get('MicMuted') is (not before), controls.props
+    assert not gets, gets
+    await controls.toggle('mic')
+    controls.bus.call = original
+
+async def hold_and_release(controls):
+    if not (await controls.snapshot())[0]['mic']['muted']:
+        await controls.toggle('mic')
+    await controls.press('push_to_talk')
+    await asyncio.sleep(0.5)
+    assert controls.props['MicMuted'] is False, controls.props
+    assert not (await controls.snapshot())[0]['mic']['muted']
+    await controls.release('push_to_talk')
+    await asyncio.sleep(0.1)
+    assert controls.props['MicMuted'] is True, controls.props
+
 async def main():
     direct = plugin.Controls(executable=sys.argv[1])
     await direct.ensure_bus()
     assert direct.owner and direct.owner.startswith(':'), (direct.owner, direct.cli_only)
     assert not direct.cli_only
     await exercise(direct, direct)
-    await direct.release('push_to_talk')
+    await properties_follow_signals(direct)
+    await hold_and_release(direct)
 
     async def fail_bus(address=None):
         raise OSError('no session bus')
@@ -180,6 +212,40 @@ fi
 gdbus call --session --dest $DEST --object-path $OBJ --method $IFACE.PressAction push_to_talk >/dev/null
 sleep 0.5
 check "hold released when the client left" "(<true>,)" "$(prop MicMuted)"
+
+# The OpenDeck plugin holds push to talk on its own connection: live while it runs, released
+# by Rostrum when the plugin dies, even by SIGKILL with no chance to call ReleaseAction.
+if command -v python3 >/dev/null 2>&1; then
+    "$B" --mute-mic
+    marker="$XDG_STATE_HOME/opendeck-hold"
+    rm -f "$marker"
+    python3 -B - "$(dirname "$0")/../tools/opendeck/dev.getrostrum.Rostrum.sdPlugin/plugin.py" "$marker" <<'PYHOLD' &
+import asyncio
+import importlib.util
+import sys
+spec = importlib.util.spec_from_file_location('rostrum_plugin', sys.argv[1])
+plugin = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(plugin)
+
+async def main():
+    controls = plugin.Controls()
+    await controls.ensure_bus()
+    await controls.press('push_to_talk')
+    open(sys.argv[2], 'w').close()
+    await asyncio.sleep(60)
+
+asyncio.run(main())
+PYHOLD
+    HOLD=$!
+    i=0
+    while [ ! -e "$marker" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+    sleep 0.5
+    check "plugin hold still live after 0.5 s" "(<false>,)" "$(prop MicMuted)"
+    kill -KILL $HOLD
+    wait $HOLD 2>/dev/null
+    sleep 0.5
+    check "plugin hold released when the plugin was killed" "(<true>,)" "$(prop MicMuted)"
+fi
 check "error name" "GDBus.Error:dev.getrostrum.Rostrum1.Error.NoSuchScene" \
     "$(gdbus call --session --dest $DEST --object-path $OBJ --method $IFACE.SwitchScene Nowhere 2>&1 | grep -o 'GDBus.Error:[A-Za-z0-9.]*')"
 
