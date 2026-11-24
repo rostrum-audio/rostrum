@@ -113,6 +113,8 @@ public:
     void setBusMixVolume(const QString &id, Mix mix, double volume);
     // Both levels by the same amount, linked or not (the Compact View fader).
     void setBusMixVolumeTogether(const QString &id, Mix mix, double volume);
+    // One level of a playback bus, never the other, linked or not (deck side keys).
+    void setBusMixVolumeAlone(const QString &id, Mix mix, double volume);
     void setBusLinked(const QString &id, bool linked);
     void setBusMuted(const QString &id, bool muted);
     void setBusBalance(const QString &id, double balance); // playback buses; -1 left .. 1 right

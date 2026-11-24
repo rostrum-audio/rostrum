@@ -69,6 +69,11 @@ void Engine::setBusMixVolume(const QString &id, Mix mix, double volume)
     setMixLevels(id, mix, volume, b && b->linked);
 }
 
+void Engine::setBusMixVolumeAlone(const QString &id, Mix mix, double volume)
+{
+    setMixLevels(id, mix, volume, false);
+}
+
 void Engine::setBusMixVolumeTogether(const QString &id, Mix mix, double volume)
 {
     setMixLevels(id, mix, volume, true);

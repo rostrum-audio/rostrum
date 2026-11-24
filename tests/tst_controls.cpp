@@ -10,6 +10,8 @@
 #include <QTemporaryDir>
 #include <QTest>
 
+#include <cmath>
+
 using namespace rostrum;
 using Result = engine::Controls::Result;
 
@@ -365,6 +367,98 @@ private Q_SLOTS:
         r = remote::resolveVolumeTarget(scene, QStringLiteral("chat.stream"));
         QCOMPARE(r.busId, QStringLiteral("chat"));
         QVERIFY(!r.mix);
+    }
+
+    void sides()
+    {
+        QCOMPARE(remote::parseSide(QStringLiteral("stream")), std::optional(remote::Side::Stream));
+        QCOMPARE(remote::parseSide(QStringLiteral("Phones")), std::optional(remote::Side::Phones));
+        QCOMPARE(remote::parseSide(QStringLiteral("both")), std::optional(remote::Side::Both));
+        QVERIFY(!remote::parseSide(QString()));
+        QVERIFY(!remote::parseSide(QStringLiteral("vod")));
+        QCOMPARE(remote::sideName(remote::Side::Phones), QStringLiteral("phones"));
+    }
+
+    void stepRequests()
+    {
+        using P = remote::StepProblem;
+        const Scene scene = defaults::scene();
+        const auto step = [&](const char *bus, const char *side, double delta, bool perMix = true) {
+            return remote::resolveStep(scene, QString::fromLatin1(bus), QString::fromLatin1(side), delta, perMix);
+        };
+        auto t = step("Game", "stream", -0.05);
+        QCOMPARE(t.problem, P::None);
+        QCOMPARE(t.busId, QStringLiteral("game"));
+        QCOMPARE(t.side, remote::Side::Stream);
+        QCOMPARE(step("nowhere", "both", 0.1).problem, P::NoSuchBus);
+        QCOMPARE(step("game", "sideways", 0.1).problem, P::BadSide);
+        QCOMPARE(step("mic", "stream", 0.1).problem, P::OneLevelBus);
+        QCOMPARE(step("stream", "phones", 0.1).problem, P::OneLevelBus);
+        QCOMPARE(step("mic", "both", 0.1).problem, P::None);
+        QCOMPARE(step("game", "both", 1.5).problem, P::BadDelta);
+        QCOMPARE(step("game", "both", std::nan("")).problem, P::BadDelta);
+        QCOMPARE(step("game", "both", -1.0).problem, P::None);
+        QCOMPARE(step("game", "stream", 0.1, false).problem, P::NoPerMixLevels);
+        QCOMPARE(step("game", "both", 0.1, false).problem, P::None);
+        QCOMPARE(step("mic", "both", 0.1, false).problem, P::None);
+    }
+
+    void inMixRequests()
+    {
+        using P = remote::InMixProblem;
+        const Scene scene = defaults::scene();
+        const auto in = [&](const char *bus, const char *side) {
+            return remote::resolveInMix(scene, QString::fromLatin1(bus), QString::fromLatin1(side));
+        };
+        QCOMPARE(in("Game", "stream").problem, P::None);
+        QCOMPARE(in("Game", "stream").busId, QStringLiteral("game"));
+        QCOMPARE(in("game", "phones").mix, Mix::Phones);
+        QCOMPARE(in("stream", "stream").problem, P::NotPlaybackBus);
+        QCOMPARE(in("mic", "phones").problem, P::NotPlaybackBus);
+        QCOMPARE(in("game", "both").problem, P::BadSide);
+        QCOMPARE(in("nowhere", "stream").problem, P::NoSuchBus);
+    }
+
+    void toggleInMixTruthTable()
+    {
+        using D = Destination;
+        struct Row { D d; bool muted; Mix mix; D toD; bool toMuted; };
+        const Row rows[] = {
+            {D::Both, false, Mix::Stream, D::Phones, false}, {D::Stream, false, Mix::Stream, D::Stream, true},
+            {D::Phones, false, Mix::Stream, D::Both, false}, {D::Both, true, Mix::Stream, D::Stream, false},
+            {D::Stream, true, Mix::Stream, D::Stream, false}, {D::Phones, true, Mix::Stream, D::Stream, false},
+            {D::Both, false, Mix::Phones, D::Stream, false}, {D::Phones, false, Mix::Phones, D::Phones, true},
+            {D::Stream, false, Mix::Phones, D::Both, false}, {D::Both, true, Mix::Phones, D::Phones, false},
+            {D::Phones, true, Mix::Phones, D::Phones, false}, {D::Stream, true, Mix::Phones, D::Phones, false},
+        };
+        for (const Row &r : rows) {
+            const auto after = remote::toggledInMix(r.d, r.muted, r.mix);
+            QCOMPARE(after, (remote::InMix{r.toD, r.toMuted}));
+            const Mix other = r.mix == Mix::Stream ? Mix::Phones : Mix::Stream;
+            QCOMPARE(remote::playsIn(after.destination, after.muted, other), remote::playsIn(r.d, r.muted, other));
+            QCOMPARE(remote::playsIn(after.destination, after.muted, r.mix), !remote::playsIn(r.d, r.muted, r.mix));
+        }
+    }
+
+    void stepMovesOneLevelAlone()
+    {
+        Rig rig;
+        auto &e = rig.engine;
+        const auto game = [&] { return *e.scene().bus(QStringLiteral("game")); };
+        QVERIFY(game().linked);
+        e.setBusVolume(QStringLiteral("game"), 0.5);
+        e.setBusMixVolumeAlone(QStringLiteral("game"), Mix::Stream, 0.3);
+        QCOMPARE(game().volume, 0.3);
+        QCOMPARE(game().phonesVolume, 0.5); // linked, yet Headphones stayed
+        QVERIFY(game().linked);
+        e.setBusMixVolumeTogether(QStringLiteral("game"), Mix::Stream, 0.4); // a Both step keeps the gap
+        QCOMPARE(game().volume, 0.4);
+        QCOMPARE(game().phonesVolume, 0.6);
+        e.setBusMixVolumeAlone(QStringLiteral("game"), Mix::Stream, 1.0);
+        e.setBusMixVolumeAlone(QStringLiteral("game"), Mix::Phones, 0.5);
+        e.setBusMixVolumeTogether(QStringLiteral("game"), Mix::Stream, 1.1); // stops at the top
+        QCOMPARE(game().volume, 1.0);
+        QCOMPARE(game().phonesVolume, 0.5);
     }
 
     void volumeArguments()

@@ -57,4 +57,47 @@ struct VolumeTarget
 // "Chat.Stream"; otherwise a mix suffix is split off and the rest resolved.
 VolumeTarget resolveVolumeTarget(const Scene &scene, const QString &text);
 
+// A side of a playback bus for the deck keys: one mix, or both levels together.
+enum class Side { Stream, Phones, Both };
+// "stream", "phones" or "both", in any case. Anything else is no side.
+std::optional<Side> parseSide(const QString &text);
+QString sideName(Side side); // "stream", "phones" or "both"
+
+// A playback bus plays in a mix when it is not muted and its destination includes that mix.
+bool playsIn(Destination d, bool muted, Mix mix);
+
+struct InMix
+{
+    Destination destination = Destination::Both;
+    bool muted = false;
+    bool operator==(const InMix &) const = default;
+};
+// ToggleBusInMix: a bus that plays in `mix` comes off it (destination Both becomes the other mix
+// only; a bus only in `mix` is muted instead). One that does not comes back on. A muted bus
+// comes back on `mix` alone, since it was silent on the other side too. Whether the bus plays in
+// the other mix never changes.
+InMix toggledInMix(Destination d, bool muted, Mix mix);
+
+enum class StepProblem { None, NoSuchBus, BadSide, OneLevelBus, BadDelta, NoPerMixLevels };
+struct StepTarget
+{
+    QString busId;
+    Side side = Side::Both;
+    StepProblem problem = StepProblem::None;
+};
+// StepBusVolume's arguments. The mic and the masters have one level and take only "both". delta
+// must be finite and within -1..1. Without per-mix levels only "both" can move.
+StepTarget resolveStep(const Scene &scene, const QString &busText, const QString &sideText, double delta,
+                       bool perMixLevels);
+
+enum class InMixProblem { None, NoSuchBus, BadSide, NotPlaybackBus };
+struct InMixTarget
+{
+    QString busId;
+    Mix mix = Mix::Stream;
+    InMixProblem problem = InMixProblem::None;
+};
+// ToggleBusInMix's arguments: a playback bus and "stream" or "phones".
+InMixTarget resolveInMix(const Scene &scene, const QString &busText, const QString &sideText);
+
 } // namespace rostrum::remote
