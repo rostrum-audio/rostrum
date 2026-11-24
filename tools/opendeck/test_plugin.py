@@ -278,6 +278,43 @@ class PluginTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.titles(events)[-1], 'Panic mute')
         self.assertEqual(app.keys['key']['state'], 0)
 
+    async def test_studio_voice_toggles_through_rostrum(self):
+        # Rostrum flips the current value itself; a cached !MicFilters could be stale.
+        app, bus, runner, events = self.setup_plugin()
+        await self.appear(app, 'studioVoice')
+        await self.down(app)
+        calls = [(call['member'], call['args']) for call in bus.calls if call['interface'] == plugin.IFACE]
+        self.assertIn(('TriggerAction', ('toggle_mic_filters',)), calls)
+        self.assertFalse(any(member == 'SetMicFilters' for member, _ in calls))
+        self.assertFalse(any(event['event'] in ('showAlert', 'showOk') for event in events))
+        self.assertEqual(runner.commands, [])
+
+    async def test_studio_voice_state_from_mic_filters(self):
+        app, bus, _, events = self.setup_plugin()
+        await self.appear(app, 'studioVoice')
+        self.assertEqual(app.keys['key']['state'], 0)
+        self.assertEqual(self.titles(events)[-1], 'Voice off')
+        app.controls._on_signal(_signal(
+            'PropertiesChanged', 'sa{sv}as', (plugin.IFACE, {'MicFilters': True}, []),
+            plugin.PROPS_IFACE, sender=':1.42', path=plugin.OBJECT))
+        self.assertEqual(app.keys['key']['state'], 1)
+        self.assertEqual(self.titles(events)[-1], 'Voice on')
+
+    async def test_studio_voice_cli_only_is_neutral_and_still_toggles(self):
+        app, _, runner, events = self.setup_plugin(connect=False)
+        await self.appear(app, 'studioVoice')
+        self.assertEqual(self.titles(events)[-1], 'Studio Voice')
+        self.assertEqual(app.keys['key']['state'], 0)
+        await self.down(app)
+        self.assertIn(['/test/rostrum', '--no-start', '--action', 'toggle_mic_filters'], runner.commands)
+
+    async def test_push_to_talk_key_is_its_own_action(self):
+        # Without its own branch it would render as an unset bus key.
+        app, _, _, events = self.setup_plugin()
+        await self.appear(app, 'pushToTalk')
+        self.assertEqual(self.titles(events)[-1], 'Push to talk')
+        self.assertEqual(app.keys['key']['state'], 0)
+
     async def test_scene_active_when_current(self):
         app, _, _, events = self.setup_plugin()
         await self.appear(app, 'scene', {'scene': 'Live'})
@@ -359,7 +396,16 @@ class PluginTest(unittest.IsolatedAsyncioTestCase):
 
     def test_manifest_assets(self):
         manifest = json.loads((ROOT / 'manifest.json').read_text())
-        self.assertEqual(len(manifest['Actions']), 4)
+        # The installer offers Update only when the bundle is newer than the last release (1.2.0).
+        self.assertGreater(tuple(int(part) for part in manifest['Version'].split('.')), (1, 2, 0))
+        actions = {action['UUID'].removeprefix(plugin.PREFIX): action for action in manifest['Actions']}
+        self.assertEqual(set(actions), {'mic', 'panic', 'scene', 'bus', 'studioVoice', 'pushToTalk'})
+        # The plugin sends setState 1 for each of these; OpenDeck ignores a state the manifest
+        # lacks, and two states with one image look the same on the key.
+        for name in ('mic', 'panic', 'scene', 'bus', 'studioVoice', 'pushToTalk'):
+            images = [state['Image'] for state in actions[name]['States']]
+            self.assertEqual(len(images), 2, name)
+            self.assertNotEqual(images[0], images[1], name)
         self.assertNotIn('OnlyShowIn', manifest)
         self.assertTrue((ROOT / manifest['CodePathLin']).stat().st_mode & 0o111)
         for action in manifest['Actions']:

@@ -15,7 +15,14 @@ function(rostrum_embed_opendeck target)
             "${bundle}/images/mic.svg"
             "${bundle}/images/mic-muted.svg"
             "${bundle}/images/panic.svg"
+            "${bundle}/images/panic-active.svg"
             "${bundle}/images/scene.svg"
+            "${bundle}/images/scene-active.svg"
             "${bundle}/images/bus.svg"
+            "${bundle}/images/bus-muted.svg"
+            "${bundle}/images/studio-voice.svg"
+            "${bundle}/images/studio-voice-off.svg"
+            "${bundle}/images/push-to-talk.svg"
+            "${bundle}/images/push-to-talk-active.svg"
     )
 endfunction()

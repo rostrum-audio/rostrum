@@ -498,6 +498,14 @@ class Plugin:
             if name in self.scenes or current == name:
                 return int(current == name), name
             return 0, 'Missing'
+        if action == 'studioVoice':
+            # MicFilters means switched on, not that the filters are running.
+            if 'MicFilters' in props:
+                state = int(bool(props['MicFilters']))
+                return state, 'Voice on' if state else 'Voice off'
+            return 0, 'Studio Voice'
+        if action == 'pushToTalk':
+            return 0, 'Push to talk'
         if action == 'mic':
             if 'MicMuted' in props:
                 state = int(bool(props['MicMuted']))
@@ -579,7 +587,7 @@ class Plugin:
         payload = event.get('payload', {})
         if kind == 'willAppear':
             action = event.get('action', '').removeprefix(PREFIX)
-            if action not in ('mic', 'panic', 'scene', 'bus'):
+            if action not in ('mic', 'panic', 'scene', 'bus', 'studioVoice', 'pushToTalk'):
                 return
             self.keys[context] = {'action': action, 'settings': payload.get('settings', {})}
             await self.poll()
@@ -628,6 +636,10 @@ class Plugin:
                 acted = True
             elif action == 'panic':
                 await self._invoke(self.controls.panic)
+                acted = True
+            elif action == 'studioVoice':
+                # Rostrum flips its own value; SetMicFilters(!cached) could undo a window change.
+                await self._invoke(self.controls.trigger, 'toggle_mic_filters')
                 acted = True
             elif action == 'scene' and settings.get('scene') in self.scenes:
                 await self._invoke(self.controls.scene, settings['scene'])
