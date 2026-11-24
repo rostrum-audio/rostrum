@@ -341,7 +341,9 @@ hotkey share one hold, so releasing either one ends it.
 Volume down and Volume up step a bus by the key's Step (5% by default) and repeat while held. The
 Side setting (Both, Stream, My headphones) on them and on Toggle bus mute moves or mutes one side
 only: a Stream key never changes what you hear, and a "for me" key never puts a muted bus back on
-the stream. Keys show percent of fader travel. These need Rostrum on D-Bus; in CLI mode they show
+the stream. The mic and the masters have one level: a side key on them reads Both only, except
+the Stream master set to Stream and the Headphones master set to My headphones. Keys show percent
+of fader travel. These need Rostrum on D-Bus; in CLI mode they show
 Unavailable.
 
 When a Rostrum update brings a newer plugin and an older one is installed, Rostrum shows one

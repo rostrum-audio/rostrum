@@ -404,6 +404,16 @@ def _step_setting(settings):
     return min(25, max(1, round(step)))
 
 
+def _one_level_side_ok(bus_id, side):
+    """Whether a key with this side may act on a one-level bus (the mic or a master).
+
+    A side key changes its own side only: the Stream master is all of the stream and the Headphones
+    master all of what you hear, so each takes its own side. The mic, or a master with the other
+    side, would change both or the wrong one.
+    """
+    return side == 'both' or (bus_id in ('stream', 'phones') and side == bus_id)
+
+
 def _percent(level):
     return round(level * 100)
 
@@ -643,7 +653,9 @@ class Plugin:
             return 0, 'Needs update', None  # this Rostrum has no ListBusLevels
         name, props = bus['name'], self._props()
         if not bus['destination']:
-            # The mic or a master: one level, so the side does not apply.
+            # The mic or a master: one level, moved as a whole.
+            if not _one_level_side_ok(bus_id, _side(settings)):
+                return 0, f'{name}\nBoth only', None
             muted = bus['muted']
             if bus_id == 'stream' and 'StreamMuted' in props:
                 muted = props['StreamMuted']
@@ -680,7 +692,10 @@ class Plugin:
         if 'destination' not in bus:
             return 0, 'Needs update', False  # this Rostrum has no ListBusLevels
         if not bus['destination']:
-            return None  # the mic or a master: one level, no destination
+            # The mic or a master: one level, no destination. Only a master on its own side mutes.
+            if not _one_level_side_ok(bus_id, side):
+                return 0, f"{bus['name']}\nBoth only", False
+            return None
         plays = not bus['muted'] and bus['destination'] in (side, 'both')
         where = 'stream' if side == 'stream' else 'for me'
         return int(not plays), f"{bus['name']}\n{'on' if plays else 'off'} {where}", True

@@ -647,6 +647,44 @@ class PluginTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.calls_of(bus, 'ToggleBusMuted'), [('stream',)])
         self.assertEqual(self.calls_of(bus, 'ToggleBusInMix'), [])
 
+    ONE_LEVEL_ROWS = [('stream', 'Stream', 1.0, 1.0, False, ''), ('phones', 'Headphones', 0.8, 0.8, False, ''),
+                      ('mic', 'Mic', 1.0, 1.0, False, ''), ('game', 'Game', 0.5, 0.5, False, 'both')]
+    OTHER_SIDE = [('stream', 'phones', 'Stream'), ('phones', 'stream', 'Headphones'), ('mic', 'stream', 'Mic'),
+                  ('mic', 'phones', 'Mic')]
+
+    async def test_side_mute_on_a_one_level_bus_of_the_other_side_does_nothing(self):
+        # A "for me" key on the Stream master would unmute the whole stream; a side key on the mic
+        # would mute it on stream. Only a master on its own side mutes, as a Both key does.
+        app, bus, _, events = self.setup_plugin()
+        bus.list_levels = list(self.ONE_LEVEL_ROWS)
+        for index, (bus_id, side, name) in enumerate(self.OTHER_SIDE):
+            await self.appear(app, 'bus', {'bus': bus_id, 'side': side}, context=f'k{index}')
+            self.assertEqual(self.shown(app, f'k{index}'), (0, f'{name}\nBoth only'))
+            await self.down(app, f'k{index}')
+            await self.up(app, f'k{index}')
+        self.assertEqual(self.alerts(events), len(self.OTHER_SIDE))
+        self.assertEqual(self.calls_of(bus, 'ToggleBusMuted'), [])
+        self.assertEqual(self.calls_of(bus, 'ToggleBusInMix'), [])
+        await self.appear(app, 'bus', {'bus': 'phones', 'side': 'phones'}, context='own')
+        await self.down(app, 'own')
+        self.assertEqual(self.calls_of(bus, 'ToggleBusMuted'), [('phones',)])
+
+    async def test_side_volume_on_a_one_level_bus_of_the_other_side_does_nothing(self):
+        app, bus, _, events = self.setup_plugin()
+        bus.list_levels = list(self.ONE_LEVEL_ROWS)
+        for index, (bus_id, side, name) in enumerate(self.OTHER_SIDE):
+            await self.appear(app, 'volumeUp', {'bus': bus_id, 'side': side}, context=f'k{index}')
+            self.assertEqual(self.shown(app, f'k{index}'), (0, f'{name}\nBoth only'))
+            await self.down(app, f'k{index}')
+            await self.up(app, f'k{index}')
+        self.assertEqual(self.alerts(events), len(self.OTHER_SIDE))
+        self.assertEqual(self.calls_of(bus, 'StepBusVolume'), [])
+        await self.appear(app, 'volumeDown', {'bus': 'stream', 'side': 'stream'}, context='own')
+        self.assertEqual(self.shown(app, 'own')[1], 'Stream\n100%')
+        await self.down(app, 'own')
+        await self.up(app, 'own')
+        self.assertEqual(self.calls_of(bus, 'StepBusVolume'), [('stream', 'both', -0.05)])
+
     async def test_unknown_side_is_both(self):
         app, bus, _, _ = self.setup_plugin()
         self.with_levels(bus)
