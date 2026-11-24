@@ -84,8 +84,9 @@ QString OpenDeckSetup::status() const
                      m_target.plugins);
     case opendeck::State::InstalledNewer:
         return i18nc("@info",
-                     "The installed plugin is newer than this Rostrum. Leave it as-is unless you "
-                     "intentionally want to downgrade. Plugins folder: %1",
+                     "The installed plugin is newer than this Rostrum, so Rostrum leaves it alone. "
+                     "To use this release's plugin instead, remove the "
+                     "dev.getrostrum.Rostrum.sdPlugin folder from %1, then press Install.",
                      m_target.plugins);
     case opendeck::State::Incomplete:
         return i18nc(
