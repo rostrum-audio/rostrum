@@ -1485,9 +1485,8 @@ private Q_SLOTS:
         engine.setHeadphonesBtAddress(addr);
         flush();
         QVERIFY(!engine.headphonesTransportUnhealthy());
-        QTest::qWait(2200);
-        flush();
-        QVERIFY(engine.headphonesTransportUnhealthy());
+        // Debounce is 2 s plus a 2.1 s singleShot reconcile; wait for the flag, not a fixed sleep.
+        QTRY_VERIFY_WITH_TIMEOUT(engine.headphonesTransportUnhealthy(), 5000);
 
         buds.error = false;
         buds.running = true;
