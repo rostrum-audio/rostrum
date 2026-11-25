@@ -269,6 +269,22 @@ private Q_SLOTS:
         QVERIFY(!index.find({QStringLiteral("missing")}));
     }
 
+    void knownJavaAppsByTheirProgram()
+    {
+        AppFacts f = facts(QStringLiteral("ALSA plug-in [java]"), QStringLiteral("java"));
+        f.props.javaProgram = QStringLiteral("Minecraft");
+        f.appId = bolt; // ahead of what the launcher's sandbox would say
+        const Classification c = classify(f);
+        QCOMPARE(c.category, AppCategory::Game);
+        QCOMPARE(c.evidence, Evidence::Catalog);
+        f.props.javaProgram = QStringLiteral("com.example.Game");
+        QVERIFY(classify(f).evidence != Evidence::Catalog);
+        // Tools stay excluded whatever they run.
+        f.props.javaProgram = QStringLiteral("RuneLite");
+        f.mediaRole = QStringLiteral("Production");
+        QVERIFY(classify(f).excluded);
+    }
+
     void ownIdBeatsAnotherEntrysExec()
     {
         // Bolt's two entries, verbatim. The hidden helper launches Bolt too, so its Exec names

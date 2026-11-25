@@ -84,6 +84,50 @@ private Q_SLOTS:
         QCOMPARE(AppKey::fromString(k.toString()), k);
         QCOMPARE(AppKey::fromString(QStringLiteral("name:A:B")).match, QStringLiteral("A:B"));
     }
+
+    void javaAppsAreKnownByTheirProgram()
+    {
+        StreamProps p{QStringLiteral("ALSA plug-in [java]"), QStringLiteral("java"), QStringLiteral("ALSA Playback"),
+                      QStringLiteral("ALSA plug-in [java]"), QStringLiteral("RuneLite")};
+        AppIdentity id = identify(p);
+        QCOMPARE(id.displayName, QStringLiteral("RuneLite"));
+        QVERIFY(!id.unnamed);
+        QCOMPARE(id.key.toString(), QStringLiteral("java:RuneLite"));
+        QCOMPARE(id.javaProgram, QStringLiteral("RuneLite"));
+
+        p.javaProgram = QStringLiteral("com.example.Game");
+        id = identify(p);
+        QCOMPARE(id.displayName, QStringLiteral("Java"));
+        QVERIFY(id.unnamed); // Name It… names this program only
+        QCOMPARE(id.key.toString(), QStringLiteral("java:com.example.Game"));
+
+        p.javaProgram.clear(); // the command line could not be read: as before
+        QCOMPARE(identify(p).key.toString(), QStringLiteral("binary:java"));
+        QVERIFY(identify(p).javaProgram.isEmpty());
+
+        // OpenAL Soft names a stream after the process, which is no name either.
+        const StreamProps openAl{QStringLiteral("java"), QStringLiteral("java"), {}, {}, QStringLiteral("Minecraft")};
+        QCOMPARE(identify(openAl).displayName, QStringLiteral("Minecraft"));
+        // A Java app that names itself keeps that name.
+        const StreamProps named{QStringLiteral("Some Game"), QStringLiteral("java"), {}, {}, QStringLiteral("com.example.Game")};
+        QCOMPARE(identify(named).key.toString(), QStringLiteral("name:Some Game"));
+    }
+
+    void javaRulesComeBetweenNameAndBinary()
+    {
+        const AppRule anyJava{QStringLiteral("java"), MatchKey::Binary, QStringLiteral("desktop")};
+        const AppRule runeLite{QStringLiteral("runelite"), MatchKey::Java, QStringLiteral("game")};
+        const StreamProps rl{QStringLiteral("ALSA plug-in [java]"), QStringLiteral("java"), {}, {}, QStringLiteral("RuneLite")};
+        const StreamProps mc{QStringLiteral("ALSA plug-in [java]"), QStringLiteral("java"), {}, {}, QStringLiteral("Minecraft")};
+        QCOMPARE(matchRule({anyJava, runeLite}, rl), 1);
+        QCOMPARE(matchRule({anyJava, runeLite}, mc), 0); // the older java rule still catches the rest
+        // A name rule still wins over a Java rule.
+        const AppRule byName{QStringLiteral("ALSA plug-in [java]"), MatchKey::Name, QStringLiteral("music")};
+        QCOMPARE(matchRule({anyJava, runeLite, byName}, rl), 2);
+        // Only a Java app's program matches: not an app named RuneLite, nor one with no program.
+        QVERIFY(!ruleMatches(runeLite, StreamProps{QStringLiteral("RuneLite"), QStringLiteral("runelite"), {}, {}}));
+        QVERIFY(!ruleMatches(AppRule{QString(), MatchKey::Java, QStringLiteral("game")}, mc));
+    }
 };
 
 QTEST_GUILESS_MAIN(TestAppIdentity)

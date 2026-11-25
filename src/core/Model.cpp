@@ -86,7 +86,15 @@ std::optional<Destination> destinationFromString(const QString &s)
 
 QString matchKeyName(MatchKey k)
 {
-    return k == MatchKey::Binary ? QStringLiteral("binary") : QStringLiteral("name");
+    switch (k) {
+    case MatchKey::Binary:
+        return QStringLiteral("binary");
+    case MatchKey::Java:
+        return QStringLiteral("java");
+    case MatchKey::Name:
+        break;
+    }
+    return QStringLiteral("name");
 }
 
 std::optional<MatchKey> matchKeyFromString(const QString &s)
@@ -97,6 +105,9 @@ std::optional<MatchKey> matchKeyFromString(const QString &s)
     }
     if (v == QLatin1String("binary")) {
         return MatchKey::Binary;
+    }
+    if (v == QLatin1String("java")) {
+        return MatchKey::Java;
     }
     return std::nullopt;
 }

@@ -1,5 +1,7 @@
 #include "core/AppIdentity.h"
 
+#include "core/JavaApps.h"
+
 #include <QHash>
 
 namespace rostrum {
@@ -47,6 +49,8 @@ bool isGenericAppName(const QString &name)
         QStringLiteral("playback"),           QStringLiteral("Playback"),       QStringLiteral("SDL Application"),
         QStringLiteral("OpenAL Soft"),        QStringLiteral("ALSA plug-in"),   QStringLiteral("PipeWire ALSA"),
         QStringLiteral("wine-preloader"),     QStringLiteral("wine64-preloader"),
+        // OpenAL Soft names a stream after the process, and for a Java app that says nothing.
+        QStringLiteral("java"),
     };
     if (exact.contains(n, Qt::CaseInsensitive)) {
         return true;
@@ -102,6 +106,14 @@ AppIdentity identify(const StreamProps &props)
         id.key = {MatchKey::Name, name};
         return id;
     }
+    if (!props.javaProgram.isEmpty()) {
+        const auto known = knownJavaApp(props.javaProgram);
+        id.displayName = known ? known->name : QStringLiteral("Java");
+        id.key = {MatchKey::Java, props.javaProgram};
+        id.javaProgram = props.javaProgram;
+        id.unnamed = !known;
+        return id;
+    }
     if (!id.binary.isEmpty()) {
         // A generic name ("ALSA plug-in [wine64-preloader]") is no name, unless the binary alone
         // says which app it is.
@@ -136,19 +148,19 @@ bool ruleMatches(const AppRule &rule, const StreamProps &props)
         const AppIdentity id = identify(props);
         return id.key.key == MatchKey::Name && rule.match.compare(id.key.match, Qt::CaseInsensitive) == 0;
     }
+    if (rule.key == MatchKey::Java) {
+        return !props.javaProgram.isEmpty() && rule.match.compare(props.javaProgram, Qt::CaseInsensitive) == 0;
+    }
     return rule.match.compare(cleanBinary(props.binary), Qt::CaseInsensitive) == 0;
 }
 
 int matchRule(const QList<AppRule> &rules, const StreamProps &props)
 {
-    for (int i = 0; i < rules.size(); ++i) {
-        if (rules.at(i).key == MatchKey::Name && ruleMatches(rules.at(i), props)) {
-            return i;
-        }
-    }
-    for (int i = 0; i < rules.size(); ++i) {
-        if (rules.at(i).key == MatchKey::Binary && ruleMatches(rules.at(i), props)) {
-            return i;
+    for (const MatchKey key : {MatchKey::Name, MatchKey::Java, MatchKey::Binary}) {
+        for (int i = 0; i < rules.size(); ++i) {
+            if (rules.at(i).key == key && ruleMatches(rules.at(i), props)) {
+                return i;
+            }
         }
     }
     return -1;

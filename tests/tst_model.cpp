@@ -1,3 +1,4 @@
+#include "core/AppIdentity.h"
 #include "core/Model.h"
 #include "core/SceneToml.h"
 #include "core/Volume.h"
@@ -15,6 +16,14 @@ class TestModel : public QObject
 {
     Q_OBJECT
 private Q_SLOTS:
+    void javaMatchKeyNames()
+    {
+        QCOMPARE(matchKeyName(MatchKey::Java), QStringLiteral("java"));
+        QVERIFY(matchKeyFromString(QStringLiteral(" Java ")) == MatchKey::Java);
+        QCOMPARE(AppKey::fromString(QStringLiteral("java:net.example.Game")),
+                 (AppKey{MatchKey::Java, QStringLiteral("net.example.Game")}));
+    }
+
     void moveLevelLinkedKeepsGap()
     {
         const MixLevels out = moveLevel({0.6, 0.2}, Mix::Phones, 0.5, true);

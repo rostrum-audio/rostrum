@@ -48,6 +48,19 @@ class TestScenes : public QObject
 {
     Q_OBJECT
 private Q_SLOTS:
+    void javaRuleRoundTrip()
+    {
+        Scene s = defaults::scene();
+        s.rules.append({QStringLiteral("RuneLite"), MatchKey::Java, QStringLiteral("game")});
+        const QString text = toml_io::serializeScene(s);
+        QVERIFY2(text.contains(QStringLiteral("key = 'java'")), qPrintable(text));
+        const auto back = toml_io::parseScene(text);
+        QVERIFY(back);
+        const AppRule *r = back->rule(MatchKey::Java, QStringLiteral("runelite"));
+        QVERIFY(r);
+        QCOMPARE(r->busId, QStringLiteral("game"));
+    }
+
     void perMixLevelsRoundTrip()
     {
         Scene s = defaults::scene();
