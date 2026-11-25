@@ -112,6 +112,7 @@ AppIdentity identify(const StreamProps &props)
         id.displayName = known ? known->name : QStringLiteral("Java");
         id.key = {MatchKey::Java, props.javaProgram};
         id.javaProgram = props.javaProgram;
+        id.javaRaw = props.javaRaw;
         id.unnamed = !known;
         return id;
     }
@@ -150,7 +151,10 @@ bool ruleMatches(const AppRule &rule, const StreamProps &props)
         return id.key.key == MatchKey::Name && rule.match.compare(id.key.match, Qt::CaseInsensitive) == 0;
     }
     if (rule.key == MatchKey::Java) {
-        return !props.javaProgram.isEmpty() && rule.match.compare(props.javaProgram, Qt::CaseInsensitive) == 0;
+        // The stream stores the rule match (a known name, or the raw program). A rule typed as a
+        // known main class still matches after that normalisation.
+        return !props.javaProgram.isEmpty() &&
+               javaRuleMatch(rule.match).compare(props.javaProgram, Qt::CaseInsensitive) == 0;
     }
     return rule.match.compare(cleanBinary(props.binary), Qt::CaseInsensitive) == 0;
 }

@@ -47,15 +47,49 @@ bool isFlatpakApp(const QString &dir, const QString &appId)
         }
     }
     // Without access to the sandbox's root, the systemd scope Flatpak starts each app in.
-    return readSmall(dir + QStringLiteral("/cgroup"), 16 * 1024)
-        .contains(QStringLiteral("/app-flatpak-%1-").arg(appId));
+    // Match the exact id ending in -<digits>.scope so an id like "<id>-Beta" is not a prefix hit.
+    static const QRegularExpression scope(QStringLiteral(R"(/app-flatpak-(.+)-(\d+)\.scope)"));
+    const auto m = scope.match(readSmall(dir + QStringLiteral("/cgroup"), 16 * 1024));
+    return m.hasMatch() && m.captured(1) == appId;
 }
 
-// The host pid of the process a Flatpak sandbox calls `sandboxPid`: this user's process whose
-// innermost pid is `sandboxPid` and that runs in that Flatpak. 0 for none, or for more than one
-// (two sandboxes of one app can each have the same pid).
-qint64 hostPidOf(qint64 sandboxPid, const QString &appId, const QString &procRoot)
+bool sameBinary(const QString &dir, const QString &want)
 {
+    const QString exe = cleanBinary(QFileInfo(dir + QStringLiteral("/exe")).symLinkTarget());
+    // comm is the kernel's 15-character copy of the name; it covers a missing exe link.
+    const QString comm = readSmall(dir + QStringLiteral("/comm")).trimmed();
+    return exe.compare(want, Qt::CaseInsensitive) == 0 ||
+           (!comm.isEmpty() && comm.compare(want.left(15), Qt::CaseInsensitive) == 0);
+}
+
+struct HostPidCache
+{
+    qint64 sandboxPid = 0;
+    QString appId;
+    QString want;
+    QString procRoot;
+    qint64 hostPid = 0;
+};
+
+// The host pid of the process a Flatpak sandbox calls `sandboxPid`: this user's process whose
+// innermost pid is `sandboxPid`, that runs in that Flatpak, and whose binary is `want`. 0 for
+// none, or for more than one (two sandboxes of one app can each have the same pid). Only
+// candidates that also pass the binary check count toward ambiguity, so a non-matching process
+// in another sandbox does not hide the real one.
+qint64 hostPidOf(qint64 sandboxPid, const QString &appId, const QString &want, const QString &procRoot)
+{
+    static HostPidCache cache;
+    if (cache.sandboxPid == sandboxPid && cache.appId == appId && cache.want == want &&
+        cache.procRoot == procRoot && cache.hostPid > 0) {
+        const QString dir = QStringLiteral("%1/%2").arg(procRoot).arg(cache.hostPid);
+        const QString status = readSmall(dir + QStringLiteral("/status"), 16 * 1024);
+        const QStringList nsPids =
+            statusField(status, QLatin1String("NSpid")).split(QLatin1Char('\t'), Qt::SkipEmptyParts);
+        if (nsPids.size() >= 2 && nsPids.last().toLongLong() == sandboxPid && sameBinary(dir, want) &&
+            isFlatpakApp(dir, appId)) {
+            return cache.hostPid;
+        }
+    }
     static const QRegularExpression digits(QStringLiteral("^\\d+$"));
     const QString uid = QString::number(::getuid());
     qint64 found = 0;
@@ -70,14 +104,16 @@ qint64 hostPidOf(qint64 sandboxPid, const QString &appId, const QString &procRoo
             continue;
         }
         if (statusField(status, QLatin1String("Uid")).section(QLatin1Char('\t'), 0, 0) != uid ||
-            !isFlatpakApp(dir, appId)) {
+            !isFlatpakApp(dir, appId) || !sameBinary(dir, want)) {
             continue;
         }
         if (found) {
+            cache = {};
             return 0;
         }
         found = name.toLongLong();
     }
+    cache = {sandboxPid, appId, want, procRoot, found};
     return found;
 }
 
@@ -91,18 +127,13 @@ ProcessFacts readProcessFacts(qint64 pid, const QString &binary, const QString &
         return out;
     }
     if (!flatpakAppId.isEmpty()) {
-        pid = hostPidOf(pid, flatpakAppId, procRoot);
+        pid = hostPidOf(pid, flatpakAppId, want, procRoot);
         if (pid <= 0) {
             return out;
         }
     }
     const QString dir = QStringLiteral("%1/%2").arg(procRoot).arg(pid);
-    const QString exe = cleanBinary(QFileInfo(dir + QStringLiteral("/exe")).symLinkTarget());
-    // comm is the kernel's 15-character copy of the name; it covers a missing exe link.
-    const QString comm = readSmall(dir + QStringLiteral("/comm")).trimmed();
-    const bool same = exe.compare(want, Qt::CaseInsensitive) == 0 ||
-                      (!comm.isEmpty() && comm.compare(want.left(15), Qt::CaseInsensitive) == 0);
-    if (!same) {
+    if (!sameBinary(dir, want)) {
         return out;
     }
     const QString environ = readSmall(dir + QStringLiteral("/environ"));

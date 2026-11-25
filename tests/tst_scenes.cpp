@@ -149,9 +149,20 @@ name = "Odd"
 id = "chatmic"
 name = "Chat"
 kind = "playback"
+[[rule]]
+match = "beep"
+key = "name"
+bus = "chatmic"
 )"));
         QVERIFY(s);
+        // Kept under a free id so a pre-existing bus is not dropped; rules move with it.
         QVERIFY(!s->bus(QStringLiteral("chatmic")));
+        const Bus *renamed = s->bus(QStringLiteral("chat"));
+        QVERIFY(renamed);
+        QCOMPARE(renamed->name, QStringLiteral("Chat"));
+        const AppRule *r = s->rule(MatchKey::Name, QStringLiteral("beep"));
+        QVERIFY(r);
+        QCOMPARE(r->busId, QStringLiteral("chat"));
     }
 
     void perMixLevelsRoundTrip()

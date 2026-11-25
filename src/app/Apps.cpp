@@ -1,6 +1,7 @@
 #include "app/Apps.h"
 
 #include "app/AppController.h"
+#include "core/JavaApps.h"
 
 #include <KFormat>
 #include <KLocalizedString>
@@ -216,6 +217,7 @@ void Apps::rebuild()
             {QStringLiteral("icon"), icon},
             {QStringLiteral("binary"), a.identity.binary},
             {QStringLiteral("javaProgram"), a.identity.javaProgram},
+            {QStringLiteral("javaRaw"), a.identity.javaRaw},
             {QStringLiteral("matchKey"), matchKeyName(key.key)},
             {QStringLiteral("busId"), bus ? bus->id : QString()},
             {QStringLiteral("busName"), bus ? bus->name : QString()},
@@ -366,7 +368,10 @@ void Apps::removeRule(const QString &key) { m_app->engine()->removeRule(AppKey::
 
 bool Apps::editMatch(const QString &key, const QString &match, const QString &matchKey)
 {
-    const AppKey newKey{matchKeyFromString(matchKey).value_or(MatchKey::Name), match.trimmed()};
+    AppKey newKey{matchKeyFromString(matchKey).value_or(MatchKey::Name), match.trimmed()};
+    if (newKey.key == MatchKey::Java) {
+        newKey.match = javaRuleMatch(newKey.match);
+    }
     const AppKey oldKey = AppKey::fromString(key);
     if (!newKey.isValid()) {
         return false;

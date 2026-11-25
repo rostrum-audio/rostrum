@@ -247,6 +247,31 @@ Scene sanitize(Scene scene)
     scene.masterStream = level(scene.masterStream, 1.0, defaults.masterStream);
     scene.sidetoneVolume = level(scene.sidetoneVolume, 1.0, defaults.sidetoneVolume);
 
+    // A bus saved as id "chatmic" before that name was reserved would collide with the chat mic
+    // node. Keep it under a free id and move its rules, rather than dropping it.
+    for (Bus &b : scene.buses) {
+        if (b.id != QLatin1String(kChatMicBusId)) {
+            continue;
+        }
+        QStringList taken{QString::fromLatin1(kMicBusId)};
+        for (const QString &id : reserved) {
+            taken << id;
+        }
+        for (const auto &o : scene.buses) {
+            if (o.id != b.id) {
+                taken << o.id;
+            }
+        }
+        const QString oldId = b.id;
+        b.id = makeSlug(b.name.isEmpty() ? QStringLiteral("chat") : b.name, taken, QStringLiteral("chat"));
+        for (AppRule &r : scene.rules) {
+            if (r.busId == oldId) {
+                r.busId = b.id;
+            }
+        }
+        break;
+    }
+
     QList<Bus> out;
     QSet<QString> seen;
     // The mic bus always exists and always comes first.

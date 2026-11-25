@@ -643,6 +643,10 @@ StreamProps Engine::propsOf(const pw::Node &n) const
     // Playback only: which mic a Java app records keeps its plain app key.
     if (n.isPlaybackStream() && isJavaBinary(n.binary)) {
         props.javaProgram = javaProgramOf(n);
+        if (auto it = m_javaPrograms.constFind(n.id); it != m_javaPrograms.cend() && !it->raw.isEmpty() &&
+                                                      it->raw.compare(it->program, Qt::CaseInsensitive) != 0) {
+            props.javaRaw = it->raw;
+        }
     }
     return props;
 }
@@ -654,8 +658,8 @@ QString Engine::javaProgramOf(const pw::Node &n) const
     if (auto it = m_javaPrograms.constFind(n.id); it != m_javaPrograms.cend() && it->signature == signature) {
         return it->program;
     }
-    const QString program = javaProgram(readProcessFacts(n.pid, n.binary, m_procRoot, appId).commandLine);
-    const JavaLookup lookup{signature, program.isEmpty() ? QString() : javaRuleMatch(program)};
+    const QString raw = javaProgram(readProcessFacts(n.pid, n.binary, m_procRoot, appId).commandLine);
+    const JavaLookup lookup{signature, raw.isEmpty() ? QString() : javaRuleMatch(raw), raw};
     if (!lookup.program.isEmpty()) {
         qCInfo(lcEngine) << "java program" << lookup.program << "for" << n.id;
     }
@@ -1027,6 +1031,10 @@ void Engine::setAutoSkip(const QStringList &keys)
 {
     QSet<QString> next;
     for (const auto &k : keys) {
+        // Pre-Java-identity skips of the shared `java` binary no longer name any row.
+        if (k.compare(QLatin1String("binary:java"), Qt::CaseInsensitive) == 0) {
+            continue;
+        }
         next.insert(k.toLower());
     }
     if (next == m_autoSkip) {

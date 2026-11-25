@@ -443,6 +443,26 @@ private Q_SLOTS:
         QVERIFY(readProcessFacts(406, QStringLiteral("java"), proc.path(), bolt).commandLine.isEmpty());
     }
 
+    void flatpakAmbiguityIgnoresWrongBinary()
+    {
+        QTemporaryDir proc;
+        // A non-Java process in another Bolt sandbox shares the sandbox pid; only java counts.
+        writeProcess(proc.path(), {500, QStringLiteral("500\t406"), "bash", {QStringLiteral("bash")}, bolt});
+        writeProcess(proc.path(), {600, QStringLiteral("600\t7\t406"), "java", runeLite, bolt});
+        QCOMPARE(readProcessFacts(406, QStringLiteral("java"), proc.path(), bolt).commandLine, runeLite);
+    }
+
+    void flatpakCgroupIgnoresPrefixedId()
+    {
+        QTemporaryDir proc;
+        FakeProcess p{500, QStringLiteral("500\t406"), "java", runeLite};
+        // A different Flatpak id that only shares a prefix must not match.
+        p.cgroup = QStringLiteral("0::/user.slice/user-1000.slice/user@1000.service/app.slice/"
+                                  "app-flatpak-com.adamcake.Bolt-Beta-99.scope");
+        writeProcess(proc.path(), p);
+        QVERIFY(readProcessFacts(406, QStringLiteral("java"), proc.path(), bolt).commandLine.isEmpty());
+    }
+
     void flatpakPidOfAnotherAppOrUserIsNobody()
     {
         QTemporaryDir proc;

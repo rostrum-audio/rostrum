@@ -17,6 +17,8 @@ struct StreamProps
     // What a Java rule matches (core/JavaApps.h): the known app's name or the program a Java
     // playback stream's process runs. Empty for every other stream, and when it cannot be read.
     QString javaProgram;
+    // The command-line program before known-name normalisation; empty when it matches javaProgram.
+    QString javaRaw;
 };
 
 struct AppKey
@@ -39,7 +41,8 @@ struct AppIdentity
     QString binary;      // cleaned binary, may be empty
     AppKey key;          // what a new rule for this app matches on
     bool unnamed = false; // producing audio without a usable application.name
-    QString javaProgram;  // set when the identity is a Java app's program
+    QString javaProgram;  // set when the identity is a Java app's program (rule match)
+    QString javaRaw;      // command-line program when it differs from javaProgram (UI detail)
 };
 
 // Strips " (deleted)" (left behind when a binary is updated while running) and paths.
