@@ -722,6 +722,76 @@ private Q_SLOTS:
         QVERIFY(looped.count() > blocked);
     }
 
+    // A stream that plays into a chat bus by its own link, not Rostrum's placement, still loops.
+    void chatLoopSeesActualLinksNotJustPlacement()
+    {
+        auto flush = [] {
+            QCoreApplication::processEvents();
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::Timer);
+            QCoreApplication::processEvents();
+        };
+        auto monoSource = [](uint32_t id, const char *name, const char *role) {
+            pw::Node n = node(id, name, "Audio/Source/Virtual");
+            n.channels = 1;
+            n.props.insert(QStringLiteral("rostrum.role"), QString::fromLatin1(role));
+            n.serial = QString::number(5000 + id);
+            return n;
+        };
+        auto link = [](uint32_t id, uint32_t outNode, uint32_t outPort, uint32_t inNode, uint32_t inPort) {
+            pw::Link l;
+            l.id = id;
+            l.outNode = outNode;
+            l.outPort = outPort;
+            l.inNode = inNode;
+            l.inPort = inPort;
+            l.serial = QString::number(6000 + id);
+            return l;
+        };
+        pw::Graph g = devices();
+        g.factories.insert(900, QStringLiteral("spa-node-factory"));
+        pw::Node alerts = node(150, "rostrum.alerts", "Audio/Sink");
+        alerts.props.insert(QStringLiteral("rostrum.role"), QStringLiteral("bus"));
+        alerts.props.insert(QStringLiteral("rostrum.bus"), QStringLiteral("alerts"));
+        alerts.serial = QStringLiteral("5150");
+        g.nodes.insert(alerts.id, alerts);
+        for (const auto &n : {monoSource(160, "rostrum.filtered", "filtered"),
+                              monoSource(170, "rostrum.chatmic", "chatmic")}) {
+            g.nodes.insert(n.id, n);
+        }
+        pw::Node capture = node(200, "GameVoice", "Stream/Input/Audio");
+        capture.appName = QStringLiteral("GameVoice");
+        capture.binary = QStringLiteral("gamevoice");
+        capture.serial = QStringLiteral("7200");
+        g.nodes.insert(capture.id, capture);
+        pw::Node playback = node(210, "GameVoice", "Stream/Output/Audio");
+        playback.appName = QStringLiteral("GameVoice");
+        playback.binary = QStringLiteral("gamevoice");
+        playback.serial = QStringLiteral("7210");
+        g.nodes.insert(playback.id, playback);
+        for (auto p : {port(1500, 150, false, "FL"), port(1501, 150, false, "FR"),
+                       port(1600, 160, false, "MONO"), port(1601, 160, true, "MONO"),
+                       port(1700, 170, false, "MONO"), port(1701, 170, true, "MONO"),
+                       port(2000, 200, false, "MONO"), port(2100, 210, true, "FL"),
+                       port(2101, 210, true, "FR")}) {
+            g.ports.insert(p.id, p);
+        }
+        g.links.insert(950, link(950, 160, 1601, 170, 1700));
+        g.links.insert(952, link(952, 170, 1701, 200, 2000));
+        // Plays into Alerts by its own link; Rostrum has not placed it there.
+        g.links.insert(953, link(953, 210, 2100, 150, 1500));
+        g.links.insert(954, link(954, 210, 2101, 150, 1501));
+
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        engine.setChatMicWanted(true);
+        engine.createMix();
+        QVERIFY(engine.setBusChat(QStringLiteral("alerts"), true));
+        pw.testingInstallGraph(g);
+        flush();
+        QVERIFY(engine.chatBlocked(QStringLiteral("alerts")));
+        QCOMPARE(engine.chatLoopApps(), QStringList{QStringLiteral("GameVoice")});
+    }
+
     // A failed create is asked for again after the retry time, without waiting for a graph event.
     void chatMicCreateIsRetriedAfterAFailure()
     {

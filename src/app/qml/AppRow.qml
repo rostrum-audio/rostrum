@@ -27,8 +27,10 @@ QQC2.Control {
     }
     readonly property string detailText: {
         const parts = []
-        if (row.app.javaProgram || row.app.binary) {
-            parts.push(row.app.javaProgram || row.app.binary)
+        // Prefer the raw Java main class/jar so a known app does not repeat its display name.
+        const javaDetail = row.app.javaRaw || (row.app.javaProgram !== row.app.name ? row.app.javaProgram : "")
+        if (javaDetail || row.app.binary) {
+            parts.push(javaDetail || row.app.binary)
         }
         if (row.app.detail) {
             parts.push(row.app.detail)

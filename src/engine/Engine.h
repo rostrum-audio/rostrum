@@ -352,7 +352,8 @@ protected:
     struct JavaLookup
     {
         QString signature; // serial, pid, binary and Flatpak id it was read for
-        QString program;
+        QString program;   // rule match (known name, or the raw program)
+        QString raw;       // command-line program before known-name normalisation
     };
     struct Placement
     {

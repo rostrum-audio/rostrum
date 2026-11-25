@@ -620,9 +620,23 @@ void Engine::updateChatLoop()
                 }
                 const StreamProps props = propsOf(n);
                 const AppIdentity id = identify(props);
+                const QString key = id.key.toString();
+                // Intended placement (Rostrum's rule / auto-assign).
                 const Placement p = place(n, props, id);
                 if (m_scene.bus(p.busId)) {
-                    byBus.insert(p.busId, id.key.toString());
+                    byBus.insert(p.busId, key);
+                }
+                // Actual links / target: a stream that plays into a chat bus on its own, not
+                // placed by Rostrum, still loops if it also records the chat mic.
+                const QString target = m_pw->metadataValue(n.id, QStringLiteral("target.object"));
+                for (const auto &b : m_scene.buses) {
+                    if (b.isInput() || (p.busId == b.id)) {
+                        continue;
+                    }
+                    const pw::Node *busNode = g.nodeByName(b.nodeName());
+                    if (busNode && (linked(n.id, busNode->id) || namesNode(*busNode, target))) {
+                        byBus.insert(b.id, key);
+                    }
                 }
             }
             blocked = chatLoopBuses(m_scene, byBus, onChat);
