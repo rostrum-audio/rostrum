@@ -51,6 +51,15 @@ Engine::Engine(pw::PwContext *pw, QObject *parent)
             scheduleReconcile();
             return;
         }
+        // The mix and the filtered mic work without the chat mic; it is asked for again once the
+        // create retry time has passed, without waiting for a graph event. The pending-create
+        // gate in reconcileChatMic uses the same wait.
+        if (nodeName == QLatin1String(kChatMicNode)) {
+            qCWarning(lcEngine) << "could not create" << nodeName << msg;
+            QTimer::singleShot(micfx::kChatMicCreateRetryMs + 100, Qt::PreciseTimer, this,
+                               &Engine::scheduleReconcile);
+            return;
+        }
         m_mixError = msg;
         // Only links are created without a node name. Such an error clears once no wanted link is
         // still missing; reconcile again in case it arrived after the link it was about resolved.
@@ -108,6 +117,12 @@ void Engine::setSceneFadeMs(int ms)
 QHash<QString, Engine::Level> Engine::fadeLevels(const Scene &scene, bool withSolo) const
 {
     QHash<QString, Level> levels = busFadeLevels(scene, withSolo ? m_soloed : QSet<QString>(), perMixActive());
+    // Voice chat sends fade with the scene, like the Headphones and Stream sends. A bus the loop
+    // guard has muted stays at 0 for the ramp; solo never touches a chat send.
+    const auto chat = chatSendLevels(scene, m_chatBlocked);
+    for (auto it = chat.cbegin(); it != chat.cend(); ++it) {
+        levels.insert(it.key(), {it->mute ? 0.0 : it->position, it->balance});
+    }
     levels.insert(QString::fromLatin1(kPhonesNode),
                   {scene.masterPhonesMuted ? 0.0 : scene.masterPhones, 0.0});
     levels.insert(QString::fromLatin1(kStreamNode),
@@ -474,6 +489,7 @@ void Engine::reconcile()
         // A send waiting across a PipeWire restart starts its wait again afterwards.
         m_sendWaiting.clear();
         updatePerMixLevels();
+        updateChatMic();
         if (m_reportedReady) {
             m_reportedReady = false;
             Q_EMIT mixStateChanged();
@@ -487,12 +503,15 @@ void Engine::reconcile()
     }
     reconcileNodes();
     reconcileMicFx();
+    reconcileChatMic();
     reconcileDevices();
     reconcileLinks();
     reconcileDucking();
     reconcileVolumes();
     reconcileRoutes();
     reconcileMicRoutes();
+    updateChatLoop();
+    updateChatMic();
     // Compare with the last reported state: the graph changes before this pass runs.
     const bool ready = mixReady();
     // reconcileLinks keeps a pending entry for every wanted link that does not exist yet, so none
@@ -567,7 +586,7 @@ void Engine::reconcileNodes()
             }
             const Bus *bus = m_scene.bus(send.busId);
             qCInfo(lcEngine) << "creating" << send.name;
-            m_pw->createSpaNode(sendProperties(*bus, send.mix));
+            m_pw->createSpaNode(send.chat ? chatSendProperties(*bus) : sendProperties(*bus, send.mix));
             QElapsedTimer t;
             t.start();
             m_pendingCreate.insert(send.name, t);
@@ -624,6 +643,10 @@ StreamProps Engine::propsOf(const pw::Node &n) const
     // Playback only: which mic a Java app records keeps its plain app key.
     if (n.isPlaybackStream() && isJavaBinary(n.binary)) {
         props.javaProgram = javaProgramOf(n);
+        if (auto it = m_javaPrograms.constFind(n.id); it != m_javaPrograms.cend() && !it->raw.isEmpty() &&
+                                                      it->raw.compare(it->program, Qt::CaseInsensitive) != 0) {
+            props.javaRaw = it->raw;
+        }
     }
     return props;
 }
@@ -635,8 +658,8 @@ QString Engine::javaProgramOf(const pw::Node &n) const
     if (auto it = m_javaPrograms.constFind(n.id); it != m_javaPrograms.cend() && it->signature == signature) {
         return it->program;
     }
-    const QString program = javaProgram(readProcessFacts(n.pid, n.binary, m_procRoot, appId).commandLine);
-    const JavaLookup lookup{signature, program.isEmpty() ? QString() : javaRuleMatch(program)};
+    const QString raw = javaProgram(readProcessFacts(n.pid, n.binary, m_procRoot, appId).commandLine);
+    const JavaLookup lookup{signature, raw.isEmpty() ? QString() : javaRuleMatch(raw), raw};
     if (!lookup.program.isEmpty()) {
         qCInfo(lcEngine) << "java program" << lookup.program << "for" << n.id;
     }
@@ -1008,6 +1031,10 @@ void Engine::setAutoSkip(const QStringList &keys)
 {
     QSet<QString> next;
     for (const auto &k : keys) {
+        // Pre-Java-identity skips of the shared `java` binary no longer name any row.
+        if (k.compare(QLatin1String("binary:java"), Qt::CaseInsensitive) == 0) {
+            continue;
+        }
         next.insert(k.toLower());
     }
     if (next == m_autoSkip) {

@@ -144,6 +144,10 @@ private Q_SLOTS:
         // Only a Java app's program matches: not an app named RuneLite, nor one with no program.
         QVERIFY(!ruleMatches(runeLite, StreamProps{QStringLiteral("RuneLite"), QStringLiteral("runelite"), {}, {}}));
         QVERIFY(!ruleMatches(AppRule{QString(), MatchKey::Java, QStringLiteral("game")}, mc));
+        // A rule typed as a known main class still matches the normalised stream program.
+        const AppRule byClass{QStringLiteral("net.minecraft.client.main.Main"), MatchKey::Java, QStringLiteral("game")};
+        QVERIFY(ruleMatches(byClass, mc));
+        QCOMPARE(matchRule({byClass}, mc), 0);
     }
 };
 

@@ -79,6 +79,8 @@ Every Rostrum node is a `support.null-audio-sink` adapter created in the PipeWir
 | `rostrum.sidetone` | `Audio/Sink` | MONO | `Rostrum Sidetone` | Mic monitoring into headphones. Volume = sidetone fader. |
 | `rostrum.micfx` | none | MONO | `Rostrum Studio Voice` | Only while mic filters are on. Runs the filter chain (below) and, when the plugin has noise removal, holds the graph at 512-sample cycles ([Graph cycle](#graph-cycle)). |
 | `rostrum.filtered` | `Audio/Source/Virtual` | MONO | `Rostrum Filtered Mic` | While the mix runs. With filters on, the voice after `micfx`; with filters off, failed or unavailable, a unity bypass of the hardware mic for apps. |
+| `rostrum.chatmic` | `Audio/Source/Virtual` | MONO | `Rostrum Chat Mic` | The voice from `rostrum.filtered` plus every bus's voice chat send. What Discord and games record ([Sounds in voice chat](#sounds-in-voice-chat)). Exists while the mix runs and any saved scene, or the live scene, has a bus with Voice chat on. |
+| `rostrum.<bus>.chat` | none | FL FR | `Rostrum <Name> → Voice chat` | The bus's voice chat level. Feeds `rostrum.chatmic`. Only on buses with Voice chat on. |
 
 Properties set on every node:
 
@@ -89,18 +91,18 @@ Properties set on every node:
   which is what makes a bus fader or the Master Stream fader audible to OBS.
 - `priority.session = 0`, `priority.driver = 0`: WirePlumber should not pick a Rostrum node as
   the system default device.
-- `rostrum.role` (`bus`, `phones`, `stream`, `vod`, `mic`, `sidetone`, `micfx`, `filtered`) and
+- `rostrum.role` (`bus`, `phones`, `stream`, `vod`, `mic`, `sidetone`, `micfx`, `filtered`, `chatmic`, `send`) and
   `rostrum.bus`: Rostrum only ever destroys nodes that carry these.
 
 `rostrum.micfx` is the exception to the null-sink rule: it is a bare `audio.convert` node made with
 `spa-node-factory`, because a filter graph runs inside audioconvert. It lingers like the others.
 
 The send nodes are the same kind of node, stereo (`convert.direction = output`, like micfx), with
-`rostrum.role = send`, `rostrum.bus = <id>` and `rostrum.mix = phones|stream`. With no
+`rostrum.role = send`, `rostrum.bus = <id>` and `rostrum.mix = phones|stream|chat`. With no
 `media.class`, WirePlumber leaves them alone and no device list shows them. Rostrum puts each into
 DSP mode once (`PortConfig`, two channels per side); a send that lingered from an earlier run keeps
 its ports and is not configured again, which would drop its audio for a moment. Every playback bus
-has both sends whatever its destination, so a destination change only changes links. They exist
+has both sends whatever its destination, so a destination change only changes links. The voice chat send is added only while the bus has Voice chat on. They exist
 only while separate levels are in use ([Without per-mix levels](#without-per-mix-levels)).
 
 Limitation and workaround: the spec asked for "loopback nodes". An in-process
@@ -129,6 +131,9 @@ Rostrum creates links port by port with `link-factory` (`object.linger = true`),
 | hardware mic | `rostrum.micfx` | mic filters on |
 | `rostrum.micfx` | `rostrum.mic`, `rostrum.sidetone`, `rostrum.filtered` | mic filters on |
 | `rostrum.sidetone` monitor | `rostrum.phones` | always (muted unless sidetone is on) |
+| `rostrum.<bus>` monitor | `rostrum.<bus>.chat` | the bus has Voice chat on |
+| `rostrum.<bus>.chat` | `rostrum.chatmic` | the bus has Voice chat on; the stereo send is summed into the mono mic |
+| `rostrum.filtered` | `rostrum.chatmic` | while the chat mic exists |
 
 Without per-mix levels the bus monitor links straight into `rostrum.phones`, `rostrum.stream` and
 `rostrum.vod` under the same conditions. When a bus moves between the two paths (upgrading from a
@@ -136,8 +141,8 @@ version without sends, or falling back), the new path into a master is added onl
 is gone from the graph, so for a moment the bus is silent in that mix rather than playing twice.
 
 Rostrum only removes links it manages: links that start at a Rostrum node and end at a Rostrum node
-or a hardware sink, and links into `rostrum.mic`, `rostrum.sidetone`, `rostrum.micfx` and
-`rostrum.filtered`. App streams going into a bus
+or a hardware sink, and links into `rostrum.mic`, `rostrum.sidetone`, `rostrum.micfx`,
+`rostrum.filtered` and `rostrum.chatmic`. App streams going into a bus
 and OBS capturing a Rostrum monitor are never touched. A link you patch by hand from a Rostrum node
 to a hardware sink will be removed.
 
@@ -166,6 +171,11 @@ Fader positions are perceptual: linear gain = position³, as in pavucontrol. The
   is kept in the scene but not applied. Solo then also dims the stream, as before.
 - `rostrum.phones` / `rostrum.stream` / `rostrum.vod`: Master Headphones / Master Stream. These multiply every bus send.
   "Mute all playback to stream" mutes `rostrum.stream` and `rostrum.vod`.
+- `rostrum.<bus>.chat`: the Voice chat level (`chat_volume` in the scene, default 0.7, about
+  −9 dB), through the same cube as the faders, and halved to offset the stereo-to-mono sum. Muted
+  while Voice chat is switched off with the voice chat mute button. Bus mute, balance and ducking
+  act on the bus node, upstream of every send, so they reach the voice chat send without being
+  repeated there. Solo is headphones-only and never touches it.
 - `rostrum.mic`: mic gain (0 to 150%, 100% = 0 dB), muted if the mic is muted or the mic
   destination does not include Stream.
 - `rostrum.sidetone`: sidetone fader, muted unless the mic destination includes Headphones, the mic is
@@ -325,6 +335,63 @@ returns`. When the saved mic returns, it is relinked and its mute and gain come 
 scene. Devices → "Use another mic while mine is unplugged" (`[devices] mic_fallback`, off by
 default) brings back the fallback to the default source, the way headphones work. Either way the
 saved mic is never rewritten.
+
+## Sounds in voice chat
+
+A playback bus can also send to voice chat, so the people on a call hear a clip from the Sounds
+bus. Turn on **Voice chat** in the bus strip (or its menu). The bus then gets a third fader, "Voice
+chat", with a button to mute the sounds in voice chat. The default level is 0.7 (about −9 dB).
+
+- The bus that receives voice chat apps (Voice) cannot send to voice chat, because call apps
+  would hear themselves. Its checkbox is off and says so in a tooltip.
+- Voice chat needs separate Headphones and Stream levels. Without them
+  ([Without per-mix levels](#without-per-mix-levels)) the checkbox is off and its tooltip says why.
+- `rostrum.chatmic` ("Rostrum Chat Mic") carries your voice (the same signal as
+  `rostrum.filtered`) plus every bus's voice chat send. It exists while the mix runs and any saved
+  scene, or the live scene, has a bus with Voice chat on, muted or not, so a deck press or a scene
+  switch never moves apps.
+- Scene keys, in a `[[bus]]` table: `chat = true` (written only when on), `chat_muted = true`
+  (the sounds are switched off, written only when true) and `chat_volume` (0 to 1, written when
+  `chat` is on or the value is not 0.7). `chatmic` cannot be a bus id.
+
+Apps that record the mic, the ones Studio Voice would filter by its scope and per-app choices,
+are moved to Rostrum Chat Mic while it exists, even with Studio Voice off. They are moved the same
+way as for the filtered mic ([Which apps get the filtered mic](#which-apps-get-the-filtered-mic)).
+When the chat mic goes away, they move on in a set order. With Studio Voice on, they are switched to
+Rostrum Filtered Mic first and only then is Rostrum Chat Mic removed, so your voice never drops to the
+plain mic. With Studio Voice off, they go back to the device they used before Rostrum moved them,
+usually the plain mic. An app that picked "Rostrum Filtered
+Mic" in its own settings keeps your voice only. The Studio Voice page says which apps get the chat
+mic, and the mic strip shows "Chat Mic" while it is in use.
+
+Mutes:
+
+- Mute Mic and the holds (push to talk, push to mute) silence your voice only. Clips still reach voice chat.
+- Panic mute silences Rostrum Chat Mic as well, clips included.
+- Muting a bus mutes its voice chat sound.
+- The voice chat mute button, and the deck's Toggle bus mute with Side set to Voice chat, only
+  switch the sounds off and on. They never move apps.
+- With the mic muted, voice chat gets clips but not you. Push to talk lets your voice through only while held.
+
+Loop guard: if an app on a bus with Voice chat on also records Rostrum Chat Mic, Rostrum turns
+that bus's voice chat sounds off for as long as the app does both, and a banner names the bus and
+the app. Discord on the Voice bus is never affected, because that bus cannot send to voice chat.
+The app is recognised as one program whether it is playing or recording.
+
+There is no limiter on `rostrum.chatmic`. Clips are levelled to about −1.5 dBFS peak and sit about
+9 dB down at the default level, so voice plus a clip has headroom.
+
+Apps that choose their input once at start (some games) need a restart after the chat mic first
+appears. Quitting or crashing Rostrum leaves the chat mic, its sends and the app placement alone,
+like every other node.
+
+Outside Rostrum:
+
+- Discord: leave the input device on Default (Rostrum moves it) or pick "Rostrum Chat Mic". Set
+  noise suppression to None or Standard: Krisp removes sound effects. Turn echo cancellation off if
+  clips get cut. Push to talk sends clips only while the key is held.
+- Games: in-game voice chat must record the default input or Rostrum Chat Mic. Push to talk works
+  the same way, and a game's own noise suppression can cut clips.
 
 ## Mic filters (Studio Voice)
 
@@ -1051,15 +1118,16 @@ it.
 | `TriggerAction(s id)` | Runs an action as a shortcut press. Hold actions are refused (`Error.HoldAction`) |
 | `PressAction(s id)`, `ReleaseAction(s id)` | Start and end a hold (or press any other action) |
 | `SwitchScene(s name)` | Switches at once, name matched without case |
-| `SetBusVolume(s bus, d position)` | A playback bus sets both levels. `bus.phones` or `bus.stream` sets one; a linked bus moves the other by the same amount. A mix suffix on the mic or a master is `InvalidValue`. Fader travel 0–1, mic gain 0–1.5. `ListBuses` still reports the Stream level |
+| `SetBusVolume(s bus, d position)` | A playback bus sets both levels. `bus.phones` or `bus.stream` sets one mix; a linked bus moves the other by the same amount. `bus.chat` sets the voice chat level alone (never linked). A mix suffix on the mic or a master is `InvalidValue`. Fader travel 0–1, mic gain 0–1.5. `ListBuses` still reports the Stream level |
 | `SetBusMuted(s bus, b)`, `ToggleBusMuted(s bus)` | Mute a bus, the mic or a master |
-| `StepBusVolume(s bus, s mix, d delta) → d` | Moves a level by `delta` (−1..1) and returns it. `stream` or `phones` moves only that level of a playback bus, even when linked; `both` moves both by the same amount. The mic and masters take only `both`; without `PerMixLevels`, only `both` works |
-| `ToggleBusInMix(s bus, s mix)` | Takes a playback bus off `stream` or `phones`, or puts it back, through its destination and mute. Whether it plays in the other mix never changes |
+| `StepBusVolume(s bus, s mix, d delta) → d` | Moves a level by `delta` (−1..1) and returns it. `stream` or `phones` moves only that level of a playback bus, even when linked; `both` moves both by the same amount; `chat` moves the voice chat level. The mic and masters take only `both`; without `PerMixLevels`, only `both` works |
+| `ToggleBusInMix(s bus, s mix)` | Takes a playback bus off `stream` or `phones`, or puts it back, through its destination and mute. Whether it plays in the other mix never changes. With `chat`, the first press turns Voice chat on, then each press mutes or unmutes it |
 | `SetMicMuted(b)`, `ToggleMicMute()` | The mic, as the header button |
 | `SetMicFilters(b)` | Mic filters on or off, saved (`toggle_mic_filters` toggles) |
 | `ListScenes() → as`, `ListBuses() → a(ssdb)`, `ListActions() → a(ss)` | Scene names; id, name, position, muted; id, label |
+| `ListBusChat() → a(sbbd)` | Playback buses that can send to voice chat: id, on, muted, level |
 | `ListBusLevels() → a(ssddbs)` | `ListBuses` with both levels and the destination: id, name, stream, phones, muted, destination (empty for the mic and masters) |
-| Properties `MicMuted`, `StreamMuted`, `Panic`, `CurrentScene`, `Connected`, `MicFilters`, `PerMixLevels` | Read-only, with `PropertiesChanged` |
+| Properties `MicMuted`, `StreamMuted`, `Panic`, `CurrentScene`, `Connected`, `MicFilters`, `PerMixLevels`, `ChatMic` | Read-only, with `PropertiesChanged` |
 
 Bus arguments take a bus id or a bus name (any case), `mic`, and `stream` or `phones` for the
 masters; those two can never be bus ids. Errors are `dev.getrostrum.Rostrum1.Error.UnknownAction`,
@@ -1069,7 +1137,7 @@ scene changes automatically" off, unsaved moves in the scene being left are drop
 dialog's Switch button does. A script has no one to answer a dialog.
 
 `rostrum --scene`, `--action` (repeatable), `--mute-mic`, `--unmute-mic`, `--toggle-mic` and
-`--set-volume bus=level` call these methods on the running instance and exit 0 (done), 1
+`--set-volume bus=level` (`bus.chat=level` sets voice chat) call these methods on the running instance and exit 0 (done), 1
 (refused, with the reason on stderr) or 2 (unreachable). `--list-scenes`, `--list-actions` and
 `--list-buses` print plain lines (tab-separated fields) and, with no instance running, read the
 saved scenes without writing anything. A control option with no instance running starts Rostrum

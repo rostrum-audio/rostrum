@@ -15,14 +15,15 @@ QQC2.Pane {
     property bool streamOnlyBtHintDismissed: false
 
     // Strips share the row between a narrow and a wide width; below the narrow one the row scrolls.
-    readonly property real stripNarrow: Kirigami.Units.gridUnit * 8
-    readonly property real stripWide: Kirigami.Units.gridUnit * 10
-    readonly property real stripWidth: {
+    // Only strips that show a voice chat fader take the wider size.
+    function stripWidthFor(chatShown) {
+        const narrow = Kirigami.Units.gridUnit * (chatShown ? 11.5 : 8)
+        const wide = Kirigami.Units.gridUnit * (chatShown ? 12 : 10)
         const n = strips.count
         if (n === 0)
-            return stripNarrow
+            return narrow
         const room = strips.width - (strips.footerItem ? strips.footerItem.width : 0) - (n - 1) * strips.spacing
-        return Math.max(stripNarrow, Math.min(stripWide, Math.floor(room / n)))
+        return Math.max(narrow, Math.min(wide, Math.floor(room / n)))
     }
 
     // Meters only run while something shows them: this page, or the compact window, which has
@@ -165,7 +166,7 @@ QQC2.Pane {
             }
 
             delegate: BusStrip {
-                width: page.stripWidth
+                width: page.stripWidthFor(chat && chatAllowed)
                 height: ListView.view.height - (strips.QQC2.ScrollBar.horizontal.visible ? strips.QQC2.ScrollBar.horizontal.height : 0)
                 onRemoveRequested: (busId, name) => {
                     removeDialog.busId = busId

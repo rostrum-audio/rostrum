@@ -426,7 +426,12 @@ Settings parseSettings(const QString &text, QString *error)
     if (const auto *skip = t["apps"]["auto_skip"].as_array()) {
         for (const auto &v : *skip) {
             if (auto key = v.value<std::string>(); key && !key->empty()) {
-                s.autoSkip << QString::fromStdString(*key);
+                const QString k = QString::fromStdString(*key);
+                // Pre-Java-identity skips of the shared binary no longer name any row.
+                if (k.compare(QLatin1String("binary:java"), Qt::CaseInsensitive) == 0) {
+                    continue;
+                }
+                s.autoSkip << k;
             }
         }
         s.autoSkip.removeDuplicates();

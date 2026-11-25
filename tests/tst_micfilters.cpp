@@ -102,6 +102,52 @@ private Q_SLOTS:
         QVERIFY(s.filteredApps.isEmpty());
     }
 
+    // The chat mic carries the voice with Studio Voice on or off, so the switch is not asked.
+    void chatMicIgnoresFiltersSwitch()
+    {
+        Settings s;
+        s.enabled = false;
+        s.scope = Scope::AllApps;
+        QVERIFY(useChatMic(s, AppChoice::Default, false));
+        QVERIFY(!useFiltered(s, AppChoice::Default, false));
+        s.enabled = true;
+        QVERIFY(useChatMic(s, AppChoice::Default, false));
+    }
+
+    void chatMicKeepsRawChoice()
+    {
+        Settings s;
+        QVERIFY(!useChatMic(s, AppChoice::Raw, false));
+        s.enabled = true;
+        QVERIFY(!useChatMic(s, AppChoice::Raw, false));
+    }
+
+    void chatMicKeepsExclusions()
+    {
+        Settings s;
+        QVERIFY(!useChatMic(s, AppChoice::Default, true)); // recorders get the untouched mic
+        QVERIFY(useChatMic(s, AppChoice::Filtered, true));
+    }
+
+    void chatMicScopeStream()
+    {
+        Settings s;
+        s.scope = Scope::StreamOnly;
+        QVERIFY(!useChatMic(s, AppChoice::Default, false));
+        QVERIFY(useChatMic(s, AppChoice::Filtered, false));
+    }
+
+    // Removing the chat mic waits for the apps moved off it, at most 3 s.
+    void releaseWaitsForAppsToLeaveChatMic()
+    {
+        QVERIFY(chatMicReleaseHeld(true, 0));
+        QVERIFY(chatMicReleaseHeld(true, 2999));
+        QVERIFY(!chatMicReleaseHeld(true, 3000));
+        QVERIFY(!chatMicReleaseHeld(true, 10000));
+        QVERIFY(!chatMicReleaseHeld(false, 0));
+        QVERIFY(!chatMicReleaseHeld(false, 2999));
+    }
+
     void settingsTomlRoundTrip()
     {
         rostrum::Settings settings = defaultSettings();

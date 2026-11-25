@@ -26,7 +26,8 @@ const QHash<QString, JavaApp> &known()
         add({QStringLiteral("Minecraft"), AppCategory::Game},
             {"net.minecraft.client.main.Main", "net.fabricmc.loader.impl.launch.knot.KnotClient",
              "net.fabricmc.loader.launch.knot.KnotClient", "org.quiltmc.loader.impl.launch.knot.KnotClient",
-             "cpw.mods.bootstraplauncher.BootstrapLauncher", "net.minecraft.launchwrapper.Launch",
+             "cpw.mods.bootstraplauncher.BootstrapLauncher", "cpw.mods.modlauncher.Launcher",
+             "net.neoforged.fml.startup.Client", "net.minecraft.launchwrapper.Launch",
              "org.prismlauncher.EntryPoint", "org.multimc.EntryPoint"});
         return t;
     }();
@@ -82,6 +83,9 @@ QString javaProgram(const QStringList &commandLine)
         }
         if (arg == QLatin1String("-m") || arg == QLatin1String("--module")) {
             return i + 1 < commandLine.size() ? commandLine.at(i + 1).section(QLatin1Char('/'), 0, 0) : QString();
+        }
+        if (arg.startsWith(QLatin1String("--module="))) {
+            return arg.mid(9).section(QLatin1Char('/'), 0, 0);
         }
         if (arg.startsWith(QLatin1Char('-'))) {
             if (takesValue(arg)) {

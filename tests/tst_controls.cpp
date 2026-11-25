@@ -419,6 +419,91 @@ private Q_SLOTS:
         QCOMPARE(in("nowhere", "stream").problem, P::NoSuchBus);
     }
 
+    void parseSideChat()
+    {
+        QCOMPARE(remote::parseSide(QStringLiteral("chat")), std::optional(remote::Side::Chat));
+        QCOMPARE(remote::parseSide(QStringLiteral("Chat")), std::optional(remote::Side::Chat));
+        QCOMPARE(remote::sideName(remote::Side::Chat), QStringLiteral("chat"));
+    }
+
+    void inMixChatOnSoundsBus()
+    {
+        using P = remote::InMixProblem;
+        const Scene scene = defaults::scene();
+        const auto t = remote::resolveInMix(scene, QStringLiteral("Game"), QStringLiteral("chat"));
+        QCOMPARE(t.problem, P::None);
+        QCOMPARE(t.busId, QStringLiteral("game"));
+        QVERIFY(t.chat);
+        QVERIFY(!remote::resolveInMix(scene, QStringLiteral("game"), QStringLiteral("stream")).chat);
+        QCOMPARE(remote::resolveInMix(scene, QStringLiteral("mic"), QStringLiteral("chat")).problem,
+                 P::NotPlaybackBus);
+        QCOMPARE(remote::resolveInMix(scene, QStringLiteral("stream"), QStringLiteral("chat")).problem,
+                 P::NotPlaybackBus);
+    }
+
+    void inMixChatRefusedOnVoiceBus()
+    {
+        const Scene scene = defaults::scene();
+        QVERIFY(scene.bus(QStringLiteral("voice")));
+        QCOMPARE(remote::resolveInMix(scene, QStringLiteral("voice"), QStringLiteral("chat")).problem,
+                 remote::InMixProblem::BadSide);
+    }
+
+    void stepChatMovesOnlyChatLevel()
+    {
+        using P = remote::StepProblem;
+        const Scene scene = defaults::scene();
+        auto t = remote::resolveStep(scene, QStringLiteral("game"), QStringLiteral("chat"), 0.05, true);
+        QCOMPARE(t.problem, P::None);
+        QCOMPARE(t.side, remote::Side::Chat);
+        QCOMPARE(remote::resolveStep(scene, QStringLiteral("voice"), QStringLiteral("chat"), 0.05, true).problem,
+                 P::BadSide);
+        QCOMPARE(remote::resolveStep(scene, QStringLiteral("mic"), QStringLiteral("chat"), 0.05, true).problem,
+                 P::OneLevelBus);
+        QCOMPARE(remote::resolveStep(scene, QStringLiteral("game"), QStringLiteral("chat"), 0.05, false).problem,
+                 P::NoPerMixLevels);
+        QCOMPARE(remote::resolveStep(scene, QStringLiteral("game"), QStringLiteral("chat"), 2.0, true).problem,
+                 P::BadDelta);
+    }
+
+    void volumeTargetChatSuffix()
+    {
+        const Scene scene = defaults::scene();
+        auto t = remote::splitMixTarget(QStringLiteral("game.chat"));
+        QCOMPARE(t.bus, QStringLiteral("game"));
+        QVERIFY(t.chat);
+        QVERIFY(!t.mix);
+        auto r = remote::resolveVolumeTarget(scene, QStringLiteral("Game.Chat"));
+        QVERIFY(r.error.isEmpty());
+        QCOMPARE(r.busId, QStringLiteral("game"));
+        QVERIFY(r.chat);
+        QVERIFY(!r.mix);
+        QCOMPARE(remote::resolveVolumeTarget(scene, QStringLiteral("mic.chat")).error,
+                 QString::fromLatin1(remote::kErrorInvalidValue));
+        QCOMPARE(remote::resolveVolumeTarget(scene, QStringLiteral("voice.chat")).error,
+                 QString::fromLatin1(remote::kErrorInvalidValue));
+        QCOMPARE(remote::resolveVolumeTarget(scene, QStringLiteral("nowhere.chat")).error,
+                 QString::fromLatin1(remote::kErrorNoSuchBus));
+        QVERIFY(!remote::resolveVolumeTarget(scene, QStringLiteral("game")).chat);
+    }
+
+    void toggleChatFirstPressSetsUp()
+    {
+        const auto to = remote::toggledChat(false, true); // a stale muted flag does not matter
+        QVERIFY(to.chat);
+        QVERIFY(!to.muted);
+    }
+
+    void toggleChatThenFlipsMuteOnly()
+    {
+        auto to = remote::toggledChat(true, false);
+        QVERIFY(to.chat);
+        QVERIFY(to.muted);
+        to = remote::toggledChat(true, true);
+        QVERIFY(to.chat);
+        QVERIFY(!to.muted);
+    }
+
     void toggleInMixTruthTable()
     {
         using D = Destination;

@@ -73,7 +73,7 @@ public:
     Q_INVOKABLE void setVolume(const QString &key, double volume);
     Q_INVOKABLE void setMuted(const QString &key, bool muted);
     Q_INVOKABLE void removeRule(const QString &key);
-    // matchKey: "name" or "binary". Returns false if the match is empty or already has a rule.
+    // matchKey: "name", "binary", or "java". Returns false if the match is empty or already has a rule.
     Q_INVOKABLE bool editMatch(const QString &key, const QString &match, const QString &matchKey);
     // For apps that report no name: assign by binary and remember the user's name for it.
     Q_INVOKABLE void nameApp(const QString &key, const QString &label, const QString &busId);

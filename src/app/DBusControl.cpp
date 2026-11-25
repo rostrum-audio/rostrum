@@ -48,6 +48,22 @@ const QDBusArgument &operator>>(const QDBusArgument &arg, BusLevels &b)
     return arg;
 }
 
+QDBusArgument &operator<<(QDBusArgument &arg, const BusChat &b)
+{
+    arg.beginStructure();
+    arg << b.id << b.chat << b.muted << b.volume;
+    arg.endStructure();
+    return arg;
+}
+
+const QDBusArgument &operator>>(const QDBusArgument &arg, BusChat &b)
+{
+    arg.beginStructure();
+    arg >> b.id >> b.chat >> b.muted >> b.volume;
+    arg.endStructure();
+    return arg;
+}
+
 QDBusArgument &operator<<(QDBusArgument &arg, const ActionInfo &a)
 {
     arg.beginStructure();
@@ -77,6 +93,8 @@ DBusControl::DBusControl(AppController *app, QObject *parent) : QObject(parent),
     qDBusRegisterMetaType<BusInfoList>();
     qDBusRegisterMetaType<BusLevels>();
     qDBusRegisterMetaType<BusLevelsList>();
+    qDBusRegisterMetaType<BusChat>();
+    qDBusRegisterMetaType<BusChatList>();
     qDBusRegisterMetaType<ActionInfo>();
     qDBusRegisterMetaType<ActionInfoList>();
     for (auto sig : {&AppController::levelsChanged, &AppController::scenesChanged, &AppController::statusChanged,
@@ -84,6 +102,7 @@ DBusControl::DBusControl(AppController *app, QObject *parent) : QObject(parent),
         connect(m_app, sig, this, &DBusControl::publishChanges);
     }
     connect(m_app->engine(), &engine::Engine::perMixLevelsChanged, this, &DBusControl::publishChanges);
+    connect(m_app->engine(), &engine::Engine::chatMicChanged, this, &DBusControl::publishChanges);
 }
 
 DBusControl::~DBusControl() = default;
@@ -135,6 +154,11 @@ bool DBusControl::perMixLevels() const
     return m_app->engine()->perMixUnavailable().isEmpty();
 }
 
+bool DBusControl::chatMic() const
+{
+    return m_app->engine()->chatMicActive();
+}
+
 // The PropertiesChanged signal for the properties above, sent only when one changed.
 void DBusControl::publishChanges()
 {
@@ -144,7 +168,8 @@ void DBusControl::publishChanges()
                           {QStringLiteral("CurrentScene"), currentScene()},
                           {QStringLiteral("Connected"), connected()},
                           {QStringLiteral("MicFilters"), micFilters()},
-                          {QStringLiteral("PerMixLevels"), perMixLevels()}};
+                          {QStringLiteral("PerMixLevels"), perMixLevels()},
+                          {QStringLiteral("ChatMic"), chatMic()}};
     QVariantMap changed;
     for (auto it = now.cbegin(); it != now.cend(); ++it) {
         if (m_published.value(it.key()) != it.value()) {
@@ -237,6 +262,10 @@ DBusControl::Error DBusControl::setBusVolume(const QString &busText, double posi
         return error(remote::kErrorNoSuchBus, i18n("The live scene has no bus “%1”.", busText));
     }
     if (target.error == QLatin1String(remote::kErrorInvalidValue)) {
+        if (target.chat && busId != QLatin1String(kMicBusId) && busId != QLatin1String(remote::kStreamId) &&
+            busId != QLatin1String(remote::kPhonesId)) {
+            return error(remote::kErrorInvalidValue, i18n("“%1” cannot send to voice chat.", busText));
+        }
         return error(remote::kErrorInvalidValue, busId == QLatin1String(kMicBusId)
                                                      ? i18n("The mic has one level.")
                                                      : i18n("The %1 master has one level.", busId));
@@ -251,6 +280,15 @@ DBusControl::Error DBusControl::setBusVolume(const QString &busText, double posi
         engine->setMasterStream(position);
     } else if (busId == QLatin1String(remote::kPhonesId)) {
         engine->setMasterPhones(position);
+    } else if (target.chat) {
+        // The mixer refuses to turn voice chat on where it cannot run. Setting the level of a
+        // bus that is not already sending there is the same switch.
+        const Bus *bus = engine->scene().bus(busId);
+        const QString why = engine->chatUnavailable();
+        if (bus && !bus->chat && !why.isEmpty()) {
+            return error(remote::kErrorInvalidValue, why);
+        }
+        engine->setBusChatVolume(busId, position);
     } else if (target.mix) {
         engine->setBusMixVolume(busId, *target.mix, position); // a linked bus moves both, as in the UI
     } else {
@@ -305,8 +343,11 @@ DBusControl::Error DBusControl::stepBusVolume(const QString &busText, const QStr
     case remote::StepProblem::NoSuchBus:
         return error(remote::kErrorNoSuchBus, i18n("The live scene has no bus “%1”.", busText));
     case remote::StepProblem::BadSide:
+        if (remote::parseSide(mix) == remote::Side::Chat) {
+            return error(remote::kErrorInvalidValue, i18n("“%1” cannot send to voice chat.", busText));
+        }
         return error(remote::kErrorInvalidValue,
-                     i18n("The mix must be “stream”, “phones” or “both”, not “%1”.", mix));
+                     i18n("The mix must be “stream”, “phones”, “chat” or “both”, not “%1”.", mix));
     case remote::StepProblem::OneLevelBus:
         return error(remote::kErrorInvalidValue, busId == QLatin1String(kMicBusId)
                                                      ? i18n("The mic has one level.")
@@ -328,6 +369,12 @@ DBusControl::Error DBusControl::stepBusVolume(const QString &busText, const QStr
         const Bus &b = *s.bus(busId);
         if (b.isInput()) {
             engine->setBusVolume(busId, b.volume + delta);
+        } else if (target.side == remote::Side::Chat) {
+            const QString why = engine->chatUnavailable();
+            if (!b.chat && !why.isEmpty()) {
+                return error(remote::kErrorInvalidValue, why);
+            }
+            engine->setBusChatVolume(busId, b.chatVolume + delta);
         } else if (target.side == remote::Side::Both) {
             engine->setBusMixVolumeTogether(busId, Mix::Stream, b.volume + delta);
         } else if (target.side == remote::Side::Phones) {
@@ -336,7 +383,9 @@ DBusControl::Error DBusControl::stepBusVolume(const QString &busText, const QStr
             engine->setBusMixVolumeAlone(busId, Mix::Stream, b.volume + delta);
         }
         const Bus &after = *engine->scene().bus(busId);
-        *position = target.side == remote::Side::Phones ? after.phonesVolume : after.volume;
+        *position = target.side == remote::Side::Phones ? after.phonesVolume
+                    : target.side == remote::Side::Chat ? after.chatVolume
+                                                        : after.volume;
     }
     return {};
 }
@@ -351,12 +400,33 @@ DBusControl::Error DBusControl::toggleBusInMix(const QString &busText, const QSt
     case remote::InMixProblem::NoSuchBus:
         return error(remote::kErrorNoSuchBus, i18n("The live scene has no bus “%1”.", busText));
     case remote::InMixProblem::BadSide:
-        return error(remote::kErrorInvalidValue, i18n("The mix must be “stream” or “phones”, not “%1”.", mix));
+        if (remote::parseSide(mix) == remote::Side::Chat) {
+            return error(remote::kErrorInvalidValue, i18n("“%1” cannot send to voice chat.", busText));
+        }
+        return error(remote::kErrorInvalidValue,
+                     i18n("The mix must be “stream”, “phones” or “chat”, not “%1”.", mix));
     case remote::InMixProblem::NotPlaybackBus:
         return error(remote::kErrorInvalidValue,
                      i18n("“%1” is not a playback bus, so it has no destination.", busText));
     }
     const Bus &b = *engine->scene().bus(target.busId);
+    if (target.chat) {
+        // The first press sets the destination up; after that it only switches it off and on.
+        // The mixer leaves the checkbox off, unless it is already on, while voice chat cannot run.
+        const QString why = engine->chatUnavailable();
+        if (!b.chat && !why.isEmpty()) {
+            return error(remote::kErrorInvalidValue, why);
+        }
+        const auto before = m_app->snapshot();
+        const remote::ChatState to = remote::toggledChat(b.chat, b.chatMuted);
+        if (!b.chat) {
+            engine->setBusChat(target.busId, true);
+        } else if (to.muted != b.chatMuted) {
+            engine->setBusChatMuted(target.busId, to.muted);
+        }
+        m_app->reportChange(before);
+        return {};
+    }
     const remote::InMix to = remote::toggledInMix(b.destination, b.muted, target.mix);
     const bool destinationChanges = to.destination != b.destination;
     const bool muteChanges = to.muted != b.muted;
@@ -436,6 +506,17 @@ BusLevelsList DBusControl::busLevels() const
             levels.destination = destinationName(b->destination);
         }
         out.append(levels);
+    }
+    return out;
+}
+
+BusChatList DBusControl::busChat() const
+{
+    BusChatList out;
+    for (const Bus &b : m_app->engine()->scene().buses) {
+        if (chatAllowed(b)) {
+            out.append({b.id, b.chat, b.chatMuted, b.chatVolume});
+        }
     }
     return out;
 }
@@ -542,6 +623,10 @@ BusInfoList DBusControl::ListBuses()
 BusLevelsList DBusControl::ListBusLevels()
 {
     return busLevels();
+}
+BusChatList DBusControl::ListBusChat()
+{
+    return busChat();
 }
 ActionInfoList DBusControl::ListActions()
 {

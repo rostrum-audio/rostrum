@@ -28,7 +28,8 @@ Custom controls set an accessible name and, where Qt cannot work it out, a role:
 - **Mute and solo** buttons are named per bus ("Game mute", "Game solo") and report whether they
   are on. The sidetone switch and its volume are named too.
 - **Destinations** are a named group ("Game destination") of radio buttons for Headphones, Stream
-  and Both.
+  and Both. Each playback strip also has a "Voice chat" checkbox, named per bus ("Game: Voice chat"),
+  and, once it is on, a "Game voice chat" fader and a "Game: Mute sounds in voice chat" button.
 - **Meters** are exposed as progress bars. Their description gives the level in words: "Silent",
   a peak level in dB such as "-12 dB", or "Clipping". It updates at most twice a second so it does
   not flood the screen reader.

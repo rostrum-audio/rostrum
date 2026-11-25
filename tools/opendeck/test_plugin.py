@@ -50,6 +50,8 @@ class FakeBus:
         self.list_buses = [('mic', 'Mic', 1.0, False), ('game', 'Game', 1.0, True)]
         # None answers ListBusLevels as Rostrum 0.5 does (UnknownMethod), so tests keep ListBuses.
         self.list_levels = None
+        # None answers ListBusChat as a Rostrum before voice chat does (UnknownMethod).
+        self.list_chat = None
         self.step_delay = 0
         self.getall_delay = 0
         self.in_flight = 0
@@ -107,6 +109,10 @@ class FakeBus:
             if self.list_levels is None:
                 raise plugin.DBusError('org.freedesktop.DBus.Error.UnknownMethod', 'No such method')
             return (list(self.list_levels),)
+        if member == 'ListBusChat':
+            if self.list_chat is None:
+                raise plugin.DBusError('org.freedesktop.DBus.Error.UnknownMethod', 'No such method')
+            return (list(self.list_chat),)
         if member == 'StepBusVolume':
             return await self._step(*args)
         if member in ('ToggleBusMuted', 'ToggleBusInMix', 'TriggerAction', 'SwitchScene', 'PressAction',
@@ -121,6 +127,13 @@ class FakeBus:
         try:
             if self.step_delay:
                 await asyncio.sleep(self.step_delay)
+            if side == 'chat':
+                for index, (row_id, chat, muted, level) in enumerate(self.list_chat or []):
+                    if row_id == bus_id:
+                        level = min(1.0, max(0.0, level + delta))
+                        self.list_chat[index] = (row_id, chat, muted, level)
+                        return (level,)
+                raise plugin.DBusError(plugin.IFACE + '.Error.InvalidValue', bus_id)
             rows = self.list_levels or []
             for index, (row_id, name, stream, phones, muted, destination) in enumerate(rows):
                 if row_id != bus_id:
@@ -716,6 +729,76 @@ class PluginTest(unittest.IsolatedAsyncioTestCase):
         await self.down(app)
         self.assertEqual(self.calls_of(bus, 'ToggleBusMuted'), [('game',)])
 
+    CHAT_ROWS = [('game', True, False, 0.7)]
+
+    def chat_plugin(self, chat=None):
+        app, bus, runner, events = self.setup_plugin()
+        bus.list_levels = list(self.SIDE_LEVELS)
+        bus.list_chat = list(self.CHAT_ROWS if chat is None else chat)
+        return app, bus, runner, events
+
+    async def test_chat_side_unavailable_on_old_rostrum(self):
+        # Levels but no ListBusChat: a Rostrum from before voice chat.
+        app, bus, _, events = self.setup_plugin()
+        bus.list_levels = list(self.SIDE_LEVELS)
+        await self.appear(app, 'bus', {'bus': 'game', 'side': 'chat'}, context='t')
+        await self.appear(app, 'volumeUp', {'bus': 'game', 'side': 'chat'}, context='v')
+        self.assertEqual(self.shown(app, 't')[1], 'Unavailable')
+        self.assertEqual(self.shown(app, 'v')[1], 'Unavailable')
+        await self.down(app, 't')
+        await self.down(app, 'v')
+        await self.up(app, 'v')
+        self.assertEqual(self.calls_of(bus, 'ToggleBusInMix') + self.steps(bus), [])
+        # Plain keys on that Rostrum still work.
+        await self.appear(app, 'bus', {'bus': 'game', 'side': 'stream'}, context='s')
+        self.assertEqual(self.shown(app, 's')[1], 'Game\non stream')
+
+    async def test_chat_side_toggles_in_mix(self):
+        app, bus, _, _ = self.chat_plugin()
+        await self.appear(app, 'bus', {'bus': 'game', 'side': 'chat'})
+        self.assertEqual(self.shown(app), (0, 'Game\non in chat'))
+        await self.down(app)
+        self.assertEqual(self.calls_of(bus, 'ToggleBusInMix'), [('game', 'chat')])
+        self.assertEqual(self.calls_of(bus, 'ToggleBusMuted'), [])
+        bus.list_chat[0] = ('game', True, True, 0.7)
+        await self.up(app)
+        await app.poll(force=True)
+        self.assertEqual(self.shown(app), (1, 'Game\noff in chat'))
+        bus.list_chat[0] = ('game', False, False, 0.7)
+        await app.poll(force=True)
+        self.assertEqual(self.shown(app), (1, 'Game\noff in chat'))
+        await self.down(app)  # the first press sets it up
+        self.assertEqual(self.calls_of(bus, 'ToggleBusInMix')[-1], ('game', 'chat'))
+
+    async def test_chat_side_on_a_bus_without_chat_does_nothing(self):
+        app, bus, _, events = self.chat_plugin()
+        await self.appear(app, 'bus', {'bus': 'mic', 'side': 'chat'})
+        self.assertEqual(self.shown(app)[1], 'Mic\nNo voice chat')
+        await self.down(app)
+        self.assertEqual(self.alerts(events), 1)
+        self.assertEqual(self.calls_of(bus, 'ToggleBusInMix'), [])
+
+    async def test_chat_side_steps_volume(self):
+        app, bus, _, _ = self.chat_plugin()
+        await self.appear(app, 'volumeDown', {'bus': 'game', 'side': 'chat'})
+        self.assertEqual(self.shown(app), (0, 'Game\nChat 70%'))
+        await self.down(app)
+        await self.up(app)
+        self.assertEqual(self.steps(bus), [('game', 'chat', -0.05)])
+        self.assertEqual(self.shown(app)[1], 'Game\nChat 65%')
+        bus.list_chat[0] = ('game', True, True, 0.65)
+        await app.poll(force=True)
+        self.assertEqual(self.shown(app), (1, 'Game\nChat 65%'))
+
+    async def test_chat_volume_on_a_bus_without_chat_does_nothing(self):
+        app, bus, _, events = self.chat_plugin()
+        await self.appear(app, 'volumeUp', {'bus': 'stream', 'side': 'chat'})
+        self.assertEqual(self.shown(app)[1], 'Stream\nNo voice chat')
+        await self.down(app)
+        await self.up(app)
+        self.assertEqual(self.steps(bus), [])
+        self.assertEqual(self.alerts(events), 1)
+
     VOLUME_LEVELS = [('stream', 'Stream', 1.0, 1.0, False, ''), ('mic', 'Mic', 1.5, 1.5, False, ''),
                      ('game', 'Game', 0.5, 0.8, False, 'both')]
 
@@ -1086,6 +1169,24 @@ class ControlsTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(plugin.Unavailable):
             await controls.toggle_in_mix('game', 'stream')
         self.assertEqual(runner.commands, [])
+
+    async def test_snapshot_reads_chat(self):
+        controls, bus, _ = self.controls()
+        bus.list_levels = list(self.LEVELS)
+        bus.list_chat = [('game', True, True, 0.7)]
+        buses, _ = await controls.snapshot()
+        self.assertIs(controls.chat, True)
+        self.assertEqual(buses['game']['chat'], {'on': True, 'muted': True, 'level': 0.7})
+        self.assertNotIn('chat', buses['mic'])
+
+    async def test_snapshot_without_list_bus_chat(self):
+        controls, bus, _ = self.controls()
+        bus.list_levels = list(self.LEVELS)
+        buses, _ = await controls.snapshot()
+        self.assertIs(controls.chat, False)
+        self.assertNotIn('chat', buses['game'])
+        await controls.snapshot()
+        self.assertEqual(self.members(bus).count('ListBusChat'), 1)
 
     async def test_toggle_in_mix_call(self):
         controls, bus, _ = self.controls()
@@ -1692,6 +1793,8 @@ class DbusCodecTest(unittest.TestCase):
         self.assertEqual(decode('ssd', encode('ssd', 'game', 'stream', -0.05)), ('game', 'stream', -0.05))
         rows = [('mic', 'Mic', 1.0, 1.0, False, ''), ('game', 'Game', 0.5, 0.8, True, 'both')]
         self.assertEqual(decode('a(ssddbs)', encode('a(ssddbs)', rows)), (rows,))
+        chat = [('game', True, False, 0.7), ('music', False, False, 0.5)]
+        self.assertEqual(decode('a(sbbd)', encode('a(sbbd)', chat)), (chat,))
         self.assertEqual(decode('d', encode('d', 0.45)), (0.45,))
 
     def test_round_trip_call_and_reply_signatures(self):

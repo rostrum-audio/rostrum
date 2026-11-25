@@ -9,6 +9,7 @@
 #include <QHash>
 #include <QList>
 #include <QMap>
+#include <QMultiHash>
 #include <QSet>
 #include <QString>
 
@@ -25,14 +26,18 @@ using rostrum::sendNodeName; // core/Model.h, shared with stream readiness
 // For spa-node-factory: a bare stereo audio.convert, like rostrum.micfx. No media.class, so the
 // session manager leaves it alone and it appears in no device list. It lingers like every node.
 QMap<QString, QString> sendProperties(const Bus &bus, Mix mix);
+// The same for the bus's voice chat send (rostrum.mix = chat).
+QMap<QString, QString> chatSendProperties(const Bus &bus);
 
 struct SendSpec
 {
     QString name;
     QString busId;
-    Mix mix = Mix::Phones;
+    Mix mix = Mix::Phones; // ignored when chat
+    bool chat = false;
 };
-// Two per playback bus (Headphones, then Stream), in bus order. The mic has none.
+// Two per playback bus (Headphones, then Stream), in bus order, then a voice chat send for a bus
+// that has one and may. The mic has none.
 QList<SendSpec> desiredSends(const Scene &scene);
 
 // A send of a playback bus that is in the scene.
@@ -47,7 +52,8 @@ struct NodeLink
 // Links between the playback buses and the masters, by node name. perMix: every bus into both its
 // sends, the Headphones send into rostrum.phones when the bus feeds headphones, the Stream send
 // into rostrum.stream when it feeds the stream and into rostrum.vod when it also feeds the VOD.
-// Otherwise the bus links straight into the masters, one level for both.
+// Otherwise the bus links straight into the masters, one level for both. perMix also links the bus
+// into its chat send and the chat send into rostrum.chatmic, where the bus has one.
 QList<NodeLink> busLinks(const Scene &scene, bool perMix);
 
 struct NodeLevel
@@ -64,6 +70,19 @@ struct NodeLevel
 // Single level: the bus node carries the Stream level, muted when the bus is muted or dimmed.
 QHash<QString, NodeLevel> busNodeLevels(const Scene &scene, const QSet<QString> &soloed,
                                         const QSet<QString> &duckTargets, double duckGain, bool perMix);
+
+// The level of each chat send by node name: the chat fader at half gain (the mono sum of a stereo
+// bus), muted when the destination is switched off or the bus is in blockedBuses. Not touched by
+// solo, ducking or the bus's own level; those act on the bus node upstream.
+QHash<QString, NodeLevel> chatSendLevels(const Scene &scene, const QSet<QString> &blockedBuses);
+
+// Ids of the buses whose chat send would play an app back to itself: chat is on and allowed, and an
+// app key playing on the bus is also in appKeysOnChatMic (apps recording rostrum.chatmic).
+QSet<QString> chatLoopBuses(const Scene &scene, const QMultiHash<QString, QString> &appKeysByBus,
+                            const QSet<QString> &appKeysOnChatMic);
+
+// Display names of the buses with these ids, sorted; unknown ids are skipped.
+QStringList busDisplayNames(const Scene &scene, const QSet<QString> &busIds);
 
 struct FadeLevel
 {

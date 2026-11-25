@@ -24,6 +24,39 @@ private Q_SLOTS:
                  (AppKey{MatchKey::Java, QStringLiteral("net.example.Game")}));
     }
 
+    void chatNotAllowedOnVoiceBus()
+    {
+        const Scene s = defaults::scene();
+        QVERIFY(chatAllowed(*s.bus(QStringLiteral("game"))));
+        QVERIFY(!chatAllowed(*s.bus(QStringLiteral("voice"))));
+        QVERIFY(!chatAllowed(*s.micBus()));
+        QCOMPARE(chatSendNodeName(QStringLiteral("game")), QStringLiteral("rostrum.game.chat"));
+    }
+
+    void chatMicWantedAcrossScenes()
+    {
+        Scene live = defaults::scene();
+        Scene other = defaults::scene(QStringLiteral("Other"));
+        QVERIFY(!chatMicWanted({live, other}));
+        other.bus(QStringLiteral("game"))->chat = true;
+        QVERIFY(chatMicWanted({live, other}));
+        other.bus(QStringLiteral("game"))->chatMuted = true;
+        QVERIFY(chatMicWanted({live, other}));
+        other.bus(QStringLiteral("game"))->chat = false;
+        other.bus(QStringLiteral("voice"))->chat = true;
+        QVERIFY(!chatMicWanted({live, other}));
+    }
+
+    void chatMicWantedFollowsSavedScenesNotLiveScene()
+    {
+        const Scene live = defaults::scene();
+        Scene saved = defaults::scene(QStringLiteral("Saved"));
+        saved.bus(QStringLiteral("game"))->chat = true;
+        QVERIFY(chatMicWanted({live, saved}));
+        saved.bus(QStringLiteral("game"))->chat = false;
+        QVERIFY(!chatMicWanted({live, saved}));
+    }
+
     void moveLevelLinkedKeepsGap()
     {
         const MixLevels out = moveLevel({0.6, 0.2}, Mix::Phones, 0.5, true);
@@ -134,10 +167,16 @@ private Q_SLOTS:
         current.bus(QStringLiteral("game"))->volume = 0.3;
         current.bus(QStringLiteral("game"))->name = QStringLiteral("Ranked");
         current.bus(QStringLiteral("game"))->color = QStringLiteral("#123456");
+        current.bus(QStringLiteral("game"))->chat = true;
+        current.bus(QStringLiteral("game"))->chatMuted = true;
+        current.bus(QStringLiteral("game"))->chatVolume = 0.3;
         current.masterStream = 0.5;
         current.rules.append({QStringLiteral("Discord"), MatchKey::Name, QStringLiteral("voice")});
         const Scene merged = mergeStructure(saved, current);
         QCOMPARE(merged.bus(QStringLiteral("game"))->volume, 1.0);
+        QCOMPARE(merged.bus(QStringLiteral("game"))->chat, false);
+        QCOMPARE(merged.bus(QStringLiteral("game"))->chatMuted, false);
+        QCOMPARE(merged.bus(QStringLiteral("game"))->chatVolume, kDefaultChatVolume);
         QCOMPARE(merged.bus(QStringLiteral("game"))->name, QStringLiteral("Ranked"));
         QCOMPARE(merged.bus(QStringLiteral("game"))->color, QStringLiteral("#123456"));
         QCOMPARE(merged.masterStream, 1.0);

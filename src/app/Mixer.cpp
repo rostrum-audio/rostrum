@@ -9,6 +9,8 @@
 
 #include <KLocalizedString>
 
+#include <algorithm>
+
 #include <QJSEngine>
 
 namespace rostrum::app {
@@ -51,7 +53,8 @@ QHash<int, QByteArray> BusModel::roleNames() const
         {AppsRole, "apps"},    {PeakRole, "peak"},       {ClipRole, "clip"},
         {PhonesPeakRole, "phonesPeak"}, {PhonesClipRole, "phonesClip"},
         {AutoCategoryRole, "autoCategory"}, {BalanceRole, "balance"}, {DuckedRole, "ducked"},
-        {VodRole, "vod"},
+        {VodRole, "vod"}, {ChatRole, "chat"}, {ChatMutedRole, "chatMuted"}, {ChatVolumeRole, "chatVolume"},
+        {ChatAllowedRole, "chatAllowed"}, {ChatBlockedRole, "chatBlocked"},
     };
 }
 
@@ -106,6 +109,16 @@ QVariant BusModel::data(const QModelIndex &index, int role) const
         return m_engine->isDucked(id);
     case VodRole:
         return b->vod;
+    case ChatRole:
+        return b->chat;
+    case ChatMutedRole:
+        return b->chatMuted;
+    case ChatVolumeRole:
+        return b->chatVolume;
+    case ChatAllowedRole:
+        return chatAllowed(*b);
+    case ChatBlockedRole:
+        return m_engine->chatBlocked(id);
     }
     return {};
 }
@@ -165,7 +178,8 @@ void BusModel::refresh()
     if (!m_ids.isEmpty()) {
         Q_EMIT dataChanged(index(0), index(int(m_ids.size()) - 1),
                            {NameRole, ColorRole, VolumeRole, PhonesVolumeRole, LinkedRole, MutedRole, SoloedRole,
-                            DimmedRole, DestinationRole, AppsRole, AutoCategoryRole, BalanceRole, DuckedRole});
+                            DimmedRole, DestinationRole, AppsRole, AutoCategoryRole, BalanceRole, DuckedRole, VodRole, ChatRole,
+                            ChatMutedRole, ChatVolumeRole, ChatAllowedRole, ChatBlockedRole});
     }
 }
 
@@ -221,6 +235,11 @@ Mixer::Mixer(AppController *app, QObject *parent)
     connect(m_engine, &engine::Engine::duckedChanged, this, [this] { m_model.refresh(); });
     connect(m_engine, &engine::Engine::devicesChanged, this, &Mixer::updateTargets);
     connect(m_engine, &engine::Engine::perMixLevelsChanged, this, &Mixer::perMixLevelsChanged);
+    connect(m_engine, &engine::Engine::chatMicChanged, this, &Mixer::chatMicChanged);
+    connect(m_engine, &engine::Engine::chatLoopChanged, this, [this] {
+        m_model.refresh(); // the strips show which sends are held off
+        Q_EMIT chatLoopChanged();
+    });
 
     connect(&m_timer, &QTimer::timeout, this, &Mixer::tick);
     m_model.refresh();
@@ -364,6 +383,10 @@ void Mixer::setVolume(const QString &busId, double position) { m_engine->setBusV
 
 void Mixer::setMixVolume(const QString &busId, const QString &mix, double position)
 {
+    if (mix == QLatin1String("chat")) {
+        m_engine->setBusChatVolume(busId, position);
+        return;
+    }
     const auto which = mixFromString(mix);
     if (which) {
         m_engine->setBusMixVolume(busId, *which, position);
@@ -379,6 +402,15 @@ void Mixer::setVolumeTogether(const QString &busId, double streamPosition)
 
 bool Mixer::perMixLevels() const { return m_engine->perMixLevels(); }
 QString Mixer::perMixUnavailable() const { return m_engine->perMixUnavailable(); }
+QString Mixer::chatUnavailable() const { return m_engine->chatUnavailable(); }
+bool Mixer::anyChat() const
+{
+    const auto &buses = m_engine->scene().buses;
+    return std::any_of(buses.cbegin(), buses.cend(), [](const Bus &b) { return b.chat && chatAllowed(b); });
+}
+bool Mixer::chatMicActive() const { return m_engine->chatMicActive(); }
+QStringList Mixer::chatBlockedBuses() const { return m_engine->chatBlockedBusNames(); }
+QStringList Mixer::chatLoopApps() const { return m_engine->chatLoopApps(); }
 
 QStringList Mixer::streamOnlyPlaybackBusNames() const
 {
@@ -418,6 +450,16 @@ void Mixer::setDestination(const QString &busId, int index)
 void Mixer::setVod(const QString &busId, bool on)
 {
     m_engine->setBusVod(busId, on);
+}
+
+void Mixer::setChat(const QString &busId, bool on)
+{
+    m_engine->setBusChat(busId, on);
+}
+
+void Mixer::setChatMuted(const QString &busId, bool muted)
+{
+    m_engine->setBusChatMuted(busId, muted);
 }
 
 void Mixer::rename(const QString &busId, const QString &name)

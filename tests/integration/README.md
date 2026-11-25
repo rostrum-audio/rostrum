@@ -364,6 +364,72 @@ gaps. `tst_dsp` covers the plugin itself: a stalled worker never holds up
 `run()` and its frames go out dry, exactly 960 samples late, and at real-time
 pace the worker keeps up at 256, 512 and 2048-sample blocks.
 
+## Sounds in voice chat
+
+`audio_chat_mic` (`chat-mic.py`, registered when the DSP plugin is built; needs `pw-mon` and
+`pw-metadata`) checks Rostrum Chat Mic. A bus with voice chat on feeds `rostrum.<bus>.chat` into
+`rostrum.chatmic`, which also takes `rostrum.filtered` (the voice), and apps that record the mic
+move onto it. Each case starts a fresh private session with saved scenes under the private config.
+Their one playback bus, Sounds, goes to both mixes with VOD off and chat at full level. A 440 Hz clip
+plays on Sounds and a 220 Hz voice feeds the fake mic. Both reach the chat mic at the test level:
+the send's half gain makes up for summing two channels into one. A tone that must be absent has to
+stay 40 dB below that level, and silence uses the harness's −100 dBFS bar. The call app is a
+`pw-cat` recording with no target, so WirePlumber links it to the default source, the fake mic
+(given priority 3000 so it beats the headphones' monitor). The cases are:
+
+- `clip_reaches_chat_once`: the clip is on the chat mic and on the Stream Mix at the bus level (a
+  second path would double it), and `rostrum.mic`, `rostrum.filtered` and `rostrum.vod` are silent.
+  After a switch to a scene with VOD on, VOD carries it once and the mic nodes stay silent. The chat
+  mic's and the send's properties are checked, and the send feeds only the chat mic.
+- `mic_mute_keeps_clips`: mic mute takes the voice off the chat mic, `rostrum.mic` and filtered;
+  the clip stays on the chat mic.
+- `panic_silences_chat`: panic silences the chat mic, the call app on it, the mic nodes and the
+  Stream Mix. Releasing panic brings voice and clip back to the app.
+- `panic_then_unmute`: after panic, unmuting the mic brings voice and clip back on the chat mic
+  within 50 ms of each other (measured: the same 5 ms step).
+- `capture_app_moves_to_chatmic_and_back` (Studio Voice on): the app moves to the chat mic. The
+  live chat toggle takes the clip off and puts it back without changing the app's target. Chat off
+  live, then saved, keeps the app there while another saved scene still chats, and so does
+  switching to that scene. Once no scene chats, the app ends on filtered and the chat mic goes.
+  `pw-mon` must show filtered linked into the app before the chat mic was removed, and no link
+  from the raw mic into the app or filtered. The log must show the move before the removal, and
+  the recording may go silent only for one handoff (150 ms).
+- `filters_toggle_keeps_apps_on_chatmic`: Studio Voice off, on, failed and back. Each time
+  filtered is fed by one path, the app keeps its chat mic target and hears voice and clip, and
+  `pw-mon` sees nothing but the chat mic linked into it.
+- `scene_switch` (Studio Voice off): scenes without chat, or with chat muted, take the clip off the
+  chat mic. The app stays on the same chat mic node and the Stream Mix keeps the clip.
+- `wireplumber_restart`: an app on the chat mic is back on it after each of two WirePlumber
+  restarts. Afterwards, with chat off everywhere, it still goes to filtered before the chat mic is
+  removed, never through the raw mic (the same `pw-mon` and log checks). A starting WirePlumber
+  rebuilds the ports of the fake mic, filtered and the chat mic, which drops their links. Rostrum
+  links its own again and the test links the voice feed again. While filtered is not linked into
+  the chat mic, Rostrum counts the chat mic as not in use. The app was already on it, so the log
+  must not send it to the raw mic during a restart. `pw-mon` is not used for that check: WirePlumber
+  can link the app to the default source itself.
+- `pipewire_restart`: PipeWire and WirePlumber are stopped and started again, and Rostrum
+  reconnects once the test asks. The chat mic comes back under a new serial, the call app is moved
+  onto it, and the app hears the voice and the clip.
+- `chat_off_everywhere` (Studio Voice off): an app on the default source and one whose target is
+  the mic (set in the default metadata) both move to the chat mic. Once no scene chats, the first
+  has no target and the second its old one, both record only the mic, and the log shows both moved
+  before the chat mic was removed.
+- `missing_mic_clips_still_reach_chat`: with the saved mic missing the clip reaches the chat mic.
+  An app on it stays there, hearing the clip, while the mic is unplugged, gets the voice back when
+  the mic returns, and is moved only once.
+- `no_dont_flags`: no Rostrum node carries `node.dont-*`, only a running meter does. The app's
+  only default-metadata entry is `target.object`. Both exported rule fragments hold the rule and no
+  `dont-` flag, and nothing new appears under the WirePlumber configuration. The meter comes from
+  a separate `--meter` driver, which has an engine of its own with the mix off and would point the
+  app off the chat mic, so the app starts after the meter has stopped.
+
+Graphtest gains `save=1` on `--control-file`. It saves the live scene over the current saved scene,
+as Save does in the app. Without it no saved scene could lose its chat bus during a run, since
+auto-save is off. With the chat send also linked into `rostrum.mic`, `clip_reaches_chat_once`
+fails on audio leaking into `rostrum.mic`. With the chat mic left unmuted on panic,
+`panic_silences_chat` fails on the app hearing the clip. With the hold before removing the chat mic
+skipped, the capture-app case fails on the order of events.
+
 ## Manual confirmation (2026-10-04)
 
 The user confirmed a fresh OBS recording on the installed normal x86_64 build:

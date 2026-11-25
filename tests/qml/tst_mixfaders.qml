@@ -30,7 +30,18 @@ Item {
         onPhonesEdited: v => { root.phonesEdits++; root.lastPhones = v }
         onStreamEdited: v => { root.streamEdits++; root.lastStream = v }
         onLinkToggled: root.linkPresses++
+        busName: "Sounds"
+        chatShown: root.chatOn
+        chatEnabled: root.chatLive
+        chatMuted: !root.chatLive
+        onChatMuteToggled: root.chatMutePresses++
+        onChatMoved: v => { root.chatEdits++; root.lastChat = v }
     }
+    property bool chatOn: false
+    property bool chatLive: true
+    property int chatMutePresses: 0
+    property int chatEdits: 0
+    property real lastChat: -1
     property bool phonesOn: true
 
     Flickable {
@@ -71,6 +82,53 @@ Item {
             root.streamEdits = 0
             root.lastPhones = -1
             root.lastStream = -1
+            root.chatOn = false
+            root.chatLive = true
+            root.chatMutePresses = 0
+            root.chatEdits = 0
+            root.lastChat = -1
+        }
+
+        function test_chatFaderOnlyWhileShown() {
+            compare(findChild(box, "chatFader").visible, false)
+            compare(findChild(box, "chatMuteButton").visible, false)
+            root.chatOn = true
+            compare(findChild(box, "chatFader").visible, true)
+            compare(findChild(box, "chatMuteButton").visible, true)
+            // the link only covers Headphones and Stream
+            mouseClick(findChild(box, "linkButton"))
+            compare(root.linkPresses, 1)
+            compare(root.chatEdits, 0)
+        }
+
+        function test_chatFaderDisabledWhileOff() {
+            root.chatOn = true
+            const fader = findChild(box, "chatFader")
+            compare(fader.enabled, true)
+            root.chatLive = false
+            compare(fader.enabled, false)
+            mouseDrag(fader, fader.width / 2, fader.height / 2, 0, 80)
+            compare(root.chatEdits, 0)
+        }
+
+        function test_chatFaderEditsAndResets() {
+            root.chatOn = true
+            const fader = findChild(box, "chatFader")
+            compare(fader.resetValue, 0.7)
+            fader.forceActiveFocus()
+            keyClick(Qt.Key_Up)
+            compare(root.chatEdits, 1)
+            verify(Math.abs(root.lastChat - 0.71) < 0.001)
+            compare(root.phonesEdits, 0)
+            compare(root.streamEdits, 0)
+        }
+
+        function test_chatMuteButtonEmits() {
+            root.chatOn = true
+            const button = findChild(box, "chatMuteButton")
+            compare(button.Accessible.name, "Sounds: Mute sounds in voice chat")
+            mouseClick(button)
+            compare(root.chatMutePresses, 1)
         }
 
         function test_twoFadersAndLink() {

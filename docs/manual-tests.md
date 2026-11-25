@@ -953,6 +953,49 @@ Needs a running Rostrum with the send path (PipeWire 1.4+, `spa-node-factory` lo
 7. Quit Rostrum without Rebuild Mix. `pw-dump` still lists `rostrum.game.phones` and
    `.stream`, and a tone into Game still reaches the masters at the saved levels.
 
+## 35. Sounds in voice chat
+
+Needs a running Rostrum with per-mix levels, Discord (or another voice chat app), a friend on the
+call, and a short sound clip.
+
+1. **Set up.** Add Bus, name it Sounds, and set Right-click → Receives Automatically → Nothing.
+   Tick **Voice chat** on its strip. A third fader, "Voice chat", and a button "Mute sounds in
+   voice chat" appear, at 70 %. The mic strip shows "Chat Mic". Sources now include "Rostrum Chat
+   Mic". On the Voice bus the Voice chat checkbox is off and its tooltip says the call would
+   hear itself.
+2. **Discord on Default input.** Leave Discord's input on Default. Discord moves to Rostrum Chat
+   Mic (Studio Voice page: apps get Rostrum Chat Mic). This holds with Studio Voice off.
+3. **A friend hears a clip.** Play a clip on the Sounds bus: you hear it, and your friend hears it
+   at a sensible level next to your voice. Move the Voice chat fader: only the friend's level
+   changes. Mute sounds in voice chat: the friend loses the clip, you and the stream still hear it,
+   and Discord stays on Rostrum Chat Mic. Unmute.
+4. **Mute Mic.** Mute the mic: the friend still hears clips but not you. Push to talk lets you
+   through while held. Unmute.
+5. **Panic.** Panic mute: the friend hears neither you nor clips. Clear it.
+6. **Mute the bus.** Mute Sounds: you, the stream and the friend hear nothing from it.
+7. **The stream.** Record the stream: each clip is there once, not twice.
+8. **OBS.** The OBS mic track has voice but no clips.
+9. **A game.** Start a game with in-game voice chat (restart it if it was already running). A
+   friend in game chat hears a clip. If it does not, check the game's input device.
+10. **Loop guard.** With Discord on the Voice bus, no banner appears. Drag Discord onto the Sounds
+    bus while it records Rostrum Chat Mic: a banner names Sounds and Discord, and the friend stops
+    hearing that bus. Move Discord back and the banner goes. (This checks Discord's playback and
+    capture are recognised as one app.)
+11. **Own choice.** Set an app's input to "Rostrum Filtered Mic" in its own settings: it hears your
+    voice only, no clips.
+12. **Deck and command line.** An OpenDeck Toggle bus mute key with Side set to Voice chat: the
+    first press sets voice chat up if it was off, then each press mutes or unmutes the sounds, and
+    no app moves. `rostrum --set-volume sounds.chat=0.5` moves the fader. Against an older Rostrum
+    the key shows Unavailable.
+13. **Turn it off.** Untick Voice chat on every bus and remove it from saved scenes. With Studio
+    Voice on: Discord moves to Rostrum Filtered Mic first, then Rostrum Chat Mic disappears, and
+    your voice never drops to the plain mic on the call. Repeat steps 1 and 2 with Studio Voice
+    off: this time Discord ends on the mic it used before Rostrum moved it (usually the plain
+    mic), not on Rostrum Filtered Mic.
+14. **Discord settings.** Set noise suppression to None or Standard: with Krisp the friend hears
+    no clips. If clips are cut, turn echo cancellation off. With push to talk, clips only go out
+    while the key is held.
+
 ## Smoke test log
 
 Kubuntu 26.04, Plasma 6.6 Wayland, PipeWire 1.6.2, WirePlumber 0.5.13, build 0.1.0. The checks

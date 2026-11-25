@@ -158,6 +158,29 @@ call ToggleBusInMix game stream >/dev/null
 check "in-mix toggle on a master" "GDBus.Error:dev.getrostrum.Rostrum1.Error.InvalidValue" "$(err call ToggleBusInMix stream stream)"
 check "in-mix toggle needs one mix" "GDBus.Error:dev.getrostrum.Rostrum1.Error.InvalidValue" "$(err call ToggleBusInMix game both)"
 
+# Voice chat: the interface lists it, the first press sets it up, the next ones switch it off and on.
+chatrow() { call ListBusChat | grep -oE "\('$1'[^)]*\)"; }
+check "ChatMic property" "(<false>,)" "$(prop ChatMic)"
+check "ListBusChat row" "('game', false, false, 0.69999999999999996)" "$(chatrow game)"
+check "ListBusChat has no mic" "" "$(chatrow mic)"
+check "ListBusChat has no master" "" "$(chatrow stream)"
+call ToggleBusInMix game chat >/dev/null
+check "first chat press sets it up" "('game', true, false, 0.69999999999999996)" "$(chatrow game)"
+call ToggleBusInMix game chat >/dev/null
+check "next press switches it off" "('game', true, true, 0.69999999999999996)" "$(chatrow game)"
+call ToggleBusInMix game chat >/dev/null
+check "and on again" "('game', true, false, 0.69999999999999996)" "$(chatrow game)"
+check "chat toggle leaves the destination" "('game', 'Game', 0.5, 0.5, false, 'both')" "$(level game)"
+call SetBusVolume game.chat 0.5 >/dev/null
+check "chat level set" "('game', true, false, 0.5)" "$(chatrow game)"
+check "chat level step" "(0.75,)" "$(call StepBusVolume game chat 0.25)"
+check "chat step leaves the mixes" "('game', 'Game', 0.5, 0.5, false, 'both')" "$(level game)"
+check "chat on the voice bus" "GDBus.Error:dev.getrostrum.Rostrum1.Error.InvalidValue" "$(err call ToggleBusInMix voice chat)"
+check "chat on the mic" "GDBus.Error:dev.getrostrum.Rostrum1.Error.InvalidValue" "$(err call ToggleBusInMix mic chat)"
+check "chat level on the voice bus" "GDBus.Error:dev.getrostrum.Rostrum1.Error.InvalidValue" "$(err call SetBusVolume voice.chat 0.5)"
+"$B" --set-volume game.chat=30%
+check "cli chat level" "('game', true, false, 0.29999999999999999)" "$(chatrow game)"
+
 # Exercise the plugin adapter against this private running instance, including its safe CLI
 # fallback. No physical deck, live session bus or mixer graph is involved.
 if command -v python3 >/dev/null 2>&1; then

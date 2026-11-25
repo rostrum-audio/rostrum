@@ -11,11 +11,11 @@ import struct
 
 MAX_MESSAGE = 1024 * 1024
 
-# Call args s/ss/ssd; replies d, a(ssdb), a(ssddbs), as, a{sv}; signals sa{sv}as and sss.
+# Call args s/ss/ssd; replies d, a(ssdb), a(ssddbs), a(sbbd), as, a{sv}; signals sa{sv}as and sss.
 # decode_body enforces this; a message outside it is skipped by the reader, not fatal.
 # 's' is also the usual error and method-return body.
 _ALLOWED = frozenset({
-    's', 'ss', 'sss', 'ssd', 'd', 'as', 'a{sv}', 'a(ssdb)', 'a(ssddbs)', 'sa{sv}as',
+    's', 'ss', 'sss', 'ssd', 'd', 'as', 'a{sv}', 'a(ssdb)', 'a(ssddbs)', 'a(sbbd)', 'sa{sv}as',
 })
 
 _HEADER_FIELDS = (

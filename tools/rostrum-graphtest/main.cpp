@@ -73,6 +73,17 @@ int main(int argc, char **argv)
     QCommandLineOption destinationFile(QStringLiteral("destination-file"),
                                        QStringLiteral("Poll a test command file: request-id bus=phones|stream|both."),
                                        QStringLiteral("path"));
+    QCommandLineOption chat(QStringLiteral("chat"),
+                            QStringLiteral("Set voice chat up on a bus, with an optional level (fader position 0..1). "
+                                           "Repeatable. The chat mic is wanted while any saved scene under --config, "
+                                           "or the live scene, has a chat bus."),
+                            QStringLiteral("bus[=level]"));
+    QCommandLineOption controlFile(
+        QStringLiteral("control-file"),
+        QStringLiteral("Poll a test command file: request-id mic-muted=0|1, panic=0|1, chat-muted:<bus>=0|1, "
+                       "chat:<bus>=0|1, scene=<name> (a saved scene) or save=1 (the live scene over the "
+                       "current saved one). The last two need --config."),
+        QStringLiteral("path"));
     QCommandLineOption readinessFile(
         QStringLiteral("readiness-file"),
         QStringLiteral("Write read-only readiness snapshots for integration tests."), QStringLiteral("path"));
@@ -133,6 +144,8 @@ int main(int argc, char **argv)
                        exportRules,
                        dest,
                        destinationFile,
+                       chat,
+                       controlFile,
                        readinessFile,
                        headphones,
                        mic,
@@ -160,6 +173,8 @@ int main(int argc, char **argv)
     }
     engine::Engine engine(&pw);
     engine::SceneManager scenes(&engine, paths::scenesDir());
+    // The chat mic follows the saved scenes plus the live one; without --config only the live one.
+    QObject::connect(&scenes, &engine::SceneManager::savedChatChanged, &engine, &engine::Engine::setChatMicWanted);
     if (parser.isSet(config)) {
         const Settings settings = loadSettings(paths::settingsFile());
         scenes.load(settings.defaultScene);
@@ -245,6 +260,54 @@ int main(int argc, char **argv)
             QTextStream(stdout) << "Destination request " << words.first() << ": " << words.last() << Qt::endl;
         });
         destinationPoll.start(25); // Observe commands; tests wait for acknowledgement and the real graph.
+    }
+    // Live controls for tests, the way the deck and mixer would drive them.
+    QTimer controlPoll;
+    QString lastControlRequest;
+    if (parser.isSet(controlFile)) {
+        QObject::connect(&controlPoll, &QTimer::timeout, &app, [&] {
+            if (!started || !engine.mixReady()) {
+                return;
+            }
+            QFile file(parser.value(controlFile));
+            const QString request =
+                file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()).trimmed() : QString();
+            if (request.isEmpty() || request == lastControlRequest) {
+                return;
+            }
+            const auto words = request.split(QLatin1Char(' '));
+            const int eq = words.value(1).indexOf(QLatin1Char('='));
+            const QString key = eq < 0 ? QString() : words.value(1).left(eq);
+            const QString value = eq < 0 ? QString() : words.value(1).mid(eq + 1);
+            const bool flag = value == QLatin1String("1");
+            const bool isFlag = value == QLatin1String("0") || flag;
+            bool ok = words.size() == 2 && eq > 0;
+            if (ok && key == QLatin1String("mic-muted") && isFlag) {
+                engine.setMicMuted(flag);
+            } else if (ok && key == QLatin1String("panic") && isFlag) {
+                engine.setPanic(flag);
+            } else if (ok && key.startsWith(QLatin1String("chat-muted:")) && isFlag &&
+                       engine.scene().bus(key.mid(11))) {
+                engine.setBusChatMuted(key.mid(11), flag);
+            } else if (ok && key.startsWith(QLatin1String("chat:")) && isFlag && engine.scene().bus(key.mid(5))) {
+                ok = engine.setBusChat(key.mid(5), flag);
+            } else if (ok && key == QLatin1String("scene") && parser.isSet(config)) {
+                ok = scenes.switchTo(value);
+            } else if (ok && key == QLatin1String("save") && flag && parser.isSet(config)) {
+                // Auto-save is off here; without this no saved scene could lose its chat bus.
+                ok = scenes.save();
+            } else {
+                ok = false;
+            }
+            if (!ok) {
+                QTextStream(stderr) << "Invalid control request: " << request << Qt::endl;
+                QCoreApplication::exit(2);
+                return;
+            }
+            lastControlRequest = request;
+            QTextStream(stdout) << "Control request " << words.first() << ": " << words.last() << Qt::endl;
+        });
+        controlPoll.start(25);
     }
     // Live mic filter changes for tests: the engine is told exactly what the app's settings page would.
     QTimer micFilterPoll;
@@ -463,6 +526,21 @@ int main(int argc, char **argv)
                 engine.setBusVolume(target.busId, arg->position);
             }
         }
+        for (const QString &spec : parser.values(chat)) {
+            const int eq = spec.indexOf(QLatin1Char('='));
+            const QString bus = eq < 0 ? spec : spec.left(eq);
+            bool ok = true;
+            const double level = eq < 0 ? 0.0 : spec.mid(eq + 1).toDouble(&ok);
+            if (!ok || level < 0.0 || level > 1.0 || !engine.setBusChat(bus, true)) {
+                QTextStream(stderr) << "Bad --chat " << spec << "\n";
+                QCoreApplication::exit(1);
+                return;
+            }
+            if (eq >= 0) {
+                engine.setBusChatVolume(bus, level);
+            }
+        }
+        engine.setChatMicWanted(scenes.chatMicWanted());
         engine.createMix();
         auto apply = [&](const QStringList &specs, bool always) {
             for (const auto &spec : specs) {

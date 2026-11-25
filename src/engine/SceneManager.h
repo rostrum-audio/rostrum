@@ -34,6 +34,8 @@ public:
     QString currentName() const { return m_current; }
     QString defaultName() const { return m_default; }
     bool dirty() const { return m_dirty; }
+    // True while any saved scene, or the live one, has a bus sending to voice chat (muted or not).
+    bool chatMicWanted() const { return m_chatMicWanted; }
     QString lastError() const { return m_error; }
 
     bool switchTo(const QString &name); // fades when the engine has a scene fade set
@@ -86,12 +88,14 @@ Q_SIGNALS:
     void dirtyChanged();
     void defaultChanged();
     void trashChanged();
+    void savedChatChanged(bool wanted);
     void errorOccurred(const QString &message);
 
 private:
     bool activate(const QString &name, bool fade);
     void onEngineSceneChanged();
     void onStructureChanged();
+    void updateChatMicWanted();
     bool write(const Scene &scene);
     int indexOf(const QString &name) const;
     void fail(const QString &message);
@@ -103,6 +107,7 @@ private:
     QString m_default;
     bool m_dirty = false;
     bool m_autoSave = false;
+    bool m_chatMicWanted = false;
     QTimer m_autoSaveTimer;
     QString m_error;
     QString m_pulseFragment;

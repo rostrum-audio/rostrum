@@ -126,6 +126,10 @@ Five minutes to a split stream:
 
 4. **Pick destinations and levels.** Each bus goes to Headphones, Stream or Both. Defaults: Music → Stream (excluded from headphones), the other playback buses → Both, Mic → Stream with sidetone off. Each playback bus has a Headphones level and a Stream level. They start linked, so moving one moves the other by the same amount. Unlink a bus to set them apart: Game quiet in your ears and full on stream, or the other way around. A fader for a mix the bus does not reach is greyed out. The mic keeps one gain fader.
    Headphones Only removes the bus’s Stream Mix sends; Stream Only removes its headphone sends.
+   Tick **Voice chat** on a playback bus to let the people on a call hear it too, for instance a
+   Sounds bus for clips. The bus gets a third fader, "Voice chat", with its own mute button, and
+   Discord and games hear it through "Rostrum Chat Mic" (see Studio Voice below). The Voice bus
+   cannot send to voice chat, and it needs separate Headphones and Stream levels.
    This controls Rostrum’s outputs, not independent OBS application/headphone captures.
    The small slider under each playback bus sets its balance. If you listen on one ear, turn on
    Devices → Mono headphones.
@@ -186,6 +190,13 @@ Five minutes to a split stream:
    which is filtered when filters are on. Rostrum's mic mute also silences Rostrum Filtered Mic, so
    call apps using it follow the mixer and OpenDeck mute. Apps recording the hardware mic directly
    keep their own mute controls.
+
+   Once a bus sends to voice chat, apps that record your mic get "Rostrum Chat Mic" instead: your
+   voice plus those sounds, even with Studio Voice off. Apps set to "Rostrum Filtered Mic" in their
+   own settings keep your voice only. Mute Mic silences your voice but not the sounds; Panic mute
+   silences both. In Discord, set noise suppression to None or Standard, because Krisp removes
+   sound effects. Games that pick their input at start need a restart the first time. Push to talk
+   only sends sounds while the key is held.
 
    ![The Studio Voice page: the on switch, the mic, the sound presets, Check Your Mic and who gets the filtered mic](docs/screenshots/micfilters.png)
 
@@ -340,9 +351,10 @@ push to mute keeps the mic muted anyway, the key shows Blocked. The deck and the
 hotkey share one hold, so releasing either one ends it.
 
 Volume down and Volume up step a bus by the key's Step (5% by default) and repeat while held. The
-Side setting (Both, Stream, My headphones) on them and on Toggle bus mute moves or mutes one side
+Side setting (Both, Stream, My headphones, Voice chat) on them and on Toggle bus mute moves or mutes one side
 only: a Stream key never changes what you hear, and a "for me" key never puts a muted bus back on
-the stream. The mic and the masters have one level: a side key on them reads Both only, except
+the stream. Voice chat on Toggle bus mute sets up the bus's voice chat on the first press, then
+mutes and unmutes the sounds in voice chat without moving any app. The mic and the masters have one level: a side key on them reads Both only, except
 the Stream master set to Stream and the Headphones master set to My headphones. Keys show percent
 of fader travel. These need Rostrum on D-Bus; in CLI mode they show
 Unavailable.

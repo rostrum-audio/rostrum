@@ -50,6 +50,9 @@ private Q_SLOTS:
                  QStringLiteral("com.example.app"));
         QCOMPARE(javaProgram({QStringLiteral("java"), QStringLiteral("--module"), QStringLiteral("com.example.app")}),
                  QStringLiteral("com.example.app"));
+        QCOMPARE(javaProgram({QStringLiteral("java"), QStringLiteral("--module=com.example.app/com.example.Main"),
+                              QStringLiteral("--flag"), QStringLiteral("value")}),
+                 QStringLiteral("com.example.app"));
     }
 
     void versionedJarKeepsItsRule_data()
@@ -102,7 +105,8 @@ private Q_SLOTS:
         for (const char *p : {"net.minecraft.client.main.Main", "net.fabricmc.loader.impl.launch.knot.KnotClient",
                               "net.fabricmc.loader.launch.knot.KnotClient",
                               "org.quiltmc.loader.impl.launch.knot.KnotClient",
-                              "cpw.mods.bootstraplauncher.BootstrapLauncher", "net.minecraft.launchwrapper.Launch",
+                              "cpw.mods.bootstraplauncher.BootstrapLauncher", "cpw.mods.modlauncher.Launcher",
+                              "net.neoforged.fml.startup.Client", "net.minecraft.launchwrapper.Launch",
                               "org.prismlauncher.EntryPoint", "org.multimc.EntryPoint", "minecraft"}) {
             QTest::newRow(p) << QString::fromLatin1(p) << QStringLiteral("Minecraft");
         }

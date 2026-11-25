@@ -203,6 +203,14 @@ if(ROSTRUM_AUDIO_INTEGRATION_TESTS)
             $<TARGET_FILE:rostrum-graphtest> $<TARGET_FILE:rostrum-dsp>)
         set_tests_properties(audio_mic_filter_breaker PROPERTIES
             TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
+        # Sounds in voice chat, with Studio Voice on and off. pw-mon reports every link the daemon
+        # makes, so an app passing through the raw mic cannot hide between two graph polls.
+        find_program(AUDIO_pw-mon NAMES pw-mon REQUIRED)
+        add_test(NAME audio_chat_mic COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/integration/chat-mic.py
+            $<TARGET_FILE:rostrum-graphtest> $<TARGET_FILE:rostrum-dsp>)
+        set_tests_properties(audio_chat_mic PROPERTIES
+            TIMEOUT 180 RUN_SERIAL TRUE LABELS "audio-integration")
         if(ROSTRUM_DSP_DENOISE)
             # Measures how long rostrum.micfx holds the private daemon's realtime thread.
             find_program(AUDIO_pw-profiler NAMES pw-profiler REQUIRED)

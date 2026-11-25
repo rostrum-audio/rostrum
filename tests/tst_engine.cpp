@@ -228,6 +228,641 @@ private Q_SLOTS:
         QCOMPARE(linkNames(engine::busLinks(scene, false)), expected);
     }
 
+    void desiredSendsAddChatSend()
+    {
+        Scene scene = defaults::scene();
+        scene.bus(QStringLiteral("alerts"))->chat = true;
+        const auto sends = engine::desiredSends(scene);
+        QCOMPARE(sends.size(), 11);
+        int chat = 0;
+        for (qsizetype i = 0; i < sends.size(); ++i) {
+            if (sends.at(i).name == QStringLiteral("rostrum.alerts.chat")) {
+                ++chat;
+                QVERIFY(sends.at(i).chat);
+                QCOMPARE(sends.at(i).busId, QStringLiteral("alerts"));
+                QCOMPARE(sends.at(i - 1).name, QStringLiteral("rostrum.alerts.stream"));
+                QCOMPARE(sends.at(i - 2).name, QStringLiteral("rostrum.alerts.phones"));
+            } else {
+                QVERIFY(!sends.at(i).chat);
+            }
+            QVERIFY(sends.at(i).busId != QStringLiteral("mic"));
+        }
+        QCOMPARE(chat, 1);
+    }
+
+    void chatSendRefusedOnVoiceBus()
+    {
+        Scene scene = defaults::scene();
+        scene.bus(QStringLiteral("voice"))->chat = true; // a stale saved flag
+        QCOMPARE(engine::desiredSends(scene).size(), 10);
+        QVERIFY(!linkNames(engine::busLinks(scene, true)).join(QLatin1Char(' ')).contains(QStringLiteral(".chat")));
+        QVERIFY(!engine::chatSendLevels(scene, {}).contains(QStringLiteral("rostrum.voice.chat")));
+    }
+
+    void busLinksChat()
+    {
+        Scene scene = defaults::scene();
+        scene.bus(QStringLiteral("alerts"))->chat = true;
+        const QStringList links = linkNames(engine::busLinks(scene, true));
+        QVERIFY(links.contains(QStringLiteral("rostrum.alerts>rostrum.alerts.chat")));
+        QVERIFY(links.contains(QStringLiteral("rostrum.alerts.chat>rostrum.chatmic")));
+        for (const QString &l : links) {
+            if (l.endsWith(QStringLiteral(">rostrum.chatmic"))) {
+                QCOMPARE(l, QStringLiteral("rostrum.alerts.chat>rostrum.chatmic"));
+            }
+            QVERIFY(!l.endsWith(QStringLiteral(">rostrum.mic")));
+            QVERIFY(!l.endsWith(QStringLiteral(">rostrum.filtered")));
+        }
+    }
+
+    void busLinksChatSingleLevel()
+    {
+        Scene scene = defaults::scene();
+        scene.bus(QStringLiteral("alerts"))->chat = true;
+        for (const QString &l : linkNames(engine::busLinks(scene, false))) {
+            QVERIFY2(!l.contains(QStringLiteral("chat")), qPrintable(l));
+        }
+    }
+
+    void chatSendLevelsHalfGainAndBlock()
+    {
+        Scene scene = defaults::scene();
+        Bus *alerts = scene.bus(QStringLiteral("alerts"));
+        alerts->chat = true;
+        alerts->chatVolume = 0.4;
+        const QString name = QStringLiteral("rostrum.alerts.chat");
+        auto lv = engine::chatSendLevels(scene, {});
+        QCOMPARE(lv.size(), 1);
+        QCOMPARE(lv.value(name).position, 0.4);
+        QCOMPARE(lv.value(name).gain, 0.5);
+        QCOMPARE(lv.value(name).balance, 0.0);
+        QVERIFY(!lv.value(name).mute);
+        QVERIFY(engine::chatSendLevels(scene, {QStringLiteral("alerts")}).value(name).mute);
+        QVERIFY(!engine::chatSendLevels(scene, {QStringLiteral("game")}).value(name).mute);
+        // Muted keeps the send and its links, only the level changes.
+        alerts->chatMuted = true;
+        QVERIFY(engine::chatSendLevels(scene, {}).value(name).mute);
+        QVERIFY(engine::sendWanted(scene, name));
+        QVERIFY(linkNames(engine::busLinks(scene, true)).contains(QStringLiteral("rostrum.alerts.chat>rostrum.chatmic")));
+        // Solo never touches it, and busNodeLevels does not carry it.
+        alerts->chatMuted = false;
+        const auto bl = engine::busNodeLevels(scene, {QStringLiteral("game")}, {}, 1.0, true);
+        QVERIFY(!bl.contains(name));
+        QVERIFY(!engine::chatSendLevels(scene, {}).value(name).mute);
+    }
+
+    void chatLoopFound()
+    {
+        Scene scene = defaults::scene();
+        scene.bus(QStringLiteral("alerts"))->chat = true;
+        QMultiHash<QString, QString> byBus;
+        byBus.insert(QStringLiteral("alerts"), QStringLiteral("discord"));
+        byBus.insert(QStringLiteral("game"), QStringLiteral("quake"));
+        const QSet<QString> got = engine::chatLoopBuses(scene, byBus, {QStringLiteral("discord")});
+        QCOMPARE(got, QSet<QString>{QStringLiteral("alerts")});
+    }
+
+    void chatBlockedBusNamesAreDisplayNames()
+    {
+        Scene scene = defaults::scene();
+        scene.bus(QStringLiteral("alerts"))->name = QStringLiteral("Stream Alerts");
+        const QStringList got = engine::busDisplayNames(
+            scene, {QStringLiteral("alerts"), QStringLiteral("game"), QStringLiteral("nosuchbus")});
+        QCOMPARE(got, (QStringList{QStringLiteral("Game"), QStringLiteral("Stream Alerts")}));
+        QVERIFY(engine::busDisplayNames(scene, {}).isEmpty());
+    }
+
+    void chatLoopIgnoresBusWithoutChat()
+    {
+        Scene scene = defaults::scene();
+        scene.bus(QStringLiteral("alerts"))->chat = false;
+        QMultiHash<QString, QString> byBus;
+        byBus.insert(QStringLiteral("alerts"), QStringLiteral("discord"));
+        QVERIFY(engine::chatLoopBuses(scene, byBus, {QStringLiteral("discord")}).isEmpty());
+    }
+
+    void chatLoopEmptyWhenAppNotOnChatMic()
+    {
+        Scene scene = defaults::scene();
+        scene.bus(QStringLiteral("alerts"))->chat = true;
+        QMultiHash<QString, QString> byBus;
+        byBus.insert(QStringLiteral("alerts"), QStringLiteral("discord"));
+        QVERIFY(engine::chatLoopBuses(scene, byBus, {QStringLiteral("obs")}).isEmpty());
+        QVERIFY(engine::chatLoopBuses(scene, byBus, {}).isEmpty());
+    }
+
+    void sendWantedKnowsChatSend()
+    {
+        Scene scene = defaults::scene();
+        const QString name = QStringLiteral("rostrum.alerts.chat");
+        QVERIFY(!engine::sendWanted(scene, name));
+        scene.bus(QStringLiteral("alerts"))->chat = true;
+        QVERIFY(engine::sendWanted(scene, name));
+        const auto p = engine::chatSendProperties(*scene.bus(QStringLiteral("alerts")));
+        QCOMPARE(p.value(QStringLiteral("node.name")), name);
+        QCOMPARE(p.value(QStringLiteral("rostrum.mix")), QStringLiteral("chat"));
+        QCOMPARE(p.value(QStringLiteral("rostrum.role")), QStringLiteral("send"));
+        QCOMPARE(p.value(QStringLiteral("node.description")),
+                 QStringLiteral("Rostrum %1 → Voice chat").arg(scene.bus(QStringLiteral("alerts"))->name));
+    }
+
+    void roleNameChatMic()
+    {
+        QCOMPARE(engine::roleName(engine::NodeRole::ChatMic), QStringLiteral("chatmic"));
+        // Kept apart from the sends, whose rostrum.mix is "chat".
+        QVERIFY(engine::roleName(engine::NodeRole::ChatMic) != engine::roleName(engine::NodeRole::Send));
+    }
+
+    void chatMicSpecIsMonoSource()
+    {
+        const engine::NodeSpec spec = engine::chatMicSpec();
+        QCOMPARE(spec.role, engine::NodeRole::ChatMic);
+        const auto p = spec.properties();
+        QCOMPARE(p.value(QStringLiteral("node.name")), QStringLiteral("rostrum.chatmic"));
+        QCOMPARE(p.value(QStringLiteral("node.description")), QStringLiteral("Rostrum Chat Mic"));
+        QCOMPARE(p.value(QStringLiteral("media.class")), QStringLiteral("Audio/Source/Virtual"));
+        QCOMPARE(p.value(QStringLiteral("audio.position")), QStringLiteral("[ MONO ]"));
+        QCOMPARE(p.value(QStringLiteral("audio.channels")), QStringLiteral("1"));
+        QCOMPARE(p.value(QStringLiteral("object.linger")), QStringLiteral("true"));
+        QCOMPARE(p.value(QStringLiteral("priority.session")), QStringLiteral("0"));
+        QCOMPARE(p.value(QStringLiteral("rostrum.role")), QStringLiteral("chatmic"));
+        for (auto it = p.cbegin(); it != p.cend(); ++it) {
+            QVERIFY2(!it.key().startsWith(QStringLiteral("node.dont-")), qPrintable(it.key()));
+        }
+    }
+
+    void setBusChatRefusedOnVoiceBus()
+    {
+        pw::PwContext pw; // never started
+        engine::Engine engine(&pw);
+        QSignalSpy changed(&engine, &engine::Engine::sceneChanged);
+        // Voice chat would hear itself from the bus that plays it.
+        QVERIFY(!engine.setBusChat(QStringLiteral("voice"), true));
+        QVERIFY(!engine.scene().bus(QStringLiteral("voice"))->chat);
+        QVERIFY(!engine.setBusChat(QStringLiteral("mic"), true));
+        QVERIFY(!engine.scene().micBus()->chat);
+        QVERIFY(!engine.setBusChat(QStringLiteral("nosuchbus"), true));
+        QCOMPARE(changed.count(), 0);
+        QVERIFY(engine.setBusChat(QStringLiteral("alerts"), true));
+        QVERIFY(engine.scene().bus(QStringLiteral("alerts"))->chat);
+        QCOMPARE(changed.count(), 1);
+        // A bus that starts receiving Voice is refused from then on.
+        engine.setBusAutoCategory(QStringLiteral("music"), AppCategory::Voice);
+        QVERIFY(!engine.setBusChat(QStringLiteral("music"), true));
+        QVERIFY(!engine.scene().bus(QStringLiteral("music"))->chat);
+    }
+
+    void setBusChatOffAllowedOnVoiceBus()
+    {
+        pw::PwContext pw; // never started
+        engine::Engine engine(&pw);
+        const QString music = QStringLiteral("music");
+        QVERIFY(engine.setBusChat(music, true));
+        // The bus starts receiving Voice after chat was on: it must still be able to drop it.
+        engine.setBusAutoCategory(music, AppCategory::Voice);
+        QVERIFY(engine.scene().bus(music)->chat);
+        QVERIFY(engine.setBusChat(music, false));
+        QVERIFY(!engine.scene().bus(music)->chat);
+        QVERIFY(!engine.setBusChat(music, true));
+    }
+
+    void setBusChatMakesSceneDirty()
+    {
+        QTemporaryDir dir;
+        pw::PwContext pw; // never started
+        engine::Engine engine(&pw);
+        engine::SceneManager scenes(&engine, dir.path());
+        scenes.load(QStringLiteral("Live"));
+        const QString alerts = QStringLiteral("alerts");
+        QVERIFY(!scenes.dirty());
+        QVERIFY(engine.setBusChat(alerts, true));
+        QVERIFY(scenes.dirty());
+        QVERIFY(engine.setBusChat(alerts, false));
+        QVERIFY(!scenes.dirty());
+
+        // The live switch is saved too, and turning the destination on starts it audible.
+        engine.setBusChatMuted(alerts, true);
+        QVERIFY(engine.scene().bus(alerts)->chatMuted);
+        QVERIFY(scenes.dirty());
+        QVERIFY(engine.setBusChat(alerts, true));
+        QVERIFY(!engine.scene().bus(alerts)->chatMuted);
+        engine.setBusChatMuted(alerts, true);
+        QVERIFY(engine.scene().bus(alerts)->chat);
+        QVERIFY(engine.scene().bus(alerts)->chatMuted);
+
+        // Turning the destination off clears the live mute, so a file never carries chat_muted alone.
+        QVERIFY(engine.setBusChat(alerts, false));
+        QVERIFY(!engine.scene().bus(alerts)->chatMuted);
+        QVERIFY(!scenes.dirty());
+        // The level is clamped like the others.
+        engine.setBusChatVolume(alerts, 3.0);
+        QCOMPARE(engine.scene().bus(alerts)->chatVolume, 1.0);
+        QVERIFY(scenes.dirty());
+        engine.setBusChatVolume(alerts, -1.0);
+        QCOMPARE(engine.scene().bus(alerts)->chatVolume, 0.0);
+        engine.setBusChatVolume(alerts, kDefaultChatVolume);
+        QVERIFY(!scenes.dirty());
+
+        // The mic has no voice chat destination.
+        engine.setBusChatMuted(QStringLiteral("mic"), true);
+        engine.setBusChatVolume(QStringLiteral("mic"), 0.2);
+        QVERIFY(!engine.scene().micBus()->chatMuted);
+        QCOMPARE(engine.scene().micBus()->chatVolume, kDefaultChatVolume);
+        QVERIFY(!scenes.dirty());
+    }
+
+    void newBusCannotUseChatMicName()
+    {
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        const QString id = engine.addBus(QStringLiteral("Chatmic"));
+        QVERIFY(!id.isEmpty());
+        QVERIFY(id != QString::fromLatin1(kChatMicBusId));
+        QVERIFY(engine.scene().bus(id)->nodeName() != QString::fromLatin1(engine::kChatMicNode));
+    }
+
+    // The chat mic is one lingering node: a duplicate from a create race goes, the oldest stays.
+    // Voice reaches it from rostrum.filtered; any other link between Rostrum nodes into it goes.
+    void chatMicIsFedFromFilteredAndKeepsTheOldest()
+    {
+        auto flush = [] {
+            QCoreApplication::processEvents();
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::Timer);
+            QCoreApplication::processEvents();
+        };
+        auto monoSource = [](uint32_t id, const char *name, const char *role) {
+            pw::Node n = node(id, name, "Audio/Source/Virtual");
+            n.channels = 1;
+            n.props.insert(QStringLiteral("rostrum.role"), QString::fromLatin1(role));
+            n.serial = QString::number(5000 + id);
+            return n;
+        };
+        auto link = [](uint32_t id, uint32_t outNode, uint32_t outPort, uint32_t inNode, uint32_t inPort) {
+            pw::Link l;
+            l.id = id;
+            l.outNode = outNode;
+            l.outPort = outPort;
+            l.inNode = inNode;
+            l.inPort = inPort;
+            l.serial = QString::number(6000 + id);
+            return l;
+        };
+        pw::Graph g = devices();
+        g.factories.insert(900, QStringLiteral("spa-node-factory"));
+        for (const auto &n : {monoSource(160, "rostrum.filtered", "filtered"),
+                              monoSource(170, "rostrum.chatmic", "chatmic"),
+                              monoSource(171, "rostrum.chatmic", "chatmic")}) {
+            g.nodes.insert(n.id, n);
+        }
+        pw::Node vod = node(180, "rostrum.vod", "Audio/Sink");
+        vod.channels = 2;
+        g.nodes.insert(vod.id, vod);
+        for (auto p : {port(1600, 160, false, "MONO"), port(1601, 160, true, "MONO"),
+                       port(1700, 170, false, "MONO"), port(1701, 170, true, "MONO"),
+                       port(1710, 171, false, "MONO"), port(1711, 171, true, "MONO"),
+                       port(1800, 180, false, "FL"), port(1801, 180, false, "FR"),
+                       port(1802, 180, true, "FL"), port(1803, 180, true, "FR")}) {
+            p.monitor = p.nodeId == 180 && p.output;
+            g.ports.insert(p.id, p);
+        }
+
+        pw::PwContext pw; // never started
+        engine::Engine engine(&pw);
+        QSignalSpy changed(&engine, &engine::Engine::chatMicChanged);
+        engine.setChatMicWanted(true);
+        engine.createMix();
+        pw.testingInstallGraph(g);
+        flush();
+        QVERIFY(pw.testingDestroyRequests().contains(171));
+        QVERIFY(!pw.testingDestroyRequests().contains(170));
+        QVERIFY(engine.chatMicNode());
+        QCOMPARE(engine.chatMicNode()->id, 170u);
+        // Not in use until it carries the voice.
+        QVERIFY(!engine.chatMicActive());
+        QCOMPARE(changed.count(), 0);
+
+        g.nodes.remove(171);
+        g.ports.remove(1710);
+        g.ports.remove(1711);
+        g.links.insert(950, link(950, 160, 1601, 170, 1700));
+        g.links.insert(951, link(951, 180, 1802, 170, 1700)); // the VOD master: never voice chat
+        pw.testingInstallGraph(g);
+        flush();
+        QVERIFY(engine.chatMicActive());
+        QCOMPARE(changed.count(), 1);
+        QVERIFY(!pw.testingDestroyRequests().contains(950));
+        QVERIFY(pw.testingDestroyRequests().contains(951));
+
+        // No longer wanted, with no app recording it: it goes at once, and its links with it.
+        engine.setChatMicWanted(false);
+        flush();
+        QVERIFY(pw.testingDestroyRequests().contains(170));
+        QVERIFY(!pw.testingDestroyRequests().contains(950));
+        QVERIFY(!engine.chatMicNode());
+    }
+
+    // Once no saved scene wants the chat mic, apps are moved off it first: it stays, carrying the
+    // voice, until none is left on it, or for 3 s at most.
+    void chatMicWaitsForAppsBeforeItGoes()
+    {
+        auto flush = [] {
+            QCoreApplication::processEvents();
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::Timer);
+            QCoreApplication::processEvents();
+        };
+        auto monoSource = [](uint32_t id, const char *name, const char *role) {
+            pw::Node n = node(id, name, "Audio/Source/Virtual");
+            n.channels = 1;
+            n.props.insert(QStringLiteral("rostrum.role"), QString::fromLatin1(role));
+            n.serial = QString::number(5000 + id);
+            return n;
+        };
+        auto link = [](uint32_t id, uint32_t outNode, uint32_t outPort, uint32_t inNode, uint32_t inPort) {
+            pw::Link l;
+            l.id = id;
+            l.outNode = outNode;
+            l.outPort = outPort;
+            l.inNode = inNode;
+            l.inPort = inPort;
+            l.serial = QString::number(6000 + id);
+            return l;
+        };
+        pw::Graph g = devices();
+        g.factories.insert(900, QStringLiteral("spa-node-factory"));
+        for (const auto &n : {monoSource(160, "rostrum.filtered", "filtered"),
+                              monoSource(170, "rostrum.chatmic", "chatmic")}) {
+            g.nodes.insert(n.id, n);
+        }
+        pw::Node discord = node(200, "Discord", "Stream/Input/Audio");
+        discord.appName = QStringLiteral("Discord");
+        discord.binary = QStringLiteral("Discord");
+        discord.serial = QStringLiteral("7200");
+        g.nodes.insert(discord.id, discord);
+        for (auto p : {port(1600, 160, false, "MONO"), port(1601, 160, true, "MONO"),
+                       port(1700, 170, false, "MONO"), port(1701, 170, true, "MONO"),
+                       port(2000, 200, false, "MONO")}) {
+            g.ports.insert(p.id, p);
+        }
+        g.links.insert(950, link(950, 160, 1601, 170, 1700));
+        g.links.insert(952, link(952, 170, 1701, 200, 2000)); // Discord records the chat mic
+
+        // Held while the app is on it; gone once it has moved.
+        {
+            pw::PwContext pw; // never started
+            engine::Engine engine(&pw);
+            engine.setChatMicWanted(true);
+            engine.createMix();
+            pw.testingInstallGraph(g);
+            flush();
+            QVERIFY(engine.chatMicActive());
+            // With Studio Voice off it is listed, not as filtered.
+            const QList<engine::MicApp> apps = engine.micApps();
+            QCOMPARE(apps.size(), 1);
+            QCOMPARE(apps.first().nodeId, 200u);
+            QVERIFY(!apps.first().filtered);
+
+            engine.setChatMicWanted(false);
+            flush();
+            QVERIFY(!pw.testingDestroyRequests().contains(170));
+            QVERIFY(engine.chatMicNode());
+
+            pw::Graph moved = g;
+            moved.links.remove(952);
+            pw.testingInstallGraph(moved);
+            flush();
+            QVERIFY(pw.testingDestroyRequests().contains(170));
+        }
+        // An app that stays does not keep it past the wait.
+        {
+            pw::PwContext pw; // never started
+            engine::Engine engine(&pw);
+            engine.setChatMicWanted(true);
+            engine.createMix();
+            pw.testingInstallGraph(g);
+            flush();
+            engine.setChatMicWanted(false);
+            flush();
+            QVERIFY(!pw.testingDestroyRequests().contains(170));
+            QTRY_VERIFY_WITH_TIMEOUT(pw.testingDestroyRequests().contains(170), 5000);
+        }
+    }
+
+    // An app that plays on a bus with voice chat and records the chat mic would hear itself.
+    // The engine mutes that bus's chat send, and clears it when the recording stops.
+    void chatLoopMutesTheBusWhileTheAppRecordsTheChatMic()
+    {
+        auto flush = [] {
+            QCoreApplication::processEvents();
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::Timer);
+            QCoreApplication::processEvents();
+        };
+        auto monoSource = [](uint32_t id, const char *name, const char *role) {
+            pw::Node n = node(id, name, "Audio/Source/Virtual");
+            n.channels = 1;
+            n.props.insert(QStringLiteral("rostrum.role"), QString::fromLatin1(role));
+            n.serial = QString::number(5000 + id);
+            return n;
+        };
+        auto link = [](uint32_t id, uint32_t outNode, uint32_t outPort, uint32_t inNode, uint32_t inPort) {
+            pw::Link l;
+            l.id = id;
+            l.outNode = outNode;
+            l.outPort = outPort;
+            l.inNode = inNode;
+            l.inPort = inPort;
+            l.serial = QString::number(6000 + id);
+            return l;
+        };
+        pw::Graph g = devices();
+        g.factories.insert(900, QStringLiteral("spa-node-factory"));
+        for (const auto &n : {monoSource(160, "rostrum.filtered", "filtered"),
+                              monoSource(170, "rostrum.chatmic", "chatmic")}) {
+            g.nodes.insert(n.id, n);
+        }
+        pw::Node capture = node(200, "Discord", "Stream/Input/Audio");
+        capture.appName = QStringLiteral("Discord");
+        capture.binary = QStringLiteral("Discord");
+        capture.serial = QStringLiteral("7200");
+        g.nodes.insert(capture.id, capture);
+        pw::Node playback = node(210, "Discord", "Stream/Output/Audio");
+        playback.appName = QStringLiteral("Discord");
+        playback.binary = QStringLiteral("Discord");
+        playback.serial = QStringLiteral("7210");
+        g.nodes.insert(playback.id, playback);
+        for (auto p : {port(1600, 160, false, "MONO"), port(1601, 160, true, "MONO"),
+                       port(1700, 170, false, "MONO"), port(1701, 170, true, "MONO"),
+                       port(2000, 200, false, "MONO")}) {
+            g.ports.insert(p.id, p);
+        }
+        g.links.insert(950, link(950, 160, 1601, 170, 1700));
+        g.links.insert(952, link(952, 170, 1701, 200, 2000));
+
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        QSignalSpy looped(&engine, &engine::Engine::chatLoopChanged);
+        engine.setChatMicWanted(true);
+        engine.createMix();
+        QVERIFY(engine.setBusChat(QStringLiteral("alerts"), true));
+        engine.assignApp({MatchKey::Name, QStringLiteral("Discord")}, QStringLiteral("alerts"), true);
+        pw.testingInstallGraph(g);
+        flush();
+        QVERIFY(engine.chatBlocked(QStringLiteral("alerts")));
+        QCOMPARE(engine.chatLoopApps(), QStringList{QStringLiteral("Discord")});
+        QCOMPARE(engine.chatBlockedBusNames(), QStringList{QStringLiteral("Alerts")});
+        QVERIFY(looped.count() >= 1);
+        const int blocked = looped.count();
+
+        g.nodes.remove(200);
+        g.ports.remove(2000);
+        g.links.remove(952);
+        pw.testingInstallGraph(g);
+        flush();
+        QVERIFY(!engine.chatBlocked(QStringLiteral("alerts")));
+        QVERIFY(engine.chatLoopApps().isEmpty());
+        QVERIFY(looped.count() > blocked);
+    }
+
+    // A stream that plays into a chat bus by its own link, not Rostrum's placement, still loops.
+    void chatLoopSeesActualLinksNotJustPlacement()
+    {
+        auto flush = [] {
+            QCoreApplication::processEvents();
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::Timer);
+            QCoreApplication::processEvents();
+        };
+        auto monoSource = [](uint32_t id, const char *name, const char *role) {
+            pw::Node n = node(id, name, "Audio/Source/Virtual");
+            n.channels = 1;
+            n.props.insert(QStringLiteral("rostrum.role"), QString::fromLatin1(role));
+            n.serial = QString::number(5000 + id);
+            return n;
+        };
+        auto link = [](uint32_t id, uint32_t outNode, uint32_t outPort, uint32_t inNode, uint32_t inPort) {
+            pw::Link l;
+            l.id = id;
+            l.outNode = outNode;
+            l.outPort = outPort;
+            l.inNode = inNode;
+            l.inPort = inPort;
+            l.serial = QString::number(6000 + id);
+            return l;
+        };
+        pw::Graph g = devices();
+        g.factories.insert(900, QStringLiteral("spa-node-factory"));
+        pw::Node alerts = node(150, "rostrum.alerts", "Audio/Sink");
+        alerts.props.insert(QStringLiteral("rostrum.role"), QStringLiteral("bus"));
+        alerts.props.insert(QStringLiteral("rostrum.bus"), QStringLiteral("alerts"));
+        alerts.serial = QStringLiteral("5150");
+        g.nodes.insert(alerts.id, alerts);
+        for (const auto &n : {monoSource(160, "rostrum.filtered", "filtered"),
+                              monoSource(170, "rostrum.chatmic", "chatmic")}) {
+            g.nodes.insert(n.id, n);
+        }
+        pw::Node capture = node(200, "GameVoice", "Stream/Input/Audio");
+        capture.appName = QStringLiteral("GameVoice");
+        capture.binary = QStringLiteral("gamevoice");
+        capture.serial = QStringLiteral("7200");
+        g.nodes.insert(capture.id, capture);
+        pw::Node playback = node(210, "GameVoice", "Stream/Output/Audio");
+        playback.appName = QStringLiteral("GameVoice");
+        playback.binary = QStringLiteral("gamevoice");
+        playback.serial = QStringLiteral("7210");
+        g.nodes.insert(playback.id, playback);
+        for (auto p : {port(1500, 150, false, "FL"), port(1501, 150, false, "FR"),
+                       port(1600, 160, false, "MONO"), port(1601, 160, true, "MONO"),
+                       port(1700, 170, false, "MONO"), port(1701, 170, true, "MONO"),
+                       port(2000, 200, false, "MONO"), port(2100, 210, true, "FL"),
+                       port(2101, 210, true, "FR")}) {
+            g.ports.insert(p.id, p);
+        }
+        g.links.insert(950, link(950, 160, 1601, 170, 1700));
+        g.links.insert(952, link(952, 170, 1701, 200, 2000));
+        // Plays into Alerts by its own link; Rostrum has not placed it there.
+        g.links.insert(953, link(953, 210, 2100, 150, 1500));
+        g.links.insert(954, link(954, 210, 2101, 150, 1501));
+
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        engine.setChatMicWanted(true);
+        engine.createMix();
+        QVERIFY(engine.setBusChat(QStringLiteral("alerts"), true));
+        pw.testingInstallGraph(g);
+        flush();
+        QVERIFY(engine.chatBlocked(QStringLiteral("alerts")));
+        QCOMPARE(engine.chatLoopApps(), QStringList{QStringLiteral("GameVoice")});
+    }
+
+    // A failed create is asked for again after the retry time, without waiting for a graph event.
+    void chatMicCreateIsRetriedAfterAFailure()
+    {
+        struct CountingEngine : engine::Engine
+        {
+            using engine::Engine::Engine;
+            int passes = 0;
+            void reconcile() override
+            {
+                ++passes;
+                engine::Engine::reconcile();
+            }
+        };
+        pw::PwContext pw; // never started
+        CountingEngine engine(&pw);
+        engine.createMix();
+        QTRY_VERIFY(engine.passes >= 1);
+        const int before = engine.passes;
+        Q_EMIT pw.createFailed(QStringLiteral("No memory"), QString::fromLatin1(engine::kChatMicNode));
+        QTest::qWait(1000);
+        QCOMPARE(engine.passes, before);
+        QTRY_VERIFY_WITH_TIMEOUT(engine.passes > before, 4000);
+    }
+
+    void chatNeedsPerMixLevels()
+    {
+        struct ChatEngine : engine::Engine
+        {
+            using engine::Engine::Engine;
+            using engine::Engine::chatMicNeeded; // whether the chat mic is created
+        };
+        pw::PwContext pw; // never started
+        ChatEngine engine(&pw);
+        QSignalSpy changed(&engine, &engine::Engine::chatMicChanged);
+        // Unknown until PipeWire is connected.
+        QVERIFY(engine.chatUnavailable().isEmpty());
+        engine.setChatMicWanted(true);
+        engine.createMix();
+        QVERIFY(!engine.chatMicNeeded());
+        pw.testingInstallGraph(devices()); // lists no spa-node-factory
+        QTRY_VERIFY(changed.count() >= 1);
+        QVERIFY(engine.chatUnavailable().contains(engine.perMixUnavailable()));
+        QVERIFY(!engine.chatMicNeeded());
+        QVERIFY(!engine.chatMicNode());
+        QVERIFY(!engine.chatMicActive());
+        QCOMPARE(changed.count(), 1);
+
+        pw::Graph g = devices();
+        g.factories.insert(900, QStringLiteral("spa-node-factory"));
+        pw.testingInstallGraph(g);
+        QTRY_COMPARE(changed.count(), 2);
+        QVERIFY(engine.chatUnavailable().isEmpty());
+        QVERIFY(engine.chatMicNeeded());
+        // Only while a saved scene has voice chat, and only while the mix runs.
+        engine.setChatMicWanted(false);
+        QVERIFY(!engine.chatMicNeeded());
+        engine.setChatMicWanted(true);
+        engine.destroyMix();
+        QVERIFY(!engine.chatMicNeeded());
+    }
+
+    void chatMicCreateFailureIsNotAMixError()
+    {
+        pw::PwContext pw; // never started
+        engine::Engine engine(&pw);
+        engine.createMix();
+        Q_EMIT pw.createFailed(QStringLiteral("No memory"), QString::fromLatin1(engine::kChatMicNode));
+        QCoreApplication::processEvents();
+        QVERIFY(engine.mixError().isEmpty());
+    }
+
     void unwantedSendsAreRemoved()
     {
         pw::PwContext pw;
@@ -416,6 +1051,21 @@ private Q_SLOTS:
         const auto single = engine::busFadeLevels(s, {QStringLiteral("music")}, false);
         QCOMPARE(single.value(QStringLiteral("rostrum.game")), (engine::FadeLevel{0.0, -0.2}));
         QVERIFY(!single.contains(QStringLiteral("rostrum.game.phones")));
+        // Voice chat sends fade like the mix sends: the fader position, or 0 when muted or blocked.
+        // Solo never changes them. Engine::fadeLevels folds these into the scene ramp.
+        game->chat = true;
+        game->chatVolume = 0.4;
+        game->chatMuted = false;
+        const engine::NodeLevel chat = engine::chatSendLevels(s, {}).value(QStringLiteral("rostrum.game.chat"));
+        QCOMPARE(chat.position, 0.4);
+        QCOMPARE(chat.mute, false);
+        QCOMPARE(chat.gain, 0.5);
+        game->chatMuted = true;
+        QCOMPARE(engine::chatSendLevels(s, {}).value(QStringLiteral("rostrum.game.chat")).mute, true);
+        game->chatMuted = false;
+        QCOMPARE(engine::chatSendLevels(s, {QStringLiteral("game")}).value(QStringLiteral("rostrum.game.chat")).mute,
+                 true);
+        QCOMPARE(engine::chatSendLevels(s, {}).value(QStringLiteral("rostrum.game.chat")).mute, false);
     }
 
     void perMixNeedsFactory()
@@ -835,9 +1485,8 @@ private Q_SLOTS:
         engine.setHeadphonesBtAddress(addr);
         flush();
         QVERIFY(!engine.headphonesTransportUnhealthy());
-        QTest::qWait(2200);
-        flush();
-        QVERIFY(engine.headphonesTransportUnhealthy());
+        // Debounce is 2 s plus a 2.1 s singleShot reconcile; wait for the flag, not a fixed sleep.
+        QTRY_VERIFY_WITH_TIMEOUT(engine.headphonesTransportUnhealthy(), 5000);
 
         buds.error = false;
         buds.running = true;

@@ -404,6 +404,15 @@ QQC2.ScrollView {
                 QQC2.Label {
                     Layout.fillWidth: true
                     Layout.topMargin: Kirigami.Units.smallSpacing
+                    visible: Mixer.chatMicActive
+                    wrapMode: Text.WordWrap
+                    font: Kirigami.Theme.smallFont
+                    opacity: 0.7
+                    text: i18nc("@info", "Apps get Rostrum Chat Mic: your voice plus the buses you send to voice chat. Apps set to Rostrum Filtered Mic in their own settings get your voice only.")
+                }
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    Layout.topMargin: Kirigami.Units.smallSpacing
                     wrapMode: Text.WordWrap
                     font: Kirigami.Theme.smallFont
                     opacity: 0.7

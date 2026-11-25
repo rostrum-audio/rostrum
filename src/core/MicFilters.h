@@ -135,6 +135,18 @@ Settings setAppChoice(Settings s, const QString &appKey, AppChoice choice);
 // Whether a capture stream from an app records the filtered mic. excludedByDefault: audio tools
 // and recorders, which get the untouched mic unless the user says otherwise.
 bool useFiltered(const Settings &s, AppChoice choice, bool excludedByDefault);
+// Whether it records Rostrum Chat Mic while that is in use: the same rules, with Studio Voice on
+// or off, since the chat mic carries the voice either way.
+bool useChatMic(const Settings &s, AppChoice choice, bool excludedByDefault);
+
+// How long removing the chat mic waits for the apps on it to move off, and how long apps
+// already on it stay while its ports are gone (a WirePlumber restart) before they are released.
+inline constexpr qint64 kChatMicReleaseMs = 3000;
+// Asked again this long after PipeWire refuses to create the chat mic. The failure timer and
+// the pending-create gate both use it, so one cannot fire before the other has elapsed.
+inline constexpr qint64 kChatMicCreateRetryMs = 3000;
+// Removing the chat mic is held back while apps still record it, until kChatMicReleaseMs passed.
+bool chatMicReleaseHeld(bool appsOnChatMic, qint64 msSinceRelease);
 
 struct Control
 {
