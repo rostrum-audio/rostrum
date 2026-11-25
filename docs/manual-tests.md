@@ -350,6 +350,11 @@ Start from a scene with no rules and "Assign automatically" on.
    Minecraft, or another Java app, alongside it: it gets its own row. Mute one, and the other keeps
    playing. Edit the RuneLite rule's match: the key box reads **Java program**, and saving keeps it
    one.
+8. Java apps under an older rule. Delete the Java rules from step 7. In the Rules list, edit any
+   rule into a **Binary** rule for `java` on Game, and give it a label. Start RuneLite and Minecraft:
+   both land on Game in rows of their own, under their own names (not the label). Mute one: the
+   other keeps playing. **Always** on RuneLite adds a Java rule for it, and the `java` rule keeps its
+   bus and label. Unassign Minecraft: it leaves Game and RuneLite stays.
 
 ## 13. Crash reports
 

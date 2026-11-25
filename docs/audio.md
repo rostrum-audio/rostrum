@@ -596,15 +596,20 @@ it plays.
 
 Every Java app reports the binary `java`, and usually a name that says nothing (`ALSA plug-in
 [java]`, or `java` from OpenAL Soft). For a Java playback stream Rostrum reads the process's
-command line and takes the program it runs: the main class, the file name after `-jar`, or the
-module after `-m`/`--module`. RuneLite and Minecraft (vanilla, Fabric, Quilt, Forge and the Prism
-and MultiMC launchers) are known by name and sorted as games. Any other Java app shows as "Java",
-and Name It… names that program only. The key is `java:<program>`, a Java rule (`key = "java"` in
-the scene file). Name rules are checked first, then Java rules, then binary rules, so an older
-`java` binary rule still catches every Java app without a rule of its own. A command line Rostrum
-cannot read, or one whose arguments sit in an `@argfile`, leaves the app keyed by its binary as
-before. Recording streams keep their plain key, so Studio Voice picks a Java app's mic by name or
-binary.
+command line and takes the program it runs: the main class, the file name after `-jar` without
+its version (`Game-v1.2.3.jar` runs `Game.jar`, so a rule outlives an update), or the module after
+`-m`/`--module`. RuneLite and Minecraft (vanilla, Fabric, Quilt, Forge and the Prism and MultiMC
+launchers) are known by name and sorted as games. Any other Java app shows as "Java", and Name It…
+names that program only. The key is `java:<program>`, a Java rule (`key = "java"` in the scene
+file). A command line Rostrum cannot read, or one whose arguments sit in an `@argfile`, leaves the
+app keyed as before. So do recording streams: Studio Voice picks a Java app's mic by name or binary,
+and a stream OpenAL Soft names `java` keeps the key `name:java` until a program is known.
+
+Name rules are checked first, then Java rules, then binary rules. A rule from before Java programs
+were known (`java` by binary, or the name `java`) still places every Java app without a rule of its
+own on its bus. Each of those apps keeps its own row, name, volume, mute and Unassign. It starts at
+the older rule's volume and mute, and the older rule's label does not rename it. **Always** or
+Name It… gives the app a Java rule of its own and leaves the older rule as it is.
 
 A Flatpak app reports its pid from inside its sandbox. Rostrum looks for the host process it
 means: one of this user's processes whose `NSpid` has at least two levels and ends in that pid, and

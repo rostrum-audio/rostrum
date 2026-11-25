@@ -606,6 +606,18 @@ bool Engine::isOwnStream(const pw::Node &n) const
            n.prop("rostrum.internal") == QLatin1String("true");
 }
 
+namespace {
+
+// A rule from before Java programs were known (`java` by binary, or the name OpenAL Soft gives)
+// that matched a Java app with no rule of its own. It places the app on its bus, but the app keeps
+// its own row, name, levels and skip, so Java apps stay apart.
+bool isOlderJavaRule(const AppRule &rule, const AppIdentity &id)
+{
+    return id.key.key == MatchKey::Java && rule.key != MatchKey::Java;
+}
+
+} // namespace
+
 StreamProps Engine::propsOf(const pw::Node &n) const
 {
     StreamProps props{n.appName, n.binary, n.mediaName, n.name};
@@ -629,6 +641,27 @@ QString Engine::javaProgramOf(const pw::Node &n) const
         qCInfo(lcEngine) << "java program" << lookup.program << "for" << n.id;
     }
     return m_javaPrograms.insert(n.id, lookup)->program;
+}
+
+const AppRule *Engine::olderJavaRule(const AppKey &key) const
+{
+    if (key.key != MatchKey::Java || m_scene.rule(key.key, key.match)) {
+        return nullptr;
+    }
+    for (const auto &n : m_pw->graph().nodes) {
+        if (!n.isPlaybackStream() || isOwnStream(n) || !isJavaBinary(n.binary)) {
+            continue;
+        }
+        const StreamProps props = propsOf(n);
+        const AppIdentity id = identify(props);
+        if (!(id.key == key)) {
+            continue;
+        }
+        if (const int idx = matchRule(m_scene.rules, props); idx >= 0 && isOlderJavaRule(m_scene.rules.at(idx), id)) {
+            return &m_scene.rules.at(idx);
+        }
+    }
+    return nullptr;
 }
 
 void Engine::testingSetProcRoot(const QString &root)
@@ -719,6 +752,13 @@ Engine::Placement Engine::place(const pw::Node &n, const StreamProps &props, con
     }
     if (const int idx = matchRule(m_scene.rules, props); idx >= 0) {
         const AppRule &r = m_scene.rules.at(idx);
+        if (isOlderJavaRule(r, id)) {
+            // Taking this one Java app off its bus skips it alone; the rule still places the rest.
+            if (!m_autoSkip.contains(recognise(n, props, id).skipKey)) {
+                p.busId = r.busId;
+            }
+            return p;
+        }
         p.ruleKey = {r.key, r.match};
         p.busId = r.busId;
         return p;
@@ -830,11 +870,14 @@ void Engine::assignApp(const AppKey &key, const QString &busId, bool always)
             rule.match = key.match;
             rule.key = key.key;
             rule.busId = busId;
-            rule.volume = m_sessionVolume.take(key.toString());
+            // The levels the app plays at: set this session, or those of an older Java rule.
+            rule.volume = appVolume(key);
             if (rule.volume <= 0.0) {
                 rule.volume = 1.0;
             }
-            rule.muted = m_sessionMuted.take(key.toString());
+            rule.muted = appMuted(key);
+            m_sessionVolume.remove(key.toString());
+            m_sessionMuted.remove(key.toString());
             rule.lastSeen = QDateTime::currentDateTimeUtc();
             m_scene.rules.append(rule);
         }
@@ -886,7 +929,7 @@ void Engine::unassignStream(uint32_t nodeId)
     skipAuto(id.key, true);
     m_sessionAssign.remove(id.key.toString());
     const int idx = matchRule(m_scene.rules, props);
-    if (idx >= 0) {
+    if (idx >= 0 && !isOlderJavaRule(m_scene.rules.at(idx), id)) {
         const AppRule r = m_scene.rules.at(idx);
         unassignApp({r.key, r.match});
         return;
@@ -934,7 +977,9 @@ void Engine::skipAuto(const AppKey &key, bool skip)
             continue;
         }
         const Recognised &r = recognise(n, props, id);
-        if (skip && (r.detected.excluded || r.detected.category == AppCategory::None)) {
+        // A Java app an older rule places is kept off its bus by its skip, whatever its kind.
+        const bool ownSkip = id.key == key && idx >= 0 && isOlderJavaRule(m_scene.rules.at(idx), id);
+        if (skip && !ownSkip && (r.detected.excluded || r.detected.category == AppCategory::None)) {
             continue;
         }
         if (!skip) {
@@ -1055,7 +1100,11 @@ double Engine::appVolume(const AppKey &key) const
     if (const AppRule *r = m_scene.rule(key.key, key.match)) {
         return r->volume;
     }
-    return m_sessionVolume.value(key.toString(), 1.0);
+    if (auto it = m_sessionVolume.constFind(key.toString()); it != m_sessionVolume.cend()) {
+        return it.value();
+    }
+    const AppRule *older = olderJavaRule(key);
+    return older ? older->volume : 1.0;
 }
 
 void Engine::setAppMuted(const AppKey &key, bool muted)
@@ -1066,10 +1115,9 @@ void Engine::setAppMuted(const AppKey &key, bool muted)
         }
         r->muted = muted;
         Q_EMIT sceneChanged();
-    } else if (muted) {
-        m_sessionMuted.insert(key.toString(), true);
     } else {
-        m_sessionMuted.remove(key.toString());
+        // Kept when false too: unmuting a Java app sticks while an older Java rule is muted.
+        m_sessionMuted.insert(key.toString(), muted);
     }
     Q_EMIT appsChanged();
     scheduleReconcile();
@@ -1080,7 +1128,11 @@ bool Engine::appMuted(const AppKey &key) const
     if (const AppRule *r = m_scene.rule(key.key, key.match)) {
         return r->muted;
     }
-    return m_sessionMuted.value(key.toString(), false);
+    if (auto it = m_sessionMuted.constFind(key.toString()); it != m_sessionMuted.cend()) {
+        return it.value();
+    }
+    const AppRule *older = olderJavaRule(key);
+    return older && older->muted;
 }
 
 bool Engine::releaseAppMutes()

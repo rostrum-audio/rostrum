@@ -315,6 +315,9 @@ protected:
     StreamProps propsOf(const pw::Node &n) const;
     // The program a Java playback stream's process runs, as a Java rule matches it; cached.
     QString javaProgramOf(const pw::Node &n) const;
+    // The older rule for every Java app (by binary, or by the name OpenAL Soft gives) that places
+    // the running Java app `key`, which has no rule of its own; null if none.
+    const AppRule *olderJavaRule(const AppKey &key) const;
     struct JavaLookup
     {
         QString signature; // serial, pid, binary and Flatpak id it was read for
