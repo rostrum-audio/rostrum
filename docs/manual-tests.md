@@ -806,7 +806,7 @@ No physical deck is needed for the install checks.
 2. Record the plugins and profiles before pressing Install. If Rostrum's plugin is already
    installed, back up only `dev.getrostrum.Rostrum.sdPlugin` outside the plugins folder first.
    Press Install: only that directory is created under the selected config's `plugins` folder.
-   It contains `manifest.json` (Version 1.4.0, eight actions), executable `plugin.sh`, `plugin.py`,
+   It contains `manifest.json` (Version 1.4.1, eight actions), executable `plugin.sh`, `plugin.py`,
    `dbus_client.py`, `inspector.html`, the two cue sounds in `sounds/`, and sixteen SVG icons in
    `images/`. None is a symlink into a checkout or an AppImage mount. Other plugins and profiles
    remain unchanged. Stop OpenDeck during the comparison so its own writes do not obscure the
@@ -849,11 +849,15 @@ No physical deck is needed for the install checks.
      Headphones only, the key reads "off stream", and Spotify still plays in your headphones.
    - Mute Music fully, then press a "for me" key on Music: you hear it, and the stream does not
      get it (the mixer shows Headphones only).
+   - Make a Multi Action and drag Toggle bus mute (Music), Switch scene and Volume down into it:
+     OpenDeck accepts each, and refuses Push to talk. Press the key: Music mutes, the scene
+     switches, and the volume steps down once. Unplug the deck and plug it back in, then press the
+     key again: every action still runs.
 8. Update notice, in a test instance with its own config. Install plugin 1.3.0 into the selected
    OpenDeck config (an older Rostrum's bundle, or `Version` in its `manifest.json` edited to
    1.3.0), then start Rostrum.
-   - About 10 seconds after start, one "OpenDeck plugin update" notice names 1.4.0 and 1.3.0.
-     Quit and start Rostrum again: no second notice (`[opendeck] notified_version` is 1.4.0).
+   - About 10 seconds after start, one "OpenDeck plugin update" notice names 1.4.1 and 1.3.0.
+     Quit and start Rostrum again: no second notice (`[opendeck] notified_version` is 1.4.1).
    - Clear `notified_version`, start again, and press Update on the notice: the plugin is
      replaced, and a follow-up notice says to restart OpenDeck.
    - Repeat with the installed copy back at 1.3.0, and click the notice body instead: Rostrum's
