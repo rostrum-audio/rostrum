@@ -113,6 +113,23 @@ private Q_SLOTS:
         QCOMPARE(identify(named).key.toString(), QStringLiteral("name:Some Game"));
     }
 
+    void aStreamNamedJavaKeepsItsNameWithoutAProgram()
+    {
+        // OpenAL Soft names a stream "java". Without a program (a recording stream, or a command
+        // line that cannot be read) it keeps the key it had, so saved choices for it still apply.
+        const StreamProps capture{QStringLiteral("java"), QStringLiteral("java"), {}, {}};
+        const AppIdentity id = identify(capture);
+        QCOMPARE(id.key.toString(), QStringLiteral("name:java"));
+        QCOMPARE(id.displayName, QStringLiteral("java"));
+        QVERIFY(!id.unnamed);
+        // A program says which Java app it is, whatever the binary's case.
+        const StreamProps game{QStringLiteral("java"), QStringLiteral("/usr/bin/Java"), {}, {}, QStringLiteral("Minecraft")};
+        QCOMPARE(identify(game).key.toString(), QStringLiteral("java:Minecraft"));
+        // A name that only matches the binary of something else stays a name.
+        const StreamProps other{QStringLiteral("java"), QStringLiteral("python3"), {}, {}, QStringLiteral("Minecraft")};
+        QCOMPARE(identify(other).key.toString(), QStringLiteral("name:java"));
+    }
+
     void javaRulesComeBetweenNameAndBinary()
     {
         const AppRule anyJava{QStringLiteral("java"), MatchKey::Binary, QStringLiteral("desktop")};

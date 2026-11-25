@@ -199,8 +199,8 @@ AppFacts collectFacts(const StreamProps &props, const QMap<QString, QString> &no
     }
 
     // A generic name ("Chromium" from any Electron app) would find the wrong entry, and so would
-    // "java", the runtime every Java app runs in.
-    const QString name = isGenericAppName(props.appName) ? QString() : props.appName;
+    // "java", the runtime every Java app runs in (and the name OpenAL Soft gives its streams).
+    const QString name = isGenericAppName(props.appName) || isJavaBinary(props.appName) ? QString() : props.appName;
     const QString binary = isJavaBinary(props.binary) ? QString() : cleanBinary(props.binary);
     if (const auto entry = desktop.find({f.appId, binary, name, f.iconName})) {
         f.desktopId = entry->id;

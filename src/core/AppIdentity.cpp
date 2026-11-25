@@ -49,8 +49,6 @@ bool isGenericAppName(const QString &name)
         QStringLiteral("playback"),           QStringLiteral("Playback"),       QStringLiteral("SDL Application"),
         QStringLiteral("OpenAL Soft"),        QStringLiteral("ALSA plug-in"),   QStringLiteral("PipeWire ALSA"),
         QStringLiteral("wine-preloader"),     QStringLiteral("wine64-preloader"),
-        // OpenAL Soft names a stream after the process, and for a Java app that says nothing.
-        QStringLiteral("java"),
     };
     if (exact.contains(n, Qt::CaseInsensitive)) {
         return true;
@@ -101,7 +99,10 @@ AppIdentity identify(const StreamProps &props)
     AppIdentity id;
     id.binary = cleanBinary(props.binary);
     const QString name = props.appName.trimmed();
-    if (!isGenericAppName(name)) {
+    // OpenAL Soft names a Java app's stream "java", after the process. Once the program it runs is
+    // known that is no name; without one (a recording stream) it stays the key it always was.
+    const bool javaProcessName = !props.javaProgram.isEmpty() && isJavaBinary(props.binary) && isJavaBinary(name);
+    if (!isGenericAppName(name) && !javaProcessName) {
         id.displayName = name;
         id.key = {MatchKey::Name, name};
         return id;

@@ -474,6 +474,9 @@ private Q_SLOTS:
         const auto isOurs = [](const QString &t) { return t.startsWith(QLatin1String("rostrum.")); };
         const StreamProps props{QStringLiteral("ALSA plug-in [java]"), QStringLiteral("java"), {}, {}};
         QVERIFY(collectFacts(props, {}, 0, index, isOurs).desktopId.isEmpty());
+        // Nor is the name OpenAL Soft gives a Java app's stream.
+        const StreamProps openAl{QStringLiteral("java"), QStringLiteral("java"), {}, {}};
+        QVERIFY(collectFacts(openAl, {}, 0, index, isOurs).desktopId.isEmpty());
     }
 
     void steamGameNameFromLibrary()
