@@ -43,6 +43,16 @@ struct BusLevels
 };
 using BusLevelsList = QList<BusLevels>;
 
+// ListBusChat: the voice chat send of each playback bus that may have one.
+struct BusChat
+{
+    QString id;
+    bool chat = false;  // the destination is set up
+    bool muted = false; // and switched off live
+    double volume = 0.0;
+};
+using BusChatList = QList<BusChat>;
+
 struct ActionInfo
 {
     QString id;
@@ -54,6 +64,8 @@ QDBusArgument &operator<<(QDBusArgument &arg, const BusInfo &b);
 const QDBusArgument &operator>>(const QDBusArgument &arg, BusInfo &b);
 QDBusArgument &operator<<(QDBusArgument &arg, const BusLevels &b);
 const QDBusArgument &operator>>(const QDBusArgument &arg, BusLevels &b);
+QDBusArgument &operator<<(QDBusArgument &arg, const BusChat &b);
+const QDBusArgument &operator>>(const QDBusArgument &arg, BusChat &b);
 QDBusArgument &operator<<(QDBusArgument &arg, const ActionInfo &a);
 const QDBusArgument &operator>>(const QDBusArgument &arg, ActionInfo &a);
 
@@ -72,6 +84,7 @@ class DBusControl : public QObject, protected QDBusContext
     Q_PROPERTY(bool Connected READ connected)
     Q_PROPERTY(bool MicFilters READ micFilters)
     Q_PROPERTY(bool PerMixLevels READ perMixLevels)
+    Q_PROPERTY(bool ChatMic READ chatMic)
 
 public:
     // An error to send back, or to print when the command line runs in this process.
@@ -96,6 +109,7 @@ public:
     // False only when Rostrum knows this system has one level per bus. Before PipeWire connects
     // nothing is known, and nothing is applied either.
     bool perMixLevels() const;
+    bool chatMic() const; // Rostrum Chat Mic is in use
 
     Error triggerAction(const QString &id);
     Error switchScene(const QString &name);
@@ -106,6 +120,7 @@ public:
     // bus; "both" moves both by the same amount. *position is the new level (Stream for "both").
     Error stepBusVolume(const QString &busText, const QString &mix, double delta, double *position);
     // Takes a playback bus off one mix or puts it back, never changing the other (remote::toggledInMix).
+    // "chat" sets up voice chat on the first call and then switches it off and on, moving no app.
     Error toggleBusInMix(const QString &busText, const QString &mix);
     void setMicMuted(bool muted);
     void toggleMicMute();
@@ -114,6 +129,7 @@ public:
     static BusInfoList busesOf(const Scene &scene);
     BusInfoList buses() const; // the live scene, with holds and panic applied
     BusLevelsList busLevels() const; // buses() with both levels and the destination
+    BusChatList busChat() const;     // playback buses that may go to voice chat
     ActionInfoList actionList() const;
 
 public Q_SLOTS:
@@ -132,6 +148,7 @@ public Q_SLOTS:
     QStringList ListScenes();
     rostrum::app::BusInfoList ListBuses();
     rostrum::app::BusLevelsList ListBusLevels();
+    rostrum::app::BusChatList ListBusChat();
     rostrum::app::ActionInfoList ListActions();
 
 private:
@@ -152,4 +169,5 @@ private:
 
 Q_DECLARE_METATYPE(rostrum::app::BusInfo)
 Q_DECLARE_METATYPE(rostrum::app::BusLevels)
+Q_DECLARE_METATYPE(rostrum::app::BusChat)
 Q_DECLARE_METATYPE(rostrum::app::ActionInfo)

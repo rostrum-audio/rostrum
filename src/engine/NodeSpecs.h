@@ -18,13 +18,16 @@ inline constexpr const char *kSidetoneNode = "rostrum.sidetone";
 // virtual mic that apps record instead of the hardware mic.
 inline constexpr const char *kMicFxNode = "rostrum.micfx";
 inline constexpr const char *kFilteredNode = "rostrum.filtered";
+// The virtual mic that voice chat records: the chat sends of the buses that have one feed it.
+inline constexpr const char *kChatMicNode = "rostrum.chatmic";
 
 inline constexpr const char *kStreamDescription = "Rostrum Stream Mix";
 inline constexpr const char *kVodDescription = "Rostrum VOD Mix";
 inline constexpr const char *kMicDescription = "Rostrum Mic";
 inline constexpr const char *kFilteredDescription = "Rostrum Filtered Mic";
+inline constexpr const char *kChatMicDescription = "Rostrum Chat Mic";
 
-enum class NodeRole { Bus, Phones, Stream, Vod, Mic, Sidetone, MicFx, Filtered, Send };
+enum class NodeRole { Bus, Phones, Stream, Vod, Mic, Sidetone, MicFx, Filtered, Send, ChatMic };
 
 struct NodeSpec
 {
@@ -50,6 +53,8 @@ bool needsRename(const NodeSpec &spec, const QString &currentDescription);
 QList<NodeSpec> desiredNodes(const Scene &scene);
 
 NodeSpec filteredMicSpec();
+// Like the filtered mic: a mono virtual source that lingers. It is never a default device.
+NodeSpec chatMicSpec();
 
 // The graph cycle, in samples, that rostrum.micfx forces while it runs noise removal. RNNoise runs
 // on the plugin's worker thread, and on a busy desktop one of its 10 ms frames can take several

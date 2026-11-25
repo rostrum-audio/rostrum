@@ -61,6 +61,9 @@ MixTarget splitMixTarget(const QString &text)
     const qsizetype dot = text.lastIndexOf(QLatin1Char('.'));
     if (dot > 0) {
         const QString suffix = text.mid(dot + 1);
+        if (suffix.compare(QLatin1String("chat"), Qt::CaseInsensitive) == 0) {
+            return {text.left(dot), std::nullopt, true};
+        }
         for (const Mix m : {Mix::Phones, Mix::Stream}) {
             if (suffix.compare(mixName(m), Qt::CaseInsensitive) == 0) {
                 return {text.left(dot), m};
@@ -73,16 +76,20 @@ MixTarget splitMixTarget(const QString &text)
 VolumeTarget resolveVolumeTarget(const Scene &scene, const QString &text)
 {
     if (const QString whole = resolveBusId(scene, text); !whole.isEmpty()) {
-        return {whole, std::nullopt, {}};
+        return {whole, std::nullopt, false, {}};
     }
     const MixTarget t = splitMixTarget(text.trimmed());
-    const QString bus = t.mix ? resolveBusId(scene, t.bus) : QString();
+    const QString bus = t.mix || t.chat ? resolveBusId(scene, t.bus) : QString();
     if (bus.isEmpty()) {
-        return {{}, std::nullopt, QString::fromLatin1(kErrorNoSuchBus)};
+        return {{}, std::nullopt, false, QString::fromLatin1(kErrorNoSuchBus)};
     }
-    const bool oneLevel = bus == QLatin1String(kStreamId) || bus == QLatin1String(kPhonesId) ||
-                          bus == QLatin1String(kMicBusId);
-    return {bus, t.mix, oneLevel ? QString::fromLatin1(kErrorInvalidValue) : QString()};
+    bool bad = bus == QLatin1String(kStreamId) || bus == QLatin1String(kPhonesId) ||
+               bus == QLatin1String(kMicBusId);
+    if (t.chat && !bad) {
+        const Bus *b = scene.bus(bus);
+        bad = !b || !chatAllowed(*b);
+    }
+    return {bus, t.mix, t.chat, bad ? QString::fromLatin1(kErrorInvalidValue) : QString()};
 }
 
 std::optional<Side> parseSide(const QString &text)
@@ -96,6 +103,9 @@ std::optional<Side> parseSide(const QString &text)
     if (text.compare(QLatin1String("both"), Qt::CaseInsensitive) == 0) {
         return Side::Both;
     }
+    if (text.compare(QLatin1String("chat"), Qt::CaseInsensitive) == 0) {
+        return Side::Chat;
+    }
     return std::nullopt;
 }
 
@@ -106,6 +116,8 @@ QString sideName(Side side)
         return QStringLiteral("stream");
     case Side::Phones:
         return QStringLiteral("phones");
+    case Side::Chat:
+        return QStringLiteral("chat");
     case Side::Both:
         break;
     }
@@ -129,6 +141,11 @@ InMix toggledInMix(Destination d, bool muted, Mix mix)
         return {only, false}; // silent on the other side before, so still silent there
     }
     return {Destination::Both, false}; // it was on the other mix only
+}
+
+ChatState toggledChat(bool chat, bool muted)
+{
+    return chat ? ChatState{true, !muted} : ChatState{true, false};
 }
 
 namespace {
@@ -158,6 +175,8 @@ StepTarget resolveStep(const Scene &scene, const QString &busText, const QString
     out.side = *side;
     if (out.side != Side::Both && hasOneLevel(out.busId)) {
         out.problem = StepProblem::OneLevelBus;
+    } else if (out.side == Side::Chat && !chatAllowed(*scene.bus(out.busId))) {
+        out.problem = StepProblem::BadSide;
     } else if (!std::isfinite(delta) || delta < -1.0 || delta > 1.0) {
         out.problem = StepProblem::BadDelta;
     } else if (out.side != Side::Both && !perMixLevels) {
@@ -179,9 +198,12 @@ InMixTarget resolveInMix(const Scene &scene, const QString &busText, const QStri
         out.problem = InMixProblem::BadSide;
         return out;
     }
+    out.chat = *side == Side::Chat;
     out.mix = *side == Side::Phones ? Mix::Phones : Mix::Stream;
     if (hasOneLevel(out.busId)) {
         out.problem = InMixProblem::NotPlaybackBus;
+    } else if (out.chat && !chatAllowed(*scene.bus(out.busId))) {
+        out.problem = InMixProblem::BadSide;
     }
     return out;
 }

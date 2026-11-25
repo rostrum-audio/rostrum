@@ -46,6 +46,11 @@ public:
         BalanceRole,
         DuckedRole, // turned down by auto-ducking right now
         VodRole,
+        ChatRole,        // sends to Rostrum Chat Mic
+        ChatMutedRole,   // that send is switched off live
+        ChatVolumeRole,
+        ChatAllowedRole, // false for the mic and for a bus that plays voice chat
+        ChatBlockedRole, // send held off because an app on this bus records the chat mic
     };
 
     explicit BusModel(engine::Engine *engine, QObject *parent = nullptr);
@@ -96,6 +101,14 @@ class Mixer : public QObject
     Q_PROPERTY(bool scrollToAdjust READ scrollToAdjust NOTIFY settingsChanged)
     Q_PROPERTY(bool perMixLevels READ perMixLevels NOTIFY perMixLevelsChanged)
     Q_PROPERTY(QString perMixUnavailable READ perMixUnavailable NOTIFY perMixLevelsChanged)
+    // Empty, or why voice chat cannot run.
+    Q_PROPERTY(QString chatUnavailable READ chatUnavailable NOTIFY chatMicChanged)
+    // Some playback bus has a voice chat fader; the strips widen to fit three faders.
+    Q_PROPERTY(bool anyChat READ anyChat NOTIFY levelsChanged)
+    Q_PROPERTY(bool chatMicActive READ chatMicActive NOTIFY chatMicChanged)
+    // Apps whose voice chat sounds are off because they record the chat mic from their own bus.
+    Q_PROPERTY(QStringList chatBlockedBuses READ chatBlockedBuses NOTIFY chatLoopChanged)
+    Q_PROPERTY(QStringList chatLoopApps READ chatLoopApps NOTIFY chatLoopChanged)
     // Names of playback buses set to Stream only; empty when none (for Bluetooth headphones hint).
     Q_PROPERTY(QStringList streamOnlyPlaybackBusNames READ streamOnlyPlaybackBusNames NOTIFY structureChanged)
 
@@ -132,13 +145,19 @@ public:
     bool scrollToAdjust() const;
     bool perMixLevels() const;
     QString perMixUnavailable() const;
+    QString chatUnavailable() const;
+    bool chatMicActive() const;
+    bool anyChat() const;
+    QStringList chatLoopApps() const;
+    QStringList chatBlockedBuses() const;
     QStringList streamOnlyPlaybackBusNames() const;
     void notifySettingsChanged() { Q_EMIT settingsChanged(); }
 
     // Set every Stream-only playback bus to Both (Mixer Bluetooth headphones hint).
     Q_INVOKABLE void includeStreamOnlyBusesInHeadphones();
     Q_INVOKABLE void setVolume(const QString &busId, double position);
-    // mix is "phones" or "stream". A linked bus moves the other level by the same amount.
+    // mix is "phones", "stream" or "chat". The chat level is never linked.
+    // A linked bus moves the other level by the same amount.
     Q_INVOKABLE void setMixVolume(const QString &busId, const QString &mix, double position);
     Q_INVOKABLE void setLinked(const QString &busId, bool linked);
     // Compact View: move the Stream level to streamPosition and the Headphones level by the same amount.
@@ -149,6 +168,8 @@ public:
     Q_INVOKABLE void toggleSolo(const QString &busId);
     Q_INVOKABLE void setDestination(const QString &busId, int index);
     Q_INVOKABLE void setVod(const QString &busId, bool on);
+    Q_INVOKABLE void setChat(const QString &busId, bool on);
+    Q_INVOKABLE void setChatMuted(const QString &busId, bool muted);
     Q_INVOKABLE void rename(const QString &busId, const QString &name);
     Q_INVOKABLE void recolor(const QString &busId, const QString &color);
     // category: "game", "voice", "music", "alerts", "desktop" or "none". One bus per category.
@@ -170,6 +191,8 @@ Q_SIGNALS:
     void metersActiveChanged();
     void settingsChanged();
     void perMixLevelsChanged();
+    void chatMicChanged();
+    void chatLoopChanged();
 
 private:
     using MeterState = meters::State;

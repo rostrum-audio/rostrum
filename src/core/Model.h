@@ -11,6 +11,8 @@ namespace rostrum {
 
 inline constexpr int kMaxBuses = 12;
 inline constexpr const char *kMicBusId = "mic";
+inline constexpr const char *kChatMicBusId = "chatmic"; // reserved: names the chat mic, never a bus
+inline constexpr double kDefaultChatVolume = 0.7;
 inline constexpr const char *kDefaultSceneName = "Live";
 
 enum class Destination { Phones, Stream, Both };
@@ -49,6 +51,9 @@ struct Bus
     Destination destination = Destination::Both;
     bool vod = true;                              // Twitch VOD destination (playback buses)
     AppCategory autoCategory = AppCategory::None; // at most one bus per category in a scene
+    bool chat = false;                            // playback buses: has a voice chat destination
+    bool chatMuted = false;                       // that destination is switched off live
+    double chatVolume = kDefaultChatVolume;       // fader position of the chat send, 0..1
 
     bool isInput() const { return kind == BusKind::Input; }
     double level(Mix m) const { return m == Mix::Phones ? phonesVolume : volume; }
@@ -75,6 +80,10 @@ MixLevels moveLevel(MixLevels from, Mix mix, double target, bool together);
 double mixGain(const Bus &b, Mix m, bool dimmedBySolo);
 // "rostrum.<bus>.phones" or "rostrum.<bus>.stream": the node carrying the bus's level in that mix.
 QString sendNodeName(const QString &busId, Mix mix);
+// "rostrum.<bus>.chat": the node carrying the bus's level into the voice chat mic.
+QString chatSendNodeName(const QString &busId);
+// A bus may go to voice chat unless it is the mic or receives Voice (that would echo back).
+bool chatAllowed(const Bus &b);
 
 struct AppRule
 {
@@ -124,6 +133,9 @@ struct Scene
 
     bool operator==(const Scene &) const = default;
 };
+
+// True while any saved scene has a bus with a voice chat destination, switched on or not.
+bool chatMicWanted(const QList<Scene> &scenes);
 
 namespace defaults {
 

@@ -31,6 +31,11 @@ QQC2.Control {
     required property real balance
     required property bool ducked
     required property bool vod
+    required property bool chat
+    required property bool chatMuted
+    required property real chatVolume
+    required property bool chatAllowed
+    required property bool chatBlocked
 
     property bool editing: false
     property bool expanded: false
@@ -131,6 +136,20 @@ QQC2.Control {
                 Keys.onEscapePressed: strip.editing = false
                 onActiveFocusChanged: if (!activeFocus) strip.editing = false
             }
+            QQC2.Label {
+                visible: strip.isInput && Mixer.chatMicActive && !strip.editing
+                text: i18nc("@info:status", "Chat Mic")
+                font: Kirigami.Theme.smallFont
+                color: Kirigami.Theme.positiveTextColor
+                Layout.maximumWidth: Kirigami.Units.gridUnit * 4
+                elide: Text.ElideRight
+                QQC2.ToolTip.text: i18nc("@info:tooltip", "Apps that record your mic get your voice plus the sounds you send to voice chat")
+                QQC2.ToolTip.visible: chatMicHover.hovered
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                HoverHandler {
+                    id: chatMicHover
+                }
+            }
         }
 
         // State chips keep their row so strips do not jump.
@@ -172,6 +191,12 @@ QQC2.Control {
             accentColor: strip.busColor
             onPhonesEdited: v => Mixer.setMixVolume(strip.busId, "phones", v)
             onStreamEdited: v => Mixer.setMixVolume(strip.busId, "stream", v)
+            chatShown: strip.chat && strip.chatAllowed
+            chatValue: strip.chatVolume
+            chatMuted: strip.chatMuted
+            chatEnabled: !strip.chatMuted && !strip.muted && !strip.chatBlocked
+            onChatMoved: v => Mixer.setMixVolume(strip.busId, "chat", v)
+            onChatMuteToggled: Mixer.setChatMuted(strip.busId, !strip.chatMuted)
             onLinkToggled: Mixer.setLinked(strip.busId, !strip.linked)
             onMuteRequested: Mixer.toggleMuted(strip.busId)
             onSoloRequested: Mixer.toggleSolo(strip.busId)
@@ -328,6 +353,33 @@ QQC2.Control {
                 onToggled: Mixer.setVod(strip.busId, checked)
                 QQC2.ToolTip.text: text
                 QQC2.ToolTip.visible: hovered && implicitWidth > width
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+            }
+        }
+
+        // Room for the Voice chat checkbox too, so the rows below keep their place.
+        Item {
+            Layout.fillWidth: true
+            implicitHeight: chatCheck.implicitHeight
+            QQC2.CheckBox {
+                id: chatCheck
+                objectName: "chatCheck"
+                anchors.left: parent.left
+                anchors.right: parent.right
+                visible: !strip.isInput
+                text: i18nc("@option:check", "Voice chat")
+                Accessible.name: i18nc("@label:accessible", "%1: Voice chat", strip.name)
+                font: Kirigami.Theme.smallFont
+                checked: strip.chat
+                enabled: strip.chat || (strip.chatAllowed && Mixer.chatUnavailable === "")
+                opacity: enabled ? 1.0 : 0.4
+                onToggled: Mixer.setChat(strip.busId, checked)
+                QQC2.ToolTip.text: strip.chat || Mixer.chatUnavailable === ""
+                    ? (strip.chatAllowed
+                       ? i18nc("@info:tooltip", "Send this bus to Rostrum Chat Mic, which Discord and games record")
+                       : i18nc("@info:tooltip", "Voice chat would hear itself: this bus plays your voice chat"))
+                    : Mixer.chatUnavailable
+                QQC2.ToolTip.visible: hovered
                 QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
             }
         }
@@ -529,6 +581,19 @@ QQC2.Control {
             enabled: strip.destination !== Mixer.PhonesIndex
             height: visible ? implicitHeight : 0
             onTriggered: Mixer.setVod(strip.busId, checked)
+        }
+        QQC2.MenuItem {
+            text: i18nc("@action:inmenu", "Voice chat")
+            Accessible.name: i18nc("@label:accessible", "%1: Voice chat", strip.name)
+            icon.name: "irc-voice"
+            visible: !strip.isInput
+            checkable: true
+            checked: strip.chat
+            enabled: strip.chat || (strip.chatAllowed && Mixer.chatUnavailable === "")
+            QQC2.ToolTip.text: Mixer.chatUnavailable
+            QQC2.ToolTip.visible: hovered && !strip.chat && Mixer.chatUnavailable !== ""
+            height: visible ? implicitHeight : 0
+            onTriggered: Mixer.setChat(strip.busId, checked)
         }
         QQC2.MenuItem {
             text: i18nc("@action:inmenu", "Duplicate")

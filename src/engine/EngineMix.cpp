@@ -148,6 +148,51 @@ void Engine::setBusVod(const QString &id, bool on)
     levelChanged();
 }
 
+bool Engine::setBusChat(const QString &id, bool on)
+{
+    Bus *b = m_scene.bus(id);
+    if (!b || (on && !chatAllowed(*b))) {
+        return false;
+    }
+    if (b->chat == on) {
+        return true;
+    }
+    b->chat = on;
+    if (on) {
+        b->chatMuted = false;
+    } else {
+        // The mute only means something while the destination is set up. Clear it so a saved
+        // scene does not carry chat_muted without chat.
+        b->chatMuted = false;
+    }
+    levelChanged();
+    return true;
+}
+
+void Engine::setBusChatMuted(const QString &id, bool muted)
+{
+    Bus *b = m_scene.bus(id);
+    if (!b || b->isInput() || b->chatMuted == muted) {
+        return;
+    }
+    b->chatMuted = muted;
+    levelChanged();
+}
+
+void Engine::setBusChatVolume(const QString &id, double position)
+{
+    Bus *b = m_scene.bus(id);
+    if (!b || b->isInput()) {
+        return;
+    }
+    const double v = std::clamp(position, 0.0, 1.0);
+    if (qFuzzyCompare(b->chatVolume + 1.0, v + 1.0)) {
+        return;
+    }
+    b->chatVolume = v;
+    levelChanged();
+}
+
 void Engine::setMasterPhones(double volume)
 {
     cancelFade(QString::fromLatin1(kPhonesNode));
@@ -328,7 +373,8 @@ QString Engine::addBus(const QString &name, const QString &color)
     // Reserved node names.
     taken << QStringLiteral("phones") << QStringLiteral("stream") << QStringLiteral("vod")
           << QStringLiteral("sidetone")
-          << QStringLiteral("mic") << QStringLiteral("micfx") << QStringLiteral("filtered");
+          << QStringLiteral("mic") << QStringLiteral("micfx") << QStringLiteral("filtered")
+          << QString::fromLatin1(kChatMicBusId);
     Bus b;
     b.name = name.trimmed().isEmpty() ? QStringLiteral("Bus") : name.trimmed();
     b.id = makeSlug(b.name, taken);
@@ -1080,6 +1126,12 @@ void Engine::reconcileLinks()
     if (sidetone && phones) {
         nodePairs.append(qMakePair(sidetone, phones));
     }
+    // The chat mic carries the voice while it exists, wanted or not, so apps still recording it
+    // keep hearing it. Its chat sends come from busLinks; the mono input sums their two channels.
+    const pw::Node *chatMic = chatMicNode();
+    if (filtered && chatMic) {
+        nodePairs.append(qMakePair(filtered, chatMic));
+    }
 
     // Ports of a new node arrive one by one. Linking a half-enumerated stereo device as if it were
     // mono would create links that get torn down a moment later, so wait for the full set.
@@ -1296,6 +1348,13 @@ void Engine::reconcileVolumes()
     // Call apps record this source directly. Share the global mic mute, while keeping
     // their gain independent of the stream fader and its destination.
     apply(QString::fromLatin1(kFilteredNode), 1.0, effectiveMicMuted());
+    // Voice reaches the chat mic through rostrum.filtered, so mic mute and the push holds act
+    // there and clips keep going. Panic silences everything leaving the computer, clips too.
+    const auto chatLevels = chatSendLevels(m_scene, m_chatBlocked);
+    for (auto it = chatLevels.cbegin(); it != chatLevels.cend(); ++it) {
+        level(it.key(), it->position, it->mute, it->balance, it->gain);
+    }
+    apply(QString::fromLatin1(kChatMicNode), 1.0, m_panicMic);
     for (auto it = m_sentVolume.begin(); it != m_sentVolume.end();) {
         it = g.node(it.key()) ? std::next(it) : m_sentVolume.erase(it);
     }

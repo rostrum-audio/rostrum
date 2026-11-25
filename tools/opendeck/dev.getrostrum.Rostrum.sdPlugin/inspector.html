@@ -18,8 +18,10 @@ select { margin-top: 8px; padding: 6px; background: #333; color: #eee; }
     <option value="both">Both</option>
     <option value="stream">Stream</option>
     <option value="phones">My headphones</option>
+    <option value="chat">Voice chat</option>
   </select>
-  <p id="sideHelp">Stream or My headphones changes that side only.</p>
+  <p id="sideHelp">Stream or My headphones changes that side only. Voice chat is the sounds sent to
+    Rostrum Chat Mic: the first press sets it up, then it switches it off and on.</p>
 </div>
 <div id="stepBlock" hidden>
   <label for="step">Step <output id="stepValue" for="step">5%</output></label>
@@ -49,7 +51,7 @@ const stepValue = document.getElementById('stepValue');
 let lastPayload = null;
 // The plugin applies the same defaults: Both, and a 5% step within 1-25%.
 function sideSetting(value) {
-    return ['both', 'stream', 'phones'].includes(value) ? value : 'both';
+    return ['both', 'stream', 'phones', 'chat'].includes(value) ? value : 'both';
 }
 function stepSetting(value) {
     return typeof value === 'number' && Number.isFinite(value) ? Math.max(1, Math.min(25, Math.round(value))) : 5;
@@ -92,7 +94,10 @@ function showChoices() {
     document.getElementById('label').textContent = isScene ? 'Scene' : 'Bus';
     let rows = isScene ? lastPayload.scenes.map(name => ({id: name, name})) : lastPayload.buses;
     // One side applies to playback buses only. An older Rostrum sends no destinations: list all.
-    if (!isScene && !sideBlock.hidden && sideSetting(settings.side) !== 'both' && rows.some(row => 'destination' in row))
+    // Voice chat also leaves out a bus that cannot send to it, when Rostrum says which those are.
+    if (!isScene && !sideBlock.hidden && sideSetting(settings.side) === 'chat' && rows.some(row => 'chat' in row))
+        rows = rows.filter(row => 'chat' in row || row.id === settings[field]);
+    else if (!isScene && !sideBlock.hidden && sideSetting(settings.side) !== 'both' && rows.some(row => 'destination' in row))
         rows = rows.filter(row => (typeof row.destination === 'string' && row.destination !== '')
                                   || row.id === settings[field]);
     choice.replaceChildren(new Option('Choose…', ''));

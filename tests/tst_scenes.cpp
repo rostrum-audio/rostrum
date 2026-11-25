@@ -6,6 +6,7 @@
 #include "engine/SceneManager.h"
 #include "pw/PwContext.h"
 
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -59,6 +60,98 @@ private Q_SLOTS:
         const AppRule *r = back->rule(MatchKey::Java, QStringLiteral("runelite"));
         QVERIFY(r);
         QCOMPARE(r->busId, QStringLiteral("game"));
+    }
+
+    void chatRoundTrips()
+    {
+        Scene s = defaults::scene();
+        Bus *game = s.bus(QStringLiteral("game"));
+        game->chat = true;
+        game->chatMuted = true;
+        game->chatVolume = 0.4;
+        const QString text = toml_io::serializeScene(s);
+        QVERIFY2(text.contains(QStringLiteral("chat = true\n")), qPrintable(text));
+        QVERIFY2(text.contains(QStringLiteral("chat_muted = true\n")), qPrintable(text));
+        QVERIFY2(text.contains(QStringLiteral("chat_volume = 0.4\n")), qPrintable(text));
+        const auto back = toml_io::parseScene(text);
+        QVERIFY(back);
+        QCOMPARE(*back, s);
+
+        const QString plain = toml_io::serializeScene(defaults::scene());
+        QVERIFY2(!plain.contains(QStringLiteral("chat")), qPrintable(plain));
+    }
+
+    void oldSceneHasNoChat()
+    {
+        const auto s = toml_io::parseScene(QStringLiteral(R"(
+name = "Old"
+[[bus]]
+id = "game"
+name = "Game"
+kind = "playback"
+volume = 0.7
+)"));
+        QVERIFY(s);
+        const Bus *game = s->bus(QStringLiteral("game"));
+        QVERIFY(game);
+        QVERIFY(!game->chat);
+        QVERIFY(!game->chatMuted);
+        QCOMPARE(game->chatVolume, 0.7);
+    }
+
+    void chatVolumeClamped()
+    {
+        const auto s = toml_io::parseScene(QStringLiteral(R"(
+name = "Odd"
+[[bus]]
+id = "game"
+name = "Game"
+kind = "playback"
+chat = true
+chat_volume = 3
+[[bus]]
+id = "voice"
+name = "Voice"
+kind = "playback"
+chat = true
+chat_volume = -1
+)"));
+        QVERIFY(s);
+        QCOMPARE(s->bus(QStringLiteral("game"))->chatVolume, 1.0);
+        QCOMPARE(s->bus(QStringLiteral("voice"))->chatVolume, 0.0);
+    }
+
+    void micBusNeverChats()
+    {
+        const auto s = toml_io::parseScene(QStringLiteral(R"(
+name = "Odd"
+[[bus]]
+id = "mic"
+name = "Mic"
+kind = "input"
+chat = true
+chat_muted = true
+chat_volume = 0.2
+)"));
+        QVERIFY(s);
+        const Bus *mic = s->bus(QStringLiteral("mic"));
+        QVERIFY(mic);
+        QVERIFY(!mic->chat);
+        QVERIFY(!mic->chatMuted);
+        QCOMPARE(mic->chatVolume, kDefaultChatVolume);
+    }
+
+    void chatmicIdReserved()
+    {
+        const auto s = toml_io::parseScene(QStringLiteral(R"(
+name = "Odd"
+[[bus]]
+id = "chatmic"
+name = "Chat"
+kind = "playback"
+)"));
+        QVERIFY(s);
+        QVERIFY(!s->bus(QStringLiteral("chatmic")));
     }
 
     void perMixLevelsRoundTrip()
@@ -431,6 +524,44 @@ bus = "game"
         engine::SceneManager again(&engine2, dir.path());
         again.load(QStringLiteral("Live"));
         QCOMPARE(again.names().size(), 4);
+    }
+
+    void savedChatChangedWhenOnlyChatSceneGoes()
+    {
+        QTemporaryDir dir;
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        engine::SceneManager scenes(&engine, dir.path());
+        scenes.load(QStringLiteral("Live"));
+        QVERIFY(!scenes.chatMicWanted());
+        QSignalSpy spy(&scenes, &engine::SceneManager::savedChatChanged);
+        Scene chat = defaults::scene(QStringLiteral("Chatty"));
+        chat.bus(QStringLiteral("game"))->chat = true;
+        QVERIFY(scenes.create(chat));
+        QVERIFY(scenes.chatMicWanted());
+        QCOMPARE(spy.size(), 1);
+        QCOMPARE(spy.last().at(0).toBool(), true);
+        // The live scene is a different one; the chat mic follows the saved scene.
+        QCOMPARE(scenes.currentName(), QStringLiteral("Live"));
+        QVERIFY(scenes.remove(QStringLiteral("Chatty")));
+        QVERIFY(!scenes.chatMicWanted());
+        QCOMPARE(spy.size(), 2);
+        QCOMPARE(spy.last().at(0).toBool(), false);
+    }
+
+    void liveChatEditWantsChatMicAtOnce()
+    {
+        QTemporaryDir dir;
+        pw::PwContext pw;
+        engine::Engine engine(&pw);
+        engine::SceneManager scenes(&engine, dir.path());
+        scenes.load(QStringLiteral("Live"));
+        QSignalSpy spy(&scenes, &engine::SceneManager::savedChatChanged);
+        Scene live = engine.scene();
+        live.bus(QStringLiteral("game"))->chat = true;
+        engine.setScene(live);
+        QVERIFY(scenes.chatMicWanted());
+        QCOMPARE(spy.size(), 1);
     }
 
     void sceneOrder()

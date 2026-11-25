@@ -423,11 +423,10 @@ Settings setAppChoice(Settings s, const QString &appKey, AppChoice choice)
     return s;
 }
 
-bool useFiltered(const Settings &s, AppChoice choice, bool excludedByDefault)
+namespace {
+// The scope and the per-app choice, which both Rostrum mics follow.
+bool followsScope(const Settings &s, AppChoice choice, bool excludedByDefault)
 {
-    if (!s.enabled) {
-        return false;
-    }
     switch (choice) {
     case AppChoice::Filtered:
         return true;
@@ -437,6 +436,22 @@ bool useFiltered(const Settings &s, AppChoice choice, bool excludedByDefault)
         break;
     }
     return s.scope == Scope::AllApps && !excludedByDefault;
+}
+} // namespace
+
+bool useFiltered(const Settings &s, AppChoice choice, bool excludedByDefault)
+{
+    return s.enabled && followsScope(s, choice, excludedByDefault);
+}
+
+bool useChatMic(const Settings &s, AppChoice choice, bool excludedByDefault)
+{
+    return followsScope(s, choice, excludedByDefault);
+}
+
+bool chatMicReleaseHeld(bool appsOnChatMic, qint64 msSinceRelease)
+{
+    return appsOnChatMic && msSinceRelease < kChatMicReleaseMs;
 }
 
 QList<Control> controls(const Settings &s, bool denoise)

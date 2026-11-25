@@ -320,7 +320,7 @@ private Q_SLOTS:
     {
         const auto bundledManifest = QJsonDocument::fromJson(read(QStringLiteral(":/opendeck/manifest.json"))).object();
         QCOMPARE(bundledVersion(), bundledManifest.value(QStringLiteral("Version")).toString());
-        QCOMPARE(bundledVersion(), QStringLiteral("1.4.1"));
+        QCOMPARE(bundledVersion(), QStringLiteral("1.5.0"));
         QTemporaryDir temp;
         Target target{QStringLiteral("custom"), temp.path()};
         QCOMPARE(installedVersion(target), QString());

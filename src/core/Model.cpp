@@ -69,6 +69,28 @@ QString sendNodeName(const QString &busId, Mix mix)
     return QStringLiteral("rostrum.%1.%2").arg(busId, mixName(mix));
 }
 
+QString chatSendNodeName(const QString &busId)
+{
+    return QStringLiteral("rostrum.%1.chat").arg(busId);
+}
+
+bool chatAllowed(const Bus &b)
+{
+    return !b.isInput() && b.autoCategory != AppCategory::Voice;
+}
+
+bool chatMicWanted(const QList<Scene> &scenes)
+{
+    for (const Scene &s : scenes) {
+        for (const Bus &b : s.buses) {
+            if (b.chat && chatAllowed(b)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 std::optional<Destination> destinationFromString(const QString &s)
 {
     const QString v = s.trimmed().toLower();
@@ -335,6 +357,11 @@ Scene mergeStructure(const Scene &saved, const Scene &current)
             b.balance = s->balance;
             b.destination = s->destination;
             b.vod = s->vod;
+            // A deck press or a fader move is a level, like mute and volume. A later structure
+            // save (a game launching, a rename) must not write the live values over the saved ones.
+            b.chat = s->chat;
+            b.chatMuted = s->chatMuted;
+            b.chatVolume = s->chatVolume;
         }
     }
     for (auto &r : out.rules) {
