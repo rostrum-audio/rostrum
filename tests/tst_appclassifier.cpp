@@ -269,6 +269,35 @@ private Q_SLOTS:
         QVERIFY(!index.find({QStringLiteral("missing")}));
     }
 
+    void ownIdBeatsAnotherEntrysExec()
+    {
+        // Bolt's two entries, verbatim. The hidden helper launches Bolt too, so its Exec names
+        // Bolt's id; it is scanned first here (an earlier data dir), as it was on a real install.
+        QTemporaryDir first;
+        QTemporaryDir second;
+        writeFile(first.path() + QStringLiteral("/applications/com.adamcake.Bolt.RuneScape.desktop"),
+                  "[Desktop Entry]\nType=Application\nName=RuneScape\nIcon=runescape\nNoDisplay=true\n"
+                  "Exec=/usr/bin/flatpak run --branch=stable --arch=x86_64 com.adamcake.Bolt\n");
+        writeFile(second.path() + QStringLiteral("/applications/com.adamcake.Bolt.desktop"),
+                  "[Desktop Entry]\nType=Application\nName=Bolt\nIcon=com.adamcake.Bolt\nCategories=Game;\n"
+                  "Exec=/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=bolt com.adamcake.Bolt\n");
+        DesktopIndex index({first.path(), second.path()});
+        const auto own = index.find({bolt});
+        QVERIFY(own);
+        QCOMPARE(own->id, bolt);
+        QCOMPARE(own->categories, QStringList{QStringLiteral("Game")});
+        QCOMPARE(index.find({QStringLiteral("com.adamcake.Bolt.RuneScape")})->id,
+                 QStringLiteral("com.adamcake.Bolt.RuneScape"));
+
+        // So RuneLite in Bolt, known only by Bolt's id here, is a game.
+        const auto isOurs = [](const QString &t) { return t.startsWith(QLatin1String("rostrum.")); };
+        const StreamProps props{QStringLiteral("ALSA plug-in [java]"), QStringLiteral("java"), {}, {}};
+        const QMap<QString, QString> node{{QStringLiteral("pipewire.access.portal.app_id"), bolt}};
+        const Classification c = classify(collectFacts(props, node, 0, index, isOurs));
+        QCOMPARE(c.category, AppCategory::Game);
+        QCOMPARE(c.evidence, Evidence::DesktopEntry);
+    }
+
     void ownOutputChoiceKeepsAppIcon()
     {
         AppFacts f = facts(QStringLiteral("Discord"), QStringLiteral("Discord"));

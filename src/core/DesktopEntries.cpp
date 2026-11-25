@@ -170,7 +170,15 @@ void DesktopIndex::scan()
             }
         }
     }
-    // Ids and programs first, so a stray Icon= or Name= never shadows another app's real id.
+    // Each entry's own id first: a helper entry whose Exec starts another app (Bolt's hidden
+    // RuneScape launcher runs com.adamcake.Bolt) must not answer for that app's id. Then programs,
+    // so a stray Icon= or Name= never shadows another app's real id.
+    for (int i = 0; i < m_entries.size(); ++i) {
+        const QString id = m_entries.at(i).id.toLower();
+        if (!m_byToken.contains(id)) {
+            m_byToken.insert(id, i);
+        }
+    }
     for (int i = 0; i < m_entries.size(); ++i) {
         const QStringList &tokens = m_entries.at(i).tokens;
         for (int t = 0; t < tokens.size(); ++t) {
