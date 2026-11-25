@@ -18,6 +18,11 @@ SceneManager::SceneManager(Engine *engine, const QString &dir, QObject *parent)
 {
     connect(m_engine, &Engine::sceneChanged, this, &SceneManager::onEngineSceneChanged);
     connect(m_engine, &Engine::structureChanged, this, &SceneManager::onStructureChanged);
+    // Every load, save, create, rename, remove, restore and import ends in scenesChanged; live
+    // bus edits and switches come through the engine.
+    connect(this, &SceneManager::scenesChanged, this, &SceneManager::updateChatMicWanted);
+    connect(this, &SceneManager::currentChanged, this, &SceneManager::updateChatMicWanted);
+    connect(m_engine, &Engine::sceneChanged, this, &SceneManager::updateChatMicWanted);
     // Long enough that a fader drag is one write, short enough that a crash loses little.
     m_autoSaveTimer.setSingleShot(true);
     m_autoSaveTimer.setInterval(1000);
@@ -184,6 +189,17 @@ bool SceneManager::previous()
     }
     const int i = indexOf(m_current);
     return switchToIndex((i - 1 + m_saved.size()) % m_saved.size());
+}
+
+void SceneManager::updateChatMicWanted()
+{
+    QList<Scene> all = m_saved;
+    all.append(m_engine->scene());
+    const bool wanted = rostrum::chatMicWanted(all);
+    if (wanted != m_chatMicWanted) {
+        m_chatMicWanted = wanted;
+        Q_EMIT savedChatChanged(wanted);
+    }
 }
 
 void SceneManager::onEngineSceneChanged()

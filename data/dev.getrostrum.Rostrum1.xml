@@ -48,6 +48,11 @@
     <property name="PerMixLevels" type="b" access="read">
       <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
     </property>
+    <!-- Rostrum Chat Mic is in use: some bus has voice chat set up. Discord and in-game voice
+         chat record that mic to hear the sounds sent to it. -->
+    <property name="ChatMic" type="b" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
+    </property>
 
     <!-- Runs a hotkey action by id, as if its shortcut was pressed. See ListActions. -->
     <method name="TriggerAction">
@@ -66,7 +71,8 @@
     </method>
     <!-- busId: a bus id or name, or "stream"/"phones" for the masters. A playback bus sets both
          its levels; "<bus>.phones" or "<bus>.stream" sets one, and a linked bus moves the other by
-         the same amount. A mix on the mic or a master is InvalidValue. -->
+         the same amount. "<bus>.chat" sets the level of its voice chat sounds (not for the mic, a
+         master or a bus that receives Voice). A mix on the mic or a master is InvalidValue. -->
     <method name="SetBusVolume">
       <arg name="busId" type="s" direction="in"/>
       <arg name="position" type="d" direction="in"/>
@@ -82,8 +88,9 @@
          (the mic to 1.5). mix "stream" or "phones" moves only that level of a playback bus, even
          when it is linked; unlike SetBusVolume("<bus>.stream"), the other level stays. "both"
          moves both levels by the same amount, as a linked fader does, and returns the Stream
-         level. The mic and the masters take only "both". A mix other than "both" without
-         PerMixLevels is InvalidValue. -->
+         level. "chat" moves only the bus's voice chat level and returns it. The mic and the
+         masters take only "both". A mix other than "both" without PerMixLevels is
+         InvalidValue. -->
     <method name="StepBusVolume">
       <arg name="busId" type="s" direction="in"/>
       <arg name="mix" type="s" direction="in"/>
@@ -93,7 +100,10 @@
     <!-- Takes a playback bus off one mix ("stream" or "phones") or puts it back, through its
          destination and mute, and never changes whether it plays in the other mix. On Both it
          becomes the other mix only; on this mix only it is muted. Off this mix, a muted bus is
-         unmuted to this mix only, and one on the other mix only becomes Both. -->
+         unmuted to this mix only, and one on the other mix only becomes Both. With "chat" it
+         sets up the bus's voice chat send on the first call (unmuted), then switches it off and
+         on, and never moves an app or changes a mix. A mic, a master or a bus that receives
+         Voice cannot go to voice chat (InvalidValue). -->
     <method name="ToggleBusInMix">
       <arg name="busId" type="s" direction="in"/>
       <arg name="mix" type="s" direction="in"/>
@@ -119,6 +129,13 @@
     <method name="ListBusLevels">
       <arg type="a(ssddbs)" direction="out"/>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="rostrum::app::BusLevelsList"/>
+    </method>
+    <!-- (id, chat set up, chat muted, chat level) for each playback bus that may go to voice
+         chat, in scene order. The level is a fader position, 0 to 1. Absent on a Rostrum that
+         predates voice chat. -->
+    <method name="ListBusChat">
+      <arg type="a(sbbd)" direction="out"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="rostrum::app::BusChatList"/>
     </method>
     <!-- (id, name) for each action: the fixed ones, then mute_bus_<id> for every playback bus
          in any scene. -->

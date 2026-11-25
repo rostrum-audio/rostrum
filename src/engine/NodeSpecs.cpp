@@ -23,6 +23,8 @@ QString roleName(NodeRole role)
         return QStringLiteral("filtered");
     case NodeRole::Send:
         return QStringLiteral("send");
+    case NodeRole::ChatMic:
+        return QStringLiteral("chatmic");
     }
     return {};
 }
@@ -81,6 +83,12 @@ QList<NodeSpec> desiredNodes(const Scene &scene)
 NodeSpec filteredMicSpec()
 {
     return {QString::fromLatin1(kFilteredNode), QString::fromLatin1(kFilteredDescription), NodeRole::Filtered,
+            QString(), true, true};
+}
+
+NodeSpec chatMicSpec()
+{
+    return {QString::fromLatin1(kChatMicNode), QString::fromLatin1(kChatMicDescription), NodeRole::ChatMic,
             QString(), true, true};
 }
 

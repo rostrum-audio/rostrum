@@ -92,6 +92,16 @@ ColumnLayout {
         Layout.fillWidth: true
         position: Kirigami.InlineMessage.Position.Header
         type: Kirigami.MessageType.Warning
+        visible: Mixer.chatLoopApps.length > 0
+        text: i18ncp("@info", "Voice chat sounds from %2 are off: %3 records Rostrum Chat Mic and plays on that bus.",
+                     "Voice chat sounds from %2 are off: %3 record Rostrum Chat Mic and play on that bus.",
+                     Mixer.chatLoopApps.length, Mixer.chatBlockedBuses.join(", "), Mixer.chatLoopApps.join(", "))
+    }
+
+    Kirigami.InlineMessage {
+        Layout.fillWidth: true
+        position: Kirigami.InlineMessage.Position.Header
+        type: Kirigami.MessageType.Warning
         visible: App.connected && !App.hasWirePlumber
         text: i18n("The session manager is not WirePlumber. Rostrum still works while it is open, but app routes may not survive a reboot, so rule export is off.")
     }

@@ -15,8 +15,9 @@ QQC2.Pane {
     property bool streamOnlyBtHintDismissed: false
 
     // Strips share the row between a narrow and a wide width; below the narrow one the row scrolls.
-    readonly property real stripNarrow: Kirigami.Units.gridUnit * 8
-    readonly property real stripWide: Kirigami.Units.gridUnit * 10
+    // A voice chat fader makes room for a third fader on every strip, so they stay in line.
+    readonly property real stripNarrow: Kirigami.Units.gridUnit * (Mixer.anyChat ? 11.5 : 8)
+    readonly property real stripWide: Kirigami.Units.gridUnit * (Mixer.anyChat ? 12 : 10)
     readonly property real stripWidth: {
         const n = strips.count
         if (n === 0)

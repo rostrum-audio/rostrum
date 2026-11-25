@@ -101,4 +101,22 @@ sandbox.document.activeElement = null;
 connect({}, 'mic');
 assert.equal(elements.sideBlock.hidden, true);
 assert.equal(elements.stepBlock.hidden, true);
+// Voice chat is a side of the mute and both volume keys, and of no other key.
+for (const name of ['bus', 'volumeDown', 'volumeUp']) {
+    connect({side: 'chat'}, name);
+    assert.equal(elements.side.value, 'chat', name);
+    assert.equal(elements.sideBlock.hidden, false, name);
+}
+const sideMarkup = html.split('<select id="side"')[1].split('</select>')[0];
+assert.match(sideMarkup, /<option value="chat">Voice chat<\/option>/);
+connect({side: 'chat'}, 'mic');
+assert.equal(elements.sideBlock.hidden, true);
+// With Voice chat chosen, only the buses Rostrum lists for chat are offered.
+connect({side: 'chat'}, 'bus');
+added.length = 0;
+Socket.instance.onmessage({data: JSON.stringify({event: 'sendToPropertyInspector',
+    payload: {settings: {side: 'chat'}, available: true, scenes: [],
+              buses: [{id: 'mic', name: 'Mic', destination: ''}, {id: 'game', name: 'Game', destination: 'both',
+                      chat: {on: true, muted: false, level: 0.7}}]}})});
+assert.deepEqual(added, ['game']);
 console.log('PASS: sound volume defaults, round-trip, bounds, disabled state; scene selector preserved; side and step');

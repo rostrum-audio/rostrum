@@ -42,26 +42,29 @@ struct MixTarget
 {
     QString bus;
     std::optional<Mix> mix;
+    bool chat = false; // ".chat": the voice chat level
 };
 // "game.stream" -> {"game", Stream}; "Game.Phones" -> {"Game", Phones}; anything without a
-// ".phones" or ".stream" suffix after a non-empty bus part is the whole text with no mix.
+// ".phones" or ".stream" suffix after a non-empty bus part is the whole text with no mix. A
+// ".chat" suffix sets `chat` instead (the voice chat level), with no mix.
 MixTarget splitMixTarget(const QString &text);
 
 struct VolumeTarget
 {
     QString busId;
     std::optional<Mix> mix; // one level of a playback bus; none for both levels, the mic or a master
+    bool chat = false;      // the voice chat level of a playback bus that may have one
     QString error;          // kErrorNoSuchBus or kErrorInvalidValue (a mix on the mic or a master)
 };
 // What SetBusVolume and --set-volume set. The whole text as a bus wins, so a bus can be called
 // "Chat.Stream"; otherwise a mix suffix is split off and the rest resolved.
 VolumeTarget resolveVolumeTarget(const Scene &scene, const QString &text);
 
-// A side of a playback bus for the deck keys: one mix, or both levels together.
-enum class Side { Stream, Phones, Both };
-// "stream", "phones" or "both", in any case. Anything else is no side.
+// A side of a playback bus for the deck keys: one mix, both levels together, or the voice chat send.
+enum class Side { Stream, Phones, Both, Chat };
+// "stream", "phones", "both" or "chat", in any case. Anything else is no side.
 std::optional<Side> parseSide(const QString &text);
-QString sideName(Side side); // "stream", "phones" or "both"
+QString sideName(Side side); // "stream", "phones", "both" or "chat"
 
 // A playback bus plays in a mix when it is not muted and its destination includes that mix.
 bool playsIn(Destination d, bool muted, Mix mix);
@@ -78,6 +81,16 @@ struct InMix
 // the other mix never changes.
 InMix toggledInMix(Destination d, bool muted, Mix mix);
 
+struct ChatState
+{
+    bool chat = false;
+    bool muted = false;
+    bool operator==(const ChatState &) const = default;
+};
+// ToggleBusInMix(bus, "chat"): the first press sets the destination up, unmuted. After that the
+// press flips the live mute only, so no app ever moves.
+ChatState toggledChat(bool chat, bool muted);
+
 enum class StepProblem { None, NoSuchBus, BadSide, OneLevelBus, BadDelta, NoPerMixLevels };
 struct StepTarget
 {
@@ -86,7 +99,8 @@ struct StepTarget
     StepProblem problem = StepProblem::None;
 };
 // StepBusVolume's arguments. The mic and the masters have one level and take only "both". delta
-// must be finite and within -1..1. Without per-mix levels only "both" can move.
+// must be finite and within -1..1. Without per-mix levels only "both" can move. "chat" needs a
+// bus that may have a voice chat send (else BadSide) and moves only that level.
 StepTarget resolveStep(const Scene &scene, const QString &busText, const QString &sideText, double delta,
                        bool perMixLevels);
 
@@ -95,9 +109,11 @@ struct InMixTarget
 {
     QString busId;
     Mix mix = Mix::Stream;
+    bool chat = false; // "chat": the voice chat destination; `mix` is not used
     InMixProblem problem = InMixProblem::None;
 };
-// ToggleBusInMix's arguments: a playback bus and "stream" or "phones".
+// ToggleBusInMix's arguments: a playback bus and "stream", "phones" or "chat" (BadSide when the
+// bus may not go to voice chat).
 InMixTarget resolveInMix(const Scene &scene, const QString &busText, const QString &sideText);
 
 } // namespace rostrum::remote

@@ -55,7 +55,7 @@ struct MicApp
     QStringList iconNames;
     micfx::AppChoice choice = micfx::AppChoice::Default;
     bool excludedByDefault = false; // an audio tool or recorder: the untouched mic unless chosen
-    bool filtered = false;          // records the filtered mic
+    bool filtered = false;          // records the filtered mic, or the chat mic while Studio Voice runs
     QString recordsFrom;            // another program's source it was moved to, empty if none
 };
 
@@ -120,6 +120,13 @@ public:
     void setBusBalance(const QString &id, double balance); // playback buses; -1 left .. 1 right
     void setBusDestination(const QString &id, Destination d);
     void setBusVod(const QString &id, bool on);
+    // The bus's voice chat destination. Refused, returning false, on the mic, on a bus that
+    // receives Voice (voice chat would hear itself) and on a bus that is not in the scene.
+    // Turning it on also switches it back on live (clears chatMuted).
+    bool setBusChat(const QString &id, bool on);
+    // The live switch: mutes the bus's chat send only, so no app is moved.
+    void setBusChatMuted(const QString &id, bool muted);
+    void setBusChatVolume(const QString &id, double position); // fader position, 0..1
     void setMasterPhones(double volume);
     void setMasterPhonesMuted(bool muted);
     void setMasterStream(double volume);
@@ -254,6 +261,23 @@ public:
     // The node the mic meter and ducking read: the filtered mic while filters run, else the mic.
     QString micMeterNode() const;
 
+    // Rostrum Chat Mic (rostrum.chatmic): the filtered mic's voice plus the chat sends of the buses
+    // that go to voice chat. Wanted while any saved scene has such a bus; the app decides that.
+    // It is created while the mix runs with per-mix levels, and lingers like every node.
+    void setChatMicWanted(bool on);
+    bool chatMicWanted() const { return m_chatMicWanted; }
+    // The owned chat mic (the oldest, if a create race left two), whether or not it is in use.
+    const pw::Node *chatMicNode() const;
+    QStringList chatBlockedBusNames() const;
+    bool chatBlocked(const QString &busId) const { return m_chatBlocked.contains(busId); } // chat send muted to break a loop
+    // Apps that play on a bus with voice chat on and also record the chat mic (display names).
+    QStringList chatLoopApps() const { return m_chatLoopApps; }
+    // In use: it has its ports and the filtered mic is linked into it, so apps moved to it hear
+    // the voice.
+    bool chatMicActive() const;
+    // Why voice chat cannot be used (it needs per-mix levels), as a sentence; empty when it can.
+    QString chatUnavailable() const;
+
 Q_SIGNALS:
     void sceneChanged();
     void structureChanged(); // bus list, names, colors or rules changed: persist without saving faders
@@ -275,6 +299,8 @@ Q_SIGNALS:
     void micFiltersStateChanged(); // running, starting, failed
     // PipeWire went down twice right after the filters loaded, so Rostrum switched them off.
     void micFiltersTripped(const QString &reason);
+    void chatLoopChanged(); // chatLoopApps() changed
+    void chatMicChanged(); // chatMicActive() or chatUnavailable() changed
 
 protected:
     void scheduleReconcile();
@@ -297,6 +323,11 @@ protected:
     void reconcileMicFx();
     uint32_t micFxForceQuantum() const; // node.force-quantum for rostrum.micfx, 0 for none
     void reconcileMicRoutes();
+    void updateChatLoop(); // fills m_chatBlocked; emits chatLoopChanged when chatLoopApps() changed
+    void reconcileChatMic();
+    // The chat mic should exist: the mix runs, it is wanted and per-mix levels are in use.
+    bool chatMicNeeded() const;
+    void updateChatMic(); // emits chatMicChanged when chatMicActive() or chatUnavailable() changed
     void applyMicFxControls(const pw::Node &fx);
     void micFxConnectionChanged();
     bool micFxWanted() const;
@@ -453,9 +484,10 @@ protected:
     struct MicRouted
     {
         QString previousTarget; // metadata target.object before Rostrum moved it, empty if none
-        QString requested;      // the filtered mic's serial Rostrum asked for
+        QString requested;      // the filtered or chat mic's serial Rostrum asked for
         QElapsedTimer since;
         int reclaims = 0;
+        bool chat = false; // `requested` is the chat mic's
     };
     QHash<uint32_t, MicRouted> m_micRouted;
     struct MicRecognised
@@ -476,6 +508,19 @@ protected:
     QElapsedTimer m_fxReleaseClock; // since removing the filter nodes was first held back
     bool micStreamsOnFilter(const QList<const pw::Node *> &filterNodes) const;
     bool m_feedHandoffWait = false; // a backstop reconcile is queued while one feed into filtered is torn down
+    bool m_chatMicWanted = false;
+    // Once it is no longer wanted, apps are moved off the chat mic before it goes. Since removing it
+    // was first held back:
+    QElapsedTimer m_chatReleaseClock;
+    // Since the chat mic was wanted and present but not in use (its ports or the filtered link
+    // dropped). Apps already on it stay until it is in use again, or this exceeds kChatMicReleaseMs.
+    QElapsedTimer m_chatInactiveClock;
+    bool m_chatActiveReported = false;
+    QString m_chatReason;
+    // Buses whose chat send is muted because an app on them also records the chat mic (it would
+    // hear itself).
+    QSet<QString> m_chatBlocked;
+    QStringList m_chatLoopApps;
 
     bool isOwnedNode(const pw::Node &n) const;
     // The mix runs each playback bus through a Headphones and a Stream send node.

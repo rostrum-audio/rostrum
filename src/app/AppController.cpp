@@ -99,6 +99,7 @@ AppController::AppController(QObject *parent)
         }
     });
     connect(&m_scenes, &engine::SceneManager::errorOccurred, this, &AppController::toast);
+    connect(&m_scenes, &engine::SceneManager::savedChatChanged, &m_engine, &engine::Engine::setChatMicWanted);
     connect(&m_engine, &engine::Engine::structureChanged, this, &AppController::updateBusActions);
     connect(&m_scenes, &engine::SceneManager::scenesChanged, this, &AppController::updateBusActions);
     connect(&m_scenes, &engine::SceneManager::currentChanged, this, &AppController::updateBusActions);
@@ -148,6 +149,7 @@ void AppController::start()
     m_scenes.setOrder(m_settings.sceneOrder);
     m_scenes.setTrashDir(paths::trashDir());
     m_scenes.load(m_settings.defaultScene);
+    m_engine.setChatMicWanted(m_scenes.chatMicWanted());
     updateBusActions();
     if (m_settings.wizardDone) {
         m_engine.createMix();

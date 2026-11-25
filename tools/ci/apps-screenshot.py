@@ -209,6 +209,45 @@ compact_height = {height}
     return settings
 
 
+def seed_chat_scene(config_home: Path) -> None:
+    """A Live scene with voice chat on for Game and Alerts, and Alerts switched off live."""
+    buses = [("mic", "Mic", "input", "none", "#da4453", "")]
+    for bid, name, auto, color, extra in (
+        ("voice", "Voice", "voice", "#3daee9", ""),
+        ("game", "Game", "game", "#27ae60", "chat = true\nchat_volume = 0.7\n"),
+        ("music", "Music", "music", "#f67400", ""),
+        ("alerts", "Alerts", "alerts", "#9b59b6", "chat = true\nchat_muted = true\nchat_volume = 0.4\n"),
+    ):
+        buses.append((bid, name, "playback", auto, color, extra))
+    text = """format = 1
+name = "Live"
+
+[master]
+phones = 1.0
+phones_muted = false
+stream = 1.0
+stream_muted = false
+
+[mic]
+sidetone = 1.0
+"""
+    for bid, name, kind, auto, color, extra in buses:
+        text += f"""
+[[bus]]
+auto = "{auto}"
+color = "{color}"
+destination = "{'both' if kind == 'playback' else 'stream'}"
+id = "{bid}"
+kind = "{kind}"
+muted = false
+name = "{name}"
+volume = 0.8
+{extra}"""
+    scenes = config_home / "rostrum" / "scenes"
+    scenes.mkdir(parents=True, exist_ok=True)
+    (scenes / "live.toml").write_text(text)
+
+
 def seed_scenes(config_home: Path) -> None:
     scenes = config_home / "rostrum" / "scenes"
     scenes.mkdir(parents=True, exist_ok=True)
@@ -251,7 +290,7 @@ def print_isolation(env: dict, root: Path) -> None:
 
 def capture(application: Path, output: Path, width: int, height: int, theme: str, page: str,
             with_tones: bool, obs: str = "none", settings_tab: str = "", compact: bool = False,
-            wizard: str = "", open_dialog: str = "", docs: bool = False) -> None:
+            wizard: str = "", open_dialog: str = "", docs: bool = False, chat: bool = False) -> None:
     application = application.resolve(strict=True)
     output = report_dir(output)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -273,6 +312,8 @@ def capture(application: Path, output: Path, width: int, height: int, theme: str
 
         config_home = Path(session.env["XDG_CONFIG_HOME"])
         write_settings(config_home, width, height, page, compact, bool(wizard))
+        if chat:
+            seed_chat_scene(config_home)
         if page == "scenes":
             seed_scenes(config_home)
         if obs != "none":
@@ -369,6 +410,8 @@ def main() -> int:
     parser.add_argument("--docs", action="store_true",
                         help="For README shots: everyday app and device names, and a private "
                              "WirePlumber that Rostrum recognises")
+    parser.add_argument("--chat", action="store_true",
+                        help="Seed a Live scene with voice chat on for Game and Alerts")
     parser.add_argument("--compact", action="store_true",
                         help="Shoot the compact window at --width x --height")
     args = parser.parse_args()
@@ -385,7 +428,7 @@ def main() -> int:
     code = 1
     try:
         capture(args.application, args.output, args.width, args.height, args.theme, args.page,
-                with_tones, args.obs, args.settings_tab, args.compact, args.wizard, args.open, args.docs)
+                with_tones, args.obs, args.settings_tab, args.compact, args.wizard, args.open, args.docs, args.chat)
         code = 0
     except KeyboardInterrupt as error:
         safety.report(str(error))

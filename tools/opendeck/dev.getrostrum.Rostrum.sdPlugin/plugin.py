@@ -74,6 +74,8 @@ class Controls:
         self.props = {}
         # ListBusLevels on this owner: None until asked, then True, or False on an older Rostrum.
         self.levels = None
+        # ListBusChat likewise: False on a Rostrum from before voice chat, which has no chat side.
+        self.chat = None
         self.on_properties = None
         self.on_owner = None
         self._closed = False
@@ -182,6 +184,18 @@ class Controls:
                 # A lost connection drops to CLI mode, where ListBuses still answers.
                 if not self.cli_only:
                     raise
+        chat = None
+        if self.levels is False:
+            self.chat = False
+        elif buses is not None and not self.cli_only and self.chat is not False:
+            try:
+                chat = await self.call('ListBusChat')
+                self.chat = True
+            except Unsupported:
+                self.chat = False
+            except Unavailable:
+                if not self.cli_only:
+                    raise
         if buses is None:
             buses = await self.call('ListBuses', '', cli=['--list-buses'])
         scenes = await self.call('ListScenes', '', cli=['--list-scenes'])
@@ -189,7 +203,12 @@ class Controls:
             # GetAll on NameOwnerChanged can beat the Control object's registration, and
             # Rostrum's first publish sends no PropertiesChanged. Load them once lists work.
             await self._load_props()
-        return _bus_map(buses), _scene_list(scenes)
+        bus_map = _bus_map(buses)
+        for row in (chat[0] if isinstance(chat, tuple) else chat) or ():
+            # ListBusChat: (id, set up, switched off, level), for the buses that may send to chat.
+            if row[0] in bus_map:
+                bus_map[row[0]]['chat'] = {'on': bool(row[1]), 'muted': bool(row[2]), 'level': float(row[3])}
+        return bus_map, _scene_list(scenes)
 
     async def toggle(self, bus):
         action = {'stream': 'mute_stream', 'phones': 'mute_headphones'}.get(bus, 'mute_bus_' + bus)
@@ -287,6 +306,7 @@ class Controls:
             self.owner = owner
             self.props = {}
             self.levels = None  # a new instance may be newer or older
+            self.chat = None
             if self._closed:
                 return
             if self.owner is None:
@@ -397,9 +417,9 @@ def _bus_map(payload):
 
 
 def _side(settings):
-    """The key's side: 'stream', 'phones' or 'both'. Keys saved by 1.3.0 have none: both."""
+    """The key's side: 'stream', 'phones', 'chat' or 'both'. Keys saved by 1.3.0 have none: both."""
     side = settings.get('side')
-    return side if isinstance(side, str) and side in ('stream', 'phones', 'both') else 'both'
+    return side if isinstance(side, str) and side in ('stream', 'phones', 'chat', 'both') else 'both'
 
 
 def _step_setting(settings):
@@ -658,9 +678,13 @@ class Plugin:
         bus = self.buses.get(bus_id)
         if not bus:
             return 0, 'Missing', None
+        if _side(settings) == 'chat' and self._chat_unavailable():
+            return 0, 'Unavailable', None
         if 'stream' not in bus:
             return 0, 'Needs update', None  # this Rostrum has no ListBusLevels
         name, props = bus['name'], self._props()
+        if _side(settings) == 'chat':
+            return self._chat_volume_view(bus)
         if not bus['destination']:
             # The mic or a master: one level, moved as a whole.
             if not _one_level_side_ok(bus_id, _side(settings)):
@@ -684,6 +708,17 @@ class Plugin:
         plays = not bus['muted'] and (side == 'both' or bus['destination'] in (side, 'both'))
         return int(not plays), title, side
 
+    def _chat_unavailable(self):
+        """Voice chat needs a Rostrum that lists it; an older one has no chat side at all."""
+        return getattr(self.controls, 'chat', None) is False or getattr(self.controls, 'levels', None) is False
+
+    def _chat_volume_view(self, bus):
+        if 'chat' not in bus:
+            return 0, f"{bus['name']}\nNo voice chat", None
+        chat = bus['chat']
+        on = chat['on'] and not chat['muted']
+        return int(not on), f"{bus['name']}\nChat {_percent(chat['level'])}%", 'chat'
+
     def _side_mute(self, settings):
         """(state, title, pressable) for a bus key on one side, or None when it mutes the whole bus."""
         side = _side(settings)
@@ -698,8 +733,16 @@ class Plugin:
         bus = self.buses.get(bus_id)
         if not bus:
             return 0, 'Missing', False
+        if side == 'chat' and self._chat_unavailable():
+            return 0, 'Unavailable', False
         if 'destination' not in bus:
             return 0, 'Needs update', False  # this Rostrum has no ListBusLevels
+        if side == 'chat':
+            if 'chat' not in bus:
+                return 0, f"{bus['name']}\nNo voice chat", False
+            chat = bus['chat']
+            on = chat['on'] and not chat['muted']
+            return int(not on), f"{bus['name']}\n{'on' if on else 'off'} in chat", True
         if not bus['destination']:
             # The mic or a master: one level, no destination. Only a master on its own side mutes.
             if not _one_level_side_ok(bus_id, side):
@@ -933,13 +976,18 @@ class Plugin:
         bus = self.buses.get(bus_id)
         if not bus or 'stream' not in bus:
             return None
+        if side == 'chat':
+            return bus.get('chat', {}).get('level')
         return bus['phones'] if side == 'phones' and bus['destination'] else bus['stream']
 
     def _store_level(self, bus_id, side, level):
         bus = self.buses.get(bus_id)
         if not bus or 'stream' not in bus:
             return
-        if not bus['destination']:
+        if side == 'chat':
+            if 'chat' in bus:
+                bus['chat']['level'] = level
+        elif not bus['destination']:
             bus['stream'] = bus['phones'] = level
         elif side == 'stream':
             bus['stream'] = level

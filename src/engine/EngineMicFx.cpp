@@ -28,6 +28,13 @@ bool isTrue(const QString &v)
     return v == QLatin1String("true") || v == QLatin1String("1");
 }
 
+// A metadata target.object names this node by its name, its object.serial, or its registry id.
+bool namesNode(const pw::Node &n, const QString &target)
+{
+    return !target.isEmpty() &&
+           (n.name == target || n.serial == target || QString::number(n.id) == target);
+}
+
 // OBS records the mic itself and has its own filters; Rostrum's OBS plan decides what it hears.
 bool isObs(const pw::Node &n, const pw::Graph &g)
 {
@@ -509,8 +516,215 @@ void Engine::micFxConnectionChanged()
         m_micFirstSeen.clear();
         m_micReleased.clear();
         m_fxReleaseClock.invalidate();
+        m_chatReleaseClock.invalidate();
+        m_chatInactiveClock.invalidate();
         setMicFxState(m_micFx.enabled && !m_fxFailed ? MicFxState::Starting : MicFxState::Off, m_fxError);
     }
+}
+
+// ---- chat mic ---------------------------------------------------------------------------
+
+void Engine::setChatMicWanted(bool on)
+{
+    if (m_chatMicWanted == on) {
+        return;
+    }
+    qCInfo(lcEngine) << "chat mic wanted" << on;
+    m_chatMicWanted = on;
+    scheduleReconcile();
+}
+
+bool Engine::chatMicNeeded() const
+{
+    // The chat sends that feed it are per-mix sends; perMixActive() also needs PipeWire connected.
+    return m_mixEnabled && m_chatMicWanted && perMixActive();
+}
+
+const pw::Node *Engine::chatMicNode() const
+{
+    const pw::Node *oldest = nullptr;
+    for (const auto &n : m_pw->graph().nodes) {
+        if (n.name == QLatin1String(kChatMicNode) && isOwnedNode(n) && !m_pendingDestroy.contains(n.id) &&
+            (!oldest || n.id < oldest->id)) {
+            oldest = &n;
+        }
+    }
+    return oldest;
+}
+
+bool Engine::chatMicActive() const
+{
+    if (m_pw->state() != pw::PwContext::State::Ready) {
+        return false;
+    }
+    const pw::Node *chat = chatMicNode();
+    const pw::Node *filtered = filteredNode();
+    if (!chat || !filtered) {
+        return false;
+    }
+    const auto &g = m_pw->graph();
+    return !g.inputPorts(chat->id).isEmpty() && !g.outputPorts(chat->id).isEmpty() &&
+           linked(filtered->id, chat->id);
+}
+
+QStringList Engine::chatBlockedBusNames() const { return busDisplayNames(m_scene, m_chatBlocked); }
+
+QString Engine::chatUnavailable() const
+{
+    const QString why = perMixUnavailable();
+    if (why.isEmpty()) {
+        return {};
+    }
+    return QStringLiteral("Voice chat needs separate Headphones and Stream levels. %1").arg(why);
+}
+
+void Engine::updateChatMic()
+{
+    const bool active = chatMicActive();
+    const QString why = chatUnavailable();
+    if (active != m_chatActiveReported || why != m_chatReason) {
+        m_chatActiveReported = active;
+        m_chatReason = why;
+        Q_EMIT chatMicChanged();
+    }
+}
+
+void Engine::updateChatLoop()
+{
+    QSet<QString> blocked;
+    QStringList apps;
+    const pw::Node *chat = chatMicNode();
+    if (chat && m_mixEnabled) {
+        const auto &g = m_pw->graph();
+        // Both sides use identify(...).key: the same program gives the same key for its playback
+        // and its capture stream.
+        QSet<QString> onChat;
+        QHash<QString, QString> names;
+        for (const auto &n : g.nodes) {
+            if (!isMicCapture(n)) {
+                continue;
+            }
+            const QString target = m_pw->metadataValue(n.id, QStringLiteral("target.object"));
+            const bool toChat = linked(chat->id, n.id) || namesNode(*chat, target);
+            if (toChat) {
+                const MicRecognised &r = recogniseCapture(n);
+                onChat.insert(r.identity.key.toString());
+                names.insert(r.identity.key.toString(), r.identity.displayName);
+            }
+        }
+        if (!onChat.isEmpty()) {
+            QMultiHash<QString, QString> byBus;
+            for (const auto &n : g.nodes) {
+                if (!n.isPlaybackStream() || isOwnStream(n)) {
+                    continue;
+                }
+                const StreamProps props = propsOf(n);
+                const AppIdentity id = identify(props);
+                const Placement p = place(n, props, id);
+                if (m_scene.bus(p.busId)) {
+                    byBus.insert(p.busId, id.key.toString());
+                }
+            }
+            blocked = chatLoopBuses(m_scene, byBus, onChat);
+            for (const QString &bus : blocked) {
+                for (const QString &key : byBus.values(bus)) {
+                    if (onChat.contains(key) && !apps.contains(names.value(key))) {
+                        apps.append(names.value(key));
+                    }
+                }
+            }
+            apps.sort();
+        }
+    }
+    const bool blockedChanged = blocked != m_chatBlocked;
+    if (blockedChanged) {
+        for (const QString &bus : blocked) {
+            if (!m_chatBlocked.contains(bus)) {
+                qCInfo(lcEngine) << "voice chat send off for" << bus << "(" << apps << "records the chat mic)";
+            }
+        }
+        m_chatBlocked = blocked;
+        scheduleReconcile(); // the volume pass reads m_chatBlocked
+    }
+    if (apps != m_chatLoopApps || blockedChanged) {
+        m_chatLoopApps = apps;
+        Q_EMIT chatLoopChanged();
+    }
+}
+
+void Engine::reconcileChatMic()
+{
+    // Nodes left by an earlier run stay while the mix is off, like the filter nodes.
+    if (!m_mixEnabled) {
+        m_chatReleaseClock.invalidate();
+        return;
+    }
+    const auto &g = m_pw->graph();
+    const QString name = QString::fromLatin1(kChatMicNode);
+    QList<const pw::Node *> nodes;
+    for (const auto &n : g.nodes) {
+        if (n.name == name && isOwnedNode(n) && !m_pendingDestroy.contains(n.id)) {
+            nodes.append(&n);
+        }
+    }
+    if (!nodes.isEmpty()) {
+        // One lingering from an earlier run is adopted.
+        m_pendingCreate.remove(name);
+        std::sort(nodes.begin(), nodes.end(),
+                  [](const pw::Node *a, const pw::Node *b) { return a->id < b->id; });
+        // Duplicates from a create race: keep the oldest, the one chatMicNode() names.
+        for (qsizetype i = 1; i < nodes.size(); ++i) {
+            qCInfo(lcEngine) << "removing duplicate" << name << nodes.at(i)->id;
+            destroyOnce(nodes.at(i)->id);
+        }
+        if (chatMicNeeded()) {
+            m_chatReleaseClock.invalidate();
+            return;
+        }
+        // No longer wanted. Apps on it are moved off first (reconcileMicRoutes, later in this pass,
+        // sends them to the filtered mic or back where they were), and it keeps carrying the voice
+        // until they have moved, or kChatMicReleaseMs has passed. An app counts while its target
+        // names the chat mic or, moved off, it is still linked from it.
+        if (!m_chatReleaseClock.isValid()) {
+            m_chatReleaseClock.start();
+            QTimer::singleShot(micfx::kChatMicReleaseMs + 100, Qt::PreciseTimer, this,
+                               &Engine::scheduleReconcile);
+        }
+        const QString targetKey = QStringLiteral("target.object");
+        const bool appsOn = std::any_of(g.nodes.cbegin(), g.nodes.cend(), [&](const pw::Node &s) {
+            if (!isMicCapture(s)) {
+                return false;
+            }
+            const QString target = m_pw->metadataValue(s.id, targetKey);
+            return std::any_of(nodes.cbegin(), nodes.cend(), [&](const pw::Node *c) {
+                return namesNode(*c, target) || linked(c->id, s.id);
+            });
+        });
+        if (micfx::chatMicReleaseHeld(appsOn, m_chatReleaseClock.elapsed())) {
+            return;
+        }
+        if (appsOn) {
+            qCWarning(lcEngine) << "removing the chat mic with apps still on it";
+        }
+        qCInfo(lcEngine) << "removing" << name;
+        destroyOnce(nodes.first()->id);
+        m_chatReleaseClock.invalidate();
+        return;
+    }
+    m_chatReleaseClock.invalidate();
+    if (!chatMicNeeded()) {
+        m_pendingCreate.remove(name);
+        return;
+    }
+    const auto it = m_pendingCreate.constFind(name);
+    if (it != m_pendingCreate.cend() && it->elapsed() < micfx::kChatMicCreateRetryMs) {
+        return;
+    }
+    qCInfo(lcEngine) << "creating" << name;
+    m_pw->createNullNode(chatMicSpec().properties());
+    QElapsedTimer t;
+    t.start();
+    m_pendingCreate.insert(name, t);
 }
 
 // ---- apps -------------------------------------------------------------------------------
@@ -569,9 +783,41 @@ void Engine::reconcileMicRoutes()
     if (filtered && (!mic || !linked(mic->id, fx->id) || !linked(fx->id, filtered->id) || filtered->serial.isEmpty())) {
         filtered = nullptr;
     }
+    // While the chat mic is in use, apps that would record the filtered mic record it instead, with
+    // Studio Voice on or off: it carries what rostrum.filtered carries, plus the chat sends. Apps on
+    // a Rostrum mic stay on it, or switch, while no voice reaches filtered for a moment (Studio Voice
+    // handing its feed over, the mic unplugged: clips still go). Only an app still on the mic waits
+    // for the voice, so the move does not cut it off.
+    // A WirePlumber restart rebuilds the chat mic's ports and drops the link from filtered, so the
+    // node is briefly not in use. Apps already on it keep that target until it is in use again, or
+    // for kChatMicReleaseMs, instead of being sent to the raw mic and back. A first move, and a
+    // switch from the filtered mic, wait until it is in use.
+    const pw::Node *chatNode = chatMicNeeded() ? chatMicNode() : nullptr;
+    if (chatNode && chatNode->serial.isEmpty()) {
+        chatNode = nullptr;
+    }
+    const bool chatLive = chatNode && chatMicActive();
+    if (chatNode && !chatLive) {
+        if (!m_chatInactiveClock.isValid()) {
+            m_chatInactiveClock.start();
+            QTimer::singleShot(micfx::kChatMicReleaseMs + 100, Qt::PreciseTimer, this, &Engine::scheduleReconcile);
+        }
+    } else {
+        m_chatInactiveClock.invalidate();
+    }
+    const bool chatHold = chatNode && !chatLive && m_chatInactiveClock.isValid() &&
+                           m_chatInactiveClock.elapsed() < micfx::kChatMicReleaseMs;
+    const pw::Node *chat = chatLive ? chatNode : nullptr;
+    const pw::Node *feedInto = filteredNode();
+    const bool chatHasVoice = chat && feedInto && mic &&
+                              (linked(mic->id, feedInto->id) ||
+                               (fx && linked(mic->id, fx->id) && linked(fx->id, feedInto->id)));
     const QString targetKey = QStringLiteral("target.object");
-    const auto names = [](const pw::Node *n, const QString &target) {
-        return n && (n->name == target || n->serial == target || QString::number(n->id) == target);
+    const auto names = [](const pw::Node *n, const QString &target) { return n && namesNode(*n, target); };
+    const auto namesChatMic = [&](const QString &target) {
+        return std::any_of(g.nodes.cbegin(), g.nodes.cend(), [&](const pw::Node &c) {
+            return c.name == QLatin1String(kChatMicNode) && namesNode(c, target);
+        });
     };
 
     QSet<uint32_t> present;
@@ -587,46 +833,108 @@ void Engine::reconcileMicRoutes()
         }
         const MicRecognised &r = recogniseCapture(n);
         const micfx::AppChoice choice = micfx::appChoice(m_micFx, r.identity.key.toString());
-        const bool want = filtered && micfx::useFiltered(m_micFx, choice, r.excluded);
+        const bool wantsChat = micfx::useChatMic(m_micFx, choice, r.excluded);
+        const bool toChat = chat && wantsChat;
+        const bool toFiltered = filtered && micfx::useFiltered(m_micFx, choice, r.excluded);
+        const pw::Node *target = toChat ? chat : (toFiltered ? filtered : nullptr);
         const QString current = m_pw->metadataValue(n.id, targetKey);
         auto routed = m_micRouted.find(n.id);
+        const bool alreadyOnChat = (routed != m_micRouted.end() && routed->chat) || namesChatMic(current);
+        if (wantsChat && chatHold) {
+            // The metadata was cleared with WirePlumber. Ask for the chat mic again when the app
+            // was already on it and nothing else has chosen a target. An app still on the filtered
+            // mic, or not moved yet, stays where it is until the chat mic is in use.
+            const bool reset = routed != m_micRouted.end() && routed->requested.isEmpty();
+            const bool ours = current.isEmpty() || namesChatMic(current) || (reset && names(anyFiltered, current));
+            if (alreadyOnChat && current != chatNode->serial && ours &&
+                m_pw->setMetadata(n.id, targetKey, QStringLiteral("Spa:Id"), chatNode->serial)) {
+                if (routed == m_micRouted.end()) {
+                    MicRouted moved{QString(), chatNode->serial, {}, 0, true};
+                    moved.since.start();
+                    m_micRouted.insert(n.id, moved);
+                } else {
+                    routed->requested = chatNode->serial;
+                    routed->chat = true;
+                    routed->since.start();
+                }
+            }
+            continue;
+        }
 
-        if (want) {
+        if (target) {
             if (routed != m_micRouted.end()) {
-                // Re-sent after the filtered mic is recreated; left alone if the user moved it.
-                if (current != filtered->serial && routed->requested != filtered->serial &&
-                    (current == routed->requested || current.isEmpty())) {
-                    if (m_pw->setMetadata(n.id, targetKey, QStringLiteral("Spa:Id"), filtered->serial)) {
-                        routed->requested = filtered->serial;
+                // Once the metadata was reset (WirePlumber restarted), WirePlumber may put the app back
+                // on a Rostrum mic itself before Rostrum asks again: that is still Rostrum's move, so
+                // the chat mic can hand it back later. (The filtered mic alone is left as it was.)
+                const bool reset = routed->requested.isEmpty();
+                if (toChat && reset && current == target->serial) {
+                    routed->requested = target->serial;
+                    routed->chat = true;
+                    continue;
+                }
+                const bool onOther = toChat ? names(anyFiltered, current) : namesChatMic(current);
+                // Re-sent after the target is recreated, or switched between the filtered and the
+                // chat mic, keeping where it was before the first move; left alone if the user moved it.
+                if (current != target->serial && routed->requested != target->serial &&
+                    (current == routed->requested || current.isEmpty() || (reset && onOther))) {
+                    if (m_pw->setMetadata(n.id, targetKey, QStringLiteral("Spa:Id"), target->serial)) {
+                        if (toChat && !routed->chat) {
+                            qCInfo(lcEngine) << "chat mic for" << r.identity.displayName << n.id;
+                        } else if (!toChat && routed->chat) {
+                            qCInfo(lcEngine) << "filtered mic for" << r.identity.displayName << n.id
+                                             << "(chat mic off)";
+                        }
+                        routed->requested = target->serial;
+                        routed->chat = toChat;
                         routed->since.start();
                         routed->reclaims = 0;
                     }
-                } else if (current != filtered->serial && !current.isEmpty() && routed->requested == filtered->serial &&
-                           routed->since.isValid() && routed->since.elapsed() < kReclaimWindowMs &&
-                           routed->reclaims < kMaxReclaims &&
-                           m_pw->setMetadata(n.id, targetKey, QStringLiteral("Spa:Id"), filtered->serial)) {
+                } else if (current != target->serial && !current.isEmpty() &&
+                           routed->requested == target->serial &&
+                           // Just switched: the other Rostrum mic is the old target, not another program's.
+                           !onOther && routed->since.isValid() &&
+                           routed->since.elapsed() < kReclaimWindowMs && routed->reclaims < kMaxReclaims &&
+                           m_pw->setMetadata(n.id, targetKey, QStringLiteral("Spa:Id"), target->serial)) {
                     ++routed->reclaims;
                     qCInfo(lcEngine) << "reclaim" << r.identity.displayName << n.id << "from" << describeTarget(current)
-                                     << "-> filtered mic (moved by another program as it started)";
+                                     << (toChat ? "-> chat mic" : "-> filtered mic")
+                                     << "(moved by another program as it started)";
                 }
                 continue;
             }
-            if (current == filtered->serial) {
+            if (current == target->serial) {
                 // Moved by an earlier run that quit or crashed.
-                m_micRouted.insert(n.id, {QString(), filtered->serial, {}, 0});
+                m_micRouted.insert(n.id, {QString(), target->serial, {}, 0, toChat});
                 continue;
             }
-            // Only streams recording the mic apps use; a stream that picked another source keeps it.
-            // Easy Effects moves every new recording stream to its own source, which is not a choice.
-            const bool takenByEffects = isEffectsNode(nodeNamed(current)) && firstSeen.elapsed() < kReclaimWindowMs;
-            if (!takenByEffects && (!linked(mic->id, n.id) || (!current.isEmpty() && !names(mic, current)))) {
-                continue;
+            // A stream on the other Rostrum mic is Rostrum's to switch: an earlier run moved it there,
+            // or WirePlumber put the app back where one did.
+            const bool onOther = toChat ? names(anyFiltered, current) : namesChatMic(current);
+            if (!onOther) {
+                if (toChat && !chatHasVoice) {
+                    continue;
+                }
+                // Only streams recording the mic apps use; a stream that picked another source keeps
+                // it. Easy Effects moves every new recording stream to its own source, which is not a
+                // choice.
+                const bool takenByEffects =
+                    isEffectsNode(nodeNamed(current)) && firstSeen.elapsed() < kReclaimWindowMs;
+                if (!takenByEffects &&
+                    (!linked(mic->id, n.id) || (!current.isEmpty() && !names(mic, current)))) {
+                    continue;
+                }
             }
-            if (!m_pw->setMetadata(n.id, targetKey, QStringLiteral("Spa:Id"), filtered->serial)) {
+            if (!m_pw->setMetadata(n.id, targetKey, QStringLiteral("Spa:Id"), target->serial)) {
                 continue; // no metadata yet: the next pass asks again
             }
-            qCInfo(lcEngine) << "filter mic for" << r.identity.displayName << n.id;
-            MicRouted moved{current, filtered->serial, {}, 0};
+            if (toChat) {
+                qCInfo(lcEngine) << "chat mic for" << r.identity.displayName << n.id;
+            } else if (onOther) {
+                qCInfo(lcEngine) << "filtered mic for" << r.identity.displayName << n.id << "(chat mic off)";
+            } else {
+                qCInfo(lcEngine) << "filter mic for" << r.identity.displayName << n.id;
+            }
+            MicRouted moved{onOther ? QString() : current, target->serial, {}, 0, toChat};
             moved.since.start();
             m_micRouted.insert(n.id, moved);
         } else if (routed != m_micRouted.end()) {
@@ -642,15 +950,18 @@ void Engine::reconcileMicRoutes()
             } else {
                 m_pw->setMetadata(n.id, targetKey, QStringLiteral("Spa:Id"), was.previousTarget);
             }
-        } else if (((m_mixEnabled && !micFxWanted()) || !micfx::useFiltered(m_micFx, choice, r.excluded)) &&
-                   names(anyFiltered, current)) {
+        } else if ((((m_mixEnabled && !micFxWanted()) || !micfx::useFiltered(m_micFx, choice, r.excluded)) &&
+                    names(anyFiltered, current)) ||
+                   namesChatMic(current)) {
             // WirePlumber remembers where a stream was moved and puts the app back there when it
             // next starts. An app set to raw since goes back to the mic, and clearing the target
             // makes WirePlumber forget it; so does every app while the mix runs without filters
             // (turned off, failed or unavailable), so it records the mic directly instead of a
             // remembered target on rostrum.filtered (which stays, carrying the raw mic). An app that
             // picked the filtered mic itself sets target.object in its own properties instead,
-            // which WirePlumber leaves alone.
+            // which WirePlumber leaves alone. A remembered target on rostrum.chatmic is cleared
+            // whenever the app is not to record it (the chat mic is not in use, or the app is set to
+            // the plain mic), so the next pass can place it.
             qCInfo(lcEngine) << "raw mic for" << r.identity.displayName << n.id << "(remembered by WirePlumber)";
             m_micReleased.insert(n.id);
             m_pw->clearMetadata(n.id, targetKey);
@@ -716,6 +1027,8 @@ QList<MicApp> Engine::micApps() const
     const auto &g = m_pw->graph();
     const pw::Node *mic = appsMic();
     const pw::Node *filtered = g.nodeByName(QString::fromLatin1(kFilteredNode));
+    const pw::Node *chat = g.nodeByName(QString::fromLatin1(kChatMicNode));
+    const bool fxRuns = micFxRunning();
     QHash<QString, MicApp> byKey;
     for (const auto &n : g.nodes) {
         if (!isMicCapture(n)) {
@@ -727,9 +1040,11 @@ QList<MicApp> Engine::micApps() const
         const auto routed = m_micRouted.constFind(n.id);
         const bool movedHere = routed != m_micRouted.cend() &&
                                m_pw->metadataValue(n.id, QStringLiteral("target.object")) == routed->requested;
-        const bool fromFiltered = linkedFiltered || movedHere;
+        // The chat mic carries the filtered voice while Studio Voice runs, else the plain one.
+        const bool onChat = (chat && linked(chat->id, n.id)) || (movedHere && routed->chat);
+        const bool fromFiltered = linkedFiltered || (movedHere && !routed->chat) || (onChat && fxRuns);
         const pw::Node *effects = nullptr;
-        if (!fromFiltered && !fromMic) {
+        if (!fromFiltered && !fromMic && !onChat) {
             // Shown only when Easy Effects took it from the mic, not for streams recording other things.
             effects = divertedNode(n, 0, false);
             if (!isEffectsNode(effects)) {

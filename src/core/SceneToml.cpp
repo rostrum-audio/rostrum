@@ -97,6 +97,15 @@ toml::table sceneTable(const Scene &scene)
             if (!b.linked) {
                 bt.insert("linked", false);
             }
+            if (b.chat) {
+                bt.insert("chat", true);
+            }
+            if (b.chatMuted) {
+                bt.insert("chat_muted", true);
+            }
+            if (b.chat || b.chatVolume != kDefaultChatVolume) {
+                bt.insert("chat_volume", b.chatVolume);
+            }
         }
         if (b.balance != 0.0) {
             bt.insert("balance", b.balance);
@@ -171,6 +180,11 @@ Scene sceneFrom(const toml::table &t)
             b.vod = b.isInput() ? false : flag(bv["vod"], defaults::vodFor(b.id));
             // Scenes saved before automatic assignment existed: the default buses keep their job.
             b.autoCategory = categoryFromString(qs(bv["auto"])).value_or(defaults::autoCategoryFor(b.id));
+            if (!b.isInput()) {
+                b.chat = flag(bv["chat"], false);
+                b.chatMuted = flag(bv["chat_muted"], false);
+                b.chatVolume = num(bv["chat_volume"], kDefaultChatVolume);
+            }
             scene.buses.append(b);
         }
     }
@@ -220,7 +234,8 @@ Scene sanitize(Scene scene)
     static const QRegularExpression idChars(QStringLiteral("^[a-z0-9][a-z0-9-]{0,31}$"));
     static const QSet<QString> reserved = {QStringLiteral("phones"), QStringLiteral("stream"),
                                            QStringLiteral("vod"),    QStringLiteral("sidetone"),
-                                           QStringLiteral("micfx"),  QStringLiteral("filtered")};
+                                           QStringLiteral("micfx"),  QStringLiteral("filtered"),
+                                           QString::fromLatin1(kChatMicBusId)};
     const Scene defaults = defaults::scene();
 
     scene.name = scene.name.trimmed().isEmpty() ? QString::fromLatin1(kDefaultSceneName) : scene.name.trimmed();
@@ -266,8 +281,12 @@ Scene sanitize(Scene scene)
         if (b.isInput()) {
             b.phonesVolume = Bus{}.phonesVolume;
             b.linked = true;
+            b.chat = false;
+            b.chatMuted = false;
+            b.chatVolume = kDefaultChatVolume;
         } else {
             b.phonesVolume = level(b.phonesVolume, 1.0, b.volume);
+            b.chatVolume = level(b.chatVolume, 1.0, kDefaultChatVolume);
         }
         b.balance = b.isInput() ? 0.0 : volume::clampBalance(b.balance);
     }

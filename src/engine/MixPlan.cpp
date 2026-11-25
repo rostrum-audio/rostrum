@@ -7,24 +7,42 @@
 
 namespace rostrum::engine {
 
-QMap<QString, QString> sendProperties(const Bus &bus, Mix mix)
+namespace {
+
+QMap<QString, QString> sendBase(const Bus &bus, const QString &name, const QString &destination, const QString &mix)
 {
     return {
         {QStringLiteral("factory.name"), QStringLiteral("audio.convert")},
         // Both sides are DSP ports in the graph clock; see micFxProperties() for why output.
         {QStringLiteral("convert.direction"), QStringLiteral("output")},
-        {QStringLiteral("node.name"), sendNodeName(bus.id, mix)},
-        {QStringLiteral("node.description"),
-         QStringLiteral("Rostrum %1 → %2").arg(bus.name, mix == Mix::Phones ? QStringLiteral("Headphones")
-                                                                              : QStringLiteral("Stream"))},
+        {QStringLiteral("node.name"), name},
+        {QStringLiteral("node.description"), QStringLiteral("Rostrum %1 → %2").arg(bus.name, destination)},
         {QStringLiteral("audio.channels"), QStringLiteral("2")},
         {QStringLiteral("audio.position"), QStringLiteral("[ FL FR ]")},
         {QStringLiteral("object.linger"), QStringLiteral("true")},
         {QStringLiteral("node.virtual"), QStringLiteral("true")},
         {QStringLiteral("rostrum.role"), roleName(NodeRole::Send)},
         {QStringLiteral("rostrum.bus"), bus.id},
-        {QStringLiteral("rostrum.mix"), mixName(mix)},
+        {QStringLiteral("rostrum.mix"), mix},
     };
+}
+
+bool hasChat(const Bus &b)
+{
+    return b.chat && chatAllowed(b);
+}
+
+} // namespace
+
+QMap<QString, QString> sendProperties(const Bus &bus, Mix mix)
+{
+    return sendBase(bus, sendNodeName(bus.id, mix),
+                    mix == Mix::Phones ? QStringLiteral("Headphones") : QStringLiteral("Stream"), mixName(mix));
+}
+
+QMap<QString, QString> chatSendProperties(const Bus &bus)
+{
+    return sendBase(bus, chatSendNodeName(bus.id), QStringLiteral("Voice chat"), QStringLiteral("chat"));
 }
 
 QList<SendSpec> desiredSends(const Scene &scene)
@@ -36,6 +54,9 @@ QList<SendSpec> desiredSends(const Scene &scene)
         }
         for (const Mix m : {Mix::Phones, Mix::Stream}) {
             out.append({sendNodeName(b.id, m), b.id, m});
+        }
+        if (hasChat(b)) {
+            out.append({chatSendNodeName(b.id), b.id, Mix::Phones, true});
         }
     }
     return out;
@@ -63,6 +84,10 @@ QList<NodeLink> busLinks(const Scene &scene, bool perMix)
         if (perMix) {
             out.append({bus, toPhones});
             out.append({bus, toStream});
+            if (hasChat(b)) {
+                out.append({bus, chatSendNodeName(b.id)});
+                out.append({chatSendNodeName(b.id), QString::fromLatin1(kChatMicNode)});
+            }
         }
         if (feedsPhones(b.destination)) {
             out.append({toPhones, phones});
@@ -95,6 +120,46 @@ QHash<QString, NodeLevel> busNodeLevels(const Scene &scene, const QSet<QString> 
         out.insert(sendNodeName(b.id, Mix::Phones),
                    {b.phonesVolume, 0.0, !feedsPhones(b.destination) || dimmed, 1.0});
         out.insert(sendNodeName(b.id, Mix::Stream), {b.volume, 0.0, !feedsStream(b.destination), 1.0});
+    }
+    return out;
+}
+
+QHash<QString, NodeLevel> chatSendLevels(const Scene &scene, const QSet<QString> &blockedBuses)
+{
+    QHash<QString, NodeLevel> out;
+    for (const auto &b : scene.buses) {
+        if (b.isInput() || !hasChat(b)) {
+            continue;
+        }
+        out.insert(chatSendNodeName(b.id), {b.chatVolume, 0.0, b.chatMuted || blockedBuses.contains(b.id), 0.5});
+    }
+    return out;
+}
+
+QStringList busDisplayNames(const Scene &scene, const QSet<QString> &busIds)
+{
+    QStringList names;
+    for (const QString &id : busIds) {
+        if (const Bus *b = scene.bus(id)) {
+            names << b->name;
+        }
+    }
+    names.sort();
+    return names;
+}
+
+QSet<QString> chatLoopBuses(const Scene &scene, const QMultiHash<QString, QString> &appKeysByBus,
+                            const QSet<QString> &appKeysOnChatMic)
+{
+    QSet<QString> out;
+    for (const auto &b : scene.buses) {
+        if (b.isInput() || !hasChat(b)) {
+            continue;
+        }
+        const auto keys = appKeysByBus.values(b.id);
+        if (std::any_of(keys.cbegin(), keys.cend(), [&](const QString &k) { return appKeysOnChatMic.contains(k); })) {
+            out.insert(b.id);
+        }
     }
     return out;
 }
