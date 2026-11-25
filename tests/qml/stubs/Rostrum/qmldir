@@ -1,2 +1,3 @@
 module Rostrum
 singleton Mixer 1.0 Mixer.qml
+singleton Apps 1.0 Apps.qml

@@ -27,14 +27,15 @@ QQC2.Control {
     }
     readonly property string detailText: {
         const parts = []
-        if (row.app.binary) {
-            parts.push(row.app.binary)
+        if (row.app.javaProgram || row.app.binary) {
+            parts.push(row.app.javaProgram || row.app.binary)
         }
         if (row.app.detail) {
             parts.push(row.app.detail)
         } else {
             parts.push(row.app.matchKey === "binary" ? i18nc("@info", "matched by binary")
-                                                     : i18nc("@info", "matched by name"))
+                       : row.app.matchKey === "java" ? i18nc("@info", "matched by Java program")
+                       : i18nc("@info", "matched by name"))
         }
         if (Preferences.showNodeIds) {
             parts.push(row.app.nodeIds.map(id => "#" + id).join(", "))

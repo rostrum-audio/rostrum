@@ -594,6 +594,24 @@ against the same field, only for streams with no name and no binary. The rule fr
 `application.name` alone, so they cannot place such an app when it starts: Rostrum moves it once
 it plays.
 
+Every Java app reports the binary `java`, and usually a name that says nothing (`ALSA plug-in
+[java]`, or `java` from OpenAL Soft). For a Java playback stream Rostrum reads the process's
+command line and takes the program it runs: the main class, the file name after `-jar`, or the
+module after `-m`/`--module`. RuneLite and Minecraft (vanilla, Fabric, Quilt, Forge and the Prism
+and MultiMC launchers) are known by name and sorted as games. Any other Java app shows as "Java",
+and Name It… names that program only. The key is `java:<program>`, a Java rule (`key = "java"` in
+the scene file). Name rules are checked first, then Java rules, then binary rules, so an older
+`java` binary rule still catches every Java app without a rule of its own. A command line Rostrum
+cannot read, or one whose arguments sit in an `@argfile`, leaves the app keyed by its binary as
+before. Recording streams keep their plain key, so Studio Voice picks a Java app's mic by name or
+binary.
+
+A Flatpak app reports its pid from inside its sandbox. Rostrum looks for the host process it
+means: one of this user's processes whose `NSpid` has at least two levels and ends in that pid, and
+whose `/proc/<pid>/root/.flatpak-info` (failing that, its `app-flatpak-<id>-…` cgroup) names the
+stream's `pipewire.access.portal.app_id`. With none, or more than one, nothing is read. The
+executable is then checked as for any other app.
+
 ### Rules for apps that start before Rostrum
 
 While Rostrum runs, the router above handles every stream. App rules from the default scene are
@@ -619,6 +637,10 @@ app's playback streams. Its recording streams, such as Discord's microphone, kee
 WirePlumber gives them. The only property a rule sets is `target.object = "rostrum.<bus>"`.
 Binary rules are written first, so a name rule for the same app wins, as it does in the app.
 WirePlumber's `find-defined-target.lua` honours the property when it first links the stream.
+
+Java rules are not written. A fragment can match only `application.name` and
+`application.process.binary`, and every Java app has the same binary. A Java app that starts before
+Rostrum plays on the default sink (or follows an older `java` binary rule) until Rostrum moves it.
 
 The rules never set `node.dont-fallback`, `node.dont-move` or `node.dont-reconnect`. If the bus
 node is missing, for example because Rostrum is not running, WirePlumber links the stream to the
@@ -683,7 +705,7 @@ stream and cached until the stream's properties change. It checks, in order:
 | --- | --- | --- |
 | 1 | The stream carries its own `target.object` / `node.target` that is not a Rostrum node, the headphone device or the default sink, or sets `node.dont-move` | Excluded: the user picked this app's output in its own settings. Naming the headphones or the default is no choice: Java's OpenAL (Minecraft) and some SDL builds name the default device by itself |
 | 2 | `media.role` is `Accessibility`, `Production` or `Test` | Excluded |
-| 3 | The binary, `application.name` or Flatpak/Snap id is in the built-in catalog | Its kind; OBS, audio tools (pavucontrol, Helvum, qpwgraph, EasyEffects, Carla, DAWs) and screen readers are excluded |
+| 3 | A Java app's program is a known one (RuneLite, Minecraft); else the binary, `application.name` or Flatpak/Snap id is in the built-in catalog | Its kind; OBS, audio tools (pavucontrol, Helvum, qpwgraph, EasyEffects, Carla, DAWs) and screen readers are excluded |
 | 4 | The app's menu entry lists it as a Mixer, Recorder, Sequencer or MIDI tool | Excluded |
 | 5 | `SteamAppId` / `SteamGameId` in the process environment | Game, named from the Steam app manifest when the stream has no name |
 | 6 | The binary is Wine or a `.exe` | Game |
@@ -699,7 +721,11 @@ Process facts are read from `/proc/<pid>/environ` only after `/proc/<pid>/exe` (
 read could belong to an unrelated process. Flatpak apps are still identified by
 `pipewire.access.portal.app_id`. Desktop entries are indexed from `XDG_DATA_DIRS` plus the Flatpak
 and Snap export directories. They are looked up by app id, binary, `Exec`, `TryExec`,
-`StartupWMClass`, icon and name, and rescanned at most once a minute when a lookup misses.
+`StartupWMClass`, icon and name, and rescanned at most once a minute when a lookup misses. Each
+entry's own id is indexed before any token another entry claims. A launcher's hidden helper entry
+whose `Exec` runs the launcher (Bolt's RuneScape entry runs `com.adamcake.Bolt`) never answers for
+the launcher's own id. The binary `java` is never used to look up an entry, since it would find
+whichever Java tool's entry came first.
 
 App rows, saved rules and strip chips show the app's icon: for a Steam game `steam_icon_<appid>`,
 then the desktop entry's `Icon=`, then `application.icon-name`, then the app id and the binary,

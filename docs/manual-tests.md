@@ -343,6 +343,13 @@ Start from a scene with no rules and "Assign automatically" on.
    and the choice is kept.
 6. Turn "Assign automatically" off: every Auto row goes back to the default sink; rule-based apps
    do not move.
+7. Java apps, with "Assign automatically" back on and no rule for `java`. Start RuneLite from the
+   Bolt Flatpak: the Apps page shows **RuneLite** (not "Java") on Game, and the row's detail
+   names the program. **Always** saves a rule, which the Rules list shows as `Java program is
+   “RuneLite”`, and nothing about it appears in `~/.config/pipewire/*/50-rostrum.conf`. Start
+   Minecraft, or another Java app, alongside it: it gets its own row. Mute one, and the other keeps
+   playing. Edit the RuneLite rule's match: the key box reads **Java program**, and saving keeps it
+   one.
 
 ## 13. Crash reports
 
