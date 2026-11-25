@@ -3,6 +3,7 @@
 #include "core/AppIdentity.h"
 
 #include <QHash>
+#include <QRegularExpression>
 
 namespace rostrum {
 
@@ -51,6 +52,17 @@ QString fileName(const QString &path)
     return path.mid(path.lastIndexOf(QLatin1Char('/')) + 1);
 }
 
+// The jar without its version, so a rule outlives an update: "ShatteredPD-v2.5.4-Java.jar" is
+// "ShatteredPD.jar". A version is a dotted number after a separator; what follows it goes too.
+QString unversionedJar(const QString &name)
+{
+    static const QRegularExpression version(QStringLiteral(R"([-_ ]v?\d+(\.\d+)+.*(?=\.jar$))"),
+                                            QRegularExpression::CaseInsensitiveOption);
+    QString out = name;
+    out.remove(version);
+    return out.size() > 4 ? out : name; // never ".jar" alone
+}
+
 } // namespace
 
 bool isJavaBinary(const QString &binary)
@@ -66,7 +78,7 @@ QString javaProgram(const QStringList &commandLine)
             return {};
         }
         if (arg == QLatin1String("-jar")) {
-            return i + 1 < commandLine.size() ? fileName(commandLine.at(i + 1)) : QString();
+            return i + 1 < commandLine.size() ? unversionedJar(fileName(commandLine.at(i + 1))) : QString();
         }
         if (arg == QLatin1String("-m") || arg == QLatin1String("--module")) {
             return i + 1 < commandLine.size() ? commandLine.at(i + 1).section(QLatin1Char('/'), 0, 0) : QString();

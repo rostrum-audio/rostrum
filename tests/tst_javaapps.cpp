@@ -52,6 +52,28 @@ private Q_SLOTS:
                  QStringLiteral("com.example.app"));
     }
 
+    void versionedJarKeepsItsRule_data()
+    {
+        QTest::addColumn<QString>("jar");
+        QTest::addColumn<QString>("program");
+        QTest::newRow("dashed v") << QStringLiteral("ShatteredPD-v2.5.4-Java.jar") << QStringLiteral("ShatteredPD.jar");
+        QTest::newRow("snapshot") << QStringLiteral("tool-1.0-SNAPSHOT-all.jar") << QStringLiteral("tool.jar");
+        QTest::newRow("underscore") << QStringLiteral("game_0.9.12.JAR") << QStringLiteral("game.JAR");
+        QTest::newRow("plain") << QStringLiteral("RuneLite.jar") << QStringLiteral("RuneLite.jar");
+        QTest::newRow("digit in name") << QStringLiteral("portal2.jar") << QStringLiteral("portal2.jar");
+        QTest::newRow("single number") << QStringLiteral("app-2.jar") << QStringLiteral("app-2.jar");
+        QTest::newRow("only a version") << QStringLiteral("-1.2.jar") << QStringLiteral("-1.2.jar");
+        QTest::newRow("not a jar") << QStringLiteral("launcher-1.2") << QStringLiteral("launcher-1.2");
+    }
+
+    void versionedJarKeepsItsRule()
+    {
+        // An update renames a versioned jar; the rule for it must still match.
+        QFETCH(QString, jar);
+        QFETCH(QString, program);
+        QCOMPARE(javaProgram({QStringLiteral("java"), QStringLiteral("-jar"), QStringLiteral("/home/u/Games/") + jar}), program);
+    }
+
     void noProgram_data()
     {
         QTest::addColumn<QStringList>("commandLine");
