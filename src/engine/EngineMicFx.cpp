@@ -705,7 +705,7 @@ void Engine::reconcileChatMic()
                                &Engine::scheduleReconcile);
         }
         const QString targetKey = QStringLiteral("target.object");
-        const bool appsOn = std::any_of(g.nodes.cbegin(), g.nodes.cend(), [&](const pw::Node &s) {
+        bool appsOn = std::any_of(g.nodes.cbegin(), g.nodes.cend(), [&](const pw::Node &s) {
             if (!isMicCapture(s)) {
                 return false;
             }
@@ -714,6 +714,30 @@ void Engine::reconcileChatMic()
                 return namesNode(*c, target) || linked(c->id, s.id);
             });
         });
+        // WirePlumber can drop the chat-mic link before the filtered (or previous) link is up.
+        // Keep holding while a stream we moved off chat is not yet linked from its new target.
+        if (!appsOn) {
+            for (auto it = m_micRouted.cbegin(); it != m_micRouted.cend(); ++it) {
+                if (it->chat || it->requested.isEmpty()) {
+                    continue;
+                }
+                const pw::Node *stream = g.node(it.key());
+                if (!stream || !isMicCapture(*stream)) {
+                    continue;
+                }
+                const pw::Node *dest = nullptr;
+                for (const auto &n : g.nodes) {
+                    if (n.serial == it->requested) {
+                        dest = &n;
+                        break;
+                    }
+                }
+                if (dest && !linked(dest->id, stream->id)) {
+                    appsOn = true;
+                    break;
+                }
+            }
+        }
         if (micfx::chatMicReleaseHeld(appsOn, m_chatReleaseClock.elapsed())) {
             return;
         }
