@@ -46,7 +46,7 @@ QList<Target> findTargets(const QString &home = {}, const QString &configHome = 
                           const QString &custom = {});
 Target selectTarget(const QList<Target> &targets, const QString &preferred);
 State inspect(const Target &target);
-// The manifest Version of the bundled plugin ("1.4.0") and of the one installed in target (empty
+// The manifest Version of the bundled plugin ("1.4.1") and of the one installed in target (empty
 // when it is absent or unreadable).
 QString bundledVersion();
 QString installedVersion(const Target &target);

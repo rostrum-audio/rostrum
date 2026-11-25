@@ -1,5 +1,7 @@
 #include "core/AppClassifier.h"
 
+#include "core/JavaApps.h"
+
 #include <QHash>
 
 #include <optional>
@@ -146,6 +148,11 @@ Classification classify(const AppFacts &f)
     const QString role = f.mediaRole.trimmed().toLower();
     if (role == QLatin1String("accessibility") || role == QLatin1String("production") || role == QLatin1String("test")) {
         return {AppCategory::None, Evidence::MediaRole, true};
+    }
+
+    // A known Java app is as sure as the catalog: it says which game the Java process is.
+    if (const auto app = knownJavaApp(f.props.javaProgram); app && app->category != AppCategory::None) {
+        return {app->category, Evidence::Catalog};
     }
 
     const QString binary = cleanBinary(f.props.binary).toLower();

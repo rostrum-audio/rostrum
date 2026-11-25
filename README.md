@@ -324,7 +324,8 @@ available for a custom location; it stays selected until cleared. Update and Rep
 Rostrum's plugin, preserving your OpenDeck profiles and other plugins. Python 3 is required.
 Restart OpenDeck, then drag an action onto a key: Toggle mic, Panic mute, Switch scene, Toggle bus
 mute, Volume down, Volume up, Studio Voice or Push to talk. Choose a scene or bus in the property inspector and keep
-Rostrum running. Toggle mic has a
+Rostrum running. Every action except Push to talk also works inside an OpenDeck Multi Action, where
+Volume down and Volume up step once. Toggle mic has a
 Play sound option, enabled by default: a short descending cue confirms muted, and an ascending
 cue confirms live. Cues use `pw-play` and go only to Rostrum's headphones mix; muted headphones
 also mute the cues. No cue plays if Rostrum cannot confirm the state. Disable Play sound in the

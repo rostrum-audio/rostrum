@@ -767,15 +767,30 @@ class Plugin:
             except (Unavailable, OSError):
                 pass
 
+    def _register(self, event):
+        """Remember the key an event names. False for another plugin's action, or none."""
+        action = event.get('action', '')
+        if not action.startswith(PREFIX):
+            return False
+        action = action.removeprefix(PREFIX)
+        if action not in ('mic', 'panic', 'scene', 'bus', 'volumeDown', 'volumeUp', 'studioVoice', 'pushToTalk'):
+            return False
+        self.keys[event.get('context')] = {'action': action, 'settings': event.get('payload', {}).get('settings', {})}
+        return True
+
     async def handle(self, event):
         kind, context = event.get('event'), event.get('context')
         payload = event.get('payload', {})
+        if kind == 'keyDown' and context not in self.keys and self._register(event):
+            # OpenDeck sends willAppear only to top-level keys when a deck connects, so a Multi
+            # Action's child can be pressed first. Its press carries the action and settings; fetch
+            # the lists willAppear would have, except for push to talk, which needs none and must
+            # not wait.
+            if self.keys[context]['action'] != 'pushToTalk':
+                await self.poll()
         if kind == 'willAppear':
-            action = event.get('action', '').removeprefix(PREFIX)
-            if action not in ('mic', 'panic', 'scene', 'bus', 'volumeDown', 'volumeUp', 'studioVoice',
-                              'pushToTalk'):
+            if not self._register(event):
                 return
-            self.keys[context] = {'action': action, 'settings': payload.get('settings', {})}
             await self.poll()
             await self.render(context)
         elif kind == 'willDisappear':

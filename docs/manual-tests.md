@@ -343,6 +343,18 @@ Start from a scene with no rules and "Assign automatically" on.
    and the choice is kept.
 6. Turn "Assign automatically" off: every Auto row goes back to the default sink; rule-based apps
    do not move.
+7. Java apps, with "Assign automatically" back on and no rule for `java`. Start RuneLite from the
+   Bolt Flatpak: the Apps page shows **RuneLite** (not "Java") on Game, and the row's detail
+   names the program. **Always** saves a rule, which the Rules list shows as `Java program is
+   “RuneLite”`, and nothing about it appears in `~/.config/pipewire/*/50-rostrum.conf`. Start
+   Minecraft, or another Java app, alongside it: it gets its own row. Mute one, and the other keeps
+   playing. Edit the RuneLite rule's match: the key box reads **Java program**, and saving keeps it
+   one.
+8. Java apps under an older rule. Delete the Java rules from step 7. In the Rules list, edit any
+   rule into a **Binary** rule for `java` on Game, and give it a label. Start RuneLite and Minecraft:
+   both land on Game in rows of their own, under their own names (not the label). Mute one: the
+   other keeps playing. **Always** on RuneLite adds a Java rule for it, and the `java` rule keeps its
+   bus and label. Unassign Minecraft: it leaves Game and RuneLite stays.
 
 ## 13. Crash reports
 
@@ -794,7 +806,7 @@ No physical deck is needed for the install checks.
 2. Record the plugins and profiles before pressing Install. If Rostrum's plugin is already
    installed, back up only `dev.getrostrum.Rostrum.sdPlugin` outside the plugins folder first.
    Press Install: only that directory is created under the selected config's `plugins` folder.
-   It contains `manifest.json` (Version 1.4.0, eight actions), executable `plugin.sh`, `plugin.py`,
+   It contains `manifest.json` (Version 1.4.1, eight actions), executable `plugin.sh`, `plugin.py`,
    `dbus_client.py`, `inspector.html`, the two cue sounds in `sounds/`, and sixteen SVG icons in
    `images/`. None is a symlink into a checkout or an AppImage mount. Other plugins and profiles
    remain unchanged. Stop OpenDeck during the comparison so its own writes do not obscure the
@@ -837,11 +849,15 @@ No physical deck is needed for the install checks.
      Headphones only, the key reads "off stream", and Spotify still plays in your headphones.
    - Mute Music fully, then press a "for me" key on Music: you hear it, and the stream does not
      get it (the mixer shows Headphones only).
+   - Make a Multi Action and drag Toggle bus mute (Music), Switch scene and Volume down into it:
+     OpenDeck accepts each, and refuses Push to talk. Press the key: Music mutes, the scene
+     switches, and the volume steps down once. Unplug the deck and plug it back in, then press the
+     key again: every action still runs.
 8. Update notice, in a test instance with its own config. Install plugin 1.3.0 into the selected
    OpenDeck config (an older Rostrum's bundle, or `Version` in its `manifest.json` edited to
    1.3.0), then start Rostrum.
-   - About 10 seconds after start, one "OpenDeck plugin update" notice names 1.4.0 and 1.3.0.
-     Quit and start Rostrum again: no second notice (`[opendeck] notified_version` is 1.4.0).
+   - About 10 seconds after start, one "OpenDeck plugin update" notice names 1.4.1 and 1.3.0.
+     Quit and start Rostrum again: no second notice (`[opendeck] notified_version` is 1.4.1).
    - Clear `notified_version`, start again, and press Update on the notice: the plugin is
      replaced, and a follow-up notice says to restart OpenDeck.
    - Repeat with the installed copy back at 1.3.0, and click the notice body instead: Rostrum's

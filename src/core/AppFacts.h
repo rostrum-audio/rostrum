@@ -16,11 +16,15 @@ struct ProcessFacts
     QString steamAppId; // SteamAppId / SteamGameId / STEAM_COMPAT_APP_ID, never "0"
     QString flatpakId;  // FLATPAK_ID
     QString snapName;   // SNAP_NAME
+    QStringList commandLine;
 };
 
-// Reads the environment of `pid`, but only once its executable is confirmed to be `binary`:
-// sandboxed apps report a pid from inside their sandbox, which on the host is another process.
-ProcessFacts readProcessFacts(qint64 pid, const QString &binary, const QString &procRoot = QStringLiteral("/proc"));
+// Reads the environment and command line of `pid`, but only once its executable is confirmed to
+// be `binary`: sandboxed apps report a pid from inside their sandbox, which on the host is another
+// process. With `flatpakAppId`, `pid` is taken as a pid inside that Flatpak's sandbox, and the one
+// host process of this user that it names is read; none, or more than one, reads nothing.
+ProcessFacts readProcessFacts(qint64 pid, const QString &binary, const QString &procRoot = QStringLiteral("/proc"),
+                              const QString &flatpakAppId = {});
 
 // The game's name from the Steam library ("Hades II" for 1145350), or empty.
 // Empty roots = the native and Flatpak Steam installs in the home folder.

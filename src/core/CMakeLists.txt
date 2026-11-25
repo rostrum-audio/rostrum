@@ -5,6 +5,7 @@ add_library(rostrum_core STATIC
     Requirements.cpp Requirements.h
     Model.cpp Model.h
     AppIdentity.cpp AppIdentity.h
+    JavaApps.cpp JavaApps.h
     CrashReport.cpp CrashReport.h
     UpdateFeed.cpp UpdateFeed.h
     AppClassifier.cpp AppClassifier.h

@@ -101,7 +101,8 @@ QList<AppRule> exportableRules(const Scene &scene)
     QList<AppRule> named;
     for (const auto &r : scene.rules) {
         const Bus *bus = scene.bus(r.busId);
-        if (r.match.trimmed().isEmpty() || !bus || bus->kind != BusKind::Playback) {
+        // A fragment can match only application.name or the binary, not what a Java app runs.
+        if (r.match.trimmed().isEmpty() || !bus || bus->kind != BusKind::Playback || r.key == MatchKey::Java) {
             continue;
         }
         (r.key == MatchKey::Binary ? binary : named).append(r);

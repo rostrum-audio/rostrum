@@ -1,7 +1,7 @@
 {
   "Name": "Rostrum",
   "Author": "Rostrum contributors",
-  "Version": "1.4.0",
+  "Version": "1.4.1",
   "Icon": "images/mic",
   "Category": "Rostrum",
   "CodePath": "plugin.sh",
@@ -20,7 +20,7 @@
         "Keypad"
       ],
       "DisableAutomaticStates": true,
-      "SupportedInMultiActions": false,
+      "SupportedInMultiActions": true,
       "States": [
         {
           "Image": "images/mic",
@@ -45,7 +45,7 @@
         "Keypad"
       ],
       "DisableAutomaticStates": true,
-      "SupportedInMultiActions": false,
+      "SupportedInMultiActions": true,
       "States": [
         {
           "Image": "images/panic",
@@ -69,7 +69,7 @@
         "Keypad"
       ],
       "DisableAutomaticStates": true,
-      "SupportedInMultiActions": false,
+      "SupportedInMultiActions": true,
       "States": [
         {
           "Image": "images/scene",
@@ -94,7 +94,7 @@
         "Keypad"
       ],
       "DisableAutomaticStates": true,
-      "SupportedInMultiActions": false,
+      "SupportedInMultiActions": true,
       "States": [
         {
           "Image": "images/bus",
@@ -119,7 +119,7 @@
         "Keypad"
       ],
       "DisableAutomaticStates": true,
-      "SupportedInMultiActions": false,
+      "SupportedInMultiActions": true,
       "States": [
         {
           "Image": "images/volume-down",
@@ -144,7 +144,7 @@
         "Keypad"
       ],
       "DisableAutomaticStates": true,
-      "SupportedInMultiActions": false,
+      "SupportedInMultiActions": true,
       "States": [
         {
           "Image": "images/volume-up",
@@ -169,7 +169,7 @@
         "Keypad"
       ],
       "DisableAutomaticStates": true,
-      "SupportedInMultiActions": false,
+      "SupportedInMultiActions": true,
       "States": [
         {
           "Image": "images/studio-voice-off",

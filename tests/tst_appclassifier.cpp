@@ -8,6 +8,8 @@
 #include <QTemporaryDir>
 #include <QTest>
 
+#include <unistd.h>
+
 using namespace rostrum;
 
 namespace {
@@ -26,6 +28,48 @@ void writeFile(const QString &path, const QByteArray &contents)
     QVERIFY(f.open(QIODevice::WriteOnly));
     f.write(contents);
 }
+
+// A fake /proc/<hostPid>. nsPids is the status NSpid field ("338615\t406" for a process whose
+// sandbox calls it 406).
+struct FakeProcess
+{
+    qint64 hostPid = 0;
+    QString nsPids;
+    QByteArray comm = "java";
+    QStringList commandLine;
+    QString flatpakInfoName; // [Application] name= in root/.flatpak-info
+    QString cgroup;
+    uint uid = ::getuid();
+};
+
+void writeProcess(const QString &procRoot, const FakeProcess &p)
+{
+    const QString dir = QStringLiteral("%1/%2").arg(procRoot).arg(p.hostPid);
+    writeFile(dir + QStringLiteral("/status"), QStringLiteral("Name:\t%1\nUid:\t%2\t%2\t%2\t%2\nNSpid:\t%3\n")
+                                                   .arg(QString::fromLatin1(p.comm))
+                                                   .arg(p.uid)
+                                                   .arg(p.nsPids)
+                                                   .toUtf8());
+    writeFile(dir + QStringLiteral("/comm"), p.comm + '\n');
+    QByteArray cmdline;
+    for (const QString &arg : p.commandLine) {
+        cmdline.append(arg.toUtf8()).append('\0');
+    }
+    writeFile(dir + QStringLiteral("/cmdline"), cmdline);
+    if (!p.flatpakInfoName.isEmpty()) {
+        writeFile(dir + QStringLiteral("/root/.flatpak-info"),
+                  QStringLiteral("[Application]\nname=%1\nruntime=runtime/org.freedesktop.Platform/x86_64/25.08\n\n[Instance]\n")
+                      .arg(p.flatpakInfoName)
+                      .toUtf8());
+    }
+    if (!p.cgroup.isEmpty()) {
+        writeFile(dir + QStringLiteral("/cgroup"), p.cgroup.toUtf8() + '\n');
+    }
+}
+
+const QStringList runeLite = {QStringLiteral("/app/jre/bin/java"), QStringLiteral("-cp"), QStringLiteral("client.jar"),
+                              QStringLiteral("net.runelite.client.RuneLite")};
+const QString bolt = QStringLiteral("com.adamcake.Bolt");
 
 } // namespace
 
@@ -225,6 +269,51 @@ private Q_SLOTS:
         QVERIFY(!index.find({QStringLiteral("missing")}));
     }
 
+    void knownJavaAppsByTheirProgram()
+    {
+        AppFacts f = facts(QStringLiteral("ALSA plug-in [java]"), QStringLiteral("java"));
+        f.props.javaProgram = QStringLiteral("Minecraft");
+        f.appId = bolt; // ahead of what the launcher's sandbox would say
+        const Classification c = classify(f);
+        QCOMPARE(c.category, AppCategory::Game);
+        QCOMPARE(c.evidence, Evidence::Catalog);
+        f.props.javaProgram = QStringLiteral("com.example.Game");
+        QVERIFY(classify(f).evidence != Evidence::Catalog);
+        // Tools stay excluded whatever they run.
+        f.props.javaProgram = QStringLiteral("RuneLite");
+        f.mediaRole = QStringLiteral("Production");
+        QVERIFY(classify(f).excluded);
+    }
+
+    void ownIdBeatsAnotherEntrysExec()
+    {
+        // Bolt's two entries, verbatim. The hidden helper launches Bolt too, so its Exec names
+        // Bolt's id; it is scanned first here (an earlier data dir), as it was on a real install.
+        QTemporaryDir first;
+        QTemporaryDir second;
+        writeFile(first.path() + QStringLiteral("/applications/com.adamcake.Bolt.RuneScape.desktop"),
+                  "[Desktop Entry]\nType=Application\nName=RuneScape\nIcon=runescape\nNoDisplay=true\n"
+                  "Exec=/usr/bin/flatpak run --branch=stable --arch=x86_64 com.adamcake.Bolt\n");
+        writeFile(second.path() + QStringLiteral("/applications/com.adamcake.Bolt.desktop"),
+                  "[Desktop Entry]\nType=Application\nName=Bolt\nIcon=com.adamcake.Bolt\nCategories=Game;\n"
+                  "Exec=/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=bolt com.adamcake.Bolt\n");
+        DesktopIndex index({first.path(), second.path()});
+        const auto own = index.find({bolt});
+        QVERIFY(own);
+        QCOMPARE(own->id, bolt);
+        QCOMPARE(own->categories, QStringList{QStringLiteral("Game")});
+        QCOMPARE(index.find({QStringLiteral("com.adamcake.Bolt.RuneScape")})->id,
+                 QStringLiteral("com.adamcake.Bolt.RuneScape"));
+
+        // So RuneLite in Bolt, known only by Bolt's id here, is a game.
+        const auto isOurs = [](const QString &t) { return t.startsWith(QLatin1String("rostrum.")); };
+        const StreamProps props{QStringLiteral("ALSA plug-in [java]"), QStringLiteral("java"), {}, {}};
+        const QMap<QString, QString> node{{QStringLiteral("pipewire.access.portal.app_id"), bolt}};
+        const Classification c = classify(collectFacts(props, node, 0, index, isOurs));
+        QCOMPARE(c.category, AppCategory::Game);
+        QCOMPARE(c.evidence, Evidence::DesktopEntry);
+    }
+
     void ownOutputChoiceKeepsAppIcon()
     {
         AppFacts f = facts(QStringLiteral("Discord"), QStringLiteral("Discord"));
@@ -312,12 +401,82 @@ private Q_SLOTS:
             environ.append(var).append('\0');
         }
         writeFile(dir + QStringLiteral("/environ"), environ);
+        writeFile(dir + QStringLiteral("/cmdline"), QByteArray("wine64-preloader\0Game.exe\0", 26));
         const ProcessFacts ok = readProcessFacts(4242, QStringLiteral("wine64-preloader"), proc.path());
         QCOMPARE(ok.steamAppId, QStringLiteral("1145350"));
+        QCOMPARE(ok.commandLine, (QStringList{QStringLiteral("wine64-preloader"), QStringLiteral("Game.exe")}));
 
         // A sandboxed app reports a pid from inside its sandbox: on the host that is another process.
         const ProcessFacts other = readProcessFacts(4242, QStringLiteral("obs"), proc.path());
         QVERIFY(other.steamAppId.isEmpty());
+        QVERIFY(other.commandLine.isEmpty());
+    }
+
+    void flatpakPidIsFoundOnTheHost()
+    {
+        QTemporaryDir proc;
+        // On the host, 406 is an unrelated shell; Bolt's java is 338615 and calls itself 406.
+        writeProcess(proc.path(), {406, QStringLiteral("406"), "bash", {QStringLiteral("bash")}});
+        writeProcess(proc.path(), {338615, QStringLiteral("338615\t406"), "java", runeLite, bolt});
+        const ProcessFacts f = readProcessFacts(406, QStringLiteral("java"), proc.path(), bolt);
+        QCOMPARE(f.commandLine, runeLite);
+        // Without the Flatpak id the pid is taken as a host pid, as before, and the shell is refused.
+        QVERIFY(readProcessFacts(406, QStringLiteral("java"), proc.path()).commandLine.isEmpty());
+    }
+
+    void flatpakIdFromTheCgroupToo()
+    {
+        QTemporaryDir proc;
+        FakeProcess p{500, QStringLiteral("500\t406"), "java", runeLite};
+        p.cgroup = QStringLiteral("0::/user.slice/user-1000.slice/user@1000.service/app.slice/"
+                                  "app-flatpak-com.adamcake.Bolt-2643788279.scope");
+        writeProcess(proc.path(), p);
+        QCOMPARE(readProcessFacts(406, QStringLiteral("java"), proc.path(), bolt).commandLine, runeLite);
+    }
+
+    void flatpakPidThatMatchesTwiceIsNobody()
+    {
+        QTemporaryDir proc;
+        // Two Bolt sandboxes, each with its own pid namespace, can both have a 406.
+        writeProcess(proc.path(), {500, QStringLiteral("500\t406"), "java", runeLite, bolt});
+        writeProcess(proc.path(), {600, QStringLiteral("600\t7\t406"), "java", runeLite, bolt});
+        QVERIFY(readProcessFacts(406, QStringLiteral("java"), proc.path(), bolt).commandLine.isEmpty());
+    }
+
+    void flatpakPidOfAnotherAppOrUserIsNobody()
+    {
+        QTemporaryDir proc;
+        writeProcess(proc.path(), {500, QStringLiteral("500\t406"), "java", runeLite, QStringLiteral("org.prismlauncher.PrismLauncher")});
+        FakeProcess otherUser{600, QStringLiteral("600\t406"), "java", runeLite, bolt};
+        otherUser.uid = ::getuid() + 1;
+        writeProcess(proc.path(), otherUser);
+        // A host process numbered 406 at the top level only is not in a sandbox.
+        writeProcess(proc.path(), {406, QStringLiteral("406"), "java", runeLite, bolt});
+        QVERIFY(readProcessFacts(406, QStringLiteral("java"), proc.path(), bolt).commandLine.isEmpty());
+    }
+
+    void hostPidMustStillBeJava()
+    {
+        QTemporaryDir proc;
+        // The java process exited and its sandbox's 406 is now a shell.
+        writeProcess(proc.path(), {500, QStringLiteral("500\t406"), "bash", {QStringLiteral("bash")}, bolt});
+        QVERIFY(readProcessFacts(406, QStringLiteral("java"), proc.path(), bolt).commandLine.isEmpty());
+    }
+
+    void javaIsNoMenuEntryClue()
+    {
+        // The runtime's menu entry says nothing about which Java app is playing.
+        QTemporaryDir dir;
+        writeFile(dir.path() + QStringLiteral("/applications/tool.desktop"),
+                  "[Desktop Entry]\nType=Application\nName=Tool\nExec=java -jar /opt/tool/tool.jar\nCategories=Development;\n");
+        DesktopIndex index({dir.path()});
+        QVERIFY(index.find({QStringLiteral("java")})); // the entry does answer to "java"
+        const auto isOurs = [](const QString &t) { return t.startsWith(QLatin1String("rostrum.")); };
+        const StreamProps props{QStringLiteral("ALSA plug-in [java]"), QStringLiteral("java"), {}, {}};
+        QVERIFY(collectFacts(props, {}, 0, index, isOurs).desktopId.isEmpty());
+        // Nor is the name OpenAL Soft gives a Java app's stream.
+        const StreamProps openAl{QStringLiteral("java"), QStringLiteral("java"), {}, {}};
+        QVERIFY(collectFacts(openAl, {}, 0, index, isOurs).desktopId.isEmpty());
     }
 
     void steamGameNameFromLibrary()

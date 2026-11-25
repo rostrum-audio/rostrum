@@ -92,6 +92,19 @@ private Q_SLOTS:
         QCOMPARE(actual, expected);
     }
 
+    void javaRulesStayOutOfTheFragments()
+    {
+        // The fragments can match only the name or the binary, never the program a Java app runs.
+        Scene s = defaults::scene(QStringLiteral("Live"));
+        s.rules = {{QStringLiteral("RuneLite"), MatchKey::Java, QStringLiteral("game")},
+                   {QStringLiteral("discord"), MatchKey::Binary, QStringLiteral("voice")}};
+        QCOMPARE(rule_export::exportableRules(s).size(), 1);
+        for (const QString &text : {rule_export::pulseFragment(s), rule_export::clientFragment(s)}) {
+            QVERIFY2(text.contains(QStringLiteral("rostrum.voice")), qPrintable(text));
+            QVERIFY2(!text.contains(QStringLiteral("rostrum.game")), qPrintable(text));
+        }
+    }
+
     void neverPinsStreams()
     {
         for (const QString &text : {rule_export::pulseFragment(goldenScene()), rule_export::clientFragment(goldenScene())}) {

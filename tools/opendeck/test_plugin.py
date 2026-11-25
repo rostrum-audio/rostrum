@@ -230,6 +230,26 @@ class PluginTest(unittest.IsolatedAsyncioTestCase):
                             and call['destination'] == ':1.42' for call in bus.calls))
         self.assertEqual(runner.commands, [])
 
+    async def test_multi_action_child_acts_without_will_appear(self):
+        # OpenDeck sends willAppear only to top-level keys when a deck connects, so a Multi Action's
+        # child can be pressed before the plugin has heard of it. The press says what it is.
+        app, bus, runner, _ = self.setup_plugin()
+        await app.handle({'event': 'keyDown', 'context': 'child', 'action': plugin.PREFIX + 'bus',
+                          'payload': {'settings': {'bus': 'game'}, 'isInMultiAction': True}})
+        self.assertTrue(any(call['member'] == 'ToggleBusMuted' and call['args'] == ('game',)
+                            and call['destination'] == ':1.42' for call in bus.calls))
+        await app.handle({'event': 'keyUp', 'context': 'child', 'action': plugin.PREFIX + 'bus',
+                          'payload': {'settings': {'bus': 'game'}, 'isInMultiAction': True}})
+        # Another plugin's action, or none, is still ignored.
+        before = len(bus.calls)
+        await app.handle({'event': 'keyDown', 'context': 'other', 'action': 'com.example.other',
+                          'payload': {'settings': {}}})
+        await app.handle({'event': 'keyDown', 'context': 'bare'})
+        self.assertNotIn('other', app.keys)
+        self.assertNotIn('bare', app.keys)
+        self.assertFalse(any(call['member'] == 'ToggleBusMuted' for call in bus.calls[before:]))
+        self.assertEqual(runner.commands, [])
+
     async def test_key_up_releases_and_refreshes(self):
         app, bus, _, _ = self.setup_plugin()
         await self.appear(app)
@@ -723,6 +743,17 @@ class PluginTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.steps(bus), [('game', 'stream', -0.05)])
         self.assertEqual(self.shown(app)[1], 'Game\nStream 45%')
 
+    async def test_multi_action_press_steps_volume_once(self):
+        # A Multi Action presses each child for 100 ms: one step, never the repeat.
+        app, bus, _, _ = self.volume_plugin()
+        await self.appear(app, 'volumeUp', {'bus': 'game', 'side': 'stream'})
+        await app.handle({'event': 'keyDown', 'context': 'key', 'action': plugin.PREFIX + 'volumeUp',
+                          'payload': {'settings': {'bus': 'game', 'side': 'stream'}, 'isInMultiAction': True}})
+        await asyncio.sleep(0.1)
+        await self.up(app)
+        await asyncio.sleep(plugin.REPEAT_DELAY)
+        self.assertEqual(self.steps(bus), [('game', 'stream', 0.05)])
+
     async def test_volume_hold_repeats_until_key_up(self):
         self.fast_repeat()
         app, bus, _, _ = self.volume_plugin()
@@ -969,11 +1000,16 @@ class PluginTest(unittest.IsolatedAsyncioTestCase):
 
     def test_manifest_assets(self):
         manifest = json.loads((ROOT / 'manifest.json').read_text())
-        # The installer offers Update only when the bundle is newer than the last release (1.3.0).
-        self.assertGreater(tuple(int(part) for part in manifest['Version'].split('.')), (1, 3, 0))
+        # The installer offers Update only when the bundle is newer than the copy installed, and
+        # 1.4.0 refused Multi Actions.
+        self.assertGreater(tuple(int(part) for part in manifest['Version'].split('.')), (1, 4, 0))
         actions = {action['UUID'].removeprefix(plugin.PREFIX): action for action in manifest['Actions']}
         self.assertEqual(set(actions), {'mic', 'panic', 'scene', 'bus', 'volumeDown', 'volumeUp', 'studioVoice',
                                         'pushToTalk'})
+        # A Multi Action presses each child for 100 ms. Every action works from one press, except
+        # Push to talk, which would open the mic for 100 ms.
+        for name, action in actions.items():
+            self.assertIs(action.get('SupportedInMultiActions', True), name != 'pushToTalk', name)
         # The plugin sends setState 1 for each of these; OpenDeck ignores a state the manifest
         # lacks, and two states with one image look the same on the key.
         for name in ('mic', 'panic', 'scene', 'bus', 'volumeDown', 'volumeUp', 'studioVoice', 'pushToTalk'):

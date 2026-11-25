@@ -177,7 +177,9 @@ void Apps::rebuild()
             }
         }
         if (a.identity.unnamed && unnamed.isEmpty()) {
-            unnamed = {{QStringLiteral("key"), keyString}, {QStringLiteral("binary"), a.identity.binary}};
+            unnamed = {{QStringLiteral("key"), keyString},
+                       {QStringLiteral("binary"), a.identity.binary},
+                       {QStringLiteral("javaProgram"), a.identity.javaProgram}};
         }
         if (auto it = rowOf.find(keyString); it != rowOf.end()) {
             QVariantMap row = running.at(*it).toMap();
@@ -213,6 +215,7 @@ void Apps::rebuild()
             {QStringLiteral("name"), a.identity.displayName},
             {QStringLiteral("icon"), icon},
             {QStringLiteral("binary"), a.identity.binary},
+            {QStringLiteral("javaProgram"), a.identity.javaProgram},
             {QStringLiteral("matchKey"), matchKeyName(key.key)},
             {QStringLiteral("busId"), bus ? bus->id : QString()},
             {QStringLiteral("busName"), bus ? bus->name : QString()},

@@ -24,12 +24,12 @@ QQC2.Control {
 
     function startEdit() {
         matchField.text = rule.match
-        keyBox.currentIndex = rule.matchKey === "binary" ? 1 : 0
+        keyBox.currentIndex = Math.max(0, keyBox.keys.indexOf(rule.matchKey))
         editing = true
         matchField.forceActiveFocus()
     }
     function commitEdit() {
-        if (Apps.editMatch(rule.key, matchField.text, keyBox.currentIndex === 1 ? "binary" : "name")) {
+        if (Apps.editMatch(rule.key, matchField.text, keyBox.keys[keyBox.currentIndex])) {
             editing = false
         }
     }
@@ -67,6 +67,8 @@ QQC2.Control {
                     text: {
                         const key = row.rule.matchKey === "binary"
                                   ? i18nc("@info rule key", "binary is “%1”", row.rule.match)
+                                  : row.rule.matchKey === "java"
+                                  ? i18nc("@info rule key", "Java program is “%1”", row.rule.match)
                                   : i18nc("@info rule key", "name is “%1”", row.rule.match)
                         return i18nc("@info rule details: key, last seen", "%1 · %2", key, row.rule.lastSeen)
                     }
@@ -101,7 +103,11 @@ QQC2.Control {
             spacing: Kirigami.Units.smallSpacing
             QQC2.ComboBox {
                 id: keyBox
-                model: [i18nc("@item:inlistbox match key", "Name"), i18nc("@item:inlistbox match key", "Binary")]
+                objectName: "ruleKeyBox"
+                // The match key each entry saves, in the order of the model.
+                readonly property var keys: ["name", "binary", "java"]
+                model: [i18nc("@item:inlistbox match key", "Name"), i18nc("@item:inlistbox match key", "Binary"),
+                        i18nc("@item:inlistbox match key", "Java program")]
                 Accessible.name: i18nc("@label accessible", "Match on")
             }
             QQC2.TextField {

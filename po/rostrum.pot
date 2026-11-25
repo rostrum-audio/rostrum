@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: rostrum 0.4.0\n"
 "Report-Msgid-Bugs-To: https://github.com/rostrum-audio/rostrum/issues\n"
-"POT-Creation-Date: 2026-11-23 23:19-0500\n"
+"POT-Creation-Date: 2026-11-25 00:10-0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -286,43 +286,43 @@ msgctxt "@info"
 msgid "Plays through a game audio engine"
 msgstr ""
 
-#: src/app/Apps.cpp:202
+#: src/app/Apps.cpp:204
 #, kde-format
 msgctxt "@info %1 is why Rostrum recognised the app"
 msgid "%1. Automatic assignment is off."
 msgstr ""
 
-#: src/app/Apps.cpp:204
+#: src/app/Apps.cpp:206
 #, kde-format
 msgctxt "@info %1 is why Rostrum recognised the app"
 msgid "%1. You took it off its bus."
 msgstr ""
 
-#: src/app/Apps.cpp:207
+#: src/app/Apps.cpp:209
 #, kde-format
 msgctxt "@info %1 is why Rostrum recognised the app, %2 a kind of app"
 msgid "%1. No bus receives %2 yet."
 msgstr ""
 
-#: src/app/Apps.cpp:243
+#: src/app/Apps.cpp:246
 #, kde-format
 msgctxt "@info rule last seen"
 msgid "Playing now"
 msgstr ""
 
-#: src/app/Apps.cpp:245
+#: src/app/Apps.cpp:248
 #, kde-format
 msgctxt "@info rule last seen, %1 is a relative time"
 msgid "Last seen %1"
 msgstr ""
 
-#: src/app/Apps.cpp:248
+#: src/app/Apps.cpp:251
 #, kde-format
 msgctxt "@info rule last seen"
 msgid "Not seen yet"
 msgstr ""
 
-#: src/app/Apps.cpp:372
+#: src/app/Apps.cpp:375
 #, kde-format
 msgid "A rule for “%1” already exists."
 msgstr ""
@@ -2330,44 +2330,44 @@ msgctxt "@action:button"
 msgid "Installed (newer)"
 msgstr ""
 
-#: src/app/OpenDeckSetup.cpp:176
+#: src/app/OpenDeckSetup.cpp:182
 #, kde-format
 msgctxt "@info"
 msgid "Could not open the OpenDeck website."
 msgstr ""
 
-#: src/app/OpenDeckSetup.cpp:193
+#: src/app/OpenDeckSetup.cpp:200
 #, kde-format
 msgctxt "@info"
 msgid ""
 "Plugin installed. Restart OpenDeck, then drag a Rostrum action onto a key."
 msgstr ""
 
-#: src/app/OpenDeckSetup.cpp:194
+#: src/app/OpenDeckSetup.cpp:201
 #, kde-format
 msgctxt "@info"
 msgid "The plugin already matches this release. Nothing was changed."
 msgstr ""
 
-#: src/app/OpenDeckSetup.cpp:197
+#: src/app/OpenDeckSetup.cpp:204
 #, kde-format
 msgctxt "@info"
 msgid "Choose an OpenDeck installation or plugins folder first."
 msgstr ""
 
-#: src/app/OpenDeckSetup.cpp:201
+#: src/app/OpenDeckSetup.cpp:208
 #, kde-format
 msgctxt "@info"
 msgid "The plugins folder is missing or could not be created: %1."
 msgstr ""
 
-#: src/app/OpenDeckSetup.cpp:204
+#: src/app/OpenDeckSetup.cpp:211
 #, kde-format
 msgctxt "@info"
 msgid "Python 3 was not found. Install python3 and try again."
 msgstr ""
 
-#: src/app/OpenDeckSetup.cpp:208
+#: src/app/OpenDeckSetup.cpp:215
 #, kde-format
 msgctxt "@info"
 msgid ""
@@ -2375,14 +2375,14 @@ msgid ""
 "replaced."
 msgstr ""
 
-#: src/app/OpenDeckSetup.cpp:212
+#: src/app/OpenDeckSetup.cpp:219
 #, kde-format
 msgctxt "@info"
 msgid ""
 "The plugin destination is a link or is not a folder: %1. It was not replaced."
 msgstr ""
 
-#: src/app/OpenDeckSetup.cpp:217
+#: src/app/OpenDeckSetup.cpp:224
 #, kde-format
 msgctxt "@info"
 msgid ""
@@ -2390,13 +2390,13 @@ msgid ""
 "plugin was not replaced."
 msgstr ""
 
-#: src/app/OpenDeckSetup.cpp:222
+#: src/app/OpenDeckSetup.cpp:229
 #, kde-format
 msgctxt "@info"
 msgid "Could not replace the plugin at %1. The previous copy was kept."
 msgstr ""
 
-#: src/app/OpenDeckSetup.cpp:227
+#: src/app/OpenDeckSetup.cpp:234
 #, kde-format
 msgctxt "@info"
 msgid ""
@@ -2940,46 +2940,52 @@ msgstr ""
 #: src/app/qml/AppRow.qml:37
 #, kde-format
 msgctxt "@info"
+msgid "matched by Java program"
+msgstr ""
+
+#: src/app/qml/AppRow.qml:38
+#, kde-format
+msgctxt "@info"
 msgid "matched by name"
 msgstr ""
 
-#: src/app/qml/AppRow.qml:68 src/app/qml/AppRow.qml:207
+#: src/app/qml/AppRow.qml:69 src/app/qml/AppRow.qml:208
 #, kde-format
 msgctxt "@info"
 msgid "Unassigned"
 msgstr ""
 
-#: src/app/qml/AppRow.qml:84
+#: src/app/qml/AppRow.qml:85
 #, kde-format
 msgctxt "@info accessible: app on bus"
 msgid "%1, on %2"
 msgstr ""
 
-#: src/app/qml/AppRow.qml:85
+#: src/app/qml/AppRow.qml:86
 #, kde-format
 msgctxt "@info accessible"
 msgid "%1, unassigned"
 msgstr ""
 
-#: src/app/qml/AppRow.qml:153
+#: src/app/qml/AppRow.qml:154
 #, kde-format
 msgctxt "@info:tooltip"
 msgid "Rostrum put it here. Move it, or turn on Always, to decide yourself."
 msgstr ""
 
-#: src/app/qml/AppRow.qml:155 src/app/qml/AppRow.qml:247
+#: src/app/qml/AppRow.qml:156 src/app/qml/AppRow.qml:248
 #, kde-format
 msgctxt "@info:tooltip"
 msgid "New launches go to this bus too"
 msgstr ""
 
-#: src/app/qml/AppRow.qml:156 src/app/qml/AppRow.qml:249
+#: src/app/qml/AppRow.qml:157 src/app/qml/AppRow.qml:250
 #, kde-format
 msgctxt "@info:tooltip"
 msgid "Only this launch goes to this bus"
 msgstr ""
 
-#: src/app/qml/AppRow.qml:172 src/app/qml/BusStrip.qml:200
+#: src/app/qml/AppRow.qml:173 src/app/qml/BusStrip.qml:200
 #: src/app/qml/CompactView.qml:131 src/app/qml/DeviceList.qml:245
 #: src/app/qml/MasterFader.qml:134
 #, kde-format
@@ -2987,82 +2993,82 @@ msgctxt "@label accessible"
 msgid "%1 level"
 msgstr ""
 
-#: src/app/qml/AppRow.qml:184
+#: src/app/qml/AppRow.qml:185
 #, kde-format
 msgctxt "@action:button accessible"
 msgid "Assign %1 to a bus"
 msgstr ""
 
-#: src/app/qml/AppRow.qml:235
+#: src/app/qml/AppRow.qml:236
 #, kde-format
 msgctxt "@option:check always send this app to its bus"
 msgid "Always"
 msgstr ""
 
-#: src/app/qml/AppRow.qml:244
+#: src/app/qml/AppRow.qml:245
 #, kde-format
 msgctxt "@option:check accessible"
 msgid "Always send %1 to %2"
 msgstr ""
 
-#: src/app/qml/AppRow.qml:248
+#: src/app/qml/AppRow.qml:249
 #, kde-format
 msgctxt "@info:tooltip"
 msgid "Make it a rule, so it lands here even before Rostrum starts"
 msgstr ""
 
-#: src/app/qml/AppRow.qml:254 src/app/qml/CompactView.qml:145
+#: src/app/qml/AppRow.qml:255 src/app/qml/CompactView.qml:145
 #: src/app/qml/MasterFader.qml:83
 #, kde-format
 msgctxt "@action:button"
 msgid "Unmute"
 msgstr ""
 
-#: src/app/qml/AppRow.qml:254 src/app/qml/CompactView.qml:145
+#: src/app/qml/AppRow.qml:255 src/app/qml/CompactView.qml:145
 #: src/app/qml/MasterFader.qml:83
 #, kde-format
 msgctxt "@action:button"
 msgid "Mute"
 msgstr ""
 
-#: src/app/qml/AppRow.qml:264
+#: src/app/qml/AppRow.qml:265
 #, kde-format
 msgctxt "@action:button accessible"
 msgid "Mute %1"
 msgstr ""
 
-#: src/app/qml/AppRow.qml:267
+#: src/app/qml/AppRow.qml:268
 #, kde-format
 msgctxt "@info:tooltip"
 msgid "Mute this app"
 msgstr ""
 
-#: src/app/qml/AppRow.qml:268
+#: src/app/qml/AppRow.qml:269
 #, kde-format
 msgctxt "@info:tooltip"
 msgid "Muted. Saved with its rule in this scene."
 msgstr ""
 
-#: src/app/qml/AppRow.qml:269
+#: src/app/qml/AppRow.qml:270
 #, kde-format
 msgctxt "@info:tooltip"
 msgid "Muted until Rostrum quits"
 msgstr ""
 
-#: src/app/qml/AppRow.qml:285 src/app/qml/CompactView.qml:110
+#: src/app/qml/AppRow.qml:286 src/app/qml/CompactView.qml:110
 #: src/app/qml/MasterFader.qml:107
 #, kde-format
 msgctxt "@label accessible"
 msgid "%1 volume"
 msgstr ""
 
-#: src/app/qml/AppRow.qml:287
+#: src/app/qml/AppRow.qml:288
 #, kde-format
 msgctxt "@info:tooltip percent"
 msgid "%1%"
 msgstr ""
 
-#: src/app/qml/AppRow.qml:296
+#: src/app/qml/AppRow.qml:297
 #, kde-format
 msgctxt "@info %1 is a device or program, e.g. Easy Effects Sink, %2 a bus"
 msgid ""
@@ -3070,7 +3076,7 @@ msgid ""
 "meter, fader and mute do not reach it."
 msgstr ""
 
-#: src/app/qml/AppRow.qml:299
+#: src/app/qml/AppRow.qml:300
 #, kde-format
 msgctxt "@action:button"
 msgid "Move Back"
@@ -3108,96 +3114,108 @@ msgid ""
 "as they play. Your own assignments always win."
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:93 src/app/qml/AppsPage.qml:230
+#: src/app/qml/AppsPage.qml:93
+#, kde-format
+msgid ""
+"A Java app is playing audio without a name. It runs “%1”. Name it to give it "
+"a rule."
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:96 src/app/qml/AppsPage.qml:237
 #, kde-format
 msgctxt "unknown program"
 msgid "unknown"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:92
+#: src/app/qml/AppsPage.qml:95
 #, kde-format
 msgid ""
 "An app is playing audio without a name. Its program is “%1”. Name it to give "
 "it a rule."
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:96
+#: src/app/qml/AppsPage.qml:99
 #, kde-format
 msgctxt "@action:button"
 msgid "Name It…"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:118
+#: src/app/qml/AppsPage.qml:121
 #, kde-format
 msgctxt "@title"
 msgid "Playing now"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:149
+#: src/app/qml/AppsPage.qml:152
 #, kde-format
 msgctxt "@title"
 msgid "Saved rules"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:156
+#: src/app/qml/AppsPage.qml:159
 #, kde-format
 msgctxt "@info %1 is a scene"
 msgid "Rules in “%1”. New launches of these apps go straight to their bus."
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:179
+#: src/app/qml/AppsPage.qml:182
 #, kde-format
 msgid "No rules yet"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:179
+#: src/app/qml/AppsPage.qml:182
 #, kde-format
 msgid "No rules match"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:181
+#: src/app/qml/AppsPage.qml:184
 #, kde-format
 msgid "Assign a playing app with Always on and it gets a rule."
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:204
+#: src/app/qml/AppsPage.qml:209
 #, kde-format
 msgctxt "@title:dialog"
 msgid "Name This App"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:209
+#: src/app/qml/AppsPage.qml:214
 #, kde-format
 msgctxt "@action:button"
 msgid "Save Rule"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:218 src/app/qml/ConfirmDialog.qml:57
+#: src/app/qml/AppsPage.qml:223 src/app/qml/ConfirmDialog.qml:57
 #: src/app/qml/ObsSetupDialog.qml:25 src/app/qml/RecordingTracks.qml:225
-#: src/app/qml/RuleRow.qml:122 src/app/qml/SceneNameDialog.qml:42
+#: src/app/qml/RuleRow.qml:128 src/app/qml/SceneNameDialog.qml:42
 #, kde-format
 msgctxt "@action:button"
 msgid "Cancel"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:230
+#: src/app/qml/AppsPage.qml:236
+#, kde-format
+msgid "Java program: %1"
+msgstr ""
+
+#: src/app/qml/AppsPage.qml:237
 #, kde-format
 msgid "Program: %1"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:236
+#: src/app/qml/AppsPage.qml:243
 #, kde-format
 msgctxt "@info:placeholder"
 msgid "Name, for example “Game client”"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:237
+#: src/app/qml/AppsPage.qml:244
 #, kde-format
 msgctxt "@label accessible"
 msgid "App name"
 msgstr ""
 
-#: src/app/qml/AppsPage.qml:243
+#: src/app/qml/AppsPage.qml:250
 #, kde-format
 msgctxt "@label accessible"
 msgid "Send to bus"
@@ -5875,73 +5893,85 @@ msgctxt "@info rule key"
 msgid "binary is “%1”"
 msgstr ""
 
-#: src/app/qml/RuleRow.qml:70
+#: src/app/qml/RuleRow.qml:71
+#, kde-format
+msgctxt "@info rule key"
+msgid "Java program is “%1”"
+msgstr ""
+
+#: src/app/qml/RuleRow.qml:72
 #, kde-format
 msgctxt "@info rule key"
 msgid "name is “%1”"
 msgstr ""
 
-#: src/app/qml/RuleRow.qml:71
+#: src/app/qml/RuleRow.qml:73
 #, kde-format
 msgctxt "@info rule details: key, last seen"
 msgid "%1 · %2"
 msgstr ""
 
-#: src/app/qml/RuleRow.qml:81
+#: src/app/qml/RuleRow.qml:83
 #, kde-format
 msgctxt "@action:button"
 msgid "Edit match"
 msgstr ""
 
-#: src/app/qml/RuleRow.qml:84
+#: src/app/qml/RuleRow.qml:86
 #, kde-format
 msgctxt "@action:button accessible"
 msgid "Edit the match for %1"
 msgstr ""
 
-#: src/app/qml/RuleRow.qml:90
+#: src/app/qml/RuleRow.qml:92
 #, kde-format
 msgctxt "@action:button"
 msgid "Delete rule"
 msgstr ""
 
-#: src/app/qml/RuleRow.qml:93
+#: src/app/qml/RuleRow.qml:95
 #, kde-format
 msgctxt "@action:button accessible"
 msgid "Delete the rule for %1"
 msgstr ""
 
-#: src/app/qml/RuleRow.qml:104
+#: src/app/qml/RuleRow.qml:109
 #, kde-format
 msgctxt "@item:inlistbox match key"
 msgid "Name"
 msgstr ""
 
-#: src/app/qml/RuleRow.qml:104
+#: src/app/qml/RuleRow.qml:109
 #, kde-format
 msgctxt "@item:inlistbox match key"
 msgid "Binary"
 msgstr ""
 
-#: src/app/qml/RuleRow.qml:105
-#, kde-format
-msgctxt "@label accessible"
-msgid "Match on"
-msgstr ""
-
 #: src/app/qml/RuleRow.qml:110
 #, kde-format
-msgctxt "@info:placeholder"
-msgid "Exact app name or binary"
+msgctxt "@item:inlistbox match key"
+msgid "Java program"
 msgstr ""
 
 #: src/app/qml/RuleRow.qml:111
 #, kde-format
 msgctxt "@label accessible"
+msgid "Match on"
+msgstr ""
+
+#: src/app/qml/RuleRow.qml:116
+#, kde-format
+msgctxt "@info:placeholder"
+msgid "Exact app name or binary"
+msgstr ""
+
+#: src/app/qml/RuleRow.qml:117
+#, kde-format
+msgctxt "@label accessible"
 msgid "Match"
 msgstr ""
 
-#: src/app/qml/RuleRow.qml:116 src/app/qml/SceneNameDialog.qml:12
+#: src/app/qml/RuleRow.qml:122 src/app/qml/SceneNameDialog.qml:12
 #, kde-format
 msgctxt "@action:button"
 msgid "Save"

@@ -89,8 +89,11 @@ QQC2.Pane {
             Layout.fillWidth: true
             visible: Apps.unnamed.key !== undefined
             type: Kirigami.MessageType.Information
-            text: i18n("An app is playing audio without a name. Its program is “%1”. Name it to give it a rule.",
-                       Apps.unnamed.binary || i18nc("unknown program", "unknown"))
+            text: Apps.unnamed.javaProgram
+                  ? i18n("A Java app is playing audio without a name. It runs “%1”. Name it to give it a rule.",
+                         Apps.unnamed.javaProgram)
+                  : i18n("An app is playing audio without a name. Its program is “%1”. Name it to give it a rule.",
+                         Apps.unnamed.binary || i18nc("unknown program", "unknown"))
             actions: [
                 Kirigami.Action {
                     text: i18nc("@action:button", "Name It…")
@@ -191,10 +194,12 @@ QQC2.Pane {
         id: nameDialog
         property string appKey
         property string binary
+        property string javaProgram
 
         function openFor(app) {
             appKey = app.key
             binary = app.binary || ""
+            javaProgram = app.javaProgram || ""
             nameField.text = ""
             busBox.currentIndex = Math.max(0, Apps.buses.findIndex(b => b.id === "desktop"))
             open()
@@ -227,7 +232,9 @@ QQC2.Pane {
                 Layout.fillWidth: true
                 Layout.preferredWidth: Kirigami.Units.gridUnit * 20
                 wrapMode: Text.WordWrap
-                text: i18n("Program: %1", nameDialog.binary || i18nc("unknown program", "unknown"))
+                text: nameDialog.javaProgram
+                      ? i18n("Java program: %1", nameDialog.javaProgram)
+                      : i18n("Program: %1", nameDialog.binary || i18nc("unknown program", "unknown"))
                 opacity: 0.7
             }
             QQC2.TextField {

@@ -13,12 +13,16 @@
 #include "pw/PwContext.h"
 
 #include <QCoreApplication>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QEvent>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 
 #include <cmath>
+#include <unistd.h>
 
 #include <spa/param/audio/format-utils.h>
 #include <spa/param/param.h>
@@ -77,6 +81,37 @@ pw::Port port(uint32_t id, uint32_t node, bool output, const char *channel)
     p.output = output;
     p.channel = QString::fromLatin1(channel);
     return p;
+}
+
+// A fake /proc/<pid> for a java process of this user running `mainClass`.
+void writeJavaProcess(const QString &procRoot, qint64 pid, const QString &nsPids, const QByteArray &mainClass,
+                      const QString &flatpak = {})
+{
+    const auto write = [](const QString &path, const QByteArray &contents) {
+        QDir().mkpath(QFileInfo(path).absolutePath());
+        QFile f(path);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write(contents);
+    };
+    const QString d = QStringLiteral("%1/%2").arg(procRoot).arg(pid);
+    write(d + QStringLiteral("/status"),
+          QStringLiteral("Name:\tjava\nUid:\t%1\t%1\t%1\t%1\nNSpid:\t%2\n").arg(::getuid()).arg(nsPids).toUtf8());
+    write(d + QStringLiteral("/comm"), "java\n");
+    write(d + QStringLiteral("/cmdline"), QByteArray("java\0-cp\0game.jar\0", 18) + mainClass + '\0');
+    if (!flatpak.isEmpty()) {
+        write(d + QStringLiteral("/root/.flatpak-info"), "[Application]\nname=" + flatpak.toUtf8() + '\n');
+    }
+}
+
+// A Java app's playback stream, named the way the ALSA plug-in names it.
+pw::Node javaStream(uint32_t id, qint64 pid)
+{
+    pw::Node n = node(id, "ALSA plug-in [java]", "Stream/Output/Audio");
+    n.appName = QStringLiteral("ALSA plug-in [java]");
+    n.binary = QStringLiteral("java");
+    n.pid = pid;
+    n.serial = QString::number(1000 + id);
+    return n;
 }
 
 } // namespace
@@ -811,6 +846,170 @@ private Q_SLOTS:
         pw.testingSetDefaults(QStringLiteral("bluez_output.dead.a2dp-sink"), QStringLiteral("alsa_input.webcam"));
         flush();
         QVERIFY(!engine.headphonesTransportUnhealthy());
+    }
+
+    void javaAppsGetTheirOwnRulesAndLevels()
+    {
+        QTemporaryDir dir;
+        QTemporaryDir proc;
+        // A fake /proc: native RuneLite (500), Minecraft (600), and RuneLite in Bolt's sandbox,
+        // which the stream knows as 406 (host 700).
+        writeJavaProcess(proc.path(), 500, QStringLiteral("500"), "net.runelite.client.RuneLite");
+        writeJavaProcess(proc.path(), 600, QStringLiteral("600"), "net.minecraft.client.main.Main");
+        writeJavaProcess(proc.path(), 700, QStringLiteral("700\t406"), "net.runelite.client.RuneLite",
+                         QStringLiteral("com.adamcake.Bolt"));
+
+        pw::Graph g;
+        for (const auto &[id, pid] : {std::pair<uint32_t, qint64>{50, 500}, {60, 600}, {70, 406}, {80, 999}}) {
+            pw::Node n = javaStream(id, pid);
+            if (id == 70) {
+                n.props.insert(QStringLiteral("pipewire.access.portal.app_id"), QStringLiteral("com.adamcake.Bolt"));
+            }
+            g.nodes.insert(n.id, n);
+        }
+
+        pw::PwContext pw; // never started: stand-in graph only
+        engine::Engine engine(&pw);
+        engine.testingSetProcRoot(proc.path());
+        engine::SceneManager scenes(&engine, dir.path());
+        scenes.load(QStringLiteral("Live"));
+        pw.testingInstallGraph(g);
+
+        QHash<uint32_t, engine::AppStream> by;
+        const auto refresh = [&] {
+            by.clear();
+            for (const auto &s : engine.appStreams()) {
+                by.insert(s.nodeId, s);
+            }
+        };
+        refresh();
+        QCOMPARE(by.size(), 4);
+        QCOMPARE(by[50].identity.key.toString(), QStringLiteral("java:RuneLite"));
+        QCOMPARE(by[50].identity.displayName, QStringLiteral("RuneLite"));
+        QCOMPARE(by[60].identity.displayName, QStringLiteral("Minecraft"));
+        QCOMPARE(by[70].identity.key.toString(), QStringLiteral("java:RuneLite")); // Flatpak, same app
+        QCOMPARE(by[80].identity.key.toString(), QStringLiteral("binary:java"));  // unreadable: as before
+
+        const AppKey runeLite{MatchKey::Java, QStringLiteral("RuneLite")};
+        const AppKey minecraft{MatchKey::Java, QStringLiteral("Minecraft")};
+        engine.setAppMuted(minecraft, true);
+        QVERIFY(engine.appMuted(minecraft));
+        QVERIFY(!engine.appMuted(runeLite));
+
+        // A rule from before Java programs were known still catches every other Java app.
+        engine.assignApp({MatchKey::Binary, QStringLiteral("java")}, QStringLiteral("desktop"), true);
+        engine.assignApp(runeLite, QStringLiteral("game"), true);
+        refresh();
+        QCOMPARE(by[50].busId, QStringLiteral("game"));
+        QCOMPARE(by[70].busId, QStringLiteral("game"));
+        QCOMPARE(by[60].busId, QStringLiteral("desktop"));
+        QCOMPARE(by[80].busId, QStringLiteral("desktop"));
+        QVERIFY(engine.scene().rule(MatchKey::Java, QStringLiteral("runelite")));
+
+        // Name It… labels that program's rule only.
+        engine.setRuleLabel(runeLite, QStringLiteral("OSRS"));
+        refresh();
+        QCOMPARE(by[50].identity.displayName, QStringLiteral("OSRS"));
+        QCOMPARE(by[60].identity.displayName, QStringLiteral("Minecraft"));
+    }
+
+    void olderJavaRuleLeavesEachJavaAppItsOwnRow()
+    {
+        QTemporaryDir dir;
+        QTemporaryDir proc;
+        writeJavaProcess(proc.path(), 500, QStringLiteral("500"), "net.runelite.client.RuneLite");
+        writeJavaProcess(proc.path(), 600, QStringLiteral("600"), "net.minecraft.client.main.Main");
+        writeJavaProcess(proc.path(), 700, QStringLiteral("700"), "com.example.Game");
+        pw::Graph g;
+        for (const auto &[id, pid] : {std::pair<uint32_t, qint64>{50, 500}, {60, 600}, {70, 700}}) {
+            const pw::Node n = javaStream(id, pid);
+            g.nodes.insert(n.id, n);
+        }
+        pw::PwContext pw; // never started: stand-in graph only
+        engine::Engine engine(&pw);
+        engine.testingSetProcRoot(proc.path());
+        engine::SceneManager scenes(&engine, dir.path());
+        scenes.load(QStringLiteral("Live"));
+
+        // From before Java programs were known: Name It… on the one "Java" row, at half volume.
+        const AppKey anyJava{MatchKey::Binary, QStringLiteral("java")};
+        engine.assignApp(anyJava, QStringLiteral("game"), true);
+        engine.setRuleLabel(anyJava, QStringLiteral("RuneLite"));
+        engine.setAppVolume(anyJava, 0.5);
+        pw.testingInstallGraph(g);
+
+        QHash<uint32_t, engine::AppStream> by;
+        const auto refresh = [&] {
+            by.clear();
+            for (const auto &s : engine.appStreams()) {
+                by.insert(s.nodeId, s);
+            }
+        };
+        refresh();
+        QCOMPARE(by.size(), 3);
+        // The older rule still places every Java app, but each keeps its own name and row.
+        QCOMPARE(by[50].identity.displayName, QStringLiteral("RuneLite"));
+        QCOMPARE(by[60].identity.displayName, QStringLiteral("Minecraft"));
+        QCOMPARE(by[70].identity.displayName, QStringLiteral("Java"));
+        QVERIFY(by[70].identity.unnamed);
+        for (const uint32_t id : {50u, 60u, 70u}) {
+            QCOMPARE(by[id].busId, QStringLiteral("game"));
+            QVERIFY(!by[id].ruleKey.isValid());
+            QCOMPARE(by[id].volume, 0.5); // the level the older rule set, until the app gets its own
+        }
+
+        // Mute one: the other keeps playing, and the older rule is untouched.
+        const AppKey runeLite{MatchKey::Java, QStringLiteral("RuneLite")};
+        const AppKey minecraft{MatchKey::Java, QStringLiteral("Minecraft")};
+        engine.setAppMuted(minecraft, true);
+        engine.setAppVolume(runeLite, 0.8);
+        refresh();
+        QVERIFY(by[60].muted);
+        QVERIFY(!by[50].muted);
+        QCOMPARE(by[50].volume, 0.8);
+        QCOMPARE(by[60].volume, 0.5);
+        QVERIFY(!engine.scene().rule(MatchKey::Binary, QStringLiteral("java"))->muted);
+        QCOMPARE(engine.scene().rule(MatchKey::Binary, QStringLiteral("java"))->volume, 0.5);
+        // Unmuting an app sticks even while the older rule is muted.
+        engine.setAppMuted(anyJava, true);
+        engine.setAppMuted(runeLite, false);
+        refresh();
+        QVERIFY(!by[50].muted);
+        QVERIFY(by[70].muted);
+        engine.setAppMuted(anyJava, false);
+
+        // An unknown Java app, which nothing recognises, can be taken off its bus too.
+        engine.unassignStream(70);
+        refresh();
+        QVERIFY(by[70].busId.isEmpty());
+        QCOMPARE(by[60].busId, QStringLiteral("game"));
+
+        // Name It… on the unknown one gives it a rule of its own, at the level it plays at,
+        // and leaves the other Java apps and the older rule alone.
+        const AppKey other{MatchKey::Java, QStringLiteral("com.example.Game")};
+        engine.assignApp(other, QStringLiteral("music"), true);
+        engine.setRuleLabel(other, QStringLiteral("Pixel Game"));
+        refresh();
+        QCOMPARE(by[70].identity.displayName, QStringLiteral("Pixel Game"));
+        QCOMPARE(by[70].busId, QStringLiteral("music"));
+        QCOMPARE(by[50].identity.displayName, QStringLiteral("RuneLite"));
+        QCOMPARE(by[50].busId, QStringLiteral("game"));
+        QCOMPARE(engine.scene().rule(MatchKey::Java, QStringLiteral("com.example.Game"))->volume, 0.5);
+        const AppRule *older = engine.scene().rule(MatchKey::Binary, QStringLiteral("java"));
+        QVERIFY(older);
+        QCOMPARE(older->label, QStringLiteral("RuneLite"));
+        QCOMPARE(older->busId, QStringLiteral("game"));
+
+        // Taking one off its bus leaves the older rule for the rest.
+        engine.unassignStream(50);
+        refresh();
+        QVERIFY(by[50].busId.isEmpty());
+        QCOMPARE(by[60].busId, QStringLiteral("game"));
+        QVERIFY(engine.scene().rule(MatchKey::Binary, QStringLiteral("java")));
+        // Assigning it again brings it back.
+        engine.assignApp(runeLite, QStringLiteral("game"), false);
+        refresh();
+        QCOMPARE(by[50].busId, QStringLiteral("game"));
     }
 
     void appMuteIsSavedLikeTheVolume()

@@ -17,7 +17,8 @@ enum class Destination { Phones, Stream, Both };
 // One of the two mixes a playback bus feeds, each with its own level.
 enum class Mix { Phones, Stream };
 enum class BusKind { Input, Playback };
-enum class MatchKey { Name, Binary };
+// Java = the program a Java app runs (core/JavaApps.h); matched only while Rostrum runs.
+enum class MatchKey { Name, Binary, Java };
 // What kind of app a bus receives automatically. None = only apps the user puts there.
 enum class AppCategory { None, Game, Voice, Music, Alerts, Desktop };
 
