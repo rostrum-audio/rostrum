@@ -548,7 +548,7 @@ const Engine::MicRecognised &Engine::recogniseCapture(const pw::Node &n) const
     r.signature = signature;
     r.identity = identify(props);
     // Where it records from is no reason to leave it unfiltered, unlike where a player plays to.
-    const AppFacts facts = collectFacts(props, n.props, n.pid, m_desktop, [](const QString &) { return true; });
+    const AppFacts facts = collectFacts(props, n.props, n.pid, m_desktop, [](const QString &) { return true; }, m_procRoot);
     r.excluded = classify(facts).excluded;
     r.iconNames = iconCandidates(facts);
     if (r.identity.unnamed && !facts.steamGameName.isEmpty()) {

@@ -1,6 +1,7 @@
 #include "engine/Engine.h"
 
 #include "core/AppFacts.h"
+#include "core/JavaApps.h"
 #include "core/Volume.h"
 #include "engine/MixPlan.h"
 #include "pw/PwContext.h"
@@ -244,6 +245,7 @@ void Engine::forgetNode(uint32_t id)
     m_appliedStreamVolume.remove(id);
     m_appliedStreamMute.remove(id);
     m_recognised.remove(id);
+    m_javaPrograms.remove(id);
     m_sentVolume.remove(id);
     m_sendsConfigured.remove(id);
     m_micRouted.remove(id);
@@ -278,6 +280,7 @@ void Engine::connectionChanged()
     m_appliedStreamVolume.clear();
     m_appliedStreamMute.clear();
     m_recognised.clear();
+    m_javaPrograms.clear();
     m_sentVolume.clear();
     m_nodeSerial.clear();
     m_pendingDestroy.clear();
@@ -605,7 +608,34 @@ bool Engine::isOwnStream(const pw::Node &n) const
 
 StreamProps Engine::propsOf(const pw::Node &n) const
 {
-    return {n.appName, n.binary, n.mediaName, n.name};
+    StreamProps props{n.appName, n.binary, n.mediaName, n.name};
+    // Playback only: which mic a Java app records keeps its plain app key.
+    if (n.isPlaybackStream() && isJavaBinary(n.binary)) {
+        props.javaProgram = javaProgramOf(n);
+    }
+    return props;
+}
+
+QString Engine::javaProgramOf(const pw::Node &n) const
+{
+    const QString appId = n.prop("pipewire.access.portal.app_id");
+    const QString signature = QStringList{n.serial, QString::number(n.pid), n.binary, appId}.join(QChar(u'\x1f'));
+    if (auto it = m_javaPrograms.constFind(n.id); it != m_javaPrograms.cend() && it->signature == signature) {
+        return it->program;
+    }
+    const QString program = javaProgram(readProcessFacts(n.pid, n.binary, m_procRoot, appId).commandLine);
+    const JavaLookup lookup{signature, program.isEmpty() ? QString() : javaRuleMatch(program)};
+    if (!lookup.program.isEmpty()) {
+        qCInfo(lcEngine) << "java program" << lookup.program << "for" << n.id;
+    }
+    return m_javaPrograms.insert(n.id, lookup)->program;
+}
+
+void Engine::testingSetProcRoot(const QString &root)
+{
+    m_procRoot = root;
+    m_javaPrograms.clear();
+    m_recognised.clear();
 }
 
 bool Engine::isRostrumTarget(const QString &target) const
@@ -659,7 +689,7 @@ QString Engine::describeTarget(const QString &target) const
 const Engine::Recognised &Engine::recognise(const pw::Node &n, const StreamProps &props, const AppIdentity &id) const
 {
     const QString signature =
-        QStringList{props.appName, props.binary, QString::number(n.pid), n.prop("media.role"),
+        QStringList{props.appName, props.binary, props.javaProgram, QString::number(n.pid), n.prop("media.role"),
                     n.prop("application.icon-name"), n.prop("application.id"), n.prop("pipewire.access.portal.app_id"),
                     n.prop("target.object"), n.prop("node.target"), n.prop("node.dont-move"),
                     m_headphones, m_pw->defaultSinkName()}
@@ -669,7 +699,8 @@ const Engine::Recognised &Engine::recognise(const pw::Node &n, const StreamProps
     }
     Recognised r;
     r.signature = signature;
-    r.facts = collectFacts(props, n.props, n.pid, m_desktop, [this](const QString &t) { return isPlainTarget(t); });
+    r.facts = collectFacts(props, n.props, n.pid, m_desktop, [this](const QString &t) { return isPlainTarget(t); },
+                           m_procRoot);
     r.detected = classify(r.facts);
     r.skipKey = (r.facts.steamAppId.isEmpty() ? id.key.toString() : QStringLiteral("steam:") + r.facts.steamAppId).toLower();
     qCInfo(lcEngine) << "recognised" << id.displayName << n.id << "as"
@@ -765,6 +796,10 @@ QStringList Engine::ruleIconCandidates(const AppRule &rule) const
     StreamProps props;
     if (rule.key == MatchKey::Binary) {
         props.binary = match;
+        props.appName = rule.label;
+    } else if (rule.key == MatchKey::Java) {
+        props.binary = QStringLiteral("java");
+        props.javaProgram = match;
         props.appName = rule.label;
     } else {
         props.appName = match;
@@ -1171,6 +1206,9 @@ void Engine::reconcileRoutes()
     }
     for (auto it = m_recognised.begin(); it != m_recognised.end();) {
         it = present.contains(it.key()) ? std::next(it) : m_recognised.erase(it);
+    }
+    for (auto it = m_javaPrograms.begin(); it != m_javaPrograms.end();) {
+        it = present.contains(it.key()) ? std::next(it) : m_javaPrograms.erase(it);
     }
     // "This launch only" assignments end once the app has been gone for a while.
     for (auto it = m_sessionAssign.begin(); it != m_sessionAssign.end();) {

@@ -219,6 +219,8 @@ public:
     void removeRule(const AppKey &key);
     void editRule(const AppKey &oldKey, const AppKey &newKey);
     void setRuleLabel(const AppKey &key, const QString &label);
+    // Unit tests only: where process facts are read from instead of /proc.
+    void testingSetProcRoot(const QString &root);
 
     // Automatic assignment: recognised apps go to the bus whose autoCategory matches, below
     // "this launch only" choices and rules. Taking an app off its automatic bus skips it from
@@ -311,6 +313,13 @@ protected:
     const pw::Node *resolveSource() const;
     bool isOwnStream(const pw::Node &n) const;
     StreamProps propsOf(const pw::Node &n) const;
+    // The program a Java playback stream's process runs, as a Java rule matches it; cached.
+    QString javaProgramOf(const pw::Node &n) const;
+    struct JavaLookup
+    {
+        QString signature; // serial, pid, binary and Flatpak id it was read for
+        QString program;
+    };
     struct Placement
     {
         QString busId;
@@ -360,7 +369,9 @@ protected:
     bool m_autoAssign = true;
     QSet<QString> m_autoSkip; // lower-case skip keys
     mutable QHash<uint32_t, Recognised> m_recognised;
+    mutable QHash<uint32_t, JavaLookup> m_javaPrograms;
     mutable DesktopIndex m_desktop;
+    QString m_procRoot = QStringLiteral("/proc");
 
     QSet<QString> m_soloed;
     bool m_pushToTalk = false;
